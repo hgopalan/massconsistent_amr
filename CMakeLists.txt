@@ -107,3 +107,34 @@ endif()
 
 # Add regression test subdirectory
 add_subdirectory(regtest)
+
+# Add documentation build target
+option(MASSCONSISTENT_BUILD_DOCS "Build Sphinx documentation" OFF)
+if(MASSCONSISTENT_BUILD_DOCS)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    find_program(SPHINX_EXECUTABLE
+                 NAMES sphinx-build
+                 DOC "Path to sphinx-build executable")
+
+    if(SPHINX_EXECUTABLE)
+      set(SPHINX_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/docs)
+      set(SPHINX_BUILD  ${CMAKE_CURRENT_BINARY_DIR}/docs)
+
+      add_custom_target(docs
+        COMMAND ${SPHINX_EXECUTABLE} -b html
+                ${SPHINX_SOURCE} ${SPHINX_BUILD}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating documentation with Sphinx"
+        VERBATIM)
+
+      message(STATUS "Documentation build target 'docs' configured")
+      message(STATUS "  Build with: cmake --build build --target docs")
+      message(STATUS "  Output: ${SPHINX_BUILD}/index.html")
+    else()
+      message(WARNING "sphinx-build not found. Install with: pip install -r docs/requirements.txt")
+    endif()
+  else()
+    message(WARNING "Python3 not found. Documentation build disabled.")
+  endif()
+endif()

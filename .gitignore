@@ -4,6 +4,11 @@ plt*/
 build_rel/
 Backtrace.*
 
+# Sphinx documentation
+docs/_build/
+docs/_static/
+docs/_templates/
+
 # Python
 __pycache__/
 *.py[cod]
