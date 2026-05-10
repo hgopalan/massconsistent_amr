@@ -1,0 +1,304 @@
+name: CMake Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Linux & macOS CPU builds ──────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.os }}, ${{ matrix.build_type }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Release, Debug]
+
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build
+
+      - name: Install build dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Configure (3D, CPU-only)
+        shell: bash
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DMASSCONSISTENT_USE_VENDORED_AMREX=ON \
+            -DMASSCONSISTENT_ENABLE_MPI=OFF \
+            -DMASSCONSISTENT_GPU_BACKEND=NONE
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Verify executable exists
+        run: test -f build/wind_solver
+
+      - name: Run regression tests
+        run: ctest --test-dir build -L regtest --output-on-failure
+
+  # ── Windows CPU build ─────────────────────────────────────────────────────
+  build_windows:
+    name: Build (windows-latest, ${{ matrix.build_type }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release, Debug]
+
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Configure (3D, CPU-only)
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_VERBOSE_MAKEFILE=ON `
+            -DMASSCONSISTENT_USE_VENDORED_AMREX=ON `
+            -DMASSCONSISTENT_ENABLE_MPI=OFF `
+            -DMASSCONSISTENT_GPU_BACKEND=NONE
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} -j 4
+
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          if (!(Test-Path "build/${{ matrix.build_type }}/wind_solver.exe" -PathType Leaf)) { exit 1 }
+
+  # ── CUDA build on Linux (Ubuntu) ─────────────────────────────────────────
+  build_cuda:
+    name: Build CUDA (ubuntu-22.04, Release)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.35
+        with:
+          cuda: '12.6.1'
+          method: 'network'
+          use-github-cache: 'false'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build
+
+      - name: Configure (3D, CUDA)
+        shell: bash
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DMASSCONSISTENT_USE_VENDORED_AMREX=ON \
+            -DMASSCONSISTENT_ENABLE_MPI=OFF \
+            -DMASSCONSISTENT_GPU_BACKEND=CUDA \
+            -DAMReX_CUDA_ARCH="8.0"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+  # ── Linux HIP build (AMD ROCm 6.2.2, Ubuntu 22.04) ──────────────────────
+  build_hip:
+    name: Build HIP (ubuntu-22.04, Release)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build wget gnupg
+
+      - name: Add ROCm apt repository (Ubuntu 22.04 / jammy)
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key \
+            | gpg --dearmor \
+            | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
+          echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.2.2 jammy main' \
+            | sudo tee /etc/apt/sources.list.d/rocm.list
+          printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' \
+            | sudo tee /etc/apt/preferences.d/rocm-pin-600
+          sudo apt-get update -qq
+
+      - name: Install ROCm/HIP packages
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            rocm-dev rocrand-dev rocprim-dev hiprand-dev rocsparse-dev rocm-cmake
+          echo 'export PATH=/opt/rocm/llvm/bin:/opt/rocm/bin:$PATH' \
+            | sudo tee /etc/profile.d/rocm.sh
+
+      - name: Configure (3D, HIP, gfx90a)
+        shell: bash
+        run: |
+          source /etc/profile.d/rocm.sh
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DMASSCONSISTENT_USE_VENDORED_AMREX=ON \
+            -DMASSCONSISTENT_ENABLE_MPI=OFF \
+            -DMASSCONSISTENT_GPU_BACKEND=HIP \
+            -DAMReX_AMD_ARCH="gfx90a"
+
+      - name: Build
+        shell: bash
+        run: |
+          source /etc/profile.d/rocm.sh
+          cmake --build build --parallel
+
+  # ── Linux SYCL build (Intel oneAPI DPC++, Ubuntu 22.04) ──────────────────
+  build_sycl:
+    name: Build SYCL (ubuntu-22.04, Release)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build wget gnupg
+
+      - name: Add Intel oneAPI apt repository
+        run: |
+          wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update -qq
+
+      - name: Install Intel DPC++/C++ compiler and MKL
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            intel-oneapi-compiler-dpcpp-cpp \
+            intel-oneapi-mkl-devel
+
+      - name: Configure (3D, SYCL)
+        shell: bash
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DCMAKE_C_COMPILER=$(which icx) \
+            -DCMAKE_CXX_COMPILER=$(which icpx) \
+            -DMASSCONSISTENT_USE_VENDORED_AMREX=ON \
+            -DMASSCONSISTENT_ENABLE_MPI=OFF \
+            -DMASSCONSISTENT_GPU_BACKEND=SYCL
+
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          cmake --build build --parallel
+
+  # ── Windows + CUDA build ──────────────────────────────────────────────────
+  build_windows_cuda:
+    name: Build Windows CUDA (windows-2022, Release)
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.35
+        id: cuda-toolkit
+        with:
+          cuda: '12.6.1'
+          sub-packages: '["nvcc", "cudart", "cuda_profiler_api", "cufft_dev", "cusparse_dev", "curand_dev"]'
+          method: 'network'
+          use-github-cache: 'false'
+
+      - name: Install Ninja
+        run: |
+          curl.exe -L -o ninja-win.zip https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip
+          Expand-Archive -Path ninja-win.zip -DestinationPath .
+          echo "$pwd" >> $env:GITHUB_PATH
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure (3D, CUDA)
+        run: |
+          cmake -S . -B build `
+            -G "Ninja" `
+            -DCMAKE_VERBOSE_MAKEFILE=ON `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DMASSCONSISTENT_USE_VENDORED_AMREX=ON `
+            -DMASSCONSISTENT_ENABLE_MPI=OFF `
+            -DMASSCONSISTENT_GPU_BACKEND=CUDA `
+            -DAMReX_CUDA_ARCH="8.0" `
+            -DCMAKE_CXX_COMPILER=cl `
+            -DCMAKE_CUDA_COMPILER=nvcc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build AMReX
+        run: |
+          cmake --build build --config Release --target amrex_3d -j 4
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build
+        run: |
+          cmake --build build --config Release -j 4
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
