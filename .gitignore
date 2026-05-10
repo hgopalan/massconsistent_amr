@@ -1,0 +1,22 @@
+build/
+build_*/
+plt*/
+build_rel/
+Backtrace.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# Ignore user-local solver input files at root / build level,
+# but NOT the committed inputs.i files inside regtest/
+inputs.i
+!regtest/**/inputs.i
+terrain.xyz
+terrain.csv
+!regtest/**/terrain.csv
