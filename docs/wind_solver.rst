@@ -72,8 +72,10 @@ The RHS of the Poisson equation is computed as:
 
    \text{rhs}(i,j,k) = -\nabla\cdot\mathbf{u}_0
 
-using centred differences in the interior and one-sided differences at domain
-boundaries.  Sub-surface cells are skipped (rhs = 0).
+By default, centred differences are used in the interior and one-sided differences
+at domain boundaries.  Alternatively, the ``deriv_method`` parameter allows using
+WENO-3 or WENO-5 schemes for improved accuracy near discontinuities or steep gradients.
+Sub-surface cells are skipped (rhs = 0).
 
 **7. MLMG Poisson solve**
 
@@ -95,8 +97,8 @@ tolerance (default 1e-8).
    v = v_0 - \alpha_h^2\,\partial\lambda/\partial y, \quad
    w = w_0 - \alpha_v^2\,\partial\lambda/\partial z
 
-One-sided gradients are used at domain boundaries.  Sub-surface cells are
-reset to zero.
+One-sided or one-sided/upwind gradients are used at domain boundaries (depending
+on the ``deriv_method``).  Sub-surface cells are reset to zero.
 
 **9. Compute divergence diagnostics**
 

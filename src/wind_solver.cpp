@@ -169,6 +169,75 @@ static Real idw_terrain(Real xq, Real yq,
     return zval / wsum;
 }
 
+// WENO 3 stencil for derivative at interior points
+// Assumes uniform grid spacing, returns du/dx with WENO-3 approximation
+// Uses 3-point stencil: f[-1], f[0], f[+1] with spacing h
+AMREX_GPU_DEVICE static Real weno3_deriv(Real fm1, Real f0, Real fp1, Real h)
+{
+    // WENO-3 is 3rd order accurate in smooth regions
+    // Bias toward central difference with upwind bias for discontinuities
+    const Real eps = Real(1.0e-12);
+    
+    // Compute smoothness indicators for each stencil
+    Real IS_forward = (fp1 - f0) * (fp1 - f0);   // smoothness of [f0, fp1]
+    Real IS_backward = (f0 - fm1) * (f0 - fm1);  // smoothness of [fm1, f0]
+    
+    // Weights
+    const Real gamma_forward = Real(2.0) / Real(3.0);
+    const Real gamma_backward = Real(1.0) / Real(3.0);
+    Real w_forward = gamma_forward / ((eps + IS_forward) * (eps + IS_forward));
+    Real w_backward = gamma_backward / ((eps + IS_backward) * (eps + IS_backward));
+    Real w_sum = w_forward + w_backward;
+    w_forward /= w_sum;
+    w_backward /= w_sum;
+    
+    // Stencil derivatives (2nd order)
+    Real d_forward = (fp1 - f0) / h;   // forward difference
+    Real d_backward = (f0 - fm1) / h;  // backward difference
+    
+    // WENO combination
+    return w_forward * d_forward + w_backward * d_backward;
+}
+
+// WENO 5 stencil for derivative at interior points
+// Assumes uniform grid spacing, returns du/dx with WENO-5 approximation
+// Uses 5-point stencil: f[-2], f[-1], f[0], f[+1], f[+2] with spacing h
+AMREX_GPU_DEVICE static Real weno5_deriv(Real fm2, Real fm1, Real f0, Real fp1, Real fp2, Real h)
+{
+    // WENO-5 is 5th order accurate in smooth regions, 3rd order near shocks
+    const Real eps = Real(1.0e-12);
+    
+    // Compute smoothness indicators for each sub-stencil
+    Real IS_forward = (fp2 - Real(2.0)*fp1 + f0)*(fp2 - Real(2.0)*fp1 + f0)*Real(0.25) + 
+                      (Real(3.0)*fp2 - Real(4.0)*fp1 + f0)*(Real(3.0)*fp2 - Real(4.0)*fp1 + f0)/Real(12.0);
+    
+    Real IS_central = (fp1 - Real(2.0)*f0 + fm1)*(fp1 - Real(2.0)*f0 + fm1)*Real(0.25) + 
+                      (fp1 - fm1)*(fp1 - fm1)/Real(12.0);
+    
+    Real IS_backward = (f0 - Real(2.0)*fm1 + fm2)*(f0 - Real(2.0)*fm1 + fm2)*Real(0.25) + 
+                       (Real(3.0)*f0 - Real(4.0)*fm1 + fm2)*(Real(3.0)*f0 - Real(4.0)*fm1 + fm2)/Real(12.0);
+    
+    // Weights
+    const Real gamma_forward = Real(0.1);
+    const Real gamma_central = Real(0.6);
+    const Real gamma_backward = Real(0.3);
+    Real w_forward = gamma_forward / ((eps + IS_forward) * (eps + IS_forward));
+    Real w_central = gamma_central / ((eps + IS_central) * (eps + IS_central));
+    Real w_backward = gamma_backward / ((eps + IS_backward) * (eps + IS_backward));
+    Real w_sum = w_forward + w_central + w_backward;
+    w_forward /= w_sum;
+    w_central /= w_sum;
+    w_backward /= w_sum;
+    
+    // Stencil derivatives (2nd order accurate)
+    Real d_forward = (fp2 - Real(4.0)*fp1 + Real(3.0)*f0) / (Real(2.0)*h);  // forward biased
+    Real d_central = (fp1 - fm1) / (Real(2.0)*h);                           // central
+    Real d_backward = (Real(-3.0)*f0 + Real(4.0)*fm1 - fm2) / (Real(2.0)*h); // backward biased
+    
+    // WENO combination
+    return w_forward * d_forward + w_central * d_central + w_backward * d_backward;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -217,7 +286,7 @@ int main(int argc, char* argv[])
         pp.query("max_grid_size", max_grid_size);
         pp.query("plot_file",     plot_file);
 
-        // Terrain-aligned extraction parameters
+         // Terrain-aligned extraction parameters
         // extract_agl  : sample at this height above local terrain [m]; snapped to
         //                the nearest cell-centre level.  Takes priority over extract_k.
         // extract_k    : sample at this k-index (0 = lowest model level).
@@ -228,6 +297,26 @@ int main(int argc, char* argv[])
         pp.query("extract_agl",  extract_agl);
         pp.query("extract_k",    extract_k);
         pp.query("extract_file", extract_file);
+
+        // Derivative computation method: "central", "weno3", or "weno5"
+        // "central" (default): 2nd order central differences (one-sided at boundaries)
+        // "weno3": 3rd order WENO scheme (WENO-3)
+        // "weno5": 5th order WENO scheme (WENO-5)
+        std::string deriv_method = "central";
+        pp.query("deriv_method", deriv_method);
+        
+        // Validate deriv_method
+        if (deriv_method != "central" && deriv_method != "weno3" && deriv_method != "weno5") {
+            amrex::Abort("wind_solver: invalid deriv_method: " + deriv_method + 
+                         " (must be 'central', 'weno3', or 'weno5')");
+        }
+        amrex::Print() << "wind_solver: using " << deriv_method << " derivatives\n";
+        
+        // Convert deriv_method string to integer for GPU capture
+        // 0 = central, 1 = weno3, 2 = weno5
+        int deriv_method_int = 0;
+        if (deriv_method == "weno3") deriv_method_int = 1;
+        else if (deriv_method == "weno5") deriv_method_int = 2;
 
         // ----------------------------------------------------------------
         // 2. Read terrain file and determine horizontal domain bounds
@@ -380,7 +469,7 @@ int main(int argc, char* argv[])
         // ----------------------------------------------------------------
         // 8. Compute divergence of initial wind  →  RHS = -(∇·u0)
         //    One-sided differences at physical domain boundaries;
-        //    centred differences in the interior.
+        //    centred differences (or WENO) in the interior.
         //    Terrain (sub-surface) cells: rhs = 0 (not enforced).
         // ----------------------------------------------------------------
         const IntVect glo = domain.smallEnd();
@@ -394,6 +483,12 @@ int main(int argc, char* argv[])
         const Real inv1dx = Real(1.0) / dx;
         const Real inv1dy = Real(1.0) / dy;
         const Real inv1dz = Real(1.0) / dz;
+        
+        // Capture deriv_method_int for GPU lambda
+        const int deriv_method_cap = deriv_method_int;
+        const Real dx_cap = dx;
+        const Real dy_cap = dy;
+        const Real dz_cap_div = dz;  // rename to avoid conflict
 
         for (MFIter mfi(rhs); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -404,36 +499,86 @@ int main(int argc, char* argv[])
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Height above terrain for this cell
-                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap_div;
                 Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
                 if (z_agl <= Real(0.0)) { rh(i, j, k) = Real(0.0); return; }
 
-                // du/dx
-                Real du;
-                if (i == ilo)
-                    du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
-                else if (i == ihi)
-                    du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
-                else
-                    du = (vel(i+1,j,k,0) - vel(i-1,j,k,0)) * inv2dx;
+                Real du, dv, dw;
+                
+                // du/dx - choose method based on deriv_method_cap
+                if (deriv_method_cap == 0) {  // central
+                    if (i == ilo)
+                        du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                    else if (i == ihi)
+                        du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                    else
+                        du = (vel(i+1,j,k,0) - vel(i-1,j,k,0)) * inv2dx;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (i == ilo)
+                        du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                    else if (i == ihi)
+                        du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                    else
+                        du = weno3_deriv(vel(i-1,j,k,0), vel(i,j,k,0), vel(i+1,j,k,0), dx_cap);
+                } else {  // weno5 (deriv_method_cap == 2)
+                    if (i <= ilo+1)
+                        du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                    else if (i >= ihi-1)
+                        du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                    else
+                        du = weno5_deriv(vel(i-2,j,k,0), vel(i-1,j,k,0), vel(i,j,k,0), 
+                                        vel(i+1,j,k,0), vel(i+2,j,k,0), dx_cap);
+                }
 
                 // dv/dy
-                Real dv;
-                if (j == jlo)
-                    dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
-                else if (j == jhi)
-                    dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
-                else
-                    dv = (vel(i,j+1,k,1) - vel(i,j-1,k,1)) * inv2dy;
+                if (deriv_method_cap == 0) {  // central
+                    if (j == jlo)
+                        dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                    else if (j == jhi)
+                        dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                    else
+                        dv = (vel(i,j+1,k,1) - vel(i,j-1,k,1)) * inv2dy;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (j == jlo)
+                        dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                    else if (j == jhi)
+                        dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                    else
+                        dv = weno3_deriv(vel(i,j-1,k,1), vel(i,j,k,1), vel(i,j+1,k,1), dy_cap);
+                } else {  // weno5
+                    if (j <= jlo+1)
+                        dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                    else if (j >= jhi-1)
+                        dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                    else
+                        dv = weno5_deriv(vel(i,j-2,k,1), vel(i,j-1,k,1), vel(i,j,k,1), 
+                                        vel(i,j+1,k,1), vel(i,j+2,k,1), dy_cap);
+                }
 
                 // dw/dz
-                Real dw;
-                if (k == klo)
-                    dw = (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz;
-                else if (k == khi)
-                    dw = (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz;
-                else
-                    dw = (vel(i,j,k+1,2) - vel(i,j,k-1,2)) * inv2dz;
+                if (deriv_method_cap == 0) {  // central
+                    if (k == klo)
+                        dw = (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz;
+                    else if (k == khi)
+                        dw = (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz;
+                    else
+                        dw = (vel(i,j,k+1,2) - vel(i,j,k-1,2)) * inv2dz;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (k == klo)
+                        dw = (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz;
+                    else if (k == khi)
+                        dw = (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz;
+                    else
+                        dw = weno3_deriv(vel(i,j,k-1,2), vel(i,j,k,2), vel(i,j,k+1,2), dz_cap_div);
+                } else {  // weno5
+                    if (k <= klo+1)
+                        dw = (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz;
+                    else if (k >= khi-1)
+                        dw = (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz;
+                    else
+                        dw = weno5_deriv(vel(i,j,k-2,2), vel(i,j,k-1,2), vel(i,j,k,2), 
+                                        vel(i,j,k+1,2), vel(i,j,k+2,2), dz_cap_div);
+                }
 
                 rh(i, j, k) = -(du + dv + dw);   // rhs = -div(u0)
             });
@@ -535,32 +680,82 @@ int main(int argc, char* argv[])
                     return;
                 }
 
-                // ∂λ/∂x
-                Real dlx;
-                if (i == ilo)
-                    dlx = (la(i+1,j,k) - la(i,j,k)) * inv1dx;
-                else if (i == ihi)
-                    dlx = (la(i,j,k) - la(i-1,j,k)) * inv1dx;
-                else
-                    dlx = (la(i+1,j,k) - la(i-1,j,k)) * inv2dx;
+                Real dlx, dly, dlz;
+                
+                // ∂λ/∂x - choose method based on deriv_method_cap
+                if (deriv_method_cap == 0) {  // central
+                    if (i == ilo)
+                        dlx = (la(i+1,j,k) - la(i,j,k)) * inv1dx;
+                    else if (i == ihi)
+                        dlx = (la(i,j,k) - la(i-1,j,k)) * inv1dx;
+                    else
+                        dlx = (la(i+1,j,k) - la(i-1,j,k)) * inv2dx;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (i == ilo)
+                        dlx = (la(i+1,j,k) - la(i,j,k)) * inv1dx;
+                    else if (i == ihi)
+                        dlx = (la(i,j,k) - la(i-1,j,k)) * inv1dx;
+                    else
+                        dlx = weno3_deriv(la(i-1,j,k), la(i,j,k), la(i+1,j,k), dx_cap);
+                } else {  // weno5
+                    if (i <= ilo+1)
+                        dlx = (la(i+1,j,k) - la(i,j,k)) * inv1dx;
+                    else if (i >= ihi-1)
+                        dlx = (la(i,j,k) - la(i-1,j,k)) * inv1dx;
+                    else
+                        dlx = weno5_deriv(la(i-2,j,k), la(i-1,j,k), la(i,j,k), 
+                                         la(i+1,j,k), la(i+2,j,k), dx_cap);
+                }
 
                 // ∂λ/∂y
-                Real dly;
-                if (j == jlo)
-                    dly = (la(i,j+1,k) - la(i,j,k)) * inv1dy;
-                else if (j == jhi)
-                    dly = (la(i,j,k) - la(i,j-1,k)) * inv1dy;
-                else
-                    dly = (la(i,j+1,k) - la(i,j-1,k)) * inv2dy;
+                if (deriv_method_cap == 0) {  // central
+                    if (j == jlo)
+                        dly = (la(i,j+1,k) - la(i,j,k)) * inv1dy;
+                    else if (j == jhi)
+                        dly = (la(i,j,k) - la(i,j-1,k)) * inv1dy;
+                    else
+                        dly = (la(i,j+1,k) - la(i,j-1,k)) * inv2dy;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (j == jlo)
+                        dly = (la(i,j+1,k) - la(i,j,k)) * inv1dy;
+                    else if (j == jhi)
+                        dly = (la(i,j,k) - la(i,j-1,k)) * inv1dy;
+                    else
+                        dly = weno3_deriv(la(i,j-1,k), la(i,j,k), la(i,j+1,k), dy_cap);
+                } else {  // weno5
+                    if (j <= jlo+1)
+                        dly = (la(i,j+1,k) - la(i,j,k)) * inv1dy;
+                    else if (j >= jhi-1)
+                        dly = (la(i,j,k) - la(i,j-1,k)) * inv1dy;
+                    else
+                        dly = weno5_deriv(la(i,j-2,k), la(i,j-1,k), la(i,j,k), 
+                                         la(i,j+1,k), la(i,j+2,k), dy_cap);
+                }
 
                 // ∂λ/∂z
-                Real dlz;
-                if (k == klo)
-                    dlz = (la(i,j,k+1) - la(i,j,k)) * inv1dz;
-                else if (k == khi)
-                    dlz = (la(i,j,k) - la(i,j,k-1)) * inv1dz;
-                else
-                    dlz = (la(i,j,k+1) - la(i,j,k-1)) * inv2dz;
+                if (deriv_method_cap == 0) {  // central
+                    if (k == klo)
+                        dlz = (la(i,j,k+1) - la(i,j,k)) * inv1dz;
+                    else if (k == khi)
+                        dlz = (la(i,j,k) - la(i,j,k-1)) * inv1dz;
+                    else
+                        dlz = (la(i,j,k+1) - la(i,j,k-1)) * inv2dz;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (k == klo)
+                        dlz = (la(i,j,k+1) - la(i,j,k)) * inv1dz;
+                    else if (k == khi)
+                        dlz = (la(i,j,k) - la(i,j,k-1)) * inv1dz;
+                    else
+                        dlz = weno3_deriv(la(i,j,k-1), la(i,j,k), la(i,j,k+1), dz_cap_div);
+                } else {  // weno5
+                    if (k <= klo+1)
+                        dlz = (la(i,j,k+1) - la(i,j,k)) * inv1dz;
+                    else if (k >= khi-1)
+                        dlz = (la(i,j,k) - la(i,j,k-1)) * inv1dz;
+                    else
+                        dlz = weno5_deriv(la(i,j,k-2), la(i,j,k-1), la(i,j,k), 
+                                         la(i,j,k+1), la(i,j,k+2), dz_cap_div);
+                }
 
                 vc(i, j, k, 0) = v0(i, j, k, 0) - bh * dlx;
                 vc(i, j, k, 1) = v0(i, j, k, 1) - bh * dly;
@@ -594,33 +789,93 @@ int main(int argc, char* argv[])
 
                 // --- divergence before ---
                 Real du_b, dv_b, dw_b;
-                if (i == ilo) du_b = (v0b(i+1,j,k,0)-v0b(i,j,k,0))*inv1dx;
-                else if (i == ihi) du_b = (v0b(i,j,k,0)-v0b(i-1,j,k,0))*inv1dx;
-                else du_b = (v0b(i+1,j,k,0)-v0b(i-1,j,k,0))*inv2dx;
+                
+                if (deriv_method_cap == 0) {  // central
+                    if (i == ilo) du_b = (v0b(i+1,j,k,0)-v0b(i,j,k,0))*inv1dx;
+                    else if (i == ihi) du_b = (v0b(i,j,k,0)-v0b(i-1,j,k,0))*inv1dx;
+                    else du_b = (v0b(i+1,j,k,0)-v0b(i-1,j,k,0))*inv2dx;
 
-                if (j == jlo) dv_b = (v0b(i,j+1,k,1)-v0b(i,j,k,1))*inv1dy;
-                else if (j == jhi) dv_b = (v0b(i,j,k,1)-v0b(i,j-1,k,1))*inv1dy;
-                else dv_b = (v0b(i,j+1,k,1)-v0b(i,j-1,k,1))*inv2dy;
+                    if (j == jlo) dv_b = (v0b(i,j+1,k,1)-v0b(i,j,k,1))*inv1dy;
+                    else if (j == jhi) dv_b = (v0b(i,j,k,1)-v0b(i,j-1,k,1))*inv1dy;
+                    else dv_b = (v0b(i,j+1,k,1)-v0b(i,j-1,k,1))*inv2dy;
 
-                if (k == klo) dw_b = (v0b(i,j,k+1,2)-v0b(i,j,k,2))*inv1dz;
-                else if (k == khi) dw_b = (v0b(i,j,k,2)-v0b(i,j,k-1,2))*inv1dz;
-                else dw_b = (v0b(i,j,k+1,2)-v0b(i,j,k-1,2))*inv2dz;
+                    if (k == klo) dw_b = (v0b(i,j,k+1,2)-v0b(i,j,k,2))*inv1dz;
+                    else if (k == khi) dw_b = (v0b(i,j,k,2)-v0b(i,j,k-1,2))*inv1dz;
+                    else dw_b = (v0b(i,j,k+1,2)-v0b(i,j,k-1,2))*inv2dz;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (i == ilo) du_b = (v0b(i+1,j,k,0)-v0b(i,j,k,0))*inv1dx;
+                    else if (i == ihi) du_b = (v0b(i,j,k,0)-v0b(i-1,j,k,0))*inv1dx;
+                    else du_b = weno3_deriv(v0b(i-1,j,k,0), v0b(i,j,k,0), v0b(i+1,j,k,0), dx_cap);
+
+                    if (j == jlo) dv_b = (v0b(i,j+1,k,1)-v0b(i,j,k,1))*inv1dy;
+                    else if (j == jhi) dv_b = (v0b(i,j,k,1)-v0b(i,j-1,k,1))*inv1dy;
+                    else dv_b = weno3_deriv(v0b(i,j-1,k,1), v0b(i,j,k,1), v0b(i,j+1,k,1), dy_cap);
+
+                    if (k == klo) dw_b = (v0b(i,j,k+1,2)-v0b(i,j,k,2))*inv1dz;
+                    else if (k == khi) dw_b = (v0b(i,j,k,2)-v0b(i,j,k-1,2))*inv1dz;
+                    else dw_b = weno3_deriv(v0b(i,j,k-1,2), v0b(i,j,k,2), v0b(i,j,k+1,2), dz_cap_div);
+                } else {  // weno5
+                    if (i <= ilo+1) du_b = (v0b(i+1,j,k,0)-v0b(i,j,k,0))*inv1dx;
+                    else if (i >= ihi-1) du_b = (v0b(i,j,k,0)-v0b(i-1,j,k,0))*inv1dx;
+                    else du_b = weno5_deriv(v0b(i-2,j,k,0), v0b(i-1,j,k,0), v0b(i,j,k,0),
+                                           v0b(i+1,j,k,0), v0b(i+2,j,k,0), dx_cap);
+
+                    if (j <= jlo+1) dv_b = (v0b(i,j+1,k,1)-v0b(i,j,k,1))*inv1dy;
+                    else if (j >= jhi-1) dv_b = (v0b(i,j,k,1)-v0b(i,j-1,k,1))*inv1dy;
+                    else dv_b = weno5_deriv(v0b(i,j-2,k,1), v0b(i,j-1,k,1), v0b(i,j,k,1),
+                                           v0b(i,j+1,k,1), v0b(i,j+2,k,1), dy_cap);
+
+                    if (k <= klo+1) dw_b = (v0b(i,j,k+1,2)-v0b(i,j,k,2))*inv1dz;
+                    else if (k >= khi-1) dw_b = (v0b(i,j,k,2)-v0b(i,j,k-1,2))*inv1dz;
+                    else dw_b = weno5_deriv(v0b(i,j,k-2,2), v0b(i,j,k-1,2), v0b(i,j,k,2),
+                                           v0b(i,j,k+1,2), v0b(i,j,k+2,2), dz_cap_div);
+                }
 
                 db(i,j,k) = (z_agl <= Real(0.0)) ? Real(0.0) : (du_b+dv_b+dw_b);
 
                 // --- divergence after ---
                 Real du_a, dv_a, dw_a;
-                if (i == ilo) du_a = (vcg(i+1,j,k,0)-vcg(i,j,k,0))*inv1dx;
-                else if (i == ihi) du_a = (vcg(i,j,k,0)-vcg(i-1,j,k,0))*inv1dx;
-                else du_a = (vcg(i+1,j,k,0)-vcg(i-1,j,k,0))*inv2dx;
+                
+                if (deriv_method_cap == 0) {  // central
+                    if (i == ilo) du_a = (vcg(i+1,j,k,0)-vcg(i,j,k,0))*inv1dx;
+                    else if (i == ihi) du_a = (vcg(i,j,k,0)-vcg(i-1,j,k,0))*inv1dx;
+                    else du_a = (vcg(i+1,j,k,0)-vcg(i-1,j,k,0))*inv2dx;
 
-                if (j == jlo) dv_a = (vcg(i,j+1,k,1)-vcg(i,j,k,1))*inv1dy;
-                else if (j == jhi) dv_a = (vcg(i,j,k,1)-vcg(i,j-1,k,1))*inv1dy;
-                else dv_a = (vcg(i,j+1,k,1)-vcg(i,j-1,k,1))*inv2dy;
+                    if (j == jlo) dv_a = (vcg(i,j+1,k,1)-vcg(i,j,k,1))*inv1dy;
+                    else if (j == jhi) dv_a = (vcg(i,j,k,1)-vcg(i,j-1,k,1))*inv1dy;
+                    else dv_a = (vcg(i,j+1,k,1)-vcg(i,j-1,k,1))*inv2dy;
 
-                if (k == klo) dw_a = (vcg(i,j,k+1,2)-vcg(i,j,k,2))*inv1dz;
-                else if (k == khi) dw_a = (vcg(i,j,k,2)-vcg(i,j,k-1,2))*inv1dz;
-                else dw_a = (vcg(i,j,k+1,2)-vcg(i,j,k-1,2))*inv2dz;
+                    if (k == klo) dw_a = (vcg(i,j,k+1,2)-vcg(i,j,k,2))*inv1dz;
+                    else if (k == khi) dw_a = (vcg(i,j,k,2)-vcg(i,j,k-1,2))*inv1dz;
+                    else dw_a = (vcg(i,j,k+1,2)-vcg(i,j,k-1,2))*inv2dz;
+                } else if (deriv_method_cap == 1) {  // weno3
+                    if (i == ilo) du_a = (vcg(i+1,j,k,0)-vcg(i,j,k,0))*inv1dx;
+                    else if (i == ihi) du_a = (vcg(i,j,k,0)-vcg(i-1,j,k,0))*inv1dx;
+                    else du_a = weno3_deriv(vcg(i-1,j,k,0), vcg(i,j,k,0), vcg(i+1,j,k,0), dx_cap);
+
+                    if (j == jlo) dv_a = (vcg(i,j+1,k,1)-vcg(i,j,k,1))*inv1dy;
+                    else if (j == jhi) dv_a = (vcg(i,j,k,1)-vcg(i,j-1,k,1))*inv1dy;
+                    else dv_a = weno3_deriv(vcg(i,j-1,k,1), vcg(i,j,k,1), vcg(i,j+1,k,1), dy_cap);
+
+                    if (k == klo) dw_a = (vcg(i,j,k+1,2)-vcg(i,j,k,2))*inv1dz;
+                    else if (k == khi) dw_a = (vcg(i,j,k,2)-vcg(i,j,k-1,2))*inv1dz;
+                    else dw_a = weno3_deriv(vcg(i,j,k-1,2), vcg(i,j,k,2), vcg(i,j,k+1,2), dz_cap_div);
+                } else {  // weno5
+                    if (i <= ilo+1) du_a = (vcg(i+1,j,k,0)-vcg(i,j,k,0))*inv1dx;
+                    else if (i >= ihi-1) du_a = (vcg(i,j,k,0)-vcg(i-1,j,k,0))*inv1dx;
+                    else du_a = weno5_deriv(vcg(i-2,j,k,0), vcg(i-1,j,k,0), vcg(i,j,k,0),
+                                           vcg(i+1,j,k,0), vcg(i+2,j,k,0), dx_cap);
+
+                    if (j <= jlo+1) dv_a = (vcg(i,j+1,k,1)-vcg(i,j,k,1))*inv1dy;
+                    else if (j >= jhi-1) dv_a = (vcg(i,j,k,1)-vcg(i,j-1,k,1))*inv1dy;
+                    else dv_a = weno5_deriv(vcg(i,j-2,k,1), vcg(i,j-1,k,1), vcg(i,j,k,1),
+                                           vcg(i,j+1,k,1), vcg(i,j+2,k,1), dy_cap);
+
+                    if (k <= klo+1) dw_a = (vcg(i,j,k+1,2)-vcg(i,j,k,2))*inv1dz;
+                    else if (k >= khi-1) dw_a = (vcg(i,j,k,2)-vcg(i,j,k-1,2))*inv1dz;
+                    else dw_a = weno5_deriv(vcg(i,j,k-2,2), vcg(i,j,k-1,2), vcg(i,j,k,2),
+                                           vcg(i,j,k+1,2), vcg(i,j,k+2,2), dz_cap_div);
+                }
 
                 da(i,j,k) = (z_agl <= Real(0.0)) ? Real(0.0) : (du_a+dv_a+dw_a);
             });

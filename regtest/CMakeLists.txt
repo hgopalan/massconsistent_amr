@@ -41,6 +41,11 @@ add_regression_test(flat_terrain flat_terrain)
 # ===========================================================================
 add_regression_test(gaussian_hill gaussian_hill)
 
+# ===========================================================================
+# gaussian_hill_weno5/ – Gaussian hill with WENO-5 derivatives
+# ===========================================================================
+add_regression_test(gaussian_hill_weno5 gaussian_hill_weno5)
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
@@ -54,7 +59,8 @@ add_custom_target(regtest
 # ---------------------------------------------------------------------------
 message(STATUS "")
 message(STATUS "Regression tests:")
-message(STATUS "  flat_terrain/  : mass-consistent solver on flat terrain (dx=dy=dz=50 m, 2x2x2 grid)")
-message(STATUS "  gaussian_hill/ : terrain-following wind on a Gaussian hill (dx=dy=30 m, dz=25 m)")
+message(STATUS "  flat_terrain/          : mass-consistent solver on flat terrain (dx=dy=dz=50 m, 2x2x2 grid)")
+message(STATUS "  gaussian_hill/         : terrain-following wind on a Gaussian hill (dx=dy=30 m, dz=25 m)")
+message(STATUS "  gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives (dx=dy=30 m, dz=25 m)")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

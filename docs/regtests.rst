@@ -100,6 +100,47 @@ The test also writes a terrain-aligned CSV extract at 15 m AGL.
     extract_file  = wind_extract.csv
     plot_file     = plt_gaussian_hill
 
+gaussian_hill_weno5
+^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/gaussian_hill_weno5/``
+
+**Purpose:** Verifies that WENO-5 derivative computations produce consistent results
+compared to the standard central-difference method on the same terrain geometry.
+
+**Terrain:** Identical to the Gaussian hill test — an 11 × 11 point cloud over a 
+300 × 300 m domain with a Gaussian hill of peak elevation 50 m.
+
+**Grid:** Identical to Gaussian hill test (10 × 10 × 6 cells).
+
+**Wind:** Identical to Gaussian hill test (U_ref = 10 m/s, z_ref = 10 m, z₀ = 0.03 m).
+
+**Expected behaviour:** The solution should be qualitatively similar to the central
+method but with potential improvements in smoothness at discontinuities or near steep
+gradients. The test verifies that the WENO-5 method converges without errors and
+produces physically consistent results.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    terrain_file  = terrain.csv
+    U_ref         = 10.0
+    V_ref         = 0.0
+    z_ref         = 10.0
+    z0            = 0.03
+    dx            = 30.0
+    dy            = 30.0
+    dz            = 25.0
+    domain_height = 100.0
+    alpha_h       = 1.0
+    alpha_v       = 1.0
+    deriv_method  = weno5
+    mlmg_verbose  = 0
+    extract_agl   = 15.0
+    extract_file  = wind_extract.csv
+    plot_file     = plt_gaussian_hill_weno5
+
 Adding New Tests
 ----------------
 
