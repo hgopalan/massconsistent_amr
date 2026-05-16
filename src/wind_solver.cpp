@@ -178,25 +178,25 @@ AMREX_GPU_DEVICE static Real weno3_deriv(Real fm1, Real f0, Real fp1, Real h)
     // Bias toward central difference with upwind bias for discontinuities
     const Real eps = Real(1.0e-12);
     
-    // Compute ISM (smoothness indicators)
-    Real IS0 = (fp1 - f0) * (fp1 - f0);  // smoothness of [f0, fp1]
-    Real IS1 = (f0 - fm1) * (f0 - fm1);  // smoothness of [fm1, f0]
+    // Compute smoothness indicators for each stencil
+    Real IS_forward = (fp1 - f0) * (fp1 - f0);   // smoothness of [f0, fp1]
+    Real IS_backward = (f0 - fm1) * (f0 - fm1);  // smoothness of [fm1, f0]
     
     // Weights
-    const Real gamma0 = Real(2.0) / Real(3.0);
-    const Real gamma1 = Real(1.0) / Real(3.0);
-    Real w0 = gamma0 / ((eps + IS0) * (eps + IS0));
-    Real w1 = gamma1 / ((eps + IS1) * (eps + IS1));
-    Real w_sum = w0 + w1;
-    w0 /= w_sum;
-    w1 /= w_sum;
+    const Real gamma_forward = Real(2.0) / Real(3.0);
+    const Real gamma_backward = Real(1.0) / Real(3.0);
+    Real w_forward = gamma_forward / ((eps + IS_forward) * (eps + IS_forward));
+    Real w_backward = gamma_backward / ((eps + IS_backward) * (eps + IS_backward));
+    Real w_sum = w_forward + w_backward;
+    w_forward /= w_sum;
+    w_backward /= w_sum;
     
     // Stencil derivatives (2nd order)
-    Real d0 = (fp1 - f0) / h;      // forward difference
-    Real d1 = (f0 - fm1) / h;      // backward difference
+    Real d_forward = (fp1 - f0) / h;   // forward difference
+    Real d_backward = (f0 - fm1) / h;  // backward difference
     
     // WENO combination
-    return w0 * d0 + w1 * d1;
+    return w_forward * d_forward + w_backward * d_backward;
 }
 
 // WENO 5 stencil for derivative at interior points
@@ -207,35 +207,35 @@ AMREX_GPU_DEVICE static Real weno5_deriv(Real fm2, Real fm1, Real f0, Real fp1, 
     // WENO-5 is 5th order accurate in smooth regions, 3rd order near shocks
     const Real eps = Real(1.0e-12);
     
-    // Compute ISM (smoothness indicators) for each sub-stencil
-    Real IS0 = (fp2 - Real(2.0)*fp1 + f0)*(fp2 - Real(2.0)*fp1 + f0)*Real(0.25) + 
-               (Real(3.0)*fp2 - Real(4.0)*fp1 + f0)*(Real(3.0)*fp2 - Real(4.0)*fp1 + f0)/Real(12.0);
+    // Compute smoothness indicators for each sub-stencil
+    Real IS_forward = (fp2 - Real(2.0)*fp1 + f0)*(fp2 - Real(2.0)*fp1 + f0)*Real(0.25) + 
+                      (Real(3.0)*fp2 - Real(4.0)*fp1 + f0)*(Real(3.0)*fp2 - Real(4.0)*fp1 + f0)/Real(12.0);
     
-    Real IS1 = (fp1 - Real(2.0)*f0 + fm1)*(fp1 - Real(2.0)*f0 + fm1)*Real(0.25) + 
-               (fp1 - fm1)*(fp1 - fm1)/Real(12.0);
+    Real IS_central = (fp1 - Real(2.0)*f0 + fm1)*(fp1 - Real(2.0)*f0 + fm1)*Real(0.25) + 
+                      (fp1 - fm1)*(fp1 - fm1)/Real(12.0);
     
-    Real IS2 = (f0 - Real(2.0)*fm1 + fm2)*(f0 - Real(2.0)*fm1 + fm2)*Real(0.25) + 
-               (Real(3.0)*f0 - Real(4.0)*fm1 + fm2)*(Real(3.0)*f0 - Real(4.0)*fm1 + fm2)/Real(12.0);
+    Real IS_backward = (f0 - Real(2.0)*fm1 + fm2)*(f0 - Real(2.0)*fm1 + fm2)*Real(0.25) + 
+                       (Real(3.0)*f0 - Real(4.0)*fm1 + fm2)*(Real(3.0)*f0 - Real(4.0)*fm1 + fm2)/Real(12.0);
     
     // Weights
-    const Real gamma0 = Real(0.1);
-    const Real gamma1 = Real(0.6);
-    const Real gamma2 = Real(0.3);
-    Real w0 = gamma0 / ((eps + IS0) * (eps + IS0));
-    Real w1 = gamma1 / ((eps + IS1) * (eps + IS1));
-    Real w2 = gamma2 / ((eps + IS2) * (eps + IS2));
-    Real w_sum = w0 + w1 + w2;
-    w0 /= w_sum;
-    w1 /= w_sum;
-    w2 /= w_sum;
+    const Real gamma_forward = Real(0.1);
+    const Real gamma_central = Real(0.6);
+    const Real gamma_backward = Real(0.3);
+    Real w_forward = gamma_forward / ((eps + IS_forward) * (eps + IS_forward));
+    Real w_central = gamma_central / ((eps + IS_central) * (eps + IS_central));
+    Real w_backward = gamma_backward / ((eps + IS_backward) * (eps + IS_backward));
+    Real w_sum = w_forward + w_central + w_backward;
+    w_forward /= w_sum;
+    w_central /= w_sum;
+    w_backward /= w_sum;
     
     // Stencil derivatives (2nd order accurate)
-    Real d0 = (fp2 - Real(4.0)*fp1 + Real(3.0)*f0) / (Real(2.0)*h);  // forward biased
-    Real d1 = (fp1 - fm1) / (Real(2.0)*h);                           // central
-    Real d2 = (Real(-3.0)*f0 + Real(4.0)*fm1 - fm2) / (Real(2.0)*h); // backward biased
+    Real d_forward = (fp2 - Real(4.0)*fp1 + Real(3.0)*f0) / (Real(2.0)*h);  // forward biased
+    Real d_central = (fp1 - fm1) / (Real(2.0)*h);                           // central
+    Real d_backward = (Real(-3.0)*f0 + Real(4.0)*fm1 - fm2) / (Real(2.0)*h); // backward biased
     
     // WENO combination
-    return w0 * d0 + w1 * d1 + w2 * d2;
+    return w_forward * d_forward + w_central * d_central + w_backward * d_backward;
 }
 
 // ---------------------------------------------------------------------------
