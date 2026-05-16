@@ -44,6 +44,8 @@ Example ``inputs.i``::
     mlmg_verbose  = 1             # MLMG verbosity (0=silent, 4=max)
     tol_rel       = 1.e-8         # relative convergence tolerance
     max_grid_size = 32            # max AMReX box size per dimension
+    
+    deriv_method  = central       # derivative method (central, weno3, weno5)
 
     plot_file     = plt_wind      # output plotfile prefix
 
@@ -103,6 +105,10 @@ Parameter Reference
    * - ``max_grid_size``
      - ``32``
      - Maximum AMReX box size per spatial dimension.
+   * - ``deriv_method``
+     - ``central``
+     - Method for computing derivatives: ``central`` (2nd order, one-sided at boundaries),
+       ``weno3`` (3rd order WENO), or ``weno5`` (5th order WENO).
    * - ``plot_file``
      - ``plt_wind``
      - Output plotfile prefix.
