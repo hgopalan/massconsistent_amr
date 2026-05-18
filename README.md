@@ -48,4 +48,6 @@ velocity_file = velocity.csv   # path to wind station data
 
 A Python tool `tools/farsite_weather_reader.py` is provided to convert FARSITE weather (.wtr) files to the required velocity CSV format.
 
+## License
+
 See [LICENSE](LICENSE).

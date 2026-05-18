@@ -123,7 +123,6 @@ def parse_wtr(path: str, metric: bool = False) -> List[WeatherRecord]:
              customary (°F, mph at 20 ft).
     """
     records: List[WeatherRecord] = []
-    extra_day = False  # whether last TIME field was 2400 (midnight next day)
 
     with open(path, "r") as fh:
         for raw in fh:
@@ -191,7 +190,11 @@ def wind_components(speed_ms: float, dir_deg: float) -> Tuple[float, float]:
     -------
     (Ux, Uy) : Wind vector [m/s] in (East, North) frame.
     """
-    # Convert meteorological direction to math angle (CCW from East)
+    # Convert meteorological direction to math angle (CCW from East):
+    # meteorological 0° (north) → math 90° (north in math convention)
+    # meteorological 90° (east) → math 0° (east in math convention)
+    # Formula: math_angle = 90° - dir_deg, but we adjust by 360° to account
+    # for the CCW rotation in math convention: 270° - dir_deg
     math_angle = math.radians(270.0 - dir_deg)
     ux = speed_ms * math.cos(math_angle)
     uy = speed_ms * math.sin(math_angle)

@@ -103,6 +103,11 @@
 using namespace amrex;
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+static constexpr Real DISTANCE_EPSILON = Real(1.0e-12);  // threshold for exact spatial matches
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -161,7 +166,7 @@ static Real idw_terrain(Real xq, Real yq,
 
     Real wsum = 0.0, zval = 0.0;
     for (int i = 0; i < k; ++i) {
-        if (d2[i].first < Real(1.0e-12)) return z[d2[i].second]; // exact hit
+        if (d2[i].first < DISTANCE_EPSILON) return z[d2[i].second]; // exact hit
         Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
         wsum += w;
         zval += w * z[d2[i].second];
@@ -194,7 +199,7 @@ static std::pair<Real, Real> idw_velocity(Real xq, Real yq,
 
     Real wsum = 0.0, ux_val = 0.0, uy_val = 0.0;
     for (int i = 0; i < k; ++i) {
-        if (d2[i].first < Real(1.0e-12)) {
+        if (d2[i].first < DISTANCE_EPSILON) {
             return {ux_data[d2[i].second], uy_data[d2[i].second]}; // exact hit
         }
         Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
@@ -332,7 +337,7 @@ int main(int argc, char* argv[])
         // "raws"    : interpolate from velocity file (X Y Z U V format)
         std::string init_mode = "loglaw";
         pp.query("init_mode", init_mode);
-        
+
         // Validate init_mode
         if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws") {
             amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
