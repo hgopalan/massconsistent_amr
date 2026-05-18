@@ -1,0 +1,6 @@
+# Synthetic RAWS wind station data for testing initialization mode = "raws"
+# Format: X Y Z Ux Uy (spatial coordinates in m, wind components in m/s)
+# Three wind stations in a triangular pattern over 300x300 m domain
+0.0 0.0 0.0 8.0 2.0
+300.0 0.0 0.0 9.0 1.0
+150.0 260.0 0.0 8.5 2.5

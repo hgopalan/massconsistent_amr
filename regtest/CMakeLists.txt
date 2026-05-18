@@ -46,6 +46,16 @@ add_regression_test(gaussian_hill gaussian_hill)
 # ===========================================================================
 add_regression_test(gaussian_hill_weno5 gaussian_hill_weno5)
 
+# ===========================================================================
+# raws_synthetic/ – Gaussian hill with RAWS wind initialization (IDW interp)
+# ===========================================================================
+add_regression_test(raws_synthetic raws_synthetic)
+
+# ===========================================================================
+# uniform_wind/ – Gaussian hill with uniform wind initialization
+# ===========================================================================
+add_regression_test(uniform_wind uniform_wind)
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
@@ -62,5 +72,7 @@ message(STATUS "Regression tests:")
 message(STATUS "  flat_terrain/          : mass-consistent solver on flat terrain (dx=dy=dz=50 m, 2x2x2 grid)")
 message(STATUS "  gaussian_hill/         : terrain-following wind on a Gaussian hill (dx=dy=30 m, dz=25 m)")
 message(STATUS "  gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives (dx=dy=30 m, dz=25 m)")
+message(STATUS "  raws_synthetic/        : Gaussian hill with RAWS wind initialization (IDW interpolation)")
+message(STATUS "  uniform_wind/          : Gaussian hill with uniform wind initialization")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
