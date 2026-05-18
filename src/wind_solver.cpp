@@ -169,6 +169,79 @@ static Real idw_terrain(Real xq, Real yq,
     return zval / wsum;
 }
 
+// IDW interpolation: wind velocity at query point (xq, yq)
+// Uses k nearest data points with inverse-square-distance weights.
+// Returns (ux, uy) pair.
+static std::pair<Real, Real> idw_velocity(Real xq, Real yq,
+                                          const std::vector<Real>& x,
+                                          const std::vector<Real>& y,
+                                          const std::vector<Real>& ux_data,
+                                          const std::vector<Real>& uy_data,
+                                          int k = 6)
+{
+    int n = static_cast<int>(x.size());
+    k = std::min(k, n);
+
+    // Squared distances to all data points
+    std::vector<std::pair<Real, int>> d2(n);
+    for (int i = 0; i < n; ++i) {
+        Real dx = x[i] - xq;
+        Real dy = y[i] - yq;
+        d2[i] = {dx * dx + dy * dy, i};
+    }
+    // Partial sort: first k elements are the k nearest
+    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
+
+    Real wsum = 0.0, ux_val = 0.0, uy_val = 0.0;
+    for (int i = 0; i < k; ++i) {
+        if (d2[i].first < Real(1.0e-12)) {
+            return {ux_data[d2[i].second], uy_data[d2[i].second]}; // exact hit
+        }
+        Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
+        wsum += w;
+        ux_val += w * ux_data[d2[i].second];
+        uy_val += w * uy_data[d2[i].second];
+    }
+    return {ux_val / wsum, uy_val / wsum};
+}
+
+// Read X Y Z U V velocity file (whitespace or comma separated; '#' comments).
+// Used for RAWS or synthetic wind data initialization.
+static void read_velocity_file(const std::string& filename,
+                               std::vector<Real>& xd,
+                               std::vector<Real>& yd,
+                               std::vector<Real>& zd,
+                               std::vector<Real>& ux,
+                               std::vector<Real>& uy)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open velocity file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real x, y, z, u_x, u_y;
+        if (ss >> x >> y >> z >> u_x >> u_y) {
+            xd.push_back(x);
+            yd.push_back(y);
+            zd.push_back(z);
+            ux.push_back(u_x);
+            uy.push_back(u_y);
+        }
+    }
+    if (xd.empty())
+        amrex::Abort("wind_solver: no data read from velocity file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << xd.size()
+                   << " velocity points from " << filename << "\n";
+}
+
 // WENO 3 stencil for derivative at interior points
 // Assumes uniform grid spacing, returns du/dx with WENO-3 approximation
 // Uses 3-point stencil: f[-1], f[0], f[+1] with spacing h
@@ -253,6 +326,19 @@ int main(int argc, char* argv[])
         std::string terrain_file = "terrain.csv";
         pp.query("terrain_file", terrain_file);
 
+        // Wind initialization mode: "loglaw" (default), "uniform", or "raws"
+        // "loglaw"  : use log-law profile with U_ref, V_ref at z_ref height
+        // "uniform" : use constant U, V everywhere (uniform_U, uniform_V parameters)
+        // "raws"    : interpolate from velocity file (X Y Z U V format)
+        std::string init_mode = "loglaw";
+        pp.query("init_mode", init_mode);
+        
+        // Validate init_mode
+        if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws") {
+            amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
+                         " (must be 'loglaw', 'uniform', or 'raws')");
+        }
+
         Real U_ref = 10.0;  // x-component of reference wind [m/s]
         Real V_ref =  0.0;  // y-component of reference wind [m/s]
         Real z_ref = 10.0;  // reference height above local terrain [m]
@@ -261,6 +347,16 @@ int main(int argc, char* argv[])
         pp.query("V_ref", V_ref);
         pp.query("z_ref", z_ref);
         pp.query("z0",    z0);
+
+        // Uniform mode parameters
+        Real uniform_U = U_ref;  // default to U_ref
+        Real uniform_V = V_ref;  // default to V_ref
+        pp.query("uniform_U", uniform_U);
+        pp.query("uniform_V", uniform_V);
+
+        // RAWS mode parameters
+        std::string velocity_file = "velocity.csv";
+        pp.query("velocity_file", velocity_file);
 
         Real dx_req = 30.0;
         Real dy_req = 30.0;
@@ -413,54 +509,145 @@ int main(int argc, char* argv[])
         lam .setVal(0.0);
         rhs .setVal(0.0);
 
+        // For RAWS mode: device vectors for wind field interpolation
+        Gpu::DeviceVector<Real> d_vel_u(0), d_vel_v(0);
+        Real const* d_vel_u_ptr = nullptr;
+        Real const* d_vel_v_ptr = nullptr;
+
+        // Common capture variables for wind field initialization and correction
+        const Real dz_cap_init    = dz;
+        const Real z_lo_cap_init  = z_lo;   // physical z at bottom of domain
+        const int  nx_cap_init    = nx;
+
         // ----------------------------------------------------------------
-        // 7. Fill initial log-law wind field
+        // 7. Fill initial wind field based on initialization mode
         // ----------------------------------------------------------------
-        Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
-        const Real kappa = 0.41;  // von Karman constant
+        amrex::Print() << "wind_solver: initializing wind field with mode: " << init_mode << "\n";
 
-        // Compute friction velocity from reference speed and height
-        // u* = κ * |U_ref| / ln((z_ref + z0) / z0)
-        Real ustar = (speed_ref > Real(1.0e-10))
-                   ? kappa * speed_ref / std::log((z_ref + z0) / z0)
-                   : Real(0.0);
+        if (init_mode == "loglaw") {
+            // Log-law profile initialization
+            Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+            const Real kappa = 0.41;  // von Karman constant
 
-        Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
-        Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
+            // Compute friction velocity from reference speed and height
+            // u* = κ * |U_ref| / ln((z_ref + z0) / z0)
+            Real ustar = (speed_ref > Real(1.0e-10))
+                       ? kappa * speed_ref / std::log((z_ref + z0) / z0)
+                       : Real(0.0);
 
-        // Capture parameters for GPU lambda
-        const Real ustar_cap = ustar;
-        const Real kappa_cap = kappa;
-        const Real z0_cap    = z0;
-        const Real ux_h      = ux_hat;
-        const Real uy_h      = uy_hat;
-        const Real dz_cap    = dz;
-        const Real z_lo_cap  = z_lo;   // physical z at bottom of domain
-        const int  nx_cap    = nx;
+            Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
+            Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
 
-        for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.validbox();
-            auto vel = vel0.array(mfi);
+            // Capture parameters for GPU lambda
+            const Real ustar_cap = ustar;
+            const Real kappa_cap = kappa;
+            const Real z0_cap    = z0;
+            const Real ux_h      = ux_hat;
+            const Real uy_h      = uy_hat;
 
-            amrex::ParallelFor(bx,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // Height above local terrain for this column
-                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
-                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
 
-                if (z_agl <= Real(0.0)) {
-                    vel(i, j, k, 0) = Real(0.0);
-                    vel(i, j, k, 1) = Real(0.0);
-                    vel(i, j, k, 2) = Real(0.0);
-                } else {
-                    Real speed = (ustar_cap / kappa_cap)
-                               * std::log((z_agl + z0_cap) / z0_cap);
-                    vel(i, j, k, 0) = speed * ux_h;
-                    vel(i, j, k, 1) = speed * uy_h;
-                    vel(i, j, k, 2) = Real(0.0);
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Height above local terrain for this column
+                    Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                    Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
+
+                    if (z_agl <= Real(0.0)) {
+                        vel(i, j, k, 0) = Real(0.0);
+                        vel(i, j, k, 1) = Real(0.0);
+                        vel(i, j, k, 2) = Real(0.0);
+                    } else {
+                        Real speed = (ustar_cap / kappa_cap)
+                                   * std::log((z_agl + z0_cap) / z0_cap);
+                        vel(i, j, k, 0) = speed * ux_h;
+                        vel(i, j, k, 1) = speed * uy_h;
+                        vel(i, j, k, 2) = Real(0.0);
+                    }
+                });
+            }
+        } else if (init_mode == "uniform") {
+            // Uniform wind field initialization (constant U, V)
+            const Real u_uniform = uniform_U;
+            const Real v_uniform = uniform_V;
+
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
+
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Height above local terrain for this column
+                    Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                    Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
+
+                    if (z_agl <= Real(0.0)) {
+                        vel(i, j, k, 0) = Real(0.0);
+                        vel(i, j, k, 1) = Real(0.0);
+                        vel(i, j, k, 2) = Real(0.0);
+                    } else {
+                        vel(i, j, k, 0) = u_uniform;
+                        vel(i, j, k, 1) = v_uniform;
+                        vel(i, j, k, 2) = Real(0.0);
+                    }
+                });
+            }
+        } else if (init_mode == "raws") {
+            // RAWS/velocity file initialization via IDW interpolation
+            std::vector<Real> x_vel, y_vel, z_vel, ux_vel, uy_vel;
+            read_velocity_file(velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+
+            // Precompute per-column wind velocity via IDW
+            // vel_u_h[j*nx + i] and vel_v_h[j*nx + i] = interpolated velocity at column (i,j)
+            std::vector<Real> vel_u_h(static_cast<std::size_t>(nx) * ny);
+            std::vector<Real> vel_v_h(static_cast<std::size_t>(nx) * ny);
+
+            for (int j = 0; j < ny; ++j) {
+                Real yc = y_lo + (j + 0.5) * dy;
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + 0.5) * dx;
+                    auto [ux_interp, uy_interp] = idw_velocity(xc, yc, x_vel, y_vel, ux_vel, uy_vel);
+                    vel_u_h[static_cast<std::size_t>(j) * nx + i] = ux_interp;
+                    vel_v_h[static_cast<std::size_t>(j) * nx + i] = uy_interp;
                 }
-            });
+            }
+
+            // Copy to device for use in GPU kernels
+            d_vel_u.resize(vel_u_h.size());
+            d_vel_v.resize(vel_v_h.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             vel_u_h.begin(), vel_u_h.end(), d_vel_u.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             vel_v_h.begin(), vel_v_h.end(), d_vel_v.begin());
+            d_vel_u_ptr = d_vel_u.data();
+            d_vel_v_ptr = d_vel_v.data();
+
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
+
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Height above local terrain for this column
+                    Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                    Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
+
+                    if (z_agl <= Real(0.0)) {
+                        vel(i, j, k, 0) = Real(0.0);
+                        vel(i, j, k, 1) = Real(0.0);
+                        vel(i, j, k, 2) = Real(0.0);
+                    } else {
+                        vel(i, j, k, 0) = d_vel_u_ptr[j * nx_cap_init + i];
+                        vel(i, j, k, 1) = d_vel_v_ptr[j * nx_cap_init + i];
+                        vel(i, j, k, 2) = Real(0.0);
+                    }
+                });
+            }
         }
 
         // Fill interior (inter-box) ghost cells via MPI exchange
@@ -489,6 +676,8 @@ int main(int argc, char* argv[])
         const Real dx_cap = dx;
         const Real dy_cap = dy;
         const Real dz_cap_div = dz;  // rename to avoid conflict
+        const Real z_lo_cap_div = z_lo;   // capture z_lo for divergence computation
+        const int  nx_cap_div   = nx;     // capture nx for divergence computation
 
         for (MFIter mfi(rhs); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -499,8 +688,8 @@ int main(int argc, char* argv[])
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Height above terrain for this cell
-                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap_div;
-                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+                Real z_physical = z_lo_cap_div + (k + Real(0.5)) * dz_cap_div;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_div + i];
                 if (z_agl <= Real(0.0)) { rh(i, j, k) = Real(0.0); return; }
 
                 Real du, dv, dw;
@@ -671,8 +860,8 @@ int main(int argc, char* argv[])
             amrex::ParallelFor(bx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
-                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+                Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
                 if (z_agl <= Real(0.0)) {
                     vc(i, j, k, 0) = Real(0.0);
                     vc(i, j, k, 1) = Real(0.0);
@@ -784,8 +973,8 @@ int main(int argc, char* argv[])
             amrex::ParallelFor(bx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
-                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+                Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
 
                 // --- divergence before ---
                 Real du_b, dv_b, dw_b;
@@ -905,6 +1094,7 @@ int main(int argc, char* argv[])
         //     10  terrain_z     terrain elevation at column [m]
         // ----------------------------------------------------------------
         const int nout = 11;
+        const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
 
         for (MFIter mfi(output); mfi.isValid(); ++mfi) {
@@ -930,7 +1120,7 @@ int main(int argc, char* argv[])
                 out(i,j,k, 7) = la(i,j,k);
                 out(i,j,k, 8) = dib(i,j,k);
                 out(i,j,k, 9) = dia(i,j,k);
-                out(i,j,k,10) = d_terr_ptr[j * nx_cap + i];
+                out(i,j,k,10) = d_terr_ptr[j * nx_cap_out + i];
             });
         }
 
