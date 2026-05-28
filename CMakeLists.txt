@@ -84,21 +84,26 @@ else()
 endif()
 
 add_executable(wind_solver src/wind_solver.cpp)
+add_library(wind_solver_api STATIC src/wind_solver_api.cpp)
 
 # On Windows with CUDA, MSVC is the default host compiler and does not
 # understand CUDA device-side keywords that appear in AMReX headers.
-# Tell CMake to route the .cpp file through nvcc (LANGUAGE CUDA).
+# Tell CMake to route the .cpp files through nvcc (LANGUAGE CUDA).
 if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   set_source_files_properties(
     src/wind_solver.cpp
+    src/wind_solver_api.cpp
     PROPERTIES LANGUAGE CUDA
   )
 endif()
 
 target_link_libraries(wind_solver PRIVATE AMReX::amrex)
+target_link_libraries(wind_solver_api PUBLIC AMReX::amrex)
+target_include_directories(wind_solver_api PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 if(MASSCONSISTENT_ENABLE_MPI)
   target_link_libraries(wind_solver PRIVATE MPI::MPI_CXX)
+  target_link_libraries(wind_solver_api PUBLIC MPI::MPI_CXX)
 endif()
 
 # Recommended warnings
@@ -107,8 +112,13 @@ if(MSVC)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
     $<$<COMPILE_LANGUAGE:CXX>:/W4>
   )
+  target_compile_options(wind_solver_api PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
+    $<$<COMPILE_LANGUAGE:CXX>:/W4>
+  )
 else()
   target_compile_options(wind_solver PRIVATE -Wall -Wextra -Wno-pedantic)
+  target_compile_options(wind_solver_api PRIVATE -Wall -Wextra -Wno-pedantic)
 endif()
 
 # Add Python bindings subdirectory
