@@ -1,0 +1,1122 @@
+#include "wind_solver_api.H"
+
+#include <AMReX_FArrayBox.H>
+#include <AMReX_Gpu.H>
+#include <AMReX_GpuContainers.H>
+#include <AMReX_LO_BCTYPES.H>
+#include <AMReX_MLABecLaplacian.H>
+#include <AMReX_MLMG.H>
+#include <AMReX_ParmParse.H>
+#include <AMReX_PlotFileUtil.H>
+#include <AMReX_Print.H>
+
+#include <algorithm>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
+
+using namespace amrex;
+
+std::unique_ptr<WindSolverState> g_wind_solver_state = nullptr;
+
+namespace {
+
+constexpr Real DISTANCE_EPSILON = Real(1.0e-12);
+
+struct WindSolverRuntimeData {
+    Gpu::DeviceVector<Real> terrain_device;
+    std::vector<Real> terrain_host;
+};
+
+std::unique_ptr<WindSolverRuntimeData> g_wind_solver_runtime = nullptr;
+bool g_amrex_initialized_here = false;
+bool g_parmparse_initialized = false;
+
+bool ensure_amrex_initialized()
+{
+    if (!amrex::Initialized()) {
+        int argc = 0;
+        char** argv = nullptr;
+        amrex::Initialize(argc, argv, false);
+        g_amrex_initialized_here = true;
+    }
+    return true;
+}
+
+void require_initialized()
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        throw std::runtime_error("wind solver is not initialized");
+    }
+}
+
+void read_terrain_file(const std::string& filename,
+                       std::vector<Real>& xd,
+                       std::vector<Real>& yd,
+                       std::vector<Real>& zd)
+{
+    std::ifstream input(filename);
+    if (!input.is_open()) {
+        throw std::runtime_error("cannot open terrain file: " + filename);
+    }
+
+    std::string line;
+    while (std::getline(input, line)) {
+        auto comment_pos = line.find('#');
+        if (comment_pos != std::string::npos) {
+            line = line.substr(0, comment_pos);
+        }
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream iss(line);
+        Real x, y, z;
+        if (iss >> x >> y >> z) {
+            xd.push_back(x);
+            yd.push_back(y);
+            zd.push_back(z);
+        }
+    }
+
+    if (xd.empty()) {
+        throw std::runtime_error("no terrain data read from: " + filename);
+    }
+}
+
+Real idw_terrain(Real xq, Real yq,
+                 const std::vector<Real>& x,
+                 const std::vector<Real>& y,
+                 const std::vector<Real>& z,
+                 int k = 6)
+{
+    const int n = static_cast<int>(x.size());
+    k = std::min(k, n);
+
+    std::vector<std::pair<Real, int>> d2(n);
+    for (int i = 0; i < n; ++i) {
+        const Real dx = x[i] - xq;
+        const Real dy = y[i] - yq;
+        d2[i] = {dx * dx + dy * dy, i};
+    }
+    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
+
+    Real wsum = 0.0;
+    Real zval = 0.0;
+    for (int i = 0; i < k; ++i) {
+        if (d2[i].first < DISTANCE_EPSILON) {
+            return z[d2[i].second];
+        }
+        const Real w = Real(1.0) / d2[i].first;
+        wsum += w;
+        zval += w * z[d2[i].second];
+    }
+    return zval / wsum;
+}
+
+void read_velocity_file(const std::string& filename,
+                        std::vector<Real>& xd,
+                        std::vector<Real>& yd,
+                        std::vector<Real>& zd,
+                        std::vector<Real>& ux,
+                        std::vector<Real>& uy)
+{
+    std::ifstream input(filename);
+    if (!input.is_open()) {
+        throw std::runtime_error("cannot open velocity file: " + filename);
+    }
+
+    std::string line;
+    while (std::getline(input, line)) {
+        auto comment_pos = line.find('#');
+        if (comment_pos != std::string::npos) {
+            line = line.substr(0, comment_pos);
+        }
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream iss(line);
+        Real x, y, z, u, v;
+        if (iss >> x >> y >> z >> u >> v) {
+            xd.push_back(x);
+            yd.push_back(y);
+            zd.push_back(z);
+            ux.push_back(u);
+            uy.push_back(v);
+        }
+    }
+
+    if (xd.empty()) {
+        throw std::runtime_error("no velocity data read from: " + filename);
+    }
+}
+
+std::pair<Real, Real> idw_velocity(Real xq, Real yq,
+                                   const std::vector<Real>& x,
+                                   const std::vector<Real>& y,
+                                   const std::vector<Real>& ux_data,
+                                   const std::vector<Real>& uy_data,
+                                   int k = 6)
+{
+    const int n = static_cast<int>(x.size());
+    k = std::min(k, n);
+
+    std::vector<std::pair<Real, int>> d2(n);
+    for (int i = 0; i < n; ++i) {
+        const Real dx = x[i] - xq;
+        const Real dy = y[i] - yq;
+        d2[i] = {dx * dx + dy * dy, i};
+    }
+    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
+
+    Real wsum = 0.0;
+    Real ux_val = 0.0;
+    Real uy_val = 0.0;
+    for (int i = 0; i < k; ++i) {
+        if (d2[i].first < DISTANCE_EPSILON) {
+            return {ux_data[d2[i].second], uy_data[d2[i].second]};
+        }
+        const Real w = Real(1.0) / d2[i].first;
+        wsum += w;
+        ux_val += w * ux_data[d2[i].second];
+        uy_val += w * uy_data[d2[i].second];
+    }
+    return {ux_val / wsum, uy_val / wsum};
+}
+
+void parse_inputs(WindSolverState& state, const std::string& inputs_file)
+{
+    if (g_parmparse_initialized) {
+        ParmParse::Finalize();
+        g_parmparse_initialized = false;
+    }
+
+    ParmParse::Initialize(0, nullptr, inputs_file.c_str());
+    g_parmparse_initialized = true;
+
+    ParmParse pp;
+
+    std::string terrain_file = "terrain.csv";
+    pp.query("terrain_file", terrain_file);
+
+    state.U_ref = 10.0;
+    state.V_ref = 0.0;
+    state.z_ref = 10.0;
+    state.z0 = 0.1;
+    pp.query("U_ref", state.U_ref);
+    pp.query("V_ref", state.V_ref);
+    pp.query("z_ref", state.z_ref);
+    pp.query("z0", state.z0);
+
+    state.dx = 30.0;
+    state.dy = 30.0;
+    state.dz = 30.0;
+    pp.query("dx", state.dx);
+    pp.query("dy", state.dy);
+    pp.query("dz", state.dz);
+
+    Real domain_height = 300.0;
+    pp.query("domain_height", domain_height);
+
+    state.alpha_h = 1.0;
+    state.alpha_v = 1.0;
+    pp.query("alpha_h", state.alpha_h);
+    pp.query("alpha_v", state.alpha_v);
+
+    state.mlmg_verbose = 1;
+    state.tol_rel = 1.e-8;
+    state.tol_abs = 0.0;
+    state.max_iter = 200;
+    int max_grid_size = 32;
+    pp.query("mlmg_verbose", state.mlmg_verbose);
+    pp.query("tol_rel", state.tol_rel);
+    pp.query("tol_abs", state.tol_abs);
+    pp.query("max_iter", state.max_iter);
+    pp.query("max_grid_size", max_grid_size);
+
+    state.plot_file = "plt_wind";
+    state.extract_file = "wind_extract.csv";
+    state.extract_agl = -1.0;
+    state.extract_k = -1;
+    pp.query("plot_file", state.plot_file);
+    pp.query("extract_file", state.extract_file);
+    pp.query("extract_agl", state.extract_agl);
+    pp.query("extract_k", state.extract_k);
+
+    state.init_mode = "loglaw";
+    pp.query("init_mode", state.init_mode);
+    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws") {
+        throw std::runtime_error("invalid init_mode: " + state.init_mode);
+    }
+
+    state.uniform_U = state.U_ref;
+    state.uniform_V = state.V_ref;
+    pp.query("uniform_U", state.uniform_U);
+    pp.query("uniform_V", state.uniform_V);
+
+    state.velocity_file = "velocity.csv";
+    pp.query("velocity_file", state.velocity_file);
+
+    read_terrain_file(terrain_file,
+                      state.terrain_x_data,
+                      state.terrain_y_data,
+                      state.terrain_z_data);
+
+    const Real x_lo = *std::min_element(state.terrain_x_data.begin(), state.terrain_x_data.end());
+    const Real x_hi = *std::max_element(state.terrain_x_data.begin(), state.terrain_x_data.end());
+    const Real y_lo = *std::min_element(state.terrain_y_data.begin(), state.terrain_y_data.end());
+    const Real y_hi = *std::max_element(state.terrain_y_data.begin(), state.terrain_y_data.end());
+
+    if (x_hi <= x_lo || y_hi <= y_lo) {
+        throw std::runtime_error("terrain file does not define a valid 2-D domain");
+    }
+    if (state.dx <= Real(0.0) || state.dy <= Real(0.0) || state.dz <= Real(0.0) || domain_height <= Real(0.0)) {
+        throw std::runtime_error("grid spacing and domain_height must be positive");
+    }
+
+    state.nx = std::max(1, static_cast<int>(std::round((x_hi - x_lo) / state.dx)));
+    state.ny = std::max(1, static_cast<int>(std::round((y_hi - y_lo) / state.dy)));
+    state.dx = (x_hi - x_lo) / state.nx;
+    state.dy = (y_hi - y_lo) / state.ny;
+    state.xmin = x_lo;
+    state.xmax = x_hi;
+    state.ymin = y_lo;
+    state.ymax = y_hi;
+
+    g_wind_solver_runtime = std::make_unique<WindSolverRuntimeData>();
+    g_wind_solver_runtime->terrain_host.resize(static_cast<std::size_t>(state.nx) * state.ny);
+
+    for (int j = 0; j < state.ny; ++j) {
+        const Real yc = state.ymin + (j + Real(0.5)) * state.dy;
+        for (int i = 0; i < state.nx; ++i) {
+            const Real xc = state.xmin + (i + Real(0.5)) * state.dx;
+            g_wind_solver_runtime->terrain_host[static_cast<std::size_t>(j) * state.nx + i] =
+                idw_terrain(xc, yc,
+                            state.terrain_x_data,
+                            state.terrain_y_data,
+                            state.terrain_z_data);
+        }
+    }
+
+    state.zs_min = *std::min_element(g_wind_solver_runtime->terrain_host.begin(),
+                                     g_wind_solver_runtime->terrain_host.end());
+    state.zs_max = *std::max_element(g_wind_solver_runtime->terrain_host.begin(),
+                                     g_wind_solver_runtime->terrain_host.end());
+
+    state.zmin = state.zs_min;
+    state.zmax = state.zs_max + domain_height;
+    state.nz = std::max(1, static_cast<int>(std::round((state.zmax - state.zmin) / state.dz)));
+    state.dz = (state.zmax - state.zmin) / state.nz;
+
+    g_wind_solver_runtime->terrain_device.resize(g_wind_solver_runtime->terrain_host.size());
+    Gpu::copy(Gpu::hostToDevice,
+              g_wind_solver_runtime->terrain_host.begin(),
+              g_wind_solver_runtime->terrain_host.end(),
+              g_wind_solver_runtime->terrain_device.begin());
+
+    IntVect dom_lo(0, 0, 0);
+    IntVect dom_hi(state.nx - 1, state.ny - 1, state.nz - 1);
+    Box domain(dom_lo, dom_hi);
+    RealBox rb({state.xmin, state.ymin, state.zmin},
+               {state.xmax, state.ymax, state.zmax});
+    Array<int, AMREX_SPACEDIM> is_periodic{0, 0, 0};
+
+    state.geom = std::make_unique<Geometry>(domain, &rb, CoordSys::cartesian, is_periodic.data());
+    state.ba = std::make_unique<BoxArray>(domain);
+    state.ba->maxSize(max_grid_size);
+    state.dm = std::make_unique<DistributionMapping>(*state.ba);
+
+    state.vel = std::make_unique<MultiFab>(*state.ba, *state.dm, 3, 1);
+    state.vel0 = std::make_unique<MultiFab>(*state.ba, *state.dm, 3, 1);
+    state.lambda = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 1);
+    state.div0 = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);
+    state.terrain = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);
+
+    state.vel->setVal(0.0);
+    state.vel0->setVal(0.0);
+    state.lambda->setVal(0.0);
+    state.div0->setVal(0.0);
+    state.terrain->setVal(0.0);
+
+    const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+    const int nx = state.nx;
+    for (MFIter mfi(*state.terrain); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto arr = state.terrain->array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            arr(i, j, k) = terrain_ptr[j * nx + i];
+        });
+    }
+}
+
+void initialize_wind_field(WindSolverState& state)
+{
+    const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+    const Real z_lo = state.zmin;
+    const Real dz = state.dz;
+    const int nx = state.nx;
+
+    state.vel0->setVal(0.0);
+    state.vel->setVal(0.0);
+    state.lambda->setVal(0.0);
+    state.div0->setVal(0.0);
+    state.solved = false;
+    state.mlmg_iters = 0;
+    state.mlmg_res = 0.0;
+
+    if (state.init_mode == "loglaw") {
+        const Real z0 = state.z0;
+        const Real speed_ref = std::sqrt(state.U_ref * state.U_ref + state.V_ref * state.V_ref);
+        const Real kappa = 0.41;
+        const Real ustar = (speed_ref > Real(1.0e-10))
+                             ? kappa * speed_ref / std::log((state.z_ref + z0) / z0)
+                             : Real(0.0);
+        const Real ux_hat = (speed_ref > Real(1.0e-10)) ? state.U_ref / speed_ref : Real(1.0);
+        const Real uy_hat = (speed_ref > Real(1.0e-10)) ? state.V_ref / speed_ref : Real(0.0);
+
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    const Real speed = (ustar / kappa) * std::log((z_agl + z0) / z0);
+                    vel(i, j, k, 0) = speed * ux_hat;
+                    vel(i, j, k, 1) = speed * uy_hat;
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+    } else if (state.init_mode == "uniform") {
+        const Real u_uniform = state.uniform_U;
+        const Real v_uniform = state.uniform_V;
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    vel(i, j, k, 0) = u_uniform;
+                    vel(i, j, k, 1) = v_uniform;
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+    } else {
+        std::vector<Real> x_vel, y_vel, z_vel, ux_vel, uy_vel;
+        read_velocity_file(state.velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+
+        std::vector<Real> vel_u_host(static_cast<std::size_t>(state.nx) * state.ny);
+        std::vector<Real> vel_v_host(static_cast<std::size_t>(state.nx) * state.ny);
+        for (int j = 0; j < state.ny; ++j) {
+            const Real yc = state.ymin + (j + Real(0.5)) * state.dy;
+            for (int i = 0; i < state.nx; ++i) {
+                const Real xc = state.xmin + (i + Real(0.5)) * state.dx;
+                auto uv = idw_velocity(xc, yc, x_vel, y_vel, ux_vel, uy_vel);
+                vel_u_host[static_cast<std::size_t>(j) * state.nx + i] = uv.first;
+                vel_v_host[static_cast<std::size_t>(j) * state.nx + i] = uv.second;
+            }
+        }
+
+        Gpu::DeviceVector<Real> vel_u_dev(vel_u_host.size());
+        Gpu::DeviceVector<Real> vel_v_dev(vel_v_host.size());
+        Gpu::copy(Gpu::hostToDevice, vel_u_host.begin(), vel_u_host.end(), vel_u_dev.begin());
+        Gpu::copy(Gpu::hostToDevice, vel_v_host.begin(), vel_v_host.end(), vel_v_dev.begin());
+        const Real* vel_u_ptr = vel_u_dev.data();
+        const Real* vel_v_ptr = vel_v_dev.data();
+
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    vel(i, j, k, 0) = vel_u_ptr[j * nx + i];
+                    vel(i, j, k, 1) = vel_v_ptr[j * nx + i];
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+    }
+
+    state.vel0->FillBoundary(state.geom->periodicity());
+    MultiFab::Copy(*state.vel, *state.vel0, 0, 0, 3, 1);
+    state.vel->FillBoundary(state.geom->periodicity());
+}
+
+void compute_divergence(const WindSolverState& state,
+                        const MultiFab& velocity,
+                        MultiFab& divergence)
+{
+    const IntVect lo = state.geom->Domain().smallEnd();
+    const IntVect hi = state.geom->Domain().bigEnd();
+    const int ilo = lo[0];
+    const int ihi = hi[0];
+    const int jlo = lo[1];
+    const int jhi = hi[1];
+    const int klo = lo[2];
+    const int khi = hi[2];
+
+    const Real inv1dx = Real(1.0) / state.dx;
+    const Real inv1dy = Real(1.0) / state.dy;
+    const Real inv1dz = Real(1.0) / state.dz;
+    const Real inv2dx = Real(0.5) * inv1dx;
+    const Real inv2dy = Real(0.5) * inv1dy;
+    const Real inv2dz = Real(0.5) * inv1dz;
+    const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+    const Real z_lo = state.zmin;
+    const Real dz = state.dz;
+    const int nx = state.nx;
+
+    divergence.setVal(0.0);
+    for (MFIter mfi(divergence); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto vel = velocity.const_array(mfi);
+        auto div = divergence.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+            const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+            if (z_agl <= Real(0.0)) {
+                div(i, j, k) = Real(0.0);
+                return;
+            }
+
+            Real du = Real(0.0);
+            Real dv = Real(0.0);
+            Real dw = Real(0.0);
+
+            if (ihi > ilo) {
+                if (i == ilo) {
+                    du = (vel(i + 1, j, k, 0) - vel(i, j, k, 0)) * inv1dx;
+                } else if (i == ihi) {
+                    du = (vel(i, j, k, 0) - vel(i - 1, j, k, 0)) * inv1dx;
+                } else {
+                    du = (vel(i + 1, j, k, 0) - vel(i - 1, j, k, 0)) * inv2dx;
+                }
+            }
+
+            if (jhi > jlo) {
+                if (j == jlo) {
+                    dv = (vel(i, j + 1, k, 1) - vel(i, j, k, 1)) * inv1dy;
+                } else if (j == jhi) {
+                    dv = (vel(i, j, k, 1) - vel(i, j - 1, k, 1)) * inv1dy;
+                } else {
+                    dv = (vel(i, j + 1, k, 1) - vel(i, j - 1, k, 1)) * inv2dy;
+                }
+            }
+
+            if (khi > klo) {
+                if (k == klo) {
+                    dw = (vel(i, j, k + 1, 2) - vel(i, j, k, 2)) * inv1dz;
+                } else if (k == khi) {
+                    dw = (vel(i, j, k, 2) - vel(i, j, k - 1, 2)) * inv1dz;
+                } else {
+                    dw = (vel(i, j, k + 1, 2) - vel(i, j, k - 1, 2)) * inv2dz;
+                }
+            }
+
+            div(i, j, k) = du + dv + dw;
+        });
+    }
+}
+
+void correct_velocity_field(WindSolverState& state)
+{
+    const IntVect lo = state.geom->Domain().smallEnd();
+    const IntVect hi = state.geom->Domain().bigEnd();
+    const int ilo = lo[0];
+    const int ihi = hi[0];
+    const int jlo = lo[1];
+    const int jhi = hi[1];
+    const int klo = lo[2];
+    const int khi = hi[2];
+
+    const Real inv1dx = Real(1.0) / state.dx;
+    const Real inv1dy = Real(1.0) / state.dy;
+    const Real inv1dz = Real(1.0) / state.dz;
+    const Real inv2dx = Real(0.5) * inv1dx;
+    const Real inv2dy = Real(0.5) * inv1dy;
+    const Real inv2dz = Real(0.5) * inv1dz;
+    const Real bh = state.alpha_h * state.alpha_h;
+    const Real bv = state.alpha_v * state.alpha_v;
+    const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+    const Real z_lo = state.zmin;
+    const Real dz = state.dz;
+    const int nx = state.nx;
+
+    state.vel->setVal(0.0);
+    for (MFIter mfi(*state.vel); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto v0 = state.vel0->const_array(mfi);
+        const auto lam = state.lambda->const_array(mfi);
+        auto vel = state.vel->array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+            const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+            if (z_agl <= Real(0.0)) {
+                vel(i, j, k, 0) = Real(0.0);
+                vel(i, j, k, 1) = Real(0.0);
+                vel(i, j, k, 2) = Real(0.0);
+                return;
+            }
+
+            Real dlx = Real(0.0);
+            Real dly = Real(0.0);
+            Real dlz = Real(0.0);
+
+            if (ihi > ilo) {
+                if (i == ilo) {
+                    dlx = (lam(i + 1, j, k) - lam(i, j, k)) * inv1dx;
+                } else if (i == ihi) {
+                    dlx = (lam(i, j, k) - lam(i - 1, j, k)) * inv1dx;
+                } else {
+                    dlx = (lam(i + 1, j, k) - lam(i - 1, j, k)) * inv2dx;
+                }
+            }
+
+            if (jhi > jlo) {
+                if (j == jlo) {
+                    dly = (lam(i, j + 1, k) - lam(i, j, k)) * inv1dy;
+                } else if (j == jhi) {
+                    dly = (lam(i, j, k) - lam(i, j - 1, k)) * inv1dy;
+                } else {
+                    dly = (lam(i, j + 1, k) - lam(i, j - 1, k)) * inv2dy;
+                }
+            }
+
+            if (khi > klo) {
+                if (k == klo) {
+                    dlz = (lam(i, j, k + 1) - lam(i, j, k)) * inv1dz;
+                } else if (k == khi) {
+                    dlz = (lam(i, j, k) - lam(i, j, k - 1)) * inv1dz;
+                } else {
+                    dlz = (lam(i, j, k + 1) - lam(i, j, k - 1)) * inv2dz;
+                }
+            }
+
+            vel(i, j, k, 0) = v0(i, j, k, 0) - bh * dlx;
+            vel(i, j, k, 1) = v0(i, j, k, 1) - bh * dly;
+            vel(i, j, k, 2) = v0(i, j, k, 2) - bv * dlz;
+        });
+    }
+    state.vel->FillBoundary(state.geom->periodicity());
+}
+
+std::vector<double> extract_multifab_component_fortran(const MultiFab& mf,
+                                                       int comp,
+                                                       int nx,
+                                                       int ny,
+                                                       int nz)
+{
+    std::vector<double> data(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+#ifdef AMREX_USE_GPU
+        FArrayBox host_fab(bx, mf.nComp(), The_Pinned_Arena());
+        host_fab.copy<RunOn::Device>(mf[mfi], bx);
+        Gpu::streamSynchronize();
+        auto const& arr = host_fab.const_array();
+#else
+        auto const& arr = mf.const_array(mfi);
+#endif
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                    const std::size_t idx = static_cast<std::size_t>(i)
+                                          + static_cast<std::size_t>(nx)
+                                                * (static_cast<std::size_t>(j)
+                                                   + static_cast<std::size_t>(ny) * k);
+                    data[idx] = static_cast<double>(arr(i, j, k, comp));
+                }
+            }
+        }
+    }
+
+    return data;
+}
+
+int agl_to_k(const WindSolverState& state, Real terrain_z, Real agl_height)
+{
+    const Real target_z = terrain_z + agl_height;
+    const Real k_real = (target_z - state.zmin) / state.dz - Real(0.5);
+    const int k_index = static_cast<int>(std::llround(k_real));
+    return std::max(0, std::min(state.nz - 1, k_index));
+}
+
+void build_plotfile_output(MultiFab& output, MultiFab& div_current)
+{
+    WindSolverState& state = *g_wind_solver_state;
+    const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+    const int nx = state.nx;
+
+    for (MFIter mfi(output); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto vel = state.vel->const_array(mfi);
+        const auto vel0 = state.vel0->const_array(mfi);
+        const auto lambda = state.lambda->const_array(mfi);
+        const auto div0 = state.div0->const_array(mfi);
+        const auto divc = div_current.const_array(mfi);
+        auto out = output.array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real u = vel(i, j, k, 0);
+            const Real v = vel(i, j, k, 1);
+            const Real w = vel(i, j, k, 2);
+            out(i, j, k, 0) = u;
+            out(i, j, k, 1) = v;
+            out(i, j, k, 2) = w;
+            out(i, j, k, 3) = std::sqrt(u * u + v * v + w * w);
+            out(i, j, k, 4) = vel0(i, j, k, 0);
+            out(i, j, k, 5) = vel0(i, j, k, 1);
+            out(i, j, k, 6) = vel0(i, j, k, 2);
+            out(i, j, k, 7) = lambda(i, j, k);
+            out(i, j, k, 8) = div0(i, j, k);
+            out(i, j, k, 9) = divc(i, j, k);
+            out(i, j, k, 10) = terrain_ptr[j * nx + i];
+        });
+    }
+}
+
+} // namespace
+
+bool wind_solver_initialize(const std::string& inputs_file)
+{
+    ensure_amrex_initialized();
+
+    if (g_wind_solver_state && g_wind_solver_state->initialized) {
+        wind_solver_finalize();
+        ensure_amrex_initialized();
+    }
+
+    g_wind_solver_state = std::make_unique<WindSolverState>();
+    WindSolverState& state = *g_wind_solver_state;
+
+    try {
+        parse_inputs(state, inputs_file);
+        initialize_wind_field(state);
+
+        state.initialized = true;
+        state.solved = false;
+
+        amrex::Print() << "Wind solver initialized successfully\n";
+        amrex::Print() << "  Grid: " << state.nx << " x " << state.ny << " x " << state.nz << "\n";
+        amrex::Print() << "  Domain: [" << state.xmin << ", " << state.xmax << "] x ["
+                       << state.ymin << ", " << state.ymax << "] x ["
+                       << state.zmin << ", " << state.zmax << "]\n";
+        return true;
+    } catch (const std::exception& e) {
+        amrex::Print() << "Error initializing wind solver: " << e.what() << "\n";
+        g_wind_solver_runtime.reset();
+        g_wind_solver_state.reset();
+        return false;
+    }
+}
+
+bool wind_solver_solve()
+{
+    try {
+        require_initialized();
+        WindSolverState& state = *g_wind_solver_state;
+
+        state.vel0->FillBoundary(state.geom->periodicity());
+        compute_divergence(state, *state.vel0, *state.div0);
+
+        MultiFab rhs(*state.ba, *state.dm, 1, 0);
+        MultiFab::Copy(rhs, *state.div0, 0, 0, 1, 0);
+        rhs.mult(Real(-1.0), 0, 1, 0);
+
+        LPInfo info;
+        info.setAgglomeration(true);
+        info.setConsolidation(true);
+
+        MLABecLaplacian mlabec({*state.geom}, {*state.ba}, {*state.dm}, info);
+        mlabec.setMaxOrder(2);
+
+        Array<LinOpBCType, AMREX_SPACEDIM> lo_bc, hi_bc;
+        lo_bc[0] = LinOpBCType::Dirichlet;
+        hi_bc[0] = LinOpBCType::Dirichlet;
+        lo_bc[1] = LinOpBCType::Neumann;
+        hi_bc[1] = LinOpBCType::Neumann;
+        lo_bc[2] = LinOpBCType::Neumann;
+        hi_bc[2] = LinOpBCType::Neumann;
+        mlabec.setDomainBC(lo_bc, hi_bc);
+        mlabec.setScalars(0.0, 1.0);
+
+        MultiFab acoef(*state.ba, *state.dm, 1, 0);
+        acoef.setVal(0.0);
+        mlabec.setACoeffs(0, acoef);
+
+        const Real bh = state.alpha_h * state.alpha_h;
+        const Real bv = state.alpha_v * state.alpha_v;
+        Array<MultiFab, AMREX_SPACEDIM> bcoef;
+        bcoef[0].define(convert(*state.ba, IntVect(1, 0, 0)), *state.dm, 1, 0);
+        bcoef[1].define(convert(*state.ba, IntVect(0, 1, 0)), *state.dm, 1, 0);
+        bcoef[2].define(convert(*state.ba, IntVect(0, 0, 1)), *state.dm, 1, 0);
+        bcoef[0].setVal(bh);
+        bcoef[1].setVal(bh);
+        bcoef[2].setVal(bv);
+        mlabec.setBCoeffs(0, GetArrOfConstPtrs(bcoef));
+        mlabec.setLevelBC(0, nullptr);
+
+        MLMG mlmg(mlabec);
+        mlmg.setMaxIter(state.max_iter);
+        mlmg.setMaxFmgIter(20);
+        mlmg.setVerbose(state.mlmg_verbose);
+        mlmg.setBottomVerbose(0);
+        mlmg.setPreSmooth(16);
+        mlmg.setPostSmooth(16);
+
+        state.lambda->setVal(0.0);
+        mlmg.solve({state.lambda.get()}, {&rhs}, state.tol_rel, state.tol_abs);
+        state.lambda->FillBoundary(state.geom->periodicity());
+
+        correct_velocity_field(state);
+
+        MultiFab div_corrected(*state.ba, *state.dm, 1, 0);
+        state.vel->FillBoundary(state.geom->periodicity());
+        compute_divergence(state, *state.vel, div_corrected);
+
+        state.solved = true;
+        state.mlmg_iters = mlmg.getNumIters();
+        state.mlmg_res = mlmg.getFinalResidual();
+
+        amrex::Print() << "wind_solver: max |div(u0)| = " << state.div0->norm0() << "\n";
+        amrex::Print() << "wind_solver: max |div(u)|  = " << div_corrected.norm0() << "\n";
+        amrex::Print() << "wind_solver: MLMG iters=" << state.mlmg_iters
+                       << " residual=" << state.mlmg_res << "\n";
+        return true;
+    } catch (const std::exception& e) {
+        amrex::Print() << "Error solving wind field: " << e.what() << "\n";
+        return false;
+    }
+}
+
+void wind_solver_get_status(bool& solved, int& iters, double& residual)
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        solved = false;
+        iters = 0;
+        residual = 0.0;
+        return;
+    }
+
+    solved = g_wind_solver_state->solved;
+    iters = g_wind_solver_state->mlmg_iters;
+    residual = static_cast<double>(g_wind_solver_state->mlmg_res);
+}
+
+void wind_solver_get_geometry(int& nx, int& ny, int& nz,
+                              double& xmin, double& xmax,
+                              double& ymin, double& ymax,
+                              double& zmin, double& zmax,
+                              double& dx, double& dy, double& dz)
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        nx = ny = nz = 0;
+        xmin = xmax = ymin = ymax = zmin = zmax = dx = dy = dz = 0.0;
+        return;
+    }
+
+    const WindSolverState& state = *g_wind_solver_state;
+    nx = state.nx;
+    ny = state.ny;
+    nz = state.nz;
+    xmin = state.xmin;
+    xmax = state.xmax;
+    ymin = state.ymin;
+    ymax = state.ymax;
+    zmin = state.zmin;
+    zmax = state.zmax;
+    dx = state.dx;
+    dy = state.dy;
+    dz = state.dz;
+}
+
+void wind_solver_get_terrain_bounds(double& zs_min, double& zs_max)
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        zs_min = 0.0;
+        zs_max = 0.0;
+        return;
+    }
+
+    zs_min = static_cast<double>(g_wind_solver_state->zs_min);
+    zs_max = static_cast<double>(g_wind_solver_state->zs_max);
+}
+
+bool wind_solver_update_reference_wind(double U_ref, double V_ref)
+{
+    try {
+        require_initialized();
+        WindSolverState& state = *g_wind_solver_state;
+        state.U_ref = static_cast<Real>(U_ref);
+        state.V_ref = static_cast<Real>(V_ref);
+        if (state.init_mode == "uniform") {
+            state.uniform_U = state.U_ref;
+            state.uniform_V = state.V_ref;
+        }
+        initialize_wind_field(state);
+        return true;
+    } catch (const std::exception& e) {
+        amrex::Print() << "Error updating reference wind: " << e.what() << "\n";
+        return false;
+    }
+}
+
+bool wind_solver_update_parameters(double alpha_h, double alpha_v,
+                                   double tol_rel, int max_iter)
+{
+    try {
+        require_initialized();
+        WindSolverState& state = *g_wind_solver_state;
+        state.alpha_h = static_cast<Real>(alpha_h);
+        state.alpha_v = static_cast<Real>(alpha_v);
+        state.tol_rel = static_cast<Real>(tol_rel);
+        state.max_iter = max_iter;
+        state.solved = false;
+        return true;
+    } catch (const std::exception& e) {
+        amrex::Print() << "Error updating wind solver parameters: " << e.what() << "\n";
+        return false;
+    }
+}
+
+void wind_solver_get_velocity(std::vector<double>& u_data,
+                              std::vector<double>& v_data,
+                              std::vector<double>& w_data)
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        u_data.clear();
+        v_data.clear();
+        w_data.clear();
+        return;
+    }
+
+    const WindSolverState& state = *g_wind_solver_state;
+    u_data = extract_multifab_component_fortran(*state.vel, 0, state.nx, state.ny, state.nz);
+    v_data = extract_multifab_component_fortran(*state.vel, 1, state.nx, state.ny, state.nz);
+    w_data = extract_multifab_component_fortran(*state.vel, 2, state.nx, state.ny, state.nz);
+}
+
+void wind_solver_get_velocity0(std::vector<double>& u_data,
+                               std::vector<double>& v_data,
+                               std::vector<double>& w_data)
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        u_data.clear();
+        v_data.clear();
+        w_data.clear();
+        return;
+    }
+
+    const WindSolverState& state = *g_wind_solver_state;
+    u_data = extract_multifab_component_fortran(*state.vel0, 0, state.nx, state.ny, state.nz);
+    v_data = extract_multifab_component_fortran(*state.vel0, 1, state.nx, state.ny, state.nz);
+    w_data = extract_multifab_component_fortran(*state.vel0, 2, state.nx, state.ny, state.nz);
+}
+
+std::vector<double> wind_solver_get_lambda()
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        return {};
+    }
+
+    const WindSolverState& state = *g_wind_solver_state;
+    return extract_multifab_component_fortran(*state.lambda, 0, state.nx, state.ny, state.nz);
+}
+
+std::vector<double> wind_solver_get_div0()
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        return {};
+    }
+
+    const WindSolverState& state = *g_wind_solver_state;
+    return extract_multifab_component_fortran(*state.div0, 0, state.nx, state.ny, state.nz);
+}
+
+std::vector<double> wind_solver_get_terrain()
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized || !g_wind_solver_runtime) {
+        return {};
+    }
+
+    std::vector<double> terrain(static_cast<std::size_t>(g_wind_solver_state->nx) * g_wind_solver_state->ny);
+    for (std::size_t idx = 0; idx < terrain.size(); ++idx) {
+        terrain[idx] = static_cast<double>(g_wind_solver_runtime->terrain_host[idx]);
+    }
+    return terrain;
+}
+
+void wind_solver_get_velocity_at_agl(double agl_height,
+                                     std::vector<double>& u_data,
+                                     std::vector<double>& v_data,
+                                     std::vector<double>& w_data)
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized || !g_wind_solver_runtime) {
+        u_data.clear();
+        v_data.clear();
+        w_data.clear();
+        return;
+    }
+
+    const WindSolverState& state = *g_wind_solver_state;
+    std::vector<double> u3d, v3d, w3d;
+    wind_solver_get_velocity(u3d, v3d, w3d);
+
+    u_data.assign(static_cast<std::size_t>(state.nx) * state.ny, 0.0);
+    v_data.assign(static_cast<std::size_t>(state.nx) * state.ny, 0.0);
+    w_data.assign(static_cast<std::size_t>(state.nx) * state.ny, 0.0);
+
+    for (int j = 0; j < state.ny; ++j) {
+        for (int i = 0; i < state.nx; ++i) {
+            const std::size_t idx2 = static_cast<std::size_t>(i) + static_cast<std::size_t>(state.nx) * j;
+            const int k = agl_to_k(state,
+                                   g_wind_solver_runtime->terrain_host[idx2],
+                                   static_cast<Real>(agl_height));
+            const std::size_t idx3 = static_cast<std::size_t>(i)
+                                   + static_cast<std::size_t>(state.nx)
+                                         * (static_cast<std::size_t>(j)
+                                            + static_cast<std::size_t>(state.ny) * k);
+            u_data[idx2] = u3d[idx3];
+            v_data[idx2] = v3d[idx3];
+            w_data[idx2] = w3d[idx3];
+        }
+    }
+}
+
+void wind_solver_get_velocity_at_k(int k,
+                                   std::vector<double>& u_data,
+                                   std::vector<double>& v_data,
+                                   std::vector<double>& w_data)
+{
+    if (!g_wind_solver_state || !g_wind_solver_state->initialized) {
+        u_data.clear();
+        v_data.clear();
+        w_data.clear();
+        return;
+    }
+
+    const WindSolverState& state = *g_wind_solver_state;
+    const int kk = std::max(0, std::min(state.nz - 1, k));
+    std::vector<double> u3d, v3d, w3d;
+    wind_solver_get_velocity(u3d, v3d, w3d);
+
+    u_data.assign(static_cast<std::size_t>(state.nx) * state.ny, 0.0);
+    v_data.assign(static_cast<std::size_t>(state.nx) * state.ny, 0.0);
+    w_data.assign(static_cast<std::size_t>(state.nx) * state.ny, 0.0);
+
+    for (int j = 0; j < state.ny; ++j) {
+        for (int i = 0; i < state.nx; ++i) {
+            const std::size_t idx2 = static_cast<std::size_t>(i) + static_cast<std::size_t>(state.nx) * j;
+            const std::size_t idx3 = static_cast<std::size_t>(i)
+                                   + static_cast<std::size_t>(state.nx)
+                                         * (static_cast<std::size_t>(j)
+                                            + static_cast<std::size_t>(state.ny) * kk);
+            u_data[idx2] = u3d[idx3];
+            v_data[idx2] = v3d[idx3];
+            w_data[idx2] = w3d[idx3];
+        }
+    }
+}
+
+bool wind_solver_write_plotfile(const std::string& plotfile_name)
+{
+    try {
+        require_initialized();
+        WindSolverState& state = *g_wind_solver_state;
+
+        MultiFab div_current(*state.ba, *state.dm, 1, 0);
+        state.vel->FillBoundary(state.geom->periodicity());
+        compute_divergence(state, *state.vel, div_current);
+
+        MultiFab output(*state.ba, *state.dm, 11, 0);
+        build_plotfile_output(output, div_current);
+
+        Vector<std::string> names = {
+            "u", "v", "w", "vel_magnitude",
+            "u0", "v0", "w0",
+            "lambda", "div0", "div", "terrain_z"
+        };
+        WriteSingleLevelPlotfile(plotfile_name, output, names, *state.geom, 0.0, 0);
+        return true;
+    } catch (const std::exception& e) {
+        amrex::Print() << "Error writing plotfile: " << e.what() << "\n";
+        return false;
+    }
+}
+
+bool wind_solver_write_extract(const std::string& extract_filename, double agl_height)
+{
+    try {
+        require_initialized();
+        WindSolverState& state = *g_wind_solver_state;
+
+        std::vector<double> u, v, w;
+        wind_solver_get_velocity_at_agl(agl_height, u, v, w);
+        const std::vector<double> terrain = wind_solver_get_terrain();
+
+        std::ofstream out(extract_filename);
+        if (!out.is_open()) {
+            throw std::runtime_error("cannot open extract file: " + extract_filename);
+        }
+
+        out << std::scientific << std::setprecision(6);
+        out << "x,y,z_terrain,z_physical,z_agl,u,v,w,speed\n";
+        for (int j = 0; j < state.ny; ++j) {
+            for (int i = 0; i < state.nx; ++i) {
+                const std::size_t idx = static_cast<std::size_t>(i) + static_cast<std::size_t>(state.nx) * j;
+                const Real zs = static_cast<Real>(terrain[idx]);
+                const int k = agl_to_k(state, zs, static_cast<Real>(agl_height));
+                const Real z_phys = state.zmin + (k + Real(0.5)) * state.dz;
+                const Real z_agl = z_phys - zs;
+                const Real x = state.xmin + (i + Real(0.5)) * state.dx;
+                const Real y = state.ymin + (j + Real(0.5)) * state.dy;
+                const Real speed = std::sqrt(static_cast<Real>(u[idx] * u[idx] + v[idx] * v[idx] + w[idx] * w[idx]));
+
+                out << x << ',' << y << ',' << zs << ',' << z_phys << ',' << z_agl << ','
+                    << u[idx] << ',' << v[idx] << ',' << w[idx] << ',' << speed << '\n';
+            }
+        }
+        return true;
+    } catch (const std::exception& e) {
+        amrex::Print() << "Error writing extract: " << e.what() << "\n";
+        return false;
+    }
+}
+
+void wind_solver_finalize()
+{
+    g_wind_solver_runtime.reset();
+    g_wind_solver_state.reset();
+
+    if (!g_amrex_initialized_here && g_parmparse_initialized) {
+        ParmParse::Finalize();
+        g_parmparse_initialized = false;
+    }
+
+    if (g_amrex_initialized_here && amrex::Initialized()) {
+        amrex::Finalize();
+        g_amrex_initialized_here = false;
+        g_parmparse_initialized = false;
+    }
+}
+
+bool wind_solver_is_initialized()
+{
+    return g_wind_solver_state && g_wind_solver_state->initialized;
+}

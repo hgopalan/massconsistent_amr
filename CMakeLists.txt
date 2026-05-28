@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 set(AMREX_SUBMODULE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/amrex")
 option(MASSCONSISTENT_USE_VENDORED_AMREX "Prefer building the vendored AMReX submodule" ON)
 option(MASSCONSISTENT_ENABLE_MPI "Enable MPI parallelism" OFF)
+option(MASSCONSISTENT_BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" OFF)
 set(MASSCONSISTENT_GPU_BACKEND "NONE" CACHE STRING
     "GPU backend for AMReX: NONE (CPU-only), CUDA, HIP, or SYCL")
 set_property(CACHE MASSCONSISTENT_GPU_BACKEND PROPERTY STRINGS NONE CUDA HIP SYCL)
@@ -51,6 +52,11 @@ if(MASSCONSISTENT_USE_VENDORED_AMREX AND EXISTS "${AMREX_SUBMODULE_DIR}/CMakeLis
   set(AMReX_GPU_BACKEND "${MASSCONSISTENT_GPU_BACKEND}" CACHE STRING "AMReX GPU backend" FORCE)
   set(AMReX_FORTRAN OFF CACHE BOOL "Build AMReX without Fortran" FORCE)
   set(AMReX_AMRLEVEL OFF CACHE BOOL "Build AMReX without AmrLevel support" FORCE)
+  # Enable position-independent code for Python bindings
+  if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+    set(AMReX_PIC ON CACHE BOOL "Build AMReX with position-independent code" FORCE)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  endif()
   # The mass-consistent solver uses MLMG (MLABecLaplacian), so linear solvers are required.
   set(AMReX_LINEAR_SOLVERS ON CACHE BOOL "Build AMReX with linear solvers (required for MLMG)" FORCE)
   set(AMReX_PARTICLES OFF CACHE BOOL "Build AMReX without particle support" FORCE)
@@ -78,21 +84,26 @@ else()
 endif()
 
 add_executable(wind_solver src/wind_solver.cpp)
+add_library(wind_solver_api STATIC src/wind_solver_api.cpp)
 
 # On Windows with CUDA, MSVC is the default host compiler and does not
 # understand CUDA device-side keywords that appear in AMReX headers.
-# Tell CMake to route the .cpp file through nvcc (LANGUAGE CUDA).
+# Tell CMake to route the .cpp files through nvcc (LANGUAGE CUDA).
 if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   set_source_files_properties(
     src/wind_solver.cpp
+    src/wind_solver_api.cpp
     PROPERTIES LANGUAGE CUDA
   )
 endif()
 
 target_link_libraries(wind_solver PRIVATE AMReX::amrex)
+target_link_libraries(wind_solver_api PUBLIC AMReX::amrex)
+target_include_directories(wind_solver_api PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 if(MASSCONSISTENT_ENABLE_MPI)
   target_link_libraries(wind_solver PRIVATE MPI::MPI_CXX)
+  target_link_libraries(wind_solver_api PUBLIC MPI::MPI_CXX)
 endif()
 
 # Recommended warnings
@@ -101,8 +112,18 @@ if(MSVC)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
     $<$<COMPILE_LANGUAGE:CXX>:/W4>
   )
+  target_compile_options(wind_solver_api PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
+    $<$<COMPILE_LANGUAGE:CXX>:/W4>
+  )
 else()
   target_compile_options(wind_solver PRIVATE -Wall -Wextra -Wno-pedantic)
+  target_compile_options(wind_solver_api PRIVATE -Wall -Wextra -Wno-pedantic)
+endif()
+
+# Add Python bindings subdirectory
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_subdirectory(src/python)
 endif()
 
 # Add regression test subdirectory
