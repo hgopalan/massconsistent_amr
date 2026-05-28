@@ -48,6 +48,61 @@ velocity_file = velocity.csv   # path to wind station data
 
 A Python tool `tools/farsite_weather_reader.py` is provided to convert FARSITE weather (.wtr) files to the required velocity CSV format.
 
+## Python API
+
+The solver can be controlled from Python for coupled wind-fire simulations. Build with Python bindings enabled:
+
+```bash
+cmake -S . -B build -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON
+cmake --build build --parallel
+export PYTHONPATH=$PWD/build/python:$PYTHONPATH
+```
+
+### Quick Python Example
+
+```python
+from wind_solver import WindSolver
+
+# Initialize and solve
+wind = WindSolver("inputs.i")
+wind.solve()
+
+# Extract velocity at 10m above ground level
+vel_agl = wind.get_velocity_at_agl(10.0)
+print(f"Mean wind at 10m: U={vel_agl['u'].mean():.2f} m/s")
+
+# Write output
+wind.write_plotfile("plt_wind")
+wind.finalize()
+```
+
+### Coupled Wind-Fire Simulations
+
+The Python API enables coupling with external fire solvers like [wildfire_levelset](https://github.com/hgopalan/wildfire_levelset):
+
+```python
+from wind_solver import WindSolver
+from wildfire_solver import WildfireSolver  # from wildfire_levelset
+
+wind = WindSolver("wind_inputs.i")
+fire = WildfireSolver("fire_inputs.i")
+
+# Solve wind and pass to fire solver
+wind.solve()
+vel_3d = wind.get_velocity()
+fire.update_wind_3d(vel_3d['u'], vel_3d['v'], vel_3d['w'],
+                    wind.nz, wind.zmin, wind.zmax)
+
+# Run coupled simulation
+for n in range(num_steps):
+    fire.step()
+
+wind.finalize()
+fire.finalize()
+```
+
+See [PYTHON_API_IMPLEMENTATION.md](PYTHON_API_IMPLEMENTATION.md) for complete API documentation, examples, and coupling workflows.
+
 ## License
 
 See [LICENSE](LICENSE).
