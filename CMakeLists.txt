@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 set(AMREX_SUBMODULE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/amrex")
 option(MASSCONSISTENT_USE_VENDORED_AMREX "Prefer building the vendored AMReX submodule" ON)
 option(MASSCONSISTENT_ENABLE_MPI "Enable MPI parallelism" OFF)
+option(MASSCONSISTENT_BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" OFF)
 set(MASSCONSISTENT_GPU_BACKEND "NONE" CACHE STRING
     "GPU backend for AMReX: NONE (CPU-only), CUDA, HIP, or SYCL")
 set_property(CACHE MASSCONSISTENT_GPU_BACKEND PROPERTY STRINGS NONE CUDA HIP SYCL)
@@ -51,6 +52,11 @@ if(MASSCONSISTENT_USE_VENDORED_AMREX AND EXISTS "${AMREX_SUBMODULE_DIR}/CMakeLis
   set(AMReX_GPU_BACKEND "${MASSCONSISTENT_GPU_BACKEND}" CACHE STRING "AMReX GPU backend" FORCE)
   set(AMReX_FORTRAN OFF CACHE BOOL "Build AMReX without Fortran" FORCE)
   set(AMReX_AMRLEVEL OFF CACHE BOOL "Build AMReX without AmrLevel support" FORCE)
+  # Enable position-independent code for Python bindings
+  if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+    set(AMReX_PIC ON CACHE BOOL "Build AMReX with position-independent code" FORCE)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  endif()
   # The mass-consistent solver uses MLMG (MLABecLaplacian), so linear solvers are required.
   set(AMReX_LINEAR_SOLVERS ON CACHE BOOL "Build AMReX with linear solvers (required for MLMG)" FORCE)
   set(AMReX_PARTICLES OFF CACHE BOOL "Build AMReX without particle support" FORCE)
@@ -103,6 +109,11 @@ if(MSVC)
   )
 else()
   target_compile_options(wind_solver PRIVATE -Wall -Wextra -Wno-pedantic)
+endif()
+
+# Add Python bindings subdirectory
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_subdirectory(src/python)
 endif()
 
 # Add regression test subdirectory
