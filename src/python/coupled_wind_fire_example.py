@@ -29,9 +29,9 @@ def check_dependencies():
         missing.append("pyWindSolver (build massconsistent_amr with -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
     
     try:
-        import pyWildfire
+        from wildfire_solver import WildfireSolver
     except ImportError:
-        missing.append("pyWildfire (build wildfire_levelset with -DLEVELSET_BUILD_PYTHON_BINDINGS=ON)")
+        missing.append("wildfire_solver (build wildfire_levelset with -DLEVELSET_BUILD_PYTHON_BINDINGS=ON)")
     
     if missing:
         print("Error: Missing required modules:")

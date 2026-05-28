@@ -653,8 +653,8 @@ int agl_to_k(const WindSolverState& state, Real terrain_z, Real agl_height)
 {
     const Real target_z = terrain_z + agl_height;
     const Real k_real = (target_z - state.zmin) / state.dz - Real(0.5);
-    const int k = static_cast<int>(std::llround(k_real));
-    return std::max(0, std::min(state.nz - 1, k));
+    const int k_index = static_cast<int>(std::llround(k_real));
+    return std::max(0, std::min(state.nz - 1, k_index));
 }
 
 void build_plotfile_output(MultiFab& output, MultiFab& div_current)

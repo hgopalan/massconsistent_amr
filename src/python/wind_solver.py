@@ -387,7 +387,7 @@ class WindSolver:
         if self.initialized:
             try:
                 self.finalize()
-            except:
+            except Exception:
                 pass
     
     def is_initialized(self):
