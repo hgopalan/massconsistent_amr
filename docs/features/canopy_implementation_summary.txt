@@ -21,8 +21,7 @@ NEW FILES:
 1. src/canopy_models.H                      - Canopy model functions (GPU-portable)
 2. regtest/canopy_forest/                   - MacDonald model test
 3. regtest/canopy_exponential/              - Shaw-Pereira model test
-4. CANOPY_MODEL_IMPLEMENTATION.md           - Implementation documentation
-5. regtest/canopy_forest/README.md          - Test documentation
+4. docs/features/canopy_model.md            - Implementation documentation
 
 MODIFIED FILES:
 1. src/wind_solver_api.H                    - Added canopy parameters to state
