@@ -48,6 +48,18 @@ velocity_file = velocity.csv   # path to wind station data
 
 A Python tool `tools/farsite_weather_reader.py` is provided to convert FARSITE weather (.wtr) files to the required velocity CSV format.
 
+## Buildings Support
+
+Buildings can be added as a union of rectangular boxes using the `building_boxes` parameter:
+```
+building_boxes = x1 x2 y1 y2 height ...
+# Each building: x1 x2 y1 y2 height [m]
+# Example: Two buildings
+building_boxes = 40.0 60.0 40.0 60.0 30.0  100.0 140.0 60.0 80.0 50.0
+```
+
+Cells inside buildings are masked (zero velocity) similar to terrain cells. The vertical domain automatically extends to accommodate the tallest building.
+
 ## Python API
 
 The solver can be controlled from Python for coupled wind-fire simulations. Build with Python bindings enabled:
