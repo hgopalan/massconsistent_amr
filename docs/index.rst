@@ -15,6 +15,8 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    building
    usage
    wind_solver
+   canopy
+   python_api
    regtests
 
 Overview
