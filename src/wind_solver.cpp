@@ -74,6 +74,9 @@
 //   extract_agl   = -1.0          # terrain-aligned extraction AGL [m] (<0 = off)
 //   extract_k     = -1            # explicit k-index extraction (<0 = off)
 //   extract_file  = wind_extract.csv  # terrain-aligned CSV output filename
+//   building_boxes = x1 x2 y1 y2 height ...  # buildings as box union (optional)
+//                     # each building: x1 x2 y1 y2 height [m]
+//                     # buildings mask cells where z_phys < building_top
 // ==========================================================================
 
 #include "canopy_models.H"
@@ -463,7 +466,23 @@ int main(int argc, char* argv[])
         Real dy = (y_hi - y_lo) / ny;
 
         // ----------------------------------------------------------------
-        // 4. Precompute per-column terrain height via IDW (host side)
+        // 4. Parse building boxes (optional)
+        //    Buildings are defined as a list of boxes: x1 x2 y1 y2 height
+        //    Multiple buildings are specified as space-separated values
+        // ----------------------------------------------------------------
+        std::vector<Real> building_boxes;
+        int n_buildings = pp.countval("building_boxes");
+        if (n_buildings > 0) {
+            building_boxes.resize(n_buildings);
+            pp.getarr("building_boxes", building_boxes, 0, n_buildings);
+            if (n_buildings % 5 != 0) {
+                amrex::Abort("wind_solver: building_boxes must be multiples of 5 (x1 x2 y1 y2 height)");
+            }
+            amrex::Print() << "wind_solver: " << n_buildings / 5 << " building(s) specified\n";
+        }
+
+        // ----------------------------------------------------------------
+        // 5. Precompute per-column terrain height via IDW (host side)
         // ----------------------------------------------------------------
         // terrain_h[j*nx + i] = interpolated elevation at column (i,j) [m]
         std::vector<Real> terrain_h(static_cast<std::size_t>(nx) * ny);
@@ -477,28 +496,68 @@ int main(int argc, char* argv[])
             }
         }
 
-        // Copy to device for use in GPU kernels
-        Gpu::DeviceVector<Real> d_terr(terrain_h.size());
+        // ----------------------------------------------------------------
+        // 6. Compute obstacle height field (terrain + buildings)
+        //    z_obstacle[j*nx + i] = max(terrain_height, building_top)
+        // ----------------------------------------------------------------
+        std::vector<Real> obstacle_h = terrain_h;  // Start with terrain
+        
+        if (!building_boxes.empty()) {
+            int num_buildings = static_cast<int>(building_boxes.size()) / 5;
+            for (int b = 0; b < num_buildings; ++b) {
+                Real bx1 = building_boxes[b * 5 + 0];
+                Real bx2 = building_boxes[b * 5 + 1];
+                Real by1 = building_boxes[b * 5 + 2];
+                Real by2 = building_boxes[b * 5 + 3];
+                Real bh  = building_boxes[b * 5 + 4];
+                
+                amrex::Print() << "wind_solver: building " << b + 1 
+                               << ": x=[" << bx1 << ", " << bx2 << "] m"
+                               << ", y=[" << by1 << ", " << by2 << "] m"
+                               << ", height=" << bh << " m\n";
+                
+                // Mark all cells within building footprint
+                for (int j = 0; j < ny; ++j) {
+                    Real yc = y_lo + (j + 0.5) * dy;
+                    for (int i = 0; i < nx; ++i) {
+                        Real xc = x_lo + (i + 0.5) * dx;
+                        // Check if cell center is inside building footprint
+                        if (xc >= bx1 && xc <= bx2 && yc >= by1 && yc <= by2) {
+                            std::size_t idx = static_cast<std::size_t>(j) * nx + i;
+                            obstacle_h[idx] = std::max(obstacle_h[idx], bh);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Copy obstacle height field to device for use in GPU kernels
+        Gpu::DeviceVector<Real> d_terr(obstacle_h.size());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         terrain_h.begin(), terrain_h.end(), d_terr.begin());
+                         obstacle_h.begin(), obstacle_h.end(), d_terr.begin());
         Real const* d_terr_ptr = d_terr.data();
 
         // Summary statistics
         Real zs_min = *std::min_element(terrain_h.begin(), terrain_h.end());
         Real zs_max = *std::max_element(terrain_h.begin(), terrain_h.end());
+        Real obs_max = *std::max_element(obstacle_h.begin(), obstacle_h.end());
         amrex::Print() << "wind_solver: terrain elevation [" << zs_min
                        << ", " << zs_max << "] m\n";
+        if (!building_boxes.empty()) {
+            amrex::Print() << "wind_solver: obstacle height (terrain+buildings) max = "
+                           << obs_max << " m\n";
+        }
 
         // ----------------------------------------------------------------
-        // 5. Determine vertical domain and build AMReX geometry
+        // 7. Determine vertical domain and build AMReX geometry
         //    Vertical range: [z_lo, z_hi] where
         //        z_lo = minimum terrain elevation (= zs_min)
-        //        z_hi = maximum terrain elevation + domain_height
+        //        z_hi = maximum obstacle elevation + domain_height
         //    This ensures the domain covers all terrain and extends at least
-        //    domain_height metres above the highest terrain point.
+        //    domain_height metres above the highest obstacle point.
         // ----------------------------------------------------------------
         Real z_lo = zs_min;
-        Real z_hi = zs_max + domain_height;
+        Real z_hi = obs_max + domain_height;
         int  nz   = std::max(1, static_cast<int>(std::round((z_hi - z_lo) / dz_req)));
         Real dz   = (z_hi - z_lo) / nz;
 
@@ -520,7 +579,7 @@ int main(int argc, char* argv[])
         DistributionMapping dm(ba);
 
         // ----------------------------------------------------------------
-        // 6. Allocate MultiFabs
+        // 8. Allocate MultiFabs
         //    lam   – Lagrange multiplier λ                   [1 comp,  ng=1]
         //    rhs   – Poisson RHS = -(∇·u0)                  [1 comp,  ng=0]
         // ----------------------------------------------------------------
@@ -543,7 +602,7 @@ int main(int argc, char* argv[])
         const int  nx_cap_init    = nx;
 
         // ----------------------------------------------------------------
-        // 7. Fill initial wind field based on initialization mode
+        // 9. Fill initial wind field based on initialization mode
         // ----------------------------------------------------------------
         amrex::Print() << "wind_solver: initializing wind field with mode: " << init_mode << "\n";
 
@@ -702,7 +761,7 @@ int main(int argc, char* argv[])
         vel0.FillBoundary(geom.periodicity());
 
         // ----------------------------------------------------------------
-        // 8. Compute divergence of initial wind  →  RHS = -(∇·u0)
+        // 10. Compute divergence of initial wind  →  RHS = -(∇·u0)
         //    One-sided differences at physical domain boundaries;
         //    centred differences (or WENO) in the interior.
         //    Terrain (sub-surface) cells: rhs = 0 (not enforced).
@@ -822,7 +881,7 @@ int main(int argc, char* argv[])
         }
 
         // ----------------------------------------------------------------
-        // 9. Set up MLABecLaplacian and MLMG for the Poisson solve
+        // 11. Set up MLABecLaplacian and MLMG for the Poisson solve
         //
         //   Operator:  -(α_h² ∂²λ/∂x² + α_h² ∂²λ/∂y² + α_v² ∂²λ/∂z²) = rhs
         //
@@ -873,7 +932,7 @@ int main(int argc, char* argv[])
         mlabec.setLevelBC(0, nullptr);
 
         // ----------------------------------------------------------------
-        // 10. Solve with MLMG
+        // 12. Solve with MLMG
         // ----------------------------------------------------------------
         MLMG mlmg(mlabec);
         mlmg.setMaxIter(200);
@@ -893,7 +952,7 @@ int main(int argc, char* argv[])
         lam.FillBoundary(geom.periodicity());
 
         // ----------------------------------------------------------------
-        // 11. Correct velocity field:  u = u0 - α_h² ∂λ/∂x  etc.
+        // 13. Correct velocity field:  u = u0 - α_h² ∂λ/∂x  etc.
         //     One-sided gradient at physical domain boundaries.
         //     Terrain cells are reset to zero.
         // ----------------------------------------------------------------
@@ -1001,7 +1060,7 @@ int main(int argc, char* argv[])
         }
 
         // ----------------------------------------------------------------
-        // 12. Compute diagnostics: divergence before and after correction
+        // 14. Compute diagnostics: divergence before and after correction
         // ----------------------------------------------------------------
         MultiFab div_before(ba, dm, 1, 0);
         MultiFab div_after (ba, dm, 1, 0);
@@ -1126,7 +1185,7 @@ int main(int argc, char* argv[])
                        << div_a_max << " s⁻¹\n";
 
         // ----------------------------------------------------------------
-        // 13. Assemble output MultiFab and write plotfile
+        // 15. Assemble output MultiFab and write plotfile
         //
         //    Components:
         //      0  u             corrected x-wind [m/s]
@@ -1184,7 +1243,7 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: plotfile written to " << plot_file << "\n";
 
         // ----------------------------------------------------------------
-        // 14. Optional terrain-aligned extraction
+        // 16. Optional terrain-aligned extraction
         //
         //  Determine the extraction k-index:
         //   • If extract_agl >= 0: snap to the cell whose physical centre
