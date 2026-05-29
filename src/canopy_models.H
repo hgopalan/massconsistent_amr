@@ -24,6 +24,7 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include <algorithm>
 #include <cmath>
 
 namespace {
