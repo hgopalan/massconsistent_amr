@@ -276,6 +276,16 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
                       state.terrain_x_data,
                       state.terrain_y_data,
                       state.terrain_z_data);
+    
+    // Parse building boxes (optional)
+    int n_buildings = pp.countval("building_boxes");
+    if (n_buildings > 0) {
+        if (n_buildings % 5 != 0) {
+            throw std::runtime_error("building_boxes must be multiples of 5 (x1 x2 y1 y2 height)");
+        }
+        state.building_boxes.resize(n_buildings);
+        pp.getarr("building_boxes", state.building_boxes, 0, n_buildings);
+    }
 
     const Real x_lo = *std::min_element(state.terrain_x_data.begin(), state.terrain_x_data.end());
     const Real x_hi = *std::max_element(state.terrain_x_data.begin(), state.terrain_x_data.end());
@@ -301,6 +311,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     g_wind_solver_runtime = std::make_unique<WindSolverRuntimeData>();
     g_wind_solver_runtime->terrain_host.resize(static_cast<std::size_t>(state.nx) * state.ny);
 
+    // Compute terrain heights via IDW
     for (int j = 0; j < state.ny; ++j) {
         const Real yc = state.ymin + (j + Real(0.5)) * state.dy;
         for (int i = 0; i < state.nx; ++i) {
@@ -318,8 +329,35 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.zs_max = *std::max_element(g_wind_solver_runtime->terrain_host.begin(),
                                      g_wind_solver_runtime->terrain_host.end());
 
+    // Apply buildings to create obstacle height field
+    if (!state.building_boxes.empty()) {
+        int n_buildings_total = static_cast<int>(state.building_boxes.size()) / 5;
+        for (int b = 0; b < n_buildings_total; ++b) {
+            Real bx1 = state.building_boxes[b * 5 + 0];
+            Real bx2 = state.building_boxes[b * 5 + 1];
+            Real by1 = state.building_boxes[b * 5 + 2];
+            Real by2 = state.building_boxes[b * 5 + 3];
+            Real bh  = state.building_boxes[b * 5 + 4];
+            
+            for (int j = 0; j < state.ny; ++j) {
+                Real yc = state.ymin + (j + Real(0.5)) * state.dy;
+                for (int i = 0; i < state.nx; ++i) {
+                    Real xc = state.xmin + (i + Real(0.5)) * state.dx;
+                    if (xc >= bx1 && xc <= bx2 && yc >= by1 && yc <= by2) {
+                        std::size_t idx = static_cast<std::size_t>(j) * state.nx + i;
+                        g_wind_solver_runtime->terrain_host[idx] = 
+                            std::max(g_wind_solver_runtime->terrain_host[idx], bh);
+                    }
+                }
+            }
+        }
+    }
+    
+    state.obs_max = *std::max_element(g_wind_solver_runtime->terrain_host.begin(),
+                                      g_wind_solver_runtime->terrain_host.end());
+
     state.zmin = state.zs_min;
-    state.zmax = state.zs_max + domain_height;
+    state.zmax = state.obs_max + domain_height;
     state.nz = std::max(1, static_cast<int>(std::round((state.zmax - state.zmin) / state.dz)));
     state.dz = (state.zmax - state.zmin) / state.nz;
 
