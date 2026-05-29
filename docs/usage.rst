@@ -123,6 +123,30 @@ Parameter Reference
    * - ``extract_file``
      - ``wind_extract.csv``
      - Output filename for the terrain-aligned CSV slice.
+   * - **Canopy Model Parameters**
+     -
+     -
+   * - ``enable_canopy``
+     - ``false``
+     - Enable vegetation canopy parameterization (MacDonald et al. 2000 and Shaw-Pereira).
+   * - ``canopy_height``
+     - ``0.0``
+     - Canopy height [m]. Used to compute displacement height and wind profile.
+   * - ``frontal_area_index``
+     - ``0.0``
+     - Frontal area index λ_f (frontal area / ground area). Typical values: 0.2-0.4 for forests.
+   * - ``plan_area_index``
+     - ``0.0``
+     - Plan area index λ_p (plan area / ground area). Typical values: 0.15-0.3 for forests.
+   * - ``canopy_drag_coeff``
+     - ``0.2``
+     - Canopy drag coefficient C_d. Typical range: 0.15-0.3.
+   * - ``use_exponential_profile``
+     - ``false``
+     - Use Shaw-Pereira (1982) exponential decay within canopy instead of log-law.
+   * - ``canopy_attenuation``
+     - ``2.5``
+     - Exponential attenuation coefficient α for Shaw-Pereira profile. Typical range: 2-4.
 
 Terrain File Format
 -------------------

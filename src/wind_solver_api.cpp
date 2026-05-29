@@ -1,4 +1,5 @@
 #include "wind_solver_api.H"
+#include "canopy_models.H"
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
@@ -255,6 +256,22 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.velocity_file = "velocity.csv";
     pp.query("velocity_file", state.velocity_file);
 
+    // Canopy model parameters
+    state.enable_canopy = false;
+    state.canopy_height = 0.0;
+    state.frontal_area_index = 0.0;
+    state.plan_area_index = 0.0;
+    state.canopy_drag_coeff = 0.2;
+    state.canopy_attenuation = 2.5;
+    state.use_exponential_profile = false;
+    pp.query("enable_canopy", state.enable_canopy);
+    pp.query("canopy_height", state.canopy_height);
+    pp.query("frontal_area_index", state.frontal_area_index);
+    pp.query("plan_area_index", state.plan_area_index);
+    pp.query("canopy_drag_coeff", state.canopy_drag_coeff);
+    pp.query("canopy_attenuation", state.canopy_attenuation);
+    pp.query("use_exponential_profile", state.use_exponential_profile);
+
     read_terrain_file(terrain_file,
                       state.terrain_x_data,
                       state.terrain_y_data,
@@ -372,6 +389,16 @@ void initialize_wind_field(WindSolverState& state)
         const Real ux_hat = (speed_ref > Real(1.0e-10)) ? state.U_ref / speed_ref : Real(1.0);
         const Real uy_hat = (speed_ref > Real(1.0e-10)) ? state.V_ref / speed_ref : Real(0.0);
 
+        // Setup canopy parameters
+        CanopyParams canopy_params;
+        canopy_params.enabled = state.enable_canopy;
+        canopy_params.height = state.canopy_height;
+        canopy_params.frontal_area_index = state.frontal_area_index;
+        canopy_params.plan_area_index = state.plan_area_index;
+        canopy_params.drag_coefficient = state.canopy_drag_coeff;
+        canopy_params.attenuation_coeff = state.canopy_attenuation;
+        canopy_params.use_exponential_profile = state.use_exponential_profile;
+
         for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = state.vel0->array(mfi);
@@ -383,7 +410,8 @@ void initialize_wind_field(WindSolverState& state)
                     vel(i, j, k, 1) = Real(0.0);
                     vel(i, j, k, 2) = Real(0.0);
                 } else {
-                    const Real speed = (ustar / kappa) * std::log((z_agl + z0) / z0);
+                    const Real speed = canopy_wind_profile(
+                        z_agl, canopy_params, z0, ustar, kappa);
                     vel(i, j, k, 0) = speed * ux_hat;
                     vel(i, j, k, 1) = speed * uy_hat;
                     vel(i, j, k, 2) = Real(0.0);

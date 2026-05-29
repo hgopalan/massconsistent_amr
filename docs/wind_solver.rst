@@ -177,3 +177,97 @@ References
   *Boundary-Layer Meteorology*, 38, 213–226.
 * AMReX MLMG documentation:
   https://amrex-codes.github.io/amrex/docs_html/LinearSolvers.html
+
+Canopy Parameterization
+-----------------------
+
+The solver includes vegetation canopy models that modify the wind profile
+within and above canopies. Two models are implemented:
+
+**1. MacDonald et al. (2000) - Displacement Height Model**
+
+This empirical model computes an effective displacement height ``d`` and
+roughness length ``z0_eff`` based on canopy morphology parameters:
+
+* Frontal area index λ_f = frontal area / ground area
+* Plan area index λ_p = plan area / ground area  
+* Drag coefficient C_d (typically 0.2-0.3)
+
+The displacement height is computed as:
+
+.. math::
+
+   d/H = 1 + \alpha^{-\lambda_p}(\lambda_p - 1), \quad \alpha = 4.43
+
+The effective roughness length is:
+
+.. math::
+
+   z_0/H = (1 - d/H) \exp\left(-\sqrt{\frac{1}{0.5 \beta C_d (1-d/H) \lambda_f}}\right), \quad \beta = 1.0
+
+The modified log-law profile becomes:
+
+.. math::
+
+   u(z) = \frac{u_*}{\kappa}\ln\!\left(\frac{z - d + z_0}{z_0}\right)
+
+for z > d, and u(z) = 0 for z ≤ d.
+
+**2. Shaw & Pereira (1982) - Exponential Decay Model**
+
+When ``use_exponential_profile = true``, the wind speed within the canopy
+(z < h) follows an exponential decay:
+
+.. math::
+
+   u(z) = u(h) \exp\left(-\alpha\left(1 - \frac{z}{h}\right)\right)
+
+where α is the attenuation coefficient (typically 2-4). Above the canopy
+(z ≥ h), the standard log-law with displacement height applies.
+
+**Usage Example**
+
+To enable canopy effects in an input file::
+
+    enable_canopy = true
+    canopy_height = 15.0          # Forest canopy height [m]
+    frontal_area_index = 0.25     # Moderately dense forest
+    plan_area_index = 0.20
+    canopy_drag_coeff = 0.2
+    
+    # Optional: use exponential decay within canopy
+    use_exponential_profile = true
+    canopy_attenuation = 2.5
+
+**Typical Parameter Values**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - Canopy Type
+     - λ_f (frontal)
+     - λ_p (plan)
+   * - Sparse forest
+     - 0.15 - 0.20
+     - 0.10 - 0.15
+   * - Moderate forest
+     - 0.25 - 0.30
+     - 0.20 - 0.25
+   * - Dense forest
+     - 0.35 - 0.45
+     - 0.30 - 0.40
+   * - Crops/grassland
+     - 0.10 - 0.15
+     - 0.05 - 0.10
+
+**References**
+
+* MacDonald, R.W., Griffiths, R.F., Hall, D.J. (2000). A comparison of
+  results from scaled field and wind tunnel modelling of dispersion in arrays
+  of obstacles. *Atmospheric Environment*, 34(20), 3845-3862.
+* Shaw, R.H., Pereira, A.R. (1982). Aerodynamic roughness of a plant canopy:
+  A numerical experiment. *Agricultural Meteorology*, 26, 51-65.
+* Cionco, R.M. (1965). A mathematical model for air flow in a vegetative
+  canopy. *Journal of Applied Meteorology*, 4, 517-522.
+
