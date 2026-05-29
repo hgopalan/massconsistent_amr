@@ -473,11 +473,11 @@ int main(int argc, char* argv[])
         std::vector<Real> building_boxes;
         int n_buildings = pp.countval("building_boxes");
         if (n_buildings > 0) {
-            building_boxes.resize(n_buildings);
-            pp.getarr("building_boxes", building_boxes, 0, n_buildings);
             if (n_buildings % 5 != 0) {
                 amrex::Abort("wind_solver: building_boxes must be multiples of 5 (x1 x2 y1 y2 height)");
             }
+            building_boxes.resize(n_buildings);
+            pp.getarr("building_boxes", building_boxes, 0, n_buildings);
             amrex::Print() << "wind_solver: " << n_buildings / 5 << " building(s) specified\n";
         }
 
@@ -503,8 +503,8 @@ int main(int argc, char* argv[])
         std::vector<Real> obstacle_h = terrain_h;  // Start with terrain
         
         if (!building_boxes.empty()) {
-            int num_buildings = static_cast<int>(building_boxes.size()) / 5;
-            for (int b = 0; b < num_buildings; ++b) {
+            int n_buildings_total = static_cast<int>(building_boxes.size()) / 5;
+            for (int b = 0; b < n_buildings_total; ++b) {
                 Real bx1 = building_boxes[b * 5 + 0];
                 Real bx2 = building_boxes[b * 5 + 1];
                 Real by1 = building_boxes[b * 5 + 2];

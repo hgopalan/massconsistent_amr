@@ -280,11 +280,11 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     // Parse building boxes (optional)
     int n_buildings = pp.countval("building_boxes");
     if (n_buildings > 0) {
-        state.building_boxes.resize(n_buildings);
-        pp.getarr("building_boxes", state.building_boxes, 0, n_buildings);
         if (n_buildings % 5 != 0) {
             throw std::runtime_error("building_boxes must be multiples of 5 (x1 x2 y1 y2 height)");
         }
+        state.building_boxes.resize(n_buildings);
+        pp.getarr("building_boxes", state.building_boxes, 0, n_buildings);
     }
 
     const Real x_lo = *std::min_element(state.terrain_x_data.begin(), state.terrain_x_data.end());
@@ -331,8 +331,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     // Apply buildings to create obstacle height field
     if (!state.building_boxes.empty()) {
-        int num_buildings = static_cast<int>(state.building_boxes.size()) / 5;
-        for (int b = 0; b < num_buildings; ++b) {
+        int n_buildings_total = static_cast<int>(state.building_boxes.size()) / 5;
+        for (int b = 0; b < n_buildings_total; ++b) {
             Real bx1 = state.building_boxes[b * 5 + 0];
             Real bx2 = state.building_boxes[b * 5 + 1];
             Real by1 = state.building_boxes[b * 5 + 2];
