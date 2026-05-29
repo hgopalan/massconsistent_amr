@@ -22,8 +22,13 @@
 #ifndef CANOPY_MODELS_H
 #define CANOPY_MODELS_H
 
-#include <AMReX.H>
+#include <AMReX_REAL.H>
+#include <AMReX_GpuQualifiers.H>
 #include <cmath>
+
+namespace {
+    using namespace amrex;
+}
 
 // ============================================================================
 // Canopy parameters structure
@@ -70,55 +75,53 @@ void macdonald_canopy_parameters(
     amrex::Real& d,
     amrex::Real& z0_eff)
 {
-    using amrex::Real;
-    
-    const Real H = canopy_height;
+    const amrex::Real H = canopy_height;
     
     // Handle zero or very sparse canopy
-    if (H <= Real(0.0) || lambda_f <= Real(1.0e-10) || lambda_p <= Real(1.0e-10)) {
-        d = Real(0.0);
+    if (H <= amrex::Real(0.0) || lambda_f <= amrex::Real(1.0e-10) || lambda_p <= amrex::Real(1.0e-10)) {
+        d = amrex::Real(0.0);
         z0_eff = z0_base;
         return;
     }
     
     // MacDonald constants
-    const Real alpha_mac = Real(4.43);
-    const Real beta_mac = Real(1.0);
+    const amrex::Real alpha_mac = amrex::Real(4.43);
+    const amrex::Real beta_mac = amrex::Real(1.0);
     
     // Displacement height: d/H = 1 + α^(-λp) * (λp - 1)
-    Real d_over_H = Real(1.0) + std::pow(alpha_mac, -lambda_p) * (lambda_p - Real(1.0));
+    amrex::Real d_over_H = amrex::Real(1.0) + std::pow(alpha_mac, -lambda_p) * (lambda_p - amrex::Real(1.0));
     
     // Clamp d/H to reasonable range [0, 0.9]
-    d_over_H = amrex::max(Real(0.0), amrex::min(d_over_H, Real(0.9)));
+    d_over_H = std::max(amrex::Real(0.0), std::min(d_over_H, amrex::Real(0.9)));
     
     d = d_over_H * H;
     
     // Roughness length: z0/H = (1 - d/H) * exp(-sqrt(1/(0.5*β*Cd*(1-d/H)*λf)))
-    const Real one_minus_d_H = Real(1.0) - d_over_H;
+    const amrex::Real one_minus_d_H = amrex::Real(1.0) - d_over_H;
     
-    if (one_minus_d_H > Real(1.0e-10)) {
+    if (one_minus_d_H > amrex::Real(1.0e-10)) {
         // Compute argument for exponential
-        const Real denom = Real(0.5) * beta_mac * Cd * one_minus_d_H * lambda_f;
+        const amrex::Real denom = amrex::Real(0.5) * beta_mac * Cd * one_minus_d_H * lambda_f;
         
-        if (denom > Real(1.0e-10)) {
-            const Real exponent = -std::sqrt(Real(1.0) / denom);
-            Real z0_over_H = one_minus_d_H * std::exp(exponent);
+        if (denom > amrex::Real(1.0e-10)) {
+            const amrex::Real exponent = -std::sqrt(amrex::Real(1.0) / denom);
+    amrex::Real z0_over_H = one_minus_d_H * std::exp(exponent);
             
             // Clamp z0/H to reasonable range [0.001, 0.5]
-            z0_over_H = amrex::max(Real(0.001), amrex::min(z0_over_H, Real(0.5)));
+            z0_over_H = std::max(amrex::Real(0.001), std::min(z0_over_H, amrex::Real(0.5)));
             
             z0_eff = z0_over_H * H;
         } else {
             // Very dense canopy - use high roughness
-            z0_eff = Real(0.1) * H;
+            z0_eff = amrex::Real(0.1) * H;
         }
     } else {
         // d ≈ H, use small roughness
-        z0_eff = Real(0.01) * H;
+        z0_eff = amrex::Real(0.01) * H;
     }
     
     // Ensure z0_eff is at least z0_base
-    z0_eff = amrex::max(z0_eff, z0_base);
+    z0_eff = std::max(z0_eff, z0_base);
 }
 
 // ============================================================================
@@ -145,19 +148,18 @@ amrex::Real shaw_pereira_profile(
     amrex::Real canopy_height,
     amrex::Real alpha)
 {
-    using amrex::Real;
     
-    if (canopy_height <= Real(0.0) || z_agl >= canopy_height) {
-        return Real(1.0);  // Above canopy or no canopy
+    if (canopy_height <= amrex::Real(0.0) || z_agl >= canopy_height) {
+        return amrex::Real(1.0);  // Above canopy or no canopy
     }
     
-    if (z_agl <= Real(0.0)) {
-        return Real(0.0);  // Below ground
+    if (z_agl <= amrex::Real(0.0)) {
+        return amrex::Real(0.0);  // Below ground
     }
     
     // Within canopy: u(z)/u(h) = exp(-α * (1 - z/h))
-    const Real z_ratio = z_agl / canopy_height;
-    const Real exponent = -alpha * (Real(1.0) - z_ratio);
+    const amrex::Real z_ratio = z_agl / canopy_height;
+    const amrex::Real exponent = -alpha * (amrex::Real(1.0) - z_ratio);
     
     return std::exp(exponent);
 }
@@ -189,13 +191,12 @@ amrex::Real log_law_with_displacement(
     amrex::Real ustar,
     amrex::Real kappa)
 {
-    using amrex::Real;
     
     // Height above displacement
-    const Real z_eff = z_agl - displacement;
+    const amrex::Real z_eff = z_agl - displacement;
     
-    if (z_eff <= Real(0.0)) {
-        return Real(0.0);  // Below or at displacement height
+    if (z_eff <= amrex::Real(0.0)) {
+        return amrex::Real(0.0);  // Below or at displacement height
     }
     
     // Log-law: u = (u*/κ) * ln((z_eff + z0) / z0)
@@ -226,15 +227,14 @@ amrex::Real canopy_wind_profile(
     amrex::Real ustar,
     amrex::Real kappa)
 {
-    using amrex::Real;
     
-    if (!params.enabled || params.height <= Real(0.0)) {
+    if (!params.enabled || params.height <= amrex::Real(0.0)) {
         // No canopy - use standard log-law
         return (ustar / kappa) * std::log((z_agl + z0_base) / z0_base);
     }
     
     // Compute MacDonald displacement height and effective roughness
-    Real displacement, z0_eff;
+    amrex::Real displacement, z0_eff;
     macdonald_canopy_parameters(
         params.height,
         params.frontal_area_index,
@@ -248,15 +248,15 @@ amrex::Real canopy_wind_profile(
         // Use Shaw-Pereira exponential profile within canopy
         
         // Compute wind speed at canopy top using log-law with displacement
-        const Real z_top_eff = params.height - displacement;
-        Real u_at_top = Real(0.0);
+        const amrex::Real z_top_eff = params.height - displacement;
+    amrex::Real u_at_top = amrex::Real(0.0);
         
-        if (z_top_eff > Real(0.0)) {
+        if (z_top_eff > amrex::Real(0.0)) {
             u_at_top = (ustar / kappa) * std::log((z_top_eff + z0_eff) / z0_eff);
         }
         
         // Apply exponential decay within canopy
-        const Real decay_factor = shaw_pereira_profile(
+        const amrex::Real decay_factor = shaw_pereira_profile(
             z_agl, params.height, params.attenuation_coeff);
         
         return u_at_top * decay_factor;
