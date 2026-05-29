@@ -6,7 +6,6 @@ This directory contains detailed documentation for advanced features of the mass
 
 ### Canopy Model Implementation
 - **[Canopy Model](canopy_model.md)** - Complete documentation of the vegetation canopy parameterization
-- **[Canopy Implementation Summary](canopy_implementation_summary.txt)** - Detailed implementation summary with validation results
 
 The canopy model implementation adds support for vegetation effects using QUIC-URB methodology, including:
 - MacDonald et al. (2000) displacement height model
@@ -21,9 +20,6 @@ The Python API enables:
 - Coupled wind-fire simulations
 - Integration with external fire solvers like wildfire_levelset
 - Data exchange via numpy arrays
-
-### Implementation Details
-- **[Implementation Summary](implementation_summary.txt)** - General implementation notes and summary
 
 ## Usage
 
