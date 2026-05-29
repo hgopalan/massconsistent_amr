@@ -101,7 +101,7 @@ wind.finalize()
 fire.finalize()
 ```
 
-See [PYTHON_API_IMPLEMENTATION.md](PYTHON_API_IMPLEMENTATION.md) for complete API documentation, examples, and coupling workflows.
+See [docs/features/python_api.md](docs/features/python_api.md) for complete API documentation, examples, and coupling workflows.
 
 ## License
 
