@@ -67,6 +67,15 @@ struct WindSolverState {
     amrex::Real alpha_h;   // Horizontal Lagrange anisotropy factor
     amrex::Real alpha_v;   // Vertical Lagrange anisotropy factor
     
+    // Canopy model parameters
+    bool enable_canopy;                // Enable canopy model
+    amrex::Real canopy_height;         // Canopy height [m]
+    amrex::Real frontal_area_index;    // Frontal area index λf
+    amrex::Real plan_area_index;       // Plan area index λp
+    amrex::Real canopy_drag_coeff;     // Canopy drag coefficient Cd
+    amrex::Real canopy_attenuation;    // Exponential attenuation coefficient α
+    bool use_exponential_profile;      // Use Shaw-Pereira exponential profile
+    
     // MLMG solver parameters
     int mlmg_verbose;
     amrex::Real tol_rel;

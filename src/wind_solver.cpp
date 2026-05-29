@@ -76,6 +76,8 @@
 //   extract_file  = wind_extract.csv  # terrain-aligned CSV output filename
 // ==========================================================================
 
+#include "canopy_models.H"
+
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -353,6 +355,22 @@ int main(int argc, char* argv[])
         pp.query("z_ref", z_ref);
         pp.query("z0",    z0);
 
+        // Canopy model parameters
+        bool enable_canopy = false;
+        Real canopy_height = 0.0;
+        Real frontal_area_index = 0.0;
+        Real plan_area_index = 0.0;
+        Real canopy_drag_coeff = 0.2;
+        Real canopy_attenuation = 2.5;
+        bool use_exponential_profile = false;
+        pp.query("enable_canopy", enable_canopy);
+        pp.query("canopy_height", canopy_height);
+        pp.query("frontal_area_index", frontal_area_index);
+        pp.query("plan_area_index", plan_area_index);
+        pp.query("canopy_drag_coeff", canopy_drag_coeff);
+        pp.query("canopy_attenuation", canopy_attenuation);
+        pp.query("use_exponential_profile", use_exponential_profile);
+
         // Uniform mode parameters
         Real uniform_U = U_ref;  // default to U_ref
         Real uniform_V = V_ref;  // default to V_ref
@@ -543,6 +561,31 @@ int main(int argc, char* argv[])
             Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
             Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
 
+            // Setup canopy parameters
+            CanopyParams canopy_params;
+            canopy_params.enabled = enable_canopy;
+            canopy_params.height = canopy_height;
+            canopy_params.frontal_area_index = frontal_area_index;
+            canopy_params.plan_area_index = plan_area_index;
+            canopy_params.drag_coefficient = canopy_drag_coeff;
+            canopy_params.attenuation_coeff = canopy_attenuation;
+            canopy_params.use_exponential_profile = use_exponential_profile;
+
+            // Print canopy model status
+            if (enable_canopy) {
+                amrex::Print() << "wind_solver: canopy model enabled\n";
+                amrex::Print() << "  canopy_height = " << canopy_height << " m\n";
+                amrex::Print() << "  frontal_area_index = " << frontal_area_index << "\n";
+                amrex::Print() << "  plan_area_index = " << plan_area_index << "\n";
+                amrex::Print() << "  canopy_drag_coeff = " << canopy_drag_coeff << "\n";
+                if (use_exponential_profile) {
+                    amrex::Print() << "  using Shaw-Pereira exponential profile\n";
+                    amrex::Print() << "  attenuation_coeff = " << canopy_attenuation << "\n";
+                } else {
+                    amrex::Print() << "  using MacDonald displacement height\n";
+                }
+            }
+
             // Capture parameters for GPU lambda
             const Real ustar_cap = ustar;
             const Real kappa_cap = kappa;
@@ -566,8 +609,8 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 1) = Real(0.0);
                         vel(i, j, k, 2) = Real(0.0);
                     } else {
-                        Real speed = (ustar_cap / kappa_cap)
-                                   * std::log((z_agl + z0_cap) / z0_cap);
+                        Real speed = canopy_wind_profile(
+                            z_agl, canopy_params, z0_cap, ustar_cap, kappa_cap);
                         vel(i, j, k, 0) = speed * ux_h;
                         vel(i, j, k, 1) = speed * uy_h;
                         vel(i, j, k, 2) = Real(0.0);
