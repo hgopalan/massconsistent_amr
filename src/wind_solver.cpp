@@ -80,6 +80,7 @@
 // ==========================================================================
 
 #include "canopy_models.H"
+#include "wake_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -411,6 +412,16 @@ int main(int argc, char* argv[])
         pp.query("canopy_drag_coeff", canopy_drag_coeff);
         pp.query("canopy_attenuation", canopy_attenuation);
         pp.query("use_exponential_profile", use_exponential_profile);
+
+        // Wake model parameters
+        bool enable_wake = false;
+        Real wake_c1 = 0.9;  // Cavity length coefficient
+        Real wake_c2 = 0.3;  // Wake deficit coefficient
+        Real wake_separation_length = 3.0;  // Wake separation length factor
+        pp.query("enable_wake", enable_wake);
+        pp.query("wake_c1", wake_c1);
+        pp.query("wake_c2", wake_c2);
+        pp.query("wake_separation_length", wake_separation_length);
 
         // Uniform mode parameters
         Real uniform_U = U_ref;  // default to U_ref
@@ -806,6 +817,99 @@ int main(int argc, char* argv[])
 
         // Fill interior (inter-box) ghost cells via MPI exchange
         vel0.FillBoundary(geom.periodicity());
+
+        // ----------------------------------------------------------------
+        // 9a. Apply wake model (if enabled)
+        //     Modifies the initial velocity field to account for building wakes
+        //     using the Röckle (1990) parameterization
+        // ----------------------------------------------------------------
+        if (enable_wake && !building_xmin.empty()) {
+            amrex::Print() << "wind_solver: applying wake model (Röckle formulation)\n";
+            amrex::Print() << "  cavity length coeff c1 = " << wake_c1 << "\n";
+            amrex::Print() << "  wake deficit coeff c2 = " << wake_c2 << "\n";
+            amrex::Print() << "  separation length factor = " << wake_separation_length << "\n";
+            
+            // Set up wake parameters
+            WakeParams wake_params;
+            wake_params.enabled = true;
+            wake_params.c1 = wake_c1;
+            wake_params.c2 = wake_c2;
+            wake_params.separation_length = wake_separation_length;
+            
+            // Copy building data to device
+            int n_buildings = static_cast<int>(building_xmin.size());
+            Gpu::DeviceVector<Real> d_bldg_xmin(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_xmax(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_ymin(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_ymax(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_zmin(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_zmax(n_buildings);
+            
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_xmin.begin(), building_xmin.end(), d_bldg_xmin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_xmax.begin(), building_xmax.end(), d_bldg_xmax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_ymin.begin(), building_ymin.end(), d_bldg_ymin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_ymax.begin(), building_ymax.end(), d_bldg_ymax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_zmin.begin(), building_zmin.end(), d_bldg_zmin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_zmax.begin(), building_zmax.end(), d_bldg_zmax.begin());
+            
+            Real const* d_bldg_xmin_ptr = d_bldg_xmin.data();
+            Real const* d_bldg_xmax_ptr = d_bldg_xmax.data();
+            Real const* d_bldg_ymin_ptr = d_bldg_ymin.data();
+            Real const* d_bldg_ymax_ptr = d_bldg_ymax.data();
+            Real const* d_bldg_zmin_ptr = d_bldg_zmin.data();
+            Real const* d_bldg_zmax_ptr = d_bldg_zmax.data();
+            
+            const int n_bldg_cap = n_buildings;
+            const Real dx_wake = dx;
+            const Real dy_wake = dy;
+            const Real dz_wake = dz;
+            const Real x_lo_wake = x_lo;
+            const Real y_lo_wake = y_lo;
+            const Real z_lo_wake = z_lo;
+            
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
+                
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Physical coordinates
+                    Real x = x_lo_wake + (i + Real(0.5)) * dx_wake;
+                    Real y = y_lo_wake + (j + Real(0.5)) * dy_wake;
+                    Real z = z_lo_wake + (k + Real(0.5)) * dz_wake;
+                    
+                    // Get current velocity
+                    Real u = vel(i, j, k, 0);
+                    Real v = vel(i, j, k, 1);
+                    Real w = vel(i, j, k, 2);
+                    
+                    // Apply wake model for each building
+                    for (int b = 0; b < n_bldg_cap; ++b) {
+                        Building bldg = compute_building_dimensions(
+                            d_bldg_xmin_ptr[b], d_bldg_xmax_ptr[b],
+                            d_bldg_ymin_ptr[b], d_bldg_ymax_ptr[b],
+                            d_bldg_zmin_ptr[b], d_bldg_zmax_ptr[b]);
+                        
+                        apply_single_building_wake(x, y, z, u, v, w, bldg, wake_params);
+                    }
+                    
+                    // Update velocity field
+                    vel(i, j, k, 0) = u;
+                    vel(i, j, k, 1) = v;
+                    vel(i, j, k, 2) = w;
+                });
+            }
+            
+            // Fill boundary after wake modification
+            vel0.FillBoundary(geom.periodicity());
+        }
 
         // ----------------------------------------------------------------
         // 10. Compute divergence of initial wind  →  RHS = -(∇·u0)

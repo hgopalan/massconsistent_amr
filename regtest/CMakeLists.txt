@@ -71,6 +71,11 @@ add_regression_test(buildings_csv buildings_csv)
 # ===========================================================================
 add_regression_test(buildings_terrain buildings_terrain)
 
+# ===========================================================================
+# wake_single_building/ – Single building wake model (Röckle formulation)
+# ===========================================================================
+add_regression_test(wake_single_building wake_single_building)
+
 # ---------------------------------------------------------------------------
 # Canopy model tests
 # ---------------------------------------------------------------------------
@@ -99,5 +104,6 @@ message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terra
 message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
 message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
 message(STATUS "  buildings_csv/         : Buildings from CSV file (new format)")
+message(STATUS "  wake_single_building/  : Single building wake model (Röckle formulation)")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

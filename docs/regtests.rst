@@ -141,6 +141,57 @@ produces physically consistent results.
     extract_file  = wind_extract.csv
     plot_file     = plt_gaussian_hill_weno5
 
+wake_single_building
+^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/wake_single_building/``
+
+**Purpose:** Verifies the Röckle (1990) building wake model for a single rectangular
+building on flat terrain.
+
+**Terrain:** Flat domain (300 × 200 m, z = 0 everywhere).
+
+**Building:** Single rectangular building (40m × 20m × 30m tall) centered at
+x=100m, y=100m.
+
+**Grid:** 60 × 40 × 30 cells (dx = dy = dz = 5 m, domain_height = 150 m).
+
+**Wind:** U_ref = 10 m/s (westerly, along +x), z_ref = 10 m, z₀ = 0.1 m.
+
+**Wake model:** Röckle formulation enabled with default parameters
+(c1=0.9, c2=0.3, separation_length=3.0).
+
+**Expected behaviour:** The wake model creates:
+
+* **Cavity zone**: Recirculation region extending ~27m (0.9 × 30m) downwind of
+  the building with reduced/negative velocity
+* **Far-wake zone**: Velocity deficit region extending to ~90m (3 × 30m) downwind
+  with gradual recovery
+
+The mass-consistency solver then adjusts the flow to ensure ∇·\ **u** = 0.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    terrain_file  = terrain.csv
+    building_file = buildings.csv
+    enable_wake   = true
+    wake_c1       = 0.9
+    wake_c2       = 0.3
+    wake_separation_length = 3.0
+    U_ref         = 10.0
+    V_ref         = 0.0
+    z_ref         = 10.0
+    z0            = 0.1
+    dx            = 5.0
+    dy            = 5.0
+    dz            = 5.0
+    domain_height = 150.0
+    extract_agl   = 10.0
+    extract_file  = wind_wake_10m.csv
+    plot_file     = plt_wake_single_building
+
 Adding New Tests
 ----------------
 
