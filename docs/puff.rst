@@ -477,17 +477,16 @@ New regression tests demonstrate terrain/building/canopy integration:
 * **regtest/puff_canopy**: Canopy diffusivity and deposition
 * **regtest/puff_coupled_full**: All features combined (terrain + buildings + canopy)
 
-Limitations and Future Work
-----------------------------
+Current Limitations and Future Work
+------------------------------------
 
-Current Limitations
-^^^^^^^^^^^^^^^^^^^
+Known Limitations
+^^^^^^^^^^^^^^^^^
 
 1. **Nearest-neighbor velocity interpolation**: Should use trilinear interpolation for spatially-varying wind fields
 2. **No chemical decay**: No radioactive or chemical decay modeled
 3. **No plume rise**: No buoyancy effects for heated sources
 4. **Constant canopy properties**: Canopy parameters are spatially uniform
-5. **Uniform diffusivity**: K_h and K_v are constant (should vary with height/stability)
 
 Future Extensions
 ^^^^^^^^^^^^^^^^^
