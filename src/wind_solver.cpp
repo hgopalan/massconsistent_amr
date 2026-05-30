@@ -937,7 +937,9 @@ int main(int argc, char* argv[])
                         avg_height /= Real(n_bldg_cap);
                         
                         // Estimate street width as average spacing between buildings
-                        // (simplified: use grid spacing as proxy)
+                        // Simplified approach: uses 2*dx as proxy for street width
+                        // For more accurate results, compute actual minimum distance
+                        // between adjacent building faces in the building array
                         Real street_width = Real(2.0) * dx_wake;
                         
                         apply_street_canyon_effect(
