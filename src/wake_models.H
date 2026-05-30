@@ -271,8 +271,15 @@ void apply_single_building_wake(
 // For Röckle model, we need height, width (perpendicular to wind), and
 // length (parallel to wind).
 //
-// This simplified version assumes wind-aligned buildings (can be extended
-// for arbitrary orientations).
+// Note: This simplified version uses the x and y extents directly. For
+// accurate wake modeling with arbitrary wind directions, the building
+// dimensions should be rotated to align with the wind direction.
+// Currently assumes wind-aligned coordinate system.
+//
+// Dimensions:
+//   height = z-extent (vertical)
+//   width  = y-extent (crosswind for westerly/easterly winds)
+//   length = x-extent (streamwise for westerly/easterly winds)
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 Building compute_building_dimensions(
@@ -290,8 +297,8 @@ Building compute_building_dimensions(
     
     // Compute dimensions
     bldg.height = zmax - zmin;
-    bldg.width  = ymax - ymin;
-    bldg.length = xmax - xmin;
+    bldg.width  = ymax - ymin;  // y-extent (crosswind for x-aligned wind)
+    bldg.length = xmax - xmin;  // x-extent (streamwise for x-aligned wind)
     
     return bldg;
 }

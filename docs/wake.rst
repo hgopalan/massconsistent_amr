@@ -56,7 +56,8 @@ The far-wake velocity deficit is:
 
    u_{deficit}(x) = c_2 \cdot U_H \cdot \left(1 - \frac{x - L_r}{L_f - L_r}\right)
 
-where ``x`` is the downwind distance from the building back face.
+where ``x`` is the downwind distance from the building back face, and ``U_H``
+is the reference velocity magnitude at building height.
 
 Enabling the Wake Model
 ------------------------
@@ -179,8 +180,12 @@ GPU kernels for efficient parallel execution.
 Limitations
 -----------
 
-* **Simplified geometry**: The model assumes rectangular buildings aligned with
-  the domain axes. Arbitrary building orientations are not fully supported.
+* **Wind-aligned buildings**: The current implementation assumes buildings are
+  aligned with the computational grid (x/y axes) and works best for winds
+  primarily from cardinal directions. For arbitrary wind directions, the
+  effective building projection in the wind direction should be computed,
+  which is not currently implemented. This limitation will be addressed in
+  future phases.
   
 * **Single wake per building**: Each building's wake is computed independently.
   Wake-wake interactions and wake merging are handled by sequential application
