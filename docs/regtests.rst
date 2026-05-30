@@ -192,6 +192,71 @@ The mass-consistency solver then adjusts the flow to ensure ∇·\ **u** = 0.
     extract_file  = wind_wake_10m.csv
     plot_file     = plt_wake_single_building
 
+raws_synthetic
+^^^^^^^^^^^^^^
+
+**Location:** ``regtest/raws_synthetic/``
+
+**Purpose:** Validates the RAWS (Remote Automated Weather Station) initialization
+mode by reading sparse velocity observations from a CSV file and using
+inverse-distance weighting (IDW) to interpolate them to the grid.
+
+**Terrain:** Gaussian hill (same as gaussian_hill test).
+
+**Grid:** 10 × 10 × 5 cells (dx = dy = 30 m, dz = 25 m).
+
+**Wind:** Three synthetic observation points with varying wind components.
+
+**Expected behaviour:** The IDW interpolation smoothly blends the three wind
+observations across the domain. The mass-consistency solver then enforces
+divergence-free flow.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    init_mode     = raws
+    velocity_file = velocity.csv
+    terrain_file  = terrain.csv
+    dx            = 30.0
+    dy            = 30.0
+    dz            = 25.0
+    extract_agl   = 15.0
+
+surface_data_synthetic
+^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/surface_data_synthetic/``
+
+**Purpose:** Validates the ``surface_data`` initialization mode designed for
+HRRR-style inputs. Reads surface parameters (friction velocity, roughness length,
+10m winds) from a CSV file, interpolates them to each grid column, and constructs
+per-column vertical log-law profiles with spatially-varying surface properties.
+
+**Terrain:** Gaussian hill (same as gaussian_hill test).
+
+**Grid:** 10 × 10 × 5 cells (dx = dy = 30 m, dz = 25 m).
+
+**Surface data:** Three synthetic observation points with varying USTAR (0.35-0.40 m/s)
+and Z0 (0.05-0.10 m) values.
+
+**Expected behaviour:** Each grid column gets its own friction velocity and roughness
+from IDW interpolation, creating inhomogeneous vertical profiles. This enables
+realistic simulation of spatially-varying surface conditions from HRRR or similar
+model output.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    init_mode          = surface_data
+    surface_data_file  = surface_data.csv
+    terrain_file       = terrain.csv
+    dx                 = 30.0
+    dy                 = 30.0
+    dz                 = 25.0
+    extract_agl        = 15.0
+
 Adding New Tests
 ----------------
 

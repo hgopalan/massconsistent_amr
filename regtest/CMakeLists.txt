@@ -52,6 +52,11 @@ add_regression_test(gaussian_hill_weno5 gaussian_hill_weno5)
 add_regression_test(raws_synthetic raws_synthetic)
 
 # ===========================================================================
+# surface_data_synthetic/ – Gaussian hill with surface_data initialization
+# ===========================================================================
+add_regression_test(surface_data_synthetic surface_data_synthetic)
+
+# ===========================================================================
 # uniform_wind/ – Gaussian hill with uniform wind initialization
 # ===========================================================================
 add_regression_test(uniform_wind uniform_wind)
@@ -112,6 +117,7 @@ message(STATUS "  flat_terrain/          : mass-consistent solver on flat terrai
 message(STATUS "  gaussian_hill/         : terrain-following wind on a Gaussian hill (dx=dy=30 m, dz=25 m)")
 message(STATUS "  gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives (dx=dy=30 m, dz=25 m)")
 message(STATUS "  raws_synthetic/        : Gaussian hill with RAWS wind initialization (IDW interpolation)")
+message(STATUS "  surface_data_synthetic/: Gaussian hill with surface_data initialization (HRRR-style)")
 message(STATUS "  uniform_wind/          : Gaussian hill with uniform wind initialization")
 message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
 message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terrain")

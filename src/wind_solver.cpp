@@ -216,6 +216,45 @@ static std::pair<Real, Real> idw_velocity(Real xq, Real yq,
     return {ux_val / wsum, uy_val / wsum};
 }
 
+// IDW interpolation: surface data (USTAR, Z0, U10, V10) at query point (xq, yq)
+// Returns tuple: (ustar, z0, u10, v10)
+static std::tuple<Real, Real, Real, Real> idw_surface_data(
+    Real xq, Real yq,
+    const std::vector<Real>& x,
+    const std::vector<Real>& y,
+    const std::vector<Real>& ustar_data,
+    const std::vector<Real>& z0_data,
+    const std::vector<Real>& u10_data,
+    const std::vector<Real>& v10_data,
+    int k = 6)
+{
+    int n = static_cast<int>(x.size());
+    k = std::min(k, n);
+
+    std::vector<std::pair<Real, int>> d2(n);
+    for (int i = 0; i < n; ++i) {
+        Real dx = x[i] - xq;
+        Real dy = y[i] - yq;
+        d2[i] = {dx * dx + dy * dy, i};
+    }
+    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
+
+    Real wsum = 0.0, ustar_val = 0.0, z0_val = 0.0, u10_val = 0.0, v10_val = 0.0;
+    for (int i = 0; i < k; ++i) {
+        if (d2[i].first < DISTANCE_EPSILON) {
+            int idx = d2[i].second;
+            return {ustar_data[idx], z0_data[idx], u10_data[idx], v10_data[idx]};
+        }
+        Real w = Real(1.0) / d2[i].first;
+        wsum += w;
+        ustar_val += w * ustar_data[d2[i].second];
+        z0_val += w * z0_data[d2[i].second];
+        u10_val += w * u10_data[d2[i].second];
+        v10_val += w * v10_data[d2[i].second];
+    }
+    return {ustar_val / wsum, z0_val / wsum, u10_val / wsum, v10_val / wsum};
+}
+
 // Read X Y Z U V velocity file (whitespace or comma separated; '#' comments).
 // Used for RAWS or synthetic wind data initialization.
 static void read_velocity_file(const std::string& filename,
@@ -251,6 +290,49 @@ static void read_velocity_file(const std::string& filename,
 
     amrex::Print() << "wind_solver: read " << xd.size()
                    << " velocity points from " << filename << "\n";
+}
+
+// Read X Y Z USTAR Z0 U10 V10 surface data file (whitespace or comma separated; '#' comments).
+// Used for HRRR-style surface parameters with per-column friction velocity and roughness.
+// Format: X Y Z USTAR Z0 U10 V10
+// where USTAR = friction velocity [m/s], Z0 = roughness length [m], U10/V10 = 10m wind [m/s]
+static void read_surface_data_file(const std::string& filename,
+                                   std::vector<Real>& xd,
+                                   std::vector<Real>& yd,
+                                   std::vector<Real>& zd,
+                                   std::vector<Real>& ustar_d,
+                                   std::vector<Real>& z0_d,
+                                   std::vector<Real>& u10_d,
+                                   std::vector<Real>& v10_d)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open surface data file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real x, y, z, ustar, z0, u10, v10;
+        if (ss >> x >> y >> z >> ustar >> z0 >> u10 >> v10) {
+            xd.push_back(x);
+            yd.push_back(y);
+            zd.push_back(z);
+            ustar_d.push_back(ustar);
+            z0_d.push_back(z0);
+            u10_d.push_back(u10);
+            v10_d.push_back(v10);
+        }
+    }
+    if (xd.empty())
+        amrex::Abort("wind_solver: no data read from surface data file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << xd.size()
+                   << " surface data points from " << filename << "\n";
 }
 
 // Read building file: xmin xmax ymin ymax zmin zmax (whitespace or comma separated; '#' comments).
@@ -383,17 +465,18 @@ int main(int argc, char* argv[])
         std::string terrain_file = "terrain.csv";
         pp.query("terrain_file", terrain_file);
 
-        // Wind initialization mode: "loglaw" (default), "uniform", or "raws"
-        // "loglaw"  : use log-law profile with U_ref, V_ref at z_ref height
-        // "uniform" : use constant U, V everywhere (uniform_U, uniform_V parameters)
-        // "raws"    : interpolate from velocity file (X Y Z U V format)
+        // Wind initialization mode: "loglaw" (default), "uniform", "raws", or "surface_data"
+        // "loglaw"       : use log-law profile with U_ref, V_ref at z_ref height
+        // "uniform"      : constant horizontal wind (uniform_U, uniform_V) at all heights
+        // "raws"         : interpolate from velocity file (X Y Z U V format)
+        // "surface_data" : construct vertical profiles from surface parameters (X Y Z USTAR Z0 U10 V10)
         std::string init_mode = "loglaw";
         pp.query("init_mode", init_mode);
 
         // Validate init_mode
-        if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws") {
+        if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && init_mode != "surface_data") {
             amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                         " (must be 'loglaw', 'uniform', or 'raws')");
+                         " (must be 'loglaw', 'uniform', 'raws', or 'surface_data')");
         }
 
         Real U_ref = 10.0;  // x-component of reference wind [m/s]
@@ -448,6 +531,10 @@ int main(int argc, char* argv[])
         // RAWS mode parameters
         std::string velocity_file = "velocity.csv";
         pp.query("velocity_file", velocity_file);
+
+        // Surface data mode parameters (for HRRR-style initialization)
+        std::string surface_data_file = "surface_data.csv";
+        pp.query("surface_data_file", surface_data_file);
 
         Real dx_req = 30.0;
         Real dy_req = 30.0;
@@ -828,6 +915,95 @@ int main(int argc, char* argv[])
                     } else {
                         vel(i, j, k, 0) = d_vel_u_ptr[j * nx_cap_init + i];
                         vel(i, j, k, 1) = d_vel_v_ptr[j * nx_cap_init + i];
+                        vel(i, j, k, 2) = Real(0.0);
+                    }
+                });
+            }
+        } else if (init_mode == "surface_data") {
+            // Surface data initialization via IDW interpolation of USTAR, Z0, U10, V10
+            // Constructs per-column vertical profiles using local friction velocity and roughness
+            std::vector<Real> x_surf, y_surf, z_surf, ustar_surf, z0_surf, u10_surf, v10_surf;
+            read_surface_data_file(surface_data_file, x_surf, y_surf, z_surf, 
+                                  ustar_surf, z0_surf, u10_surf, v10_surf);
+
+            // Precompute per-column surface parameters via IDW
+            std::vector<Real> ustar_h(static_cast<std::size_t>(nx) * ny);
+            std::vector<Real> z0_h(static_cast<std::size_t>(nx) * ny);
+            std::vector<Real> u10_h(static_cast<std::size_t>(nx) * ny);
+            std::vector<Real> v10_h(static_cast<std::size_t>(nx) * ny);
+
+            for (int j = 0; j < ny; ++j) {
+                Real yc = y_lo + (j + 0.5) * dy;
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + 0.5) * dx;
+                    auto [ustar_interp, z0_interp, u10_interp, v10_interp] = 
+                        idw_surface_data(xc, yc, x_surf, y_surf, ustar_surf, z0_surf, u10_surf, v10_surf);
+                    ustar_h[static_cast<std::size_t>(j) * nx + i] = ustar_interp;
+                    z0_h[static_cast<std::size_t>(j) * nx + i] = z0_interp;
+                    u10_h[static_cast<std::size_t>(j) * nx + i] = u10_interp;
+                    v10_h[static_cast<std::size_t>(j) * nx + i] = v10_interp;
+                }
+            }
+
+            // Copy to device for GPU kernels
+            Gpu::DeviceVector<Real> d_ustar(ustar_h.size());
+            Gpu::DeviceVector<Real> d_z0(z0_h.size());
+            Gpu::DeviceVector<Real> d_u10(u10_h.size());
+            Gpu::DeviceVector<Real> d_v10(v10_h.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, ustar_h.begin(), ustar_h.end(), d_ustar.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, z0_h.begin(), z0_h.end(), d_z0.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, u10_h.begin(), u10_h.end(), d_u10.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, v10_h.begin(), v10_h.end(), d_v10.begin());
+
+            const Real* d_ustar_ptr = d_ustar.data();
+            const Real* d_z0_ptr = d_z0.data();
+            const Real* d_u10_ptr = d_u10.data();
+            const Real* d_v10_ptr = d_v10.data();
+            const Real kappa_cap = Real(0.41);  // von Karman constant
+
+            // Setup canopy parameters (shared with loglaw)
+            CanopyParams canopy_params;
+            canopy_params.enabled = enable_canopy;
+            canopy_params.height = canopy_height;
+            canopy_params.frontal_area_index = frontal_area_index;
+            canopy_params.plan_area_index = plan_area_index;
+            canopy_params.drag_coefficient = canopy_drag_coeff;
+            canopy_params.attenuation_coeff = canopy_attenuation;
+            canopy_params.use_exponential_profile = use_exponential_profile;
+
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
+
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Height above local terrain for this column
+                    Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                    Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
+
+                    if (z_agl <= Real(0.0)) {
+                        vel(i, j, k, 0) = Real(0.0);
+                        vel(i, j, k, 1) = Real(0.0);
+                        vel(i, j, k, 2) = Real(0.0);
+                    } else {
+                        // Get column-specific surface parameters
+                        std::size_t idx = static_cast<std::size_t>(j) * nx_cap_init + i;
+                        Real ustar_col = d_ustar_ptr[idx];
+                        Real z0_col = d_z0_ptr[idx];
+                        Real u10_col = d_u10_ptr[idx];
+                        Real v10_col = d_v10_ptr[idx];
+
+                        // Compute wind direction from 10m winds
+                        Real speed_10m = std::sqrt(u10_col * u10_col + v10_col * v10_col);
+                        Real ux_hat = (speed_10m > Real(1.0e-10)) ? u10_col / speed_10m : Real(1.0);
+                        Real uy_hat = (speed_10m > Real(1.0e-10)) ? v10_col / speed_10m : Real(0.0);
+
+                        // Construct vertical profile using log-law with column-specific ustar and z0
+                        Real speed = canopy_wind_profile(
+                            z_agl, canopy_params, z0_col, ustar_col, kappa_cap);
+                        vel(i, j, k, 0) = speed * ux_hat;
+                        vel(i, j, k, 1) = speed * uy_hat;
                         vel(i, j, k, 2) = Real(0.0);
                     }
                 });
