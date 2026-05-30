@@ -21,10 +21,10 @@ dz = 10.0
 # Domain height [m] above maximum obstacle elevation
 domain_height = 100.0
 
-# Buildings: two rectangular boxes
-# Building 1: 40-60m x 40-60m, height 30m
-# Building 2: 100-140m x 60-80m, height 50m
-building_boxes = 40.0 60.0 40.0 60.0 30.0  100.0 140.0 60.0 80.0 50.0
+# Buildings from CSV file
+# Building 1: 40-60m x 40-60m, height 0-30m
+# Building 2: 100-140m x 60-80m, height 0-50m
+building_file = buildings.csv
 
 # Lagrange anisotropy coefficients
 alpha_h = 1.0
