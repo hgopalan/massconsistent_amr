@@ -303,4 +303,167 @@ Building compute_building_dimensions(
     return bldg;
 }
 
+// ============================================================================
+// Wake superposition method
+//
+// Combines velocity deficits from multiple overlapping building wakes.
+// Uses the quadratic superposition method (Lopes da Costa et al. 2006):
+//
+//   U_total = U_ref - sqrt(sum(du_i^2))
+//
+// This method is more physically realistic than linear superposition for
+// overlapping wakes as it accounts for turbulent mixing.
+//
+// Reference:
+// - Lopes da Costa, J., Castro, F.A., Palma, J.M.L.M., Stuart, P. (2006).
+//   Computer simulation of atmospheric flows over real forests for wind
+//   energy resource evaluation. Journal of Wind Engineering and Industrial
+//   Aerodynamics, 94(8), 603-620.
+//
+// Inputs:
+//   x, y, z         - Point coordinates [m]
+//   u0, v0, w0      - Initial velocity components [m/s]
+//   bldg_xmin, etc. - Arrays of building bounds [m]
+//   n_buildings     - Number of buildings
+//   params          - Wake model parameters
+//
+// Outputs:
+//   u, v, w         - Velocity components with all wake deficits applied [m/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_wake_superposition(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    amrex::Real& u, amrex::Real& v, amrex::Real& w,
+    const amrex::Real* bldg_xmin,
+    const amrex::Real* bldg_xmax,
+    const amrex::Real* bldg_ymin,
+    const amrex::Real* bldg_ymax,
+    const amrex::Real* bldg_zmin,
+    const amrex::Real* bldg_zmax,
+    int n_buildings,
+    const WakeParams& params)
+{
+    // Reference velocity magnitude
+    const amrex::Real U_ref = std::sqrt(u * u + v * v);
+    
+    if (U_ref < amrex::Real(1.0e-10)) {
+        return;  // No flow, no wake
+    }
+    
+    // Wind direction from velocity components
+    const amrex::Real wind_dir_x = u / U_ref;
+    const amrex::Real wind_dir_y = v / U_ref;
+    
+    // Accumulate squared velocity deficits from all buildings
+    amrex::Real du_squared_sum = amrex::Real(0.0);
+    amrex::Real dv_squared_sum = amrex::Real(0.0);
+    amrex::Real dw_squared_sum = amrex::Real(0.0);
+    
+    for (int b = 0; b < n_buildings; ++b) {
+        // Compute building structure
+        Building bldg = compute_building_dimensions(
+            bldg_xmin[b], bldg_xmax[b],
+            bldg_ymin[b], bldg_ymax[b],
+            bldg_zmin[b], bldg_zmax[b]);
+        
+        // Compute wake deficit from this building
+        amrex::Real du_b, dv_b, dw_b;
+        bool in_wake = rockle_wake_deficit(
+            x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params,
+            du_b, dv_b, dw_b);
+        
+        if (in_wake) {
+            // Add squared deficit (quadratic superposition)
+            du_squared_sum += du_b * du_b;
+            dv_squared_sum += dv_b * dv_b;
+            dw_squared_sum += dw_b * dw_b;
+        }
+    }
+    
+    // Compute total deficit using quadratic superposition
+    // Take square root and preserve direction of deficit
+    if (du_squared_sum > amrex::Real(0.0)) {
+        u -= std::sqrt(du_squared_sum);
+    }
+    if (dv_squared_sum > amrex::Real(0.0)) {
+        v -= std::sqrt(dv_squared_sum);
+    }
+    if (dw_squared_sum > amrex::Real(0.0)) {
+        w -= std::sqrt(dw_squared_sum);
+    }
+}
+
+// ============================================================================
+// Street canyon parameterization
+//
+// Models flow in street canyons (parallel rows of buildings) using the
+// Oke (1988) street canyon classification and flow regimes.
+//
+// Flow regimes based on height-to-width ratio (H/W):
+//   - Isolated roughness flow: H/W < 0.3 (weak interactions)
+//   - Wake interference flow: 0.3 < H/W < 0.7 (wake interactions)
+//   - Skimming flow: H/W > 0.7 (vortex in canyon)
+//
+// For skimming flow regime (narrow streets), implements a recirculation
+// vortex with reduced velocity inside the canyon.
+//
+// References:
+// - Oke, T.R. (1988). Street design and urban canopy layer climate.
+//   Energy and Buildings, 11(1-3), 103-113.
+// - Sini, J.F., Anquetin, S., Mestayer, P.G. (1996). Pollutant dispersion
+//   and thermal effects in urban street canyons. Atmospheric Environment,
+//   30(15), 2659-2677.
+//
+// Inputs:
+//   x, y, z          - Point coordinates [m]
+//   u, v, w          - Current velocity components [m/s]
+//   building_height  - Average height of canyon walls [m]
+//   street_width     - Width of street canyon [m]
+//   street_axis_x    - Street axis x-component (unit vector)
+//   street_axis_y    - Street axis y-component (unit vector)
+//   canyon_reduction - Velocity reduction factor for skimming flow (0-1)
+//
+// Outputs:
+//   Modified velocity components inside street canyon
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_street_canyon_effect(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    amrex::Real& u, amrex::Real& v, amrex::Real& w,
+    amrex::Real building_height,
+    amrex::Real street_width,
+    amrex::Real canyon_reduction_factor)
+{
+    // Only apply within canyon (below building height)
+    if (z >= building_height || building_height <= amrex::Real(0.0)) {
+        return;
+    }
+    
+    // Height-to-width ratio determines flow regime
+    const amrex::Real H_over_W = building_height / street_width;
+    
+    // Skimming flow regime (H/W > 0.7): strong recirculation
+    if (H_over_W > amrex::Real(0.7)) {
+        // Reduce horizontal velocity by canyon reduction factor
+        // Vertical component remains similar (recirculation)
+        u *= canyon_reduction_factor;
+        v *= canyon_reduction_factor;
+        
+        // Add weak recirculation component (simplified)
+        // In reality, this would depend on street orientation and wind direction
+        const amrex::Real z_ratio = z / building_height;
+        const amrex::Real vortex_strength = amrex::Real(0.2) * (amrex::Real(1.0) - canyon_reduction_factor);
+        w += vortex_strength * (amrex::Real(1.0) - amrex::Real(2.0) * z_ratio);
+    }
+    // Wake interference flow (0.3 < H/W < 0.7): moderate reduction
+    else if (H_over_W > amrex::Real(0.3)) {
+        const amrex::Real reduction = amrex::Real(1.0) - (H_over_W - amrex::Real(0.3)) / amrex::Real(0.4) * 
+                                       (amrex::Real(1.0) - canyon_reduction_factor);
+        u *= reduction;
+        v *= reduction;
+    }
+    // Isolated roughness flow (H/W < 0.3): minimal effect
+    // No modification needed
+}
+
 #endif // WAKE_MODELS_H

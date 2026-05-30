@@ -418,10 +418,18 @@ int main(int argc, char* argv[])
         Real wake_c1 = 0.9;  // Cavity length coefficient
         Real wake_c2 = 0.3;  // Wake deficit coefficient
         Real wake_separation_length = 3.0;  // Wake separation length factor
+        bool wake_superposition = true;  // Use wake superposition for multiple buildings
         pp.query("enable_wake", enable_wake);
         pp.query("wake_c1", wake_c1);
         pp.query("wake_c2", wake_c2);
         pp.query("wake_separation_length", wake_separation_length);
+        pp.query("wake_superposition", wake_superposition);
+        
+        // Street canyon parameters
+        bool enable_street_canyon = false;
+        Real street_canyon_reduction = 0.3;  // Velocity reduction factor in canyon (0-1)
+        pp.query("enable_street_canyon", enable_street_canyon);
+        pp.query("street_canyon_reduction", street_canyon_reduction);
 
         // Uniform mode parameters
         Real uniform_U = U_ref;  // default to U_ref
@@ -822,12 +830,17 @@ int main(int argc, char* argv[])
         // 9a. Apply wake model (if enabled)
         //     Modifies the initial velocity field to account for building wakes
         //     using the Röckle (1990) parameterization
+        //     Phase 2: Supports wake superposition and street canyon effects
         // ----------------------------------------------------------------
         if (enable_wake && !building_xmin.empty()) {
             amrex::Print() << "wind_solver: applying wake model (Röckle formulation)\n";
             amrex::Print() << "  cavity length coeff c1 = " << wake_c1 << "\n";
             amrex::Print() << "  wake deficit coeff c2 = " << wake_c2 << "\n";
             amrex::Print() << "  separation length factor = " << wake_separation_length << "\n";
+            amrex::Print() << "  wake superposition = " << (wake_superposition ? "enabled" : "disabled") << "\n";
+            if (enable_street_canyon) {
+                amrex::Print() << "  street canyon effects enabled (reduction factor = " << street_canyon_reduction << ")\n";
+            }
             
             // Set up wake parameters
             WakeParams wake_params;
@@ -872,6 +885,9 @@ int main(int argc, char* argv[])
             const Real x_lo_wake = x_lo;
             const Real y_lo_wake = y_lo;
             const Real z_lo_wake = z_lo;
+            const bool use_superposition = wake_superposition;
+            const bool use_street_canyon = enable_street_canyon;
+            const Real canyon_reduction = street_canyon_reduction;
             
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -890,14 +906,43 @@ int main(int argc, char* argv[])
                     Real v = vel(i, j, k, 1);
                     Real w = vel(i, j, k, 2);
                     
-                    // Apply wake model for each building
-                    for (int b = 0; b < n_bldg_cap; ++b) {
-                        Building bldg = compute_building_dimensions(
-                            d_bldg_xmin_ptr[b], d_bldg_xmax_ptr[b],
-                            d_bldg_ymin_ptr[b], d_bldg_ymax_ptr[b],
-                            d_bldg_zmin_ptr[b], d_bldg_zmax_ptr[b]);
+                    // Apply wake model (with or without superposition)
+                    if (use_superposition && n_bldg_cap > 1) {
+                        // Phase 2: Use wake superposition for multiple buildings
+                        apply_wake_superposition(
+                            x, y, z, u, v, w,
+                            d_bldg_xmin_ptr, d_bldg_xmax_ptr,
+                            d_bldg_ymin_ptr, d_bldg_ymax_ptr,
+                            d_bldg_zmin_ptr, d_bldg_zmax_ptr,
+                            n_bldg_cap, wake_params);
+                    } else {
+                        // Original method: Apply wake from each building independently
+                        for (int b = 0; b < n_bldg_cap; ++b) {
+                            Building bldg = compute_building_dimensions(
+                                d_bldg_xmin_ptr[b], d_bldg_xmax_ptr[b],
+                                d_bldg_ymin_ptr[b], d_bldg_ymax_ptr[b],
+                                d_bldg_zmin_ptr[b], d_bldg_zmax_ptr[b]);
+                            
+                            apply_single_building_wake(x, y, z, u, v, w, bldg, wake_params);
+                        }
+                    }
+                    
+                    // Apply street canyon effects (if enabled)
+                    if (use_street_canyon && n_bldg_cap > 1) {
+                        // Compute average building height for street canyon model
+                        Real avg_height = Real(0.0);
+                        for (int b = 0; b < n_bldg_cap; ++b) {
+                            avg_height += (d_bldg_zmax_ptr[b] - d_bldg_zmin_ptr[b]);
+                        }
+                        avg_height /= Real(n_bldg_cap);
                         
-                        apply_single_building_wake(x, y, z, u, v, w, bldg, wake_params);
+                        // Estimate street width as average spacing between buildings
+                        // (simplified: use grid spacing as proxy)
+                        Real street_width = Real(2.0) * dx_wake;
+                        
+                        apply_street_canyon_effect(
+                            x, y, z, u, v, w,
+                            avg_height, street_width, canyon_reduction);
                     }
                     
                     // Update velocity field
