@@ -41,6 +41,84 @@
 using namespace amrex;
 
 // ============================================================================
+// Read terrain data from CSV file (similar to wind_solver.cpp)
+// ============================================================================
+static void read_terrain_file(const std::string& filename,
+                               std::vector<Real>& x_terr,
+                               std::vector<Real>& y_terr,
+                               std::vector<Real>& z_terr)
+{
+    std::ifstream infile(filename);
+    if (!infile) {
+        amrex::Abort("puff_solver: cannot open terrain file: " + filename);
+    }
+    
+    std::string line;
+    while (std::getline(infile, line)) {
+        // Skip empty lines and comments
+        if (line.empty() || line[0] == '#') continue;
+        
+        // Parse X Y Z
+        std::istringstream iss(line);
+        Real x, y, z;
+        char comma;
+        
+        if (iss >> x >> y >> z) {
+            x_terr.push_back(x);
+            y_terr.push_back(y);
+            z_terr.push_back(z);
+        } else if (iss >> x >> comma >> y >> comma >> z) {
+            x_terr.push_back(x);
+            y_terr.push_back(y);
+            z_terr.push_back(z);
+        }
+    }
+    
+    if (x_terr.empty()) {
+        amrex::Abort("puff_solver: no terrain data read from: " + filename);
+    }
+    
+    amrex::Print() << "  Terrain: read " << x_terr.size() << " points from " 
+                   << filename << "\n";
+}
+
+// ============================================================================
+// Read building data from CSV file
+// ============================================================================
+static void read_building_file(const std::string& filename,
+                                std::vector<Building>& buildings)
+{
+    std::ifstream infile(filename);
+    if (!infile) {
+        amrex::Abort("puff_solver: cannot open building file: " + filename);
+    }
+    
+    std::string line;
+    while (std::getline(infile, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        
+        std::istringstream iss(line);
+        Building bldg;
+        Real rotation_deg = 0.0;
+        
+        if (iss >> bldg.xmin >> bldg.xmax >> bldg.ymin >> bldg.ymax 
+                >> bldg.zmin >> bldg.zmax) {
+            iss >> rotation_deg;  // Optional rotation
+            bldg.rotation = rotation_deg * M_PI / 180.0;  // Convert to radians
+            
+            bldg.height = bldg.zmax - bldg.zmin;
+            bldg.width = bldg.ymax - bldg.ymin;
+            bldg.length = bldg.xmax - bldg.xmin;
+            
+            buildings.push_back(bldg);
+        }
+    }
+    
+    amrex::Print() << "  Buildings: read " << buildings.size() 
+                   << " buildings from " << filename << "\n";
+}
+
+// ============================================================================
 // Trilinear interpolation of velocity at a point
 // ============================================================================
 Real interpolate_velocity_component(
@@ -164,6 +242,63 @@ int main(int argc, char* argv[])
         pp.query("V_wind", V_wind);
         pp.query("W_wind", W_wind);
         
+        // Terrain parameters
+        std::string terrain_file = "";
+        bool enable_terrain_reflection = false;
+        bool use_image_source = true;
+        
+        pp.query("terrain_file", terrain_file);
+        pp.query("enable_terrain_reflection", enable_terrain_reflection);
+        pp.query("use_image_source", use_image_source);
+        
+        std::vector<Real> x_terr, y_terr, z_terr;
+        if (!terrain_file.empty()) {
+            read_terrain_file(terrain_file, x_terr, y_terr, z_terr);
+            enable_terrain_reflection = true;  // Auto-enable if file provided
+        }
+        
+        // Building parameters
+        std::string building_file = "";
+        bool enable_building_masking = false;
+        bool enable_wake_diffusivity = false;
+        Real wake_enhancement_cavity = 3.0;
+        Real wake_enhancement_far = 1.5;
+        
+        pp.query("building_file", building_file);
+        pp.query("enable_building_masking", enable_building_masking);
+        pp.query("enable_wake_diffusivity", enable_wake_diffusivity);
+        pp.query("wake_enhancement_cavity", wake_enhancement_cavity);
+        pp.query("wake_enhancement_far", wake_enhancement_far);
+        
+        std::vector<Building> buildings;
+        WakeParams wake_params;
+        wake_params.enabled = enable_wake_diffusivity;
+        pp.query("wake_c1", wake_params.c1);
+        pp.query("wake_c2", wake_params.c2);
+        pp.query("wake_separation_length", wake_params.separation_length);
+        
+        if (!building_file.empty()) {
+            read_building_file(building_file, buildings);
+            enable_building_masking = true;  // Auto-enable if file provided
+        }
+        
+        // Canopy parameters
+        bool enable_canopy_effects = false;
+        Real canopy_height = 0.0;
+        Real frontal_area_index = 0.0;
+        Real canopy_enhancement_factor = 3.0;
+        Real canopy_sheltering_factor = 0.8;
+        bool enable_canopy_deposition = false;
+        Real deposition_velocity = 0.01;
+        
+        pp.query("enable_canopy_effects", enable_canopy_effects);
+        pp.query("canopy_height", canopy_height);
+        pp.query("frontal_area_index", frontal_area_index);
+        pp.query("canopy_enhancement_factor", canopy_enhancement_factor);
+        pp.query("canopy_sheltering_factor", canopy_sheltering_factor);
+        pp.query("enable_canopy_deposition", enable_canopy_deposition);
+        pp.query("deposition_velocity", deposition_velocity);
+        
         // Domain parameters
         Real xmin = 0.0, xmax = 300.0;
         Real ymin = 0.0, ymax = 300.0;
@@ -205,6 +340,34 @@ int main(int argc, char* argv[])
         amrex::Print() << "  Grid: " << nx << " x " << ny << " x " << nz 
                        << " (" << dx << " x " << dy << " x " << dz << " m)\n";
         
+        // Print terrain/building/canopy status
+        if (enable_terrain_reflection) {
+            amrex::Print() << "  Terrain reflection: ENABLED (" << x_terr.size() << " points)\n";
+            amrex::Print() << "    Image source method: " << (use_image_source ? "YES" : "NO") << "\n";
+        }
+        if (enable_building_masking) {
+            amrex::Print() << "  Building masking: ENABLED (" << buildings.size() << " buildings)\n";
+        }
+        if (enable_wake_diffusivity) {
+            amrex::Print() << "  Wake diffusivity: ENABLED\n";
+            amrex::Print() << "    Cavity enhancement: " << wake_enhancement_cavity << "x\n";
+            amrex::Print() << "    Far wake enhancement: " << wake_enhancement_far << "x\n";
+        }
+        if (enable_canopy_effects) {
+            amrex::Print() << "  Canopy effects: ENABLED\n";
+            amrex::Print() << "    Height: " << canopy_height << " m\n";
+            amrex::Print() << "    Vertical enhancement: " << canopy_enhancement_factor << "x\n";
+            amrex::Print() << "    Horizontal sheltering: " << canopy_sheltering_factor << "x\n";
+        }
+        if (enable_canopy_deposition) {
+            amrex::Print() << "  Canopy deposition: ENABLED (v_d = " << deposition_velocity << " m/s)\n";
+        }
+        
+        // Wind direction for wake calculations
+        Real wind_speed = std::sqrt(U_wind*U_wind + V_wind*V_wind);
+        Real wind_dir_x = (wind_speed > 1.0e-10) ? U_wind / wind_speed : 1.0;
+        Real wind_dir_y = (wind_speed > 1.0e-10) ? V_wind / wind_speed : 0.0;
+        
         // ====================================================================
         // Time-stepping loop
         // ====================================================================
@@ -225,17 +388,77 @@ int main(int argc, char* argv[])
             
             // Advect, grow, and update all puffs
             for (auto& puff : puffs) {
-                if (puff.active) {
-                    // Advection with wind
+                if (!puff.active) continue;
+                
+                // Get terrain height at puff location
+                Real terrain_height = 0.0;
+                if (enable_terrain_reflection && !x_terr.empty()) {
+                    terrain_height = interpolate_terrain_height(
+                        puff.x, puff.y, x_terr, y_terr, z_terr);
+                }
+                
+                // Check if puff is inside building - deactivate if so
+                if (enable_building_masking && !buildings.empty()) {
+                    if (point_in_any_building(puff.x, puff.y, puff.z, buildings)) {
+                        puff.active = false;
+                        continue;
+                    }
+                }
+                
+                // Advection with terrain reflection
+                if (enable_terrain_reflection) {
+                    advect_puff_with_terrain(puff, U_wind, V_wind, W_wind, 
+                                            dt_puff, terrain_height, true);
+                } else {
                     advect_puff(puff, U_wind, V_wind, W_wind, dt_puff);
-                    
-                    // Growth due to diffusion
-                    update_puff_growth(puff, K_h, K_v);
-                    
-                    // Update age
-                    update_puff_age(puff, dt_puff);
-                    
-                    // Check bounds
+                }
+                
+                // Compute effective diffusivities
+                Real K_h_eff = K_h;
+                Real K_v_eff = K_v;
+                
+                // Apply canopy effects
+                Real z_agl = puff.z - terrain_height;
+                if (enable_canopy_effects && z_agl >= 0.0) {
+                    compute_canopy_diffusivity(
+                        z_agl, canopy_height, K_h, K_v,
+                        canopy_enhancement_factor, canopy_sheltering_factor,
+                        K_h_eff, K_v_eff);
+                }
+                
+                // Apply wake enhancement
+                Real wake_factor = 1.0;
+                if (enable_wake_diffusivity && !buildings.empty()) {
+                    for (const auto& building : buildings) {
+                        Real bldg_factor = compute_wake_enhancement_factor(
+                            puff.x, puff.y, puff.z, building,
+                            wind_speed, wind_dir_x, wind_dir_y,
+                            wake_params, wake_enhancement_cavity, wake_enhancement_far);
+                        wake_factor = std::max(wake_factor, bldg_factor);
+                    }
+                }
+                
+                // Growth with combined effects
+                if (wake_factor > 1.01) {
+                    update_puff_growth_with_wake(puff, K_h_eff, K_v_eff, wake_factor);
+                } else {
+                    update_puff_growth(puff, K_h_eff, K_v_eff);
+                }
+                
+                // Apply canopy deposition
+                if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
+                    apply_canopy_deposition(puff, dt_puff, z_agl, canopy_height,
+                                          frontal_area_index, deposition_velocity);
+                }
+                
+                // Update age
+                update_puff_age(puff, dt_puff);
+                
+                // Check bounds with terrain awareness
+                if (enable_terrain_reflection) {
+                    check_puff_bounds_with_terrain(puff, xmin, xmax, ymin, ymax, 
+                                                   zmin, zmax, terrain_height, true);
+                } else {
                     check_puff_bounds(puff, xmin, xmax, ymin, ymax, zmin, zmax);
                 }
             }
@@ -258,10 +481,22 @@ int main(int argc, char* argv[])
                             Real y = ymin + (j + 0.5) * dy;
                             Real z = zmin + (k + 0.5) * dz;
                             
+                            // Get terrain height at this point
+                            Real terrain_height = 0.0;
+                            if (enable_terrain_reflection && !x_terr.empty()) {
+                                terrain_height = interpolate_terrain_height(
+                                    x, y, x_terr, y_terr, z_terr);
+                            }
+                            
                             // Sum concentration from all puffs
                             Real C = 0.0;
                             for (const auto& puff : puffs) {
-                                C += gaussian_puff_concentration(x, y, z, puff);
+                                if (enable_terrain_reflection && use_image_source) {
+                                    C += gaussian_puff_concentration_with_reflection(
+                                        x, y, z, puff, terrain_height, true);
+                                } else {
+                                    C += gaussian_puff_concentration(x, y, z, puff);
+                                }
                             }
                             
                             concentration[i + j * nx + k * nx * ny] = C;
