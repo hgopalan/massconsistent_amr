@@ -66,6 +66,11 @@ add_regression_test(buildings_flat buildings_flat)
 # ===========================================================================
 add_regression_test(buildings_csv buildings_csv)
 
+# ===========================================================================
+# buildings_terrain/ – Buildings on Gaussian hill (terrain-aligned)
+# ===========================================================================
+add_regression_test(buildings_terrain buildings_terrain)
+
 # ---------------------------------------------------------------------------
 # Canopy model tests
 # ---------------------------------------------------------------------------
@@ -89,6 +94,9 @@ message(STATUS "  gaussian_hill/         : terrain-following wind on a Gaussian 
 message(STATUS "  gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives (dx=dy=30 m, dz=25 m)")
 message(STATUS "  raws_synthetic/        : Gaussian hill with RAWS wind initialization (IDW interpolation)")
 message(STATUS "  uniform_wind/          : Gaussian hill with uniform wind initialization")
+message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
+message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terrain")
+message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
 message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
 message(STATUS "  buildings_csv/         : Buildings from CSV file (new format)")
 message(STATUS "")
