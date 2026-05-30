@@ -60,7 +60,12 @@ struct WindSolverState {
     amrex::Real zs_max;  // Maximum terrain elevation
     
     // Building data
-    std::vector<amrex::Real> building_boxes;  // x1 x2 y1 y2 height (multiples of 5)
+    std::vector<amrex::Real> building_xmin;
+    std::vector<amrex::Real> building_xmax;
+    std::vector<amrex::Real> building_ymin;
+    std::vector<amrex::Real> building_ymax;
+    std::vector<amrex::Real> building_zmin;
+    std::vector<amrex::Real> building_zmax;
     amrex::Real obs_max;  // Maximum obstacle elevation (terrain + buildings)
     
     // Solver parameters
