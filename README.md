@@ -74,7 +74,7 @@ wake_c2 = 0.3                    # Wake deficit coefficient
 wake_separation_length = 3.0     # Wake extends to 3*H downwind
 ```
 
-** Multiple Building Support:**
+### Multiple Building Support
 
 For multiple buildings, the solver supports advanced wake modeling:
 
@@ -97,7 +97,7 @@ street_canyon_reduction = 0.3    # Velocity reduction factor (0-1)
 
 See `regtest/building_array/` for a complete example with a 3×3 building array demonstrating wake superposition and street canyon effects.
 
-**  Rooftop Vortices and Building Orientations:**
+###  Rooftop Vortices and Building Orientations:**
 
 For improved physical realism and support of non-grid-aligned buildings:
 
