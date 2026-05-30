@@ -92,9 +92,7 @@ void compute_rooftop_vortex(
     amrex::Real Hr,
     amrex::Real Lr,
     amrex::Real U_ref,
-    amrex::Real wind_dir_x,
-    amrex::Real wind_dir_y,
-    amrex::Real& dw)
+    amrex::Real&  dw)
 {
     dw = amrex::Real(0.0);
     
@@ -253,7 +251,7 @@ bool rockle_wake_deficit(
         dv = deficit_magnitude * wd_y;
         
         // Phase 3 Enhancement: Add rooftop vortex vertical component
-        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, wd_x, wd_y, dw);
+        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, dw);
         
         return true;
     }
@@ -455,6 +453,8 @@ void compute_wind_aligned_dimensions(
 // This method is more physically realistic than linear superposition for
 // overlapping wakes as it accounts for turbulent mixing.
 //
+// Phase 3 Enhancement: Now supports arbitrary building orientations.
+//
 // Reference:
 // - Lopes da Costa, J., Castro, F.A., Palma, J.M.L.M., Stuart, P. (2006).
 //   Computer simulation of atmospheric flows over real forests for wind
@@ -465,6 +465,7 @@ void compute_wind_aligned_dimensions(
 //   x, y, z         - Point coordinates [m]
 //   u0, v0, w0      - Initial velocity components [m/s]
 //   bldg_xmin, etc. - Arrays of building bounds [m]
+//   bldg_rotation   - Array of building rotation angles (radians)
 //   n_buildings     - Number of buildings
 //   params          - Wake model parameters
 //
@@ -481,6 +482,7 @@ void apply_wake_superposition(
     const amrex::Real* bldg_ymax,
     const amrex::Real* bldg_zmin,
     const amrex::Real* bldg_zmax,
+    const amrex::Real* bldg_rotation,
     int n_buildings,
     const WakeParams& params)
 {
@@ -506,6 +508,9 @@ void apply_wake_superposition(
             bldg_xmin[b], bldg_xmax[b],
             bldg_ymin[b], bldg_ymax[b],
             bldg_zmin[b], bldg_zmax[b]);
+        
+        // Phase 3: Add building rotation angle
+        bldg.rotation = bldg_rotation[b];
         
         // Compute wake deficit from this building
         amrex::Real du_b, dv_b, dw_b;
@@ -570,7 +575,7 @@ void apply_wake_superposition(
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void apply_street_canyon_effect(
-    amrex::Real x, amrex::Real y, amrex::Real z,
+    amrex::Real z,
     amrex::Real& u, amrex::Real& v, amrex::Real& w,
     amrex::Real building_height,
     amrex::Real street_width,

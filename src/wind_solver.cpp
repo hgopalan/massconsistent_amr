@@ -280,7 +280,8 @@ static void read_building_file(const std::string& filename,
             // Phase 3 Enhancement: Optional rotation angle (7th column, in degrees)
             // If provided, angle is converted from degrees to radians
             if (ss >> angle) {
-                angle = angle * M_PI / Real(180.0);  // Convert degrees to radians
+                constexpr Real pi = std::acos(Real(-1.0));
+                angle = angle * pi / Real(180.0);  // Convert degrees to radians
             }
             xmin.push_back(x1);
             xmax.push_back(x2);
@@ -923,11 +924,13 @@ int main(int argc, char* argv[])
                     // Apply wake model (with or without superposition)
                     if (use_superposition && n_bldg_cap > 1) {
                         // Phase 2: Use wake superposition for multiple buildings
+                        // Phase 3 Enhancement: Now supports building orientations
                         apply_wake_superposition(
                             x, y, z, u, v, w,
                             d_bldg_xmin_ptr, d_bldg_xmax_ptr,
                             d_bldg_ymin_ptr, d_bldg_ymax_ptr,
                             d_bldg_zmin_ptr, d_bldg_zmax_ptr,
+                            d_bldg_rotation_ptr,
                             n_bldg_cap, wake_params);
                     } else {
                         // Original method: Apply wake from each building independently
@@ -958,7 +961,7 @@ int main(int argc, char* argv[])
                         Real street_width = Real(2.0) * dx_wake;
                         
                         apply_street_canyon_effect(
-                            x, y, z, u, v, w,
+                            z, u, v, w,
                             avg_height, street_width, canyon_reduction);
                     }
                     

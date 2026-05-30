@@ -39,8 +39,10 @@ Cavity Zone
 * **Height**: ``Hr = 0.67 × H``
 * **Width**: ``Wr = W``
 * **Velocity deficit**: ``u_deficit = c2 × U_H`` (default: ``c2 = 0.3``)
+* **Vertical circulation** (Phase 3): Rooftop vortex with characteristic up-down pattern
 
-The cavity exhibits recirculation (negative velocity in the wind direction).
+The cavity exhibits recirculation (negative velocity in the wind direction) combined with
+vertical circulation due to rooftop vortex formation (Phase 3 enhancement).
 
 Far-Wake Zone
 ^^^^^^^^^^^^^
@@ -78,12 +80,14 @@ specify building geometry via ``building_file``:
    # Building geometry
    building_file = buildings.csv
 
-The buildings CSV file should contain one building per line:
+The buildings CSV file should contain one building per line with optional rotation angle (Phase 3):
 
 .. code-block:: text
 
-   # Format: xmin xmax ymin ymax zmin zmax [m]
-   80.0  120.0  90.0  110.0  0.0  30.0
+   # Format: xmin xmax ymin ymax zmin zmax [rotation_degrees]
+   # Rotation angle (7th column, optional): degrees counter-clockwise from x-axis
+   80.0  120.0  90.0  110.0  0.0  30.0       # Grid-aligned (rotation = 0°)
+   200.0 240.0 150.0 180.0 0.0  25.0  45.0   # Rotated 45° counter-clockwise
 
 Input Parameters
 ----------------
@@ -152,6 +156,64 @@ A simple test case with a single rectangular building (40m × 20m × 30m tall):
 
 See ``regtest/wake_single_building/`` for a complete regression test.
 
+Phase 3 Enhancements
+--------------------
+
+Rooftop Vortices (Phase 3)
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Physical basis**: When wind flows around a building, separation at the top edges
+creates a rooftop vortex with vertical circulation inside the cavity zone. This
+enhancement adds realistic vertical velocity components to the Röckle model.
+
+**Implementation**: The rooftop vortex is parameterized as a parabolic circulation
+pattern in both the vertical (z) and streamwise (x) directions:
+
+.. math::
+
+   w_{vortex} = C_v \cdot U_{ref} \cdot \left(\frac{H}{30}\right) \cdot 
+                4\frac{x}{L_r}\left(1 - \frac{x}{L_r}\right) \cdot 4\frac{z}{H_r}\left(1 - \frac{z}{H_r}\right)
+
+where ``C_v ≈ 0.15`` is the vortex strength coefficient. The vertical velocity is maximum
+at mid-height and mid-length of the cavity, creating a characteristic up-down-up circulation
+pattern.
+
+**Validation**: See ``regtest/rooftop_vortex/`` for a test case that validates the vertical
+velocity profiles in the building cavity zone.
+
+**Reference**: Oke, T.R. (1988). Street design and urban canopy layer climate.
+*Energy and Buildings*, 11(1-3), 103-113.
+
+Building Orientation Effects (Phase 3)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Motivation**: Real buildings rarely align perfectly with the computational grid.
+Phase 3 introduces support for arbitrary building orientations to improve wake modeling
+for non-grid-aligned structures.
+
+**Rotation parameter**: The buildings CSV file now accepts an optional 7th column
+specifying rotation angle in degrees (counter-clockwise from the x-axis):
+
+.. code-block:: text
+
+    # xmin xmax ymin ymax zmin zmax [rotation_degrees]
+    100.0 150.0 200.0 250.0 0.0 30.0         # Grid-aligned
+    300.0 350.0 350.0 400.0 0.0 25.0 45.0    # Rotated 45°
+    500.0 550.0 500.0 550.0 0.0 20.0 90.0    # Rotated 90°
+
+**Wind-aligned dimensions**: When a building is rotated, the effective width and length
+in the wind coordinate system are computed via projection onto the wind direction:
+
+.. math::
+
+   L_{wind} = |L_1 \cos\theta_{wind} + L_2 \sin\theta_{wind}|
+   W_{wind} = |L_1 \sin\theta_{wind} - L_2 \cos\theta_{wind}|
+
+where ``L_1`` and ``L_2`` are the rotated building edge vectors, and ``θ_wind`` is the
+wind direction angle.
+
+**Validation**: See ``regtest/building_oriented/`` for a test case with rotated buildings.
+
 References
 ----------
 
@@ -163,6 +225,9 @@ References
   concentration distribution within a built-up domain. *Atmospheric Environment*,
   30(24), 4197-4207.
 
+* Oke, T.R. (1988). Street design and urban canopy layer climate. *Energy and
+  Buildings*, 11(1-3), 103-113.
+
 Implementation Details
 ----------------------
 
@@ -170,9 +235,10 @@ The wake model is implemented in ``src/wake_models.H`` and integrated into
 the velocity initialization in ``src/wind_solver.cpp``. The model:
 
 1. Computes the wind-aligned coordinate system for each building
-2. Determines if each grid cell falls within the cavity or far-wake zone
-3. Applies velocity deficits to the initial wind field ``u₀``
-4. The modified field is then passed to the mass-consistency solver
+2. Applies building rotation angle to get effective dimensions in wind frame
+3. Determines if each grid cell falls within the cavity or far-wake zone
+4. Applies velocity deficits and rooftop vortex circulation (Phase 3)
+5. The modified field is then passed to the mass-consistency solver
 
 The wake calculations are performed on-device (GPU-compatible) using AMReX
 GPU kernels for efficient parallel execution.
@@ -180,24 +246,15 @@ GPU kernels for efficient parallel execution.
 Limitations
 -----------
 
-* **Wind-aligned buildings**: The current implementation assumes buildings are
-  aligned with the computational grid (x/y axes) and works best for winds
-  primarily from cardinal directions. For arbitrary wind directions, the
-  effective building projection in the wind direction should be computed,
-  which is not currently implemented. This limitation will be addressed in
-  future phases.
-  
+* **Steady-state**: The model assumes steady, uniform approach flow. Time-varying
+  winds or turbulent fluctuations are not represented.
+
 * **Single wake per building**: Each building's wake is computed independently.
   Wake-wake interactions and wake merging are handled by sequential application
   but may not capture complex interference patterns.
-  
-* **Steady-state**: The model assumes steady, uniform approach flow. Time-varying
-  winds or turbulent fluctuations are not represented.
 
 Future Extensions
 -----------------
 
-* Support for arbitrary building orientations
-* Wake-wake interaction models for building arrays
-* Vertical velocity components in cavity zone
-* Street canyon models for closely-spaced buildings
+* Improved rooftop vortex models based on building aspect ratio
+* Two-counter-rotating vortex pair (CFD-based parameterizations)
