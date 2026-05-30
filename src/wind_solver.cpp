@@ -566,8 +566,12 @@ int main(int argc, char* argv[])
                         // Check if cell center is inside building footprint
                         if (xc >= bx1 && xc <= bx2 && yc >= by1 && yc <= by2) {
                             std::size_t idx = static_cast<std::size_t>(j) * nx + i;
-                            // Set obstacle height to building top (zmax)
-                            obstacle_h[idx] = std::max(obstacle_h[idx], bz2);
+                            // Building height (relative to its base)
+                            Real building_height = bz2 - bz1;
+                            // Set obstacle height to terrain + building height (terrain-aligned)
+                            // If bz1 > 0, it's treated as an absolute offset that gets added to terrain
+                            Real adjusted_building_top = terrain_h[idx] + building_height;
+                            obstacle_h[idx] = std::max(obstacle_h[idx], adjusted_building_top);
                         }
                     }
                 }
