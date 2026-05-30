@@ -76,6 +76,20 @@ add_regression_test(buildings_terrain buildings_terrain)
 # ===========================================================================
 add_regression_test(wake_single_building wake_single_building)
 
+# ===========================================================================
+# Phase 3 Enhancements
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# rooftop_vortex/ – Rooftop vortex parameterization in building cavity zones
+# ---------------------------------------------------------------------------
+add_regression_test(rooftop_vortex rooftop_vortex)
+
+# ---------------------------------------------------------------------------
+# building_oriented/ – Arbitrary building orientation effects on wake model
+# ---------------------------------------------------------------------------
+add_regression_test(building_oriented building_oriented)
+
 # ---------------------------------------------------------------------------
 # Canopy model tests
 # ---------------------------------------------------------------------------
@@ -102,8 +116,8 @@ message(STATUS "  uniform_wind/          : Gaussian hill with uniform wind initi
 message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
 message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terrain")
 message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
-message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
-message(STATUS "  buildings_csv/         : Buildings from CSV file (new format)")
 message(STATUS "  wake_single_building/  : Single building wake model (Röckle formulation)")
+message(STATUS "  rooftop_vortex/        : Phase 3 - Rooftop vortex in building cavity zones")
+message(STATUS "  building_oriented/     : Phase 3 - Arbitrary building orientation effects")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

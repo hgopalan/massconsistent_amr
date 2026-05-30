@@ -97,6 +97,23 @@ street_canyon_reduction = 0.3    # Velocity reduction factor (0-1)
 
 See `regtest/building_array/` for a complete example with a 3×3 building array demonstrating wake superposition and street canyon effects.
 
+**Phase 3 Enhancements - Rooftop Vortices and Building Orientations:**
+
+For improved physical realism and support of non-grid-aligned buildings:
+
+**Rooftop Vortices**: The cavity zone now includes vertical circulation due to rooftop vortex formation. This adds realistic vertical velocity components to the wake model, improving prediction of wind patterns in the immediate vicinity of buildings.
+
+**Building Orientation**: Buildings can now be rotated to arbitrary angles (Phase 3 feature). The 7th column in the buildings CSV file specifies the rotation angle in degrees:
+```
+# Buildings CSV: xmin xmax ymin ymax zmin zmax [rotation_degrees]
+100.0 150.0 200.0 250.0 0.0 30.0       # Grid-aligned (default: 0°)
+300.0 350.0 350.0 400.0 0.0 25.0 45.0  # Rotated 45° counter-clockwise
+```
+
+For oriented buildings, the effective width and length are computed by projecting the rotated geometry onto the wind direction, ensuring accurate wake modeling regardless of building alignment.
+
+See `regtest/rooftop_vortex/` for rooftop vortex validation and `regtest/building_oriented/` for orientation effects.
+
 ## Python API
 
 The solver can be controlled from Python for coupled wind-fire simulations. Build with Python bindings enabled:

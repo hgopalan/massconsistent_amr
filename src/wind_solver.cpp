@@ -260,7 +260,8 @@ static void read_building_file(const std::string& filename,
                                std::vector<Real>& ymin,
                                std::vector<Real>& ymax,
                                std::vector<Real>& zmin,
-                               std::vector<Real>& zmax)
+                               std::vector<Real>& zmax,
+                               std::vector<Real>& rotation)
 {
     std::ifstream f(filename);
     if (!f.is_open())
@@ -274,14 +275,21 @@ static void read_building_file(const std::string& filename,
         // replace commas with spaces
         std::replace(line.begin(), line.end(), ',', ' ');
         std::istringstream ss(line);
-        Real x1, x2, y1, y2, z1, z2;
+        Real x1, x2, y1, y2, z1, z2, angle = 0.0;
         if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
+            // Phase 3 Enhancement: Optional rotation angle (7th column, in degrees)
+            // If provided, angle is converted from degrees to radians
+            if (ss >> angle) {
+                constexpr Real pi = std::acos(Real(-1.0));
+                angle = angle * pi / Real(180.0);  // Convert degrees to radians
+            }
             xmin.push_back(x1);
             xmax.push_back(x2);
             ymin.push_back(y1);
             ymax.push_back(y2);
             zmin.push_back(z1);
             zmax.push_back(z2);
+            rotation.push_back(angle);
         }
     }
     if (xmin.empty())
@@ -524,12 +532,14 @@ int main(int argc, char* argv[])
 
         // ----------------------------------------------------------------
         // 4. Read building file (optional)
-        //    Buildings are defined in a CSV file: xmin xmax ymin ymax zmin zmax
+        //    Buildings are defined in a CSV file: xmin xmax ymin ymax zmin zmax [rotation]
         //    One building per line, whitespace or comma separated
+        //    Optional rotation column (in degrees) specifies building orientation (Phase 3)
         // ----------------------------------------------------------------
         std::vector<Real> building_xmin, building_xmax;
         std::vector<Real> building_ymin, building_ymax;
         std::vector<Real> building_zmin, building_zmax;
+        std::vector<Real> building_rotation;
         
         std::string building_file = "";
         pp.query("building_file", building_file);
@@ -537,7 +547,8 @@ int main(int argc, char* argv[])
             read_building_file(building_file, 
                              building_xmin, building_xmax,
                              building_ymin, building_ymax,
-                             building_zmin, building_zmax);
+                             building_zmin, building_zmax,
+                             building_rotation);
         }
 
         // ----------------------------------------------------------------
@@ -857,6 +868,7 @@ int main(int argc, char* argv[])
             Gpu::DeviceVector<Real> d_bldg_ymax(n_buildings);
             Gpu::DeviceVector<Real> d_bldg_zmin(n_buildings);
             Gpu::DeviceVector<Real> d_bldg_zmax(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_rotation(n_buildings);
             
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              building_xmin.begin(), building_xmin.end(), d_bldg_xmin.begin());
@@ -870,6 +882,8 @@ int main(int argc, char* argv[])
                              building_zmin.begin(), building_zmin.end(), d_bldg_zmin.begin());
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              building_zmax.begin(), building_zmax.end(), d_bldg_zmax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_rotation.begin(), building_rotation.end(), d_bldg_rotation.begin());
             
             Real const* d_bldg_xmin_ptr = d_bldg_xmin.data();
             Real const* d_bldg_xmax_ptr = d_bldg_xmax.data();
@@ -877,6 +891,7 @@ int main(int argc, char* argv[])
             Real const* d_bldg_ymax_ptr = d_bldg_ymax.data();
             Real const* d_bldg_zmin_ptr = d_bldg_zmin.data();
             Real const* d_bldg_zmax_ptr = d_bldg_zmax.data();
+            Real const* d_bldg_rotation_ptr = d_bldg_rotation.data();
             
             const int n_bldg_cap = n_buildings;
             const Real dx_wake = dx;
@@ -909,11 +924,13 @@ int main(int argc, char* argv[])
                     // Apply wake model (with or without superposition)
                     if (use_superposition && n_bldg_cap > 1) {
                         // Phase 2: Use wake superposition for multiple buildings
+                        // Phase 3 Enhancement: Now supports building orientations
                         apply_wake_superposition(
                             x, y, z, u, v, w,
                             d_bldg_xmin_ptr, d_bldg_xmax_ptr,
                             d_bldg_ymin_ptr, d_bldg_ymax_ptr,
                             d_bldg_zmin_ptr, d_bldg_zmax_ptr,
+                            d_bldg_rotation_ptr,
                             n_bldg_cap, wake_params);
                     } else {
                         // Original method: Apply wake from each building independently
@@ -922,6 +939,7 @@ int main(int argc, char* argv[])
                                 d_bldg_xmin_ptr[b], d_bldg_xmax_ptr[b],
                                 d_bldg_ymin_ptr[b], d_bldg_ymax_ptr[b],
                                 d_bldg_zmin_ptr[b], d_bldg_zmax_ptr[b]);
+                            bldg.rotation = d_bldg_rotation_ptr[b];
                             
                             apply_single_building_wake(x, y, z, u, v, w, bldg, wake_params);
                         }
@@ -943,7 +961,7 @@ int main(int argc, char* argv[])
                         Real street_width = Real(2.0) * dx_wake;
                         
                         apply_street_canyon_effect(
-                            x, y, z, u, v, w,
+                            z, u, v, w,
                             avg_height, street_width, canyon_reduction);
                     }
                     

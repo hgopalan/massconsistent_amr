@@ -199,17 +199,27 @@ where z_lo = min terrain elevation and z_hi = max terrain elevation +
 Building File Format
 --------------------
 
-Buildings are specified in a CSV file with one building per line.  Each line
-contains six values: **xmin xmax ymin ymax zmin zmax** (in metres).  Lines
-beginning with ``#`` are comments::
+Buildings are specified in a CSV file with one building per line. Each line
+contains six required values and one optional value:
 
-   # xmin  xmax  ymin  ymax  zmin  zmax [m]
-   40.0    60.0  40.0  60.0  0.0   30.0   # Building 1: 20x20x30 m
-   100.0   140.0 60.0  80.0  0.0   50.0   # Building 2: 40x20x50 m
+**xmin xmax ymin ymax zmin zmax [rotation_degrees]** (in metres)
+
+Lines beginning with ``#`` are comments::
+
+   # xmin  xmax  ymin  ymax  zmin  zmax  [rotation]
+   40.0    60.0  40.0  60.0  0.0   30.0           # Building 1: grid-aligned
+   100.0   140.0 60.0  80.0  0.0   50.0  45.0     # Building 2: rotated 45°
+
+**Rotation angle** (Phase 3 enhancement):
+
+The optional 7th column specifies the building rotation angle in degrees,
+counter-clockwise from the x-axis. If omitted, the building is assumed to be
+grid-aligned (0°). The rotation angle affects how the effective building
+dimensions are projected onto the wind direction for wake modeling.
 
 Buildings are treated as solid obstacles — cells where the cell center falls
 inside a building (x in [xmin, xmax] and y in [ymin, ymax]) and below the
-building top (z_phys < zmax) are masked (velocity set to zero).  The vertical
+building top (z_phys < zmax) are masked (velocity set to zero). The vertical
 domain automatically extends to accommodate the tallest building.
 
 Output Files
