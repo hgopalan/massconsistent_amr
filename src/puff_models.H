@@ -74,6 +74,11 @@ struct PuffParams {
     bool enable_wake_diffusivity = false;    // Enable wake-enhanced diffusivity
     amrex::Real wake_enhancement_cavity = 3.0;  // Cavity zone K enhancement factor
     amrex::Real wake_enhancement_far = 1.5;     // Far wake K enhancement factor
+    bool enable_canopy_effects = false;      // Enable canopy effects on dispersion
+    amrex::Real canopy_enhancement_factor = 3.0;  // Canopy vertical diffusivity enhancement
+    amrex::Real canopy_sheltering_factor = 0.8;   // Canopy horizontal diffusivity reduction
+    bool enable_canopy_deposition = false;   // Enable dry deposition in canopy
+    amrex::Real deposition_velocity = 0.01;  // Dry deposition velocity [m/s]
 };
 
 // ============================================================================
@@ -429,6 +434,97 @@ void update_puff_growth_with_wake(
     
     // Call standard growth function with enhanced diffusivities
     update_puff_growth(puff, K_h_enhanced, K_v_enhanced);
+}
+
+// ============================================================================
+// Compute canopy-enhanced diffusivity
+//
+// Canopy generates turbulence that enhances vertical mixing while providing
+// sheltering that reduces horizontal diffusion.
+//
+// Inputs:
+//   z_agl                      - Height above ground level [m]
+//   canopy_height              - Canopy height [m]
+//   K_h_base, K_v_base         - Base diffusivities [m²/s]
+//   vertical_enhancement       - Vertical enhancement factor (2-5)
+//   horizontal_sheltering      - Horizontal sheltering factor (0.5-1.0)
+//
+// Outputs:
+//   K_h_eff, K_v_eff           - Effective diffusivities [m²/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_canopy_diffusivity(
+    amrex::Real z_agl,
+    amrex::Real canopy_height,
+    amrex::Real K_h_base,
+    amrex::Real K_v_base,
+    amrex::Real vertical_enhancement,
+    amrex::Real horizontal_sheltering,
+    amrex::Real& K_h_eff,
+    amrex::Real& K_v_eff)
+{
+    if (canopy_height <= amrex::Real(0.0) || z_agl >= canopy_height) {
+        // Above canopy: use base diffusivities
+        K_h_eff = K_h_base;
+        K_v_eff = K_v_base;
+        return;
+    }
+    
+    // Within canopy: enhance vertical, reduce horizontal
+    K_h_eff = K_h_base * horizontal_sheltering;
+    K_v_eff = K_v_base * vertical_enhancement;
+}
+
+// ============================================================================
+// Apply canopy deposition to puff mass
+//
+// Models dry deposition as first-order removal: dm/dt = -v_d * A * C
+// where v_d is deposition velocity and A is canopy frontal area index.
+//
+// Inputs:
+//   puff                 - Puff to update
+//   dt                   - Time step [s]
+//   z_agl                - Height above ground level [m]
+//   canopy_height        - Canopy height [m]
+//   frontal_area_index   - Canopy frontal area index (dimensionless)
+//   deposition_velocity  - Dry deposition velocity [m/s]
+//
+// Note: This is a simplified model. Full implementation would compute
+//       concentration-weighted deposition.
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_canopy_deposition(
+    Puff& puff,
+    amrex::Real dt,
+    amrex::Real z_agl,
+    amrex::Real canopy_height,
+    amrex::Real frontal_area_index,
+    amrex::Real deposition_velocity)
+{
+    if (!puff.active || puff.mass <= amrex::Real(0.0)) {
+        return;
+    }
+    
+    // Deposition only occurs within canopy
+    if (z_agl < amrex::Real(0.0) || z_agl >= canopy_height) {
+        return;
+    }
+    
+    if (canopy_height <= amrex::Real(0.0) || frontal_area_index <= amrex::Real(0.0)) {
+        return;
+    }
+    
+    // Simplified deposition: exponential decay
+    // Fraction deposited = 1 - exp(-v_d * A * dt / h_canopy)
+    const amrex::Real decay_rate = deposition_velocity * frontal_area_index / canopy_height;
+    const amrex::Real fraction_remaining = std::exp(-decay_rate * dt);
+    
+    puff.mass *= fraction_remaining;
+    
+    // Deactivate if mass becomes negligible
+    if (puff.mass < amrex::Real(1.0e-10)) {
+        puff.active = false;
+    }
 }
 
 // ============================================================================
