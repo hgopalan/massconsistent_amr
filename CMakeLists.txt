@@ -84,6 +84,7 @@ else()
 endif()
 
 add_executable(wind_solver src/wind_solver.cpp)
+add_executable(puff_solver src/puff_solver.cpp)
 add_library(wind_solver_api STATIC src/wind_solver_api.cpp)
 
 # On Windows with CUDA, MSVC is the default host compiler and does not
@@ -92,12 +93,14 @@ add_library(wind_solver_api STATIC src/wind_solver_api.cpp)
 if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   set_source_files_properties(
     src/wind_solver.cpp
+    src/puff_solver.cpp
     src/wind_solver_api.cpp
     PROPERTIES LANGUAGE CUDA
   )
 endif()
 
 target_link_libraries(wind_solver PRIVATE AMReX::amrex)
+target_link_libraries(puff_solver PRIVATE AMReX::amrex)
 target_link_libraries(wind_solver_api PUBLIC AMReX::amrex)
 target_include_directories(wind_solver_api PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -112,12 +115,17 @@ if(MSVC)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
     $<$<COMPILE_LANGUAGE:CXX>:/W4>
   )
+  target_compile_options(puff_solver PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
+    $<$<COMPILE_LANGUAGE:CXX>:/W4>
+  )
   target_compile_options(wind_solver_api PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
     $<$<COMPILE_LANGUAGE:CXX>:/W4>
   )
 else()
   target_compile_options(wind_solver PRIVATE -Wall -Wextra -Wno-pedantic)
+  target_compile_options(puff_solver PRIVATE -Wall -Wextra -Wno-pedantic)
   target_compile_options(wind_solver_api PRIVATE -Wall -Wextra -Wno-pedantic)
 endif()
 
