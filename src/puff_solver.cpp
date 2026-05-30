@@ -22,6 +22,7 @@
 // ============================================================================
 
 #include "puff_models.H"
+#include "math_constants.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -104,7 +105,7 @@ static void read_building_file(const std::string& filename,
         if (iss >> bldg.xmin >> bldg.xmax >> bldg.ymin >> bldg.ymax 
                 >> bldg.zmin >> bldg.zmax) {
             iss >> rotation_deg;  // Optional rotation
-            bldg.rotation = rotation_deg * M_PI / 180.0;  // Convert to radians
+            bldg.rotation = rotation_deg * MathConstants::pi / 180.0;  // Convert to radians
             
             bldg.height = bldg.zmax - bldg.zmin;
             bldg.width = bldg.ymax - bldg.ymin;
