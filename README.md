@@ -64,6 +64,39 @@ The CSV file should contain one building per line with columns: `xmin xmax ymin 
 
 Cells inside buildings are masked (zero velocity) similar to terrain cells. The vertical domain automatically extends to accommodate the tallest building.
 
+### Building Wake Effects
+
+The solver implements the Röckle (1990) wake parameterization to model velocity deficits behind buildings. Enable wake modeling with:
+```
+enable_wake = true
+wake_c1 = 0.9                    # Cavity length coefficient (Lr = c1 * H)
+wake_c2 = 0.3                    # Wake deficit coefficient  
+wake_separation_length = 3.0     # Wake extends to 3*H downwind
+```
+
+**Phase 2 Enhancements - Multiple Building Support:**
+
+For multiple buildings, the solver supports advanced wake modeling:
+
+**Wake Superposition** (default: enabled): When multiple building wakes overlap, velocity deficits are combined using quadratic superposition for physically realistic turbulent mixing:
+```
+wake_superposition = true        # Use quadratic superposition (recommended)
+wake_superposition = false       # Use linear addition (legacy behavior)
+```
+
+**Street Canyon Effects**: Models flow in street canyons (parallel building rows) using the Oke (1988) classification. Flow regime depends on height-to-width ratio (H/W):
+- H/W < 0.3: Isolated roughness (minimal interaction)
+- 0.3 < H/W < 0.7: Wake interference flow
+- H/W > 0.7: Skimming flow (vortex in canyon)
+
+Enable street canyon modeling:
+```
+enable_street_canyon = true
+street_canyon_reduction = 0.3    # Velocity reduction factor (0-1)
+```
+
+See `regtest/building_array/` for a complete example with a 3×3 building array demonstrating wake superposition and street canyon effects.
+
 ## Python API
 
 The solver can be controlled from Python for coupled wind-fire simulations. Build with Python bindings enabled:

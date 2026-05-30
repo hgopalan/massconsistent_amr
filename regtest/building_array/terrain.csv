@@ -1,0 +1,6 @@
+# Flat terrain for building array test
+# X Y Z coordinates (m)
+0.0     0.0     0.0
+300.0   0.0     0.0
+0.0     300.0   0.0
+300.0   300.0   0.0
