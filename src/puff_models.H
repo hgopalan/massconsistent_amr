@@ -11,13 +11,19 @@
 // - Advection: drift with local wind velocity
 // - Diffusion: Gaussian growth σ(t) = √(σ0² + 2K·t)
 // - Concentration: C(x,y,z) = (mass/(2π)^3/2 · σx · σy · σz) · 
-//                             exp(-(dx²/(2σx²) + dy²/(2σy²) + dz²/(2σz²)))
+// //                             exp(-(dx²/(2σx²) + dy²/(2σy²) + dz²/(2σz²)))
+//
+// Enhancements:
+// - Terrain awareness: ground reflection and image source method
+// - Building awareness: collision detection and wake-enhanced diffusivity
+// - Canopy integration: enhanced diffusivity and velocity reduction
 //
 // References:
 // - Hanna, S.R., et al. (1982). Handbook on atmospheric diffusion. 
 //   DOE/TIC-11223, U.S. Department of Energy
 // - Pasquill, F., & Gifford, F.A. (1961). The estimation of the dispersion 
 //   of wind-borne material from industrial sources. Meteorological Magazine.
+// - Röckle, R. (1990). Building wake parameterization
 // ============================================================================
 
 #ifndef PUFF_MODELS_H
@@ -25,6 +31,8 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include "wake_models.H"
+#include "canopy_models.H"
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -32,6 +40,19 @@
 namespace {
     using namespace amrex;
 }
+
+// ============================================================================
+// Terrain Grid Structure
+// Stores interpolated terrain elevation data for puff reflection
+// ============================================================================
+struct TerrainGrid {
+    std::vector<amrex::Real> x_terr;         // Terrain x-coordinates [m]
+    std::vector<amrex::Real> y_terr;         // Terrain y-coordinates [m]
+    std::vector<amrex::Real> z_terr;         // Terrain elevation [m]
+    amrex::Real xmin, xmax;                  // Terrain domain bounds [m]
+    amrex::Real ymin, ymax;
+    bool enabled = false;                    // Terrain awareness enabled
+};
 
 // ============================================================================
 // Gaussian Puff Parameters
@@ -47,6 +68,17 @@ struct PuffParams {
     amrex::Real K_v = 0.5;                   // Vertical diffusivity [m²/s]
     amrex::Real sigma_y0 = 1.0;              // Initial puff width σy [m]
     amrex::Real sigma_z0 = 1.0;              // Initial puff height σz [m]
+    bool enable_terrain_reflection = false;  // Enable ground reflection
+    bool use_image_source = true;            // Use image source method for concentration
+    bool enable_building_masking = false;    // Enable building collision detection
+    bool enable_wake_diffusivity = false;    // Enable wake-enhanced diffusivity
+    amrex::Real wake_enhancement_cavity = 3.0;  // Cavity zone K enhancement factor
+    amrex::Real wake_enhancement_far = 1.5;     // Far wake K enhancement factor
+    bool enable_canopy_effects = false;      // Enable canopy effects on dispersion
+    amrex::Real canopy_enhancement_factor = 3.0;  // Canopy vertical diffusivity enhancement
+    amrex::Real canopy_sheltering_factor = 0.8;   // Canopy horizontal diffusivity reduction
+    bool enable_canopy_deposition = false;   // Enable dry deposition in canopy
+    amrex::Real deposition_velocity = 0.01;  // Dry deposition velocity [m/s]
 };
 
 // ============================================================================
@@ -131,6 +163,216 @@ amrex::Real gaussian_puff_concentration(
 }
 
 // ============================================================================
+// Bilinear interpolation of terrain height at point (x, y)
+//
+// Uses inverse distance weighting (IDW) for scattered terrain points.
+// For a regular grid, this simplifies to bilinear interpolation.
+//
+// Inputs:
+//   x, y             - Query point coordinates [m]
+//   terrain          - Terrain grid structure
+//
+// Returns:
+//   Interpolated terrain elevation [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real interpolate_terrain_height(
+    amrex::Real x, amrex::Real y,
+    const std::vector<amrex::Real>& x_terr,
+    const std::vector<amrex::Real>& y_terr,
+    const std::vector<amrex::Real>& z_terr)
+{
+    if (x_terr.empty() || y_terr.empty() || z_terr.empty()) {
+        return amrex::Real(0.0);  // No terrain data, assume flat
+    }
+    
+    // Inverse distance weighting (IDW)
+    amrex::Real sum_weights = amrex::Real(0.0);
+    amrex::Real sum_weighted_z = amrex::Real(0.0);
+    const amrex::Real power = amrex::Real(2.0);  // IDW power parameter
+    const amrex::Real epsilon = amrex::Real(1.0e-6);  // Avoid division by zero
+    
+    const int n = static_cast<int>(x_terr.size());
+    for (int i = 0; i < n; ++i) {
+        const amrex::Real dx = x - x_terr[i];
+        const amrex::Real dy = y - y_terr[i];
+        const amrex::Real dist_sq = dx * dx + dy * dy;
+        
+        // If point is very close to a terrain point, use that elevation
+        if (dist_sq < epsilon) {
+            return z_terr[i];
+        }
+        
+        const amrex::Real dist = std::sqrt(dist_sq);
+        const amrex::Real weight = amrex::Real(1.0) / std::pow(dist, power);
+        
+        sum_weights += weight;
+        sum_weighted_z += weight * z_terr[i];
+    }
+    
+    if (sum_weights > epsilon) {
+        return sum_weighted_z / sum_weights;
+    }
+    
+    return amrex::Real(0.0);  // Fallback
+}
+
+// ============================================================================
+// Compute Gaussian concentration with image source for ground reflection
+//
+// Implements the image source method to satisfy zero-flux boundary condition
+// at the ground surface. For each puff, a mirror puff is placed below ground.
+//
+// Inputs:
+//   x, y, z          - Point coordinates [m]
+//   puff             - Real puff structure
+//   terrain_height   - Ground elevation at (x, y) [m]
+//   use_image_source - Enable image source method
+//
+// Returns:
+//   Total concentration from puff and image puff [units/m³]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real gaussian_puff_concentration_with_reflection(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const Puff& puff,
+    amrex::Real terrain_height,
+    bool use_image_source = true)
+{
+    // Concentration from the actual puff
+    amrex::Real conc_real = gaussian_puff_concentration(x, y, z, puff);
+    
+    if (!use_image_source) {
+        return conc_real;
+    }
+    
+    // Create image puff (mirror below ground)
+    // Image puff position: z_image = 2*terrain_height - z_puff
+    Puff image_puff = puff;
+    image_puff.z = amrex::Real(2.0) * terrain_height - puff.z;
+    
+    // Concentration from the image puff
+    amrex::Real conc_image = gaussian_puff_concentration(x, y, z, image_puff);
+    
+    return conc_real + conc_image;
+}
+
+// ============================================================================
+// Check if point is inside a building
+//
+// Inputs:
+//   x, y, z          - Point coordinates [m]
+//   building         - Building structure
+//
+// Returns:
+//   True if point is inside building volume
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool point_in_building(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const Building& building)
+{
+    return (x >= building.xmin && x <= building.xmax &&
+            y >= building.ymin && y <= building.ymax &&
+            z >= building.zmin && z <= building.zmax);
+}
+
+// ============================================================================
+// Check if point is inside any building from a list
+//
+// Inputs:
+//   x, y, z          - Point coordinates [m]
+//   buildings        - Vector of Building structures
+//
+// Returns:
+//   True if point is inside any building volume
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool point_in_any_building(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const std::vector<Building>& buildings)
+{
+    for (const auto& building : buildings) {
+        if (point_in_building(x, y, z, building)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ============================================================================
+// Determine if puff is in building wake zone and compute enhancement factor
+//
+// Uses simplified Röckle model to identify cavity and far wake zones.
+// Returns diffusivity enhancement factor based on wake zone.
+//
+// Inputs:
+//   puff_x, puff_y, puff_z - Puff position [m]
+//   building               - Building structure
+//   U_ref                  - Reference wind speed [m/s]
+//   wind_dir_x, wind_dir_y - Wind direction components (unit vector)
+//   wake_params            - Wake model parameters
+//   K_enhancement_cavity   - Enhancement factor for cavity zone
+//   K_enhancement_far      - Enhancement factor for far wake
+//
+// Returns:
+//   Diffusivity enhancement factor (1.0 = no enhancement)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_wake_enhancement_factor(
+    amrex::Real puff_x, amrex::Real puff_y, amrex::Real puff_z,
+    const Building& building,
+    amrex::Real U_ref,
+    amrex::Real wind_dir_x, amrex::Real wind_dir_y,
+    const WakeParams& wake_params,
+    amrex::Real K_enhancement_cavity = amrex::Real(3.0),
+    amrex::Real K_enhancement_far = amrex::Real(1.5))
+{
+    // Building center and dimensions
+    const amrex::Real bldg_center_x = amrex::Real(0.5) * (building.xmin + building.xmax);
+    const amrex::Real bldg_center_y = amrex::Real(0.5) * (building.ymin + building.ymax);
+    const amrex::Real H = building.height;
+    const amrex::Real W = building.width;
+    const amrex::Real L = building.length;
+    
+    // Vector from building center to puff
+    const amrex::Real dx = puff_x - bldg_center_x;
+    const amrex::Real dy = puff_y - bldg_center_y;
+    
+    // Project onto wind direction to get downwind distance
+    const amrex::Real x_wake = dx * wind_dir_x + dy * wind_dir_y;
+    
+    // Cross-wind distance
+    const amrex::Real y_wake = -dx * wind_dir_y + dy * wind_dir_x;
+    
+    // Height above building base
+    const amrex::Real z_local = puff_z - building.zmin;
+    
+    // Röckle cavity and far wake dimensions
+    const amrex::Real Lr = wake_params.c1 * H;  // Cavity length
+    const amrex::Real Hr = amrex::Real(0.67) * H;  // Cavity height
+    const amrex::Real Lf = wake_params.separation_length * H;  // Far wake length
+    
+    // Check if in cavity zone (immediately behind building)
+    if (x_wake > amrex::Real(0.0) && x_wake < Lr &&
+        std::abs(y_wake) < amrex::Real(0.5) * W &&
+        z_local > amrex::Real(0.0) && z_local < Hr) {
+        return K_enhancement_cavity;  // Strong enhancement in cavity
+    }
+    
+    // Check if in far wake zone
+    if (x_wake > Lr && x_wake < Lf &&
+        std::abs(y_wake) < amrex::Real(0.5) * W * (amrex::Real(1.0) + x_wake / Lf) &&
+        z_local > amrex::Real(0.0) && z_local < amrex::Real(2.0) * H) {
+        // Gradual enhancement that decreases with distance
+        const amrex::Real decay_factor = amrex::Real(1.0) - (x_wake - Lr) / (Lf - Lr);
+        return amrex::Real(1.0) + (K_enhancement_far - amrex::Real(1.0)) * decay_factor;
+    }
+    
+    return amrex::Real(1.0);  // No enhancement outside wake
+}
+
+// ============================================================================
 // Compute puff growth over time
 //
 // Updates puff standard deviations based on diffusion and age using:
@@ -165,6 +407,170 @@ void update_puff_growth(
     
     puff.sigma_y = std::sqrt(sigma_y_squared);
     puff.sigma_z = std::sqrt(sigma_z_squared);
+}
+
+// ============================================================================
+// Compute puff growth with wake-enhanced diffusivity
+//
+// Updates puff standard deviations with wake enhancement factor applied.
+// Useful for modeling enhanced turbulent mixing in building wakes.
+//
+// Inputs:
+//   puff                 - Puff to update
+//   K_h                  - Base horizontal diffusivity [m²/s]
+//   K_v                  - Base vertical diffusivity [m²/s]
+//   wake_enhancement     - Enhancement factor (>1.0 in wakes)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void update_puff_growth_with_wake(
+    Puff& puff,
+    amrex::Real K_h,
+    amrex::Real K_v,
+    amrex::Real wake_enhancement = amrex::Real(1.0))
+{
+    // Apply wake enhancement to diffusivities
+    const amrex::Real K_h_enhanced = K_h * wake_enhancement;
+    const amrex::Real K_v_enhanced = K_v * wake_enhancement;
+    
+    // Call standard growth function with enhanced diffusivities
+    update_puff_growth(puff, K_h_enhanced, K_v_enhanced);
+}
+
+// ============================================================================
+// Compute canopy-enhanced diffusivity
+//
+// Canopy generates turbulence that enhances vertical mixing while providing
+// sheltering that reduces horizontal diffusion.
+//
+// Inputs:
+//   z_agl                      - Height above ground level [m]
+//   canopy_height              - Canopy height [m]
+//   K_h_base, K_v_base         - Base diffusivities [m²/s]
+//   vertical_enhancement       - Vertical enhancement factor (2-5)
+//   horizontal_sheltering      - Horizontal sheltering factor (0.5-1.0)
+//
+// Outputs:
+//   K_h_eff, K_v_eff           - Effective diffusivities [m²/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_canopy_diffusivity(
+    amrex::Real z_agl,
+    amrex::Real canopy_height,
+    amrex::Real K_h_base,
+    amrex::Real K_v_base,
+    amrex::Real vertical_enhancement,
+    amrex::Real horizontal_sheltering,
+    amrex::Real& K_h_eff,
+    amrex::Real& K_v_eff)
+{
+    if (canopy_height <= amrex::Real(0.0) || z_agl >= canopy_height) {
+        // Above canopy: use base diffusivities
+        K_h_eff = K_h_base;
+        K_v_eff = K_v_base;
+        return;
+    }
+    
+    // Within canopy: enhance vertical, reduce horizontal
+    K_h_eff = K_h_base * horizontal_sheltering;
+    K_v_eff = K_v_base * vertical_enhancement;
+}
+
+// ============================================================================
+// Apply canopy deposition to puff mass
+//
+// Models dry deposition as first-order removal: dm/dt = -v_d * A * C
+// where v_d is deposition velocity and A is canopy frontal area index.
+//
+// Inputs:
+//   puff                 - Puff to update
+//   dt                   - Time step [s]
+//   z_agl                - Height above ground level [m]
+//   canopy_height        - Canopy height [m]
+//   frontal_area_index   - Canopy frontal area index (dimensionless)
+//   deposition_velocity  - Dry deposition velocity [m/s]
+//
+// Note: This is a simplified model. Full implementation would compute
+//       concentration-weighted deposition.
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_canopy_deposition(
+    Puff& puff,
+    amrex::Real dt,
+    amrex::Real z_agl,
+    amrex::Real canopy_height,
+    amrex::Real frontal_area_index,
+    amrex::Real deposition_velocity)
+{
+    if (!puff.active || puff.mass <= amrex::Real(0.0)) {
+        return;
+    }
+    
+    // Deposition only occurs within canopy
+    if (z_agl < amrex::Real(0.0) || z_agl >= canopy_height) {
+        return;
+    }
+    
+    if (canopy_height <= amrex::Real(0.0) || frontal_area_index <= amrex::Real(0.0)) {
+        return;
+    }
+    
+    // Simplified deposition: exponential decay
+    // Fraction deposited = 1 - exp(-v_d * A * dt / h_canopy)
+    const amrex::Real decay_rate = deposition_velocity * frontal_area_index / canopy_height;
+    const amrex::Real fraction_remaining = std::exp(-decay_rate * dt);
+    
+    puff.mass *= fraction_remaining;
+    
+    // Deactivate if mass becomes negligible
+    if (puff.mass < amrex::Real(1.0e-10)) {
+        puff.active = false;
+    }
+}
+
+// ============================================================================
+// Advect puff with wind velocity and ground reflection
+//
+// Moves puff center with the local wind velocity using Euler time stepping:
+//   x_new = x_old + u·dt
+//
+// If terrain reflection is enabled and puff goes below ground, the puff is
+// reflected vertically and the vertical velocity is reversed.
+//
+// Inputs:
+//   puff               - Puff to advect
+//   u, v, w            - Wind velocity components [m/s]
+//   dt                 - Time step [s]
+//   terrain_height     - Ground elevation at puff location [m]
+//   enable_reflection  - Enable ground reflection
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void advect_puff_with_terrain(
+    Puff& puff,
+    amrex::Real u,
+    amrex::Real v,
+    amrex::Real w,
+    amrex::Real dt,
+    amrex::Real terrain_height,
+    bool enable_reflection = false)
+{
+    if (!puff.active || dt < amrex::Real(0.0)) {
+        return;
+    }
+    
+    // Advect puff
+    puff.x += u * dt;
+    puff.y += v * dt;
+    puff.z += w * dt;
+    
+    // Ground reflection
+    if (enable_reflection && puff.z < terrain_height) {
+        // Reflect puff above ground: z_new = 2*terrain_height - z_old
+        puff.z = amrex::Real(2.0) * terrain_height - puff.z;
+        
+        // Note: In a full implementation, we would also reverse the vertical
+        // velocity component. For the simple puff model with prescribed wind,
+        // the reflection of position is sufficient.
+    }
 }
 
 // ============================================================================
@@ -222,6 +628,54 @@ void update_puff_age(
     // Deactivate if exceeded max age
     if (max_age > amrex::Real(0.0) && puff.age > max_age) {
         puff.active = false;
+    }
+}
+
+// ============================================================================
+// Check if puff is outside domain and deactivate
+//
+// Modified to check against terrain surface instead of just z=0.
+//
+// Inputs:
+//   puff             - Puff to check
+//   xmin, xmax       - Domain bounds [m]
+//   ymin, ymax
+//   zmin, zmax
+//   terrain_height   - Ground elevation at puff location [m] (optional)
+//   check_terrain    - Check against terrain instead of zmin
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void check_puff_bounds_with_terrain(
+    Puff& puff,
+    amrex::Real xmin, amrex::Real xmax,
+    amrex::Real ymin, amrex::Real ymax,
+    amrex::Real zmin, amrex::Real zmax,
+    amrex::Real terrain_height = amrex::Real(0.0),
+    bool check_terrain = false)
+{
+    if (!puff.active) {
+        return;
+    }
+    
+    // Check horizontal bounds
+    if (puff.x < xmin || puff.x > xmax ||
+        puff.y < ymin || puff.y > ymax) {
+        puff.active = false;
+        return;
+    }
+    
+    // Check vertical bounds
+    if (check_terrain) {
+        // Deactivate if significantly below terrain (allow small tolerance for numerical issues)
+        const amrex::Real tolerance = amrex::Real(1.0);  // 1 meter tolerance
+        if (puff.z < terrain_height - tolerance || puff.z > zmax) {
+            puff.active = false;
+        }
+    } else {
+        // Standard check against domain bounds
+        if (puff.z < zmin || puff.z > zmax) {
+            puff.active = false;
+        }
     }
 }
 

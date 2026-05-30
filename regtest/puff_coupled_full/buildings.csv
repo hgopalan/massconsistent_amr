@@ -1,0 +1,8 @@
+# Urban area with 3 buildings for coupled puff test
+# xmin xmax ymin ymax zmin zmax [m] [rotation_deg]
+# Building 1: 40m x 40m x 25m at (180, 180) - on upslope
+150.0 190.0 160.0 200.0 0.0 25.0
+# Building 2: 30m x 50m x 35m at (220, 220) - near hill peak
+205.0 235.0 195.0 245.0 0.0 35.0
+# Building 3: 50m x 30m x 20m at (260, 200) - downslope
+235.0 285.0 185.0 215.0 0.0 20.0
