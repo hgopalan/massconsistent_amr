@@ -4,27 +4,38 @@
 
 This implementation adds a **Gaussian Puff dispersion model** to the massconsistent_amr wind solver. The puff model computes passive plume dispersion for pollutants emitted from point sources in a steady wind field.
 
-## Files Added
+**NEW (May 2026)**: The puff model now includes comprehensive support for **terrain**, **buildings**, and **tree canopy** effects, enabling realistic dispersion simulations in complex environments.
+
+## Files Added/Modified
 
 ### 1. Core Model Implementation
 
-- **`src/puff_models.H`** (318 lines)
+- **`src/puff_models.H`** (~600 lines, enhanced)
   - Header-only library with GPU-compatible kernels
-  - Data structures: `Puff` and `PuffParams`
+  - Data structures: `Puff`, `PuffParams`, `TerrainGrid`
+  - **NEW**: Integration with `wake_models.H` and `canopy_models.H`
   - Key functions:
     - `gaussian_puff_concentration()` - Compute 3D Gaussian concentration
-    - `advect_puff()` - Drift puff with wind velocity
-    - `update_puff_growth()` - Gaussian growth: σ(t) = √(σ₀² + 2K·t)
+    - `gaussian_puff_concentration_with_reflection()` - **NEW**: Image source method
+    - `interpolate_terrain_height()` - **NEW**: Terrain elevation interpolation
+    - `advect_puff()` / `advect_puff_with_terrain()` - Drift with wind, ground reflection
+    - `update_puff_growth()` / `update_puff_growth_with_wake()` - Diffusive growth
+    - `point_in_building()` / `point_in_any_building()` - **NEW**: Building collision
+    - `compute_wake_enhancement_factor()` - **NEW**: Wake-enhanced diffusivity
+    - `compute_canopy_diffusivity()` - **NEW**: Canopy turbulence effects
+    - `apply_canopy_deposition()` - **NEW**: Dry deposition in canopy
     - `update_puff_age()` - Track puff lifetime
-    - `check_puff_bounds()` - Deactivate puffs outside domain
+    - `check_puff_bounds()` / `check_puff_bounds_with_terrain()` - Domain checks
     - `create_puff()` - Emit new puff from source
 
 ### 2. Standalone Solver
 
-- **`src/puff_solver.cpp`** (336 lines)
+- **`src/puff_solver.cpp`** (~530 lines, enhanced)
   - Standalone executable for puff dispersion
+  - **NEW**: Reads terrain, building, and canopy data
+  - **NEW**: Integrated terrain/building/canopy effects in time loop
   - Reads input parameters via AMReX ParmParse
-  - Main time-stepping loop
+  - Main time-stepping loop with full feature integration
   - Concentration gridding and output (CSV format)
   - Easy to test and validate independently
 
@@ -35,24 +46,25 @@ This implementation adds a **Gaussian Puff dispersion model** to the massconsist
   - Linked with AMReX
   - GPU-aware compilation for CUDA/HIP/SYCL
 
-### 4. Test Case
+### 4. Test Cases
 
-- **`regtest/puff_gaussian/inputs.i`** (48 lines)
-  - Simple test configuration
-  - Point source in uniform wind field
-  - Domain: 300m × 300m × 100m
-  - 50-second simulation, 0.5-second timesteps
-  - Output: concentration snapshots every 5 seconds
+- **`regtest/puff_gaussian/`** - Simple uniform wind test (original)
+- **`regtest/puff_terrain/`** - **NEW**: Ground reflection over Gaussian hill
+- **`regtest/puff_buildings/`** - **NEW**: Wake-enhanced dispersion around buildings
+- **`regtest/puff_canopy/`** - **NEW**: Canopy diffusivity and deposition
+- **`regtest/puff_coupled_full/`** - **NEW**: Terrain + buildings + canopy combined
 
 ### 5. Documentation
 
-- **`docs/puff.rst`** (280 lines)
+- **`docs/puff.rst`** (~380 lines, updated)
   - Physical model description with equations
   - Implementation details and algorithms
+  - **NEW**: Terrain/building/canopy integration documentation
   - Parameter documentation
   - Usage examples
-  - Validation approach against analytical Gaussian plume solution
-  - Limitations and future work
+  - Validation approach
+  - Test case descriptions
+  - References (added Röckle, Shaw-Pereira, MacDonald)
 
 ## Model Equations
 
@@ -246,36 +258,94 @@ For the test case: ~100 puffs, small grid → very fast (<1 second)
 
 ## Limitations and Future Work
 
-### Current Limitations
+### Current Status (May 2026)
 
-1. ❌ **No ground reflection**: Puffs can go below z=0 (should reflect or deposit)
-2. ❌ **Nearest-neighbor interpolation**: Should use trilinear velocity interpolation
-3. ❌ **No deposition**: No dry/wet deposition modeled
-4. ❌ **No decay**: No radioactive or chemical decay
-5. ❌ **No plume rise**: No buoyancy effects for heated sources
-6. ❌ **Uniform diffusivity**: K_h and K_v are constant
+**Implemented Features** ✅
+1. ✅ **Ground reflection**: Image source method for terrain-aware reflection
+2. ✅ **Building masking**: Puffs deactivated inside building volumes
+3. ✅ **Wake-enhanced diffusivity**: Röckle model for cavity and far wake zones
+4. ✅ **Canopy diffusivity**: Enhanced vertical mixing, reduced horizontal in canopy
+5. ✅ **Canopy deposition**: Dry deposition for particles/aerosols in vegetation
 
-### Future Extensions (Easy to Hard)
+**Remaining Limitations** ❌
+1. ❌ **Nearest-neighbor interpolation**: Should use trilinear velocity interpolation for spatially-varying winds
+2. ❌ **No chemical decay**: No radioactive or chemical decay modeled
+3. ❌ **No plume rise**: No buoyancy effects for heated sources
+4. ❌ **Spatially uniform canopy**: Canopy properties are domain-wide constants
 
-| Feature | Effort | Benefit |
-|---------|--------|---------|
-| Ground reflection/deposition | Easy | Realistic boundary behavior |
-| Dry deposition velocity | Easy | Pollutant removal |
-| Chemical decay (1st-order) | Easy | Reactive dispersion |
-| Trilinear velocity interpolation | Moderate | Accurate advection |
-| Height-dependent diffusivity | Moderate | Stability-aware dispersion |
-| Plume rise (buoyancy) | Moderate | Heated/buoyant sources |
-| Couple with wind plotfile | Moderate | Use real wind fields |
-| Python API | Easy | Coupled simulations |
-| Particle settling | Easy | Aerosol/dust modeling |
+### Future Extensions (Priority Order)
+
+| Feature | Effort | Benefit | Priority |
+|---------|--------|---------|----------|
+| Trilinear velocity interpolation | Moderate | Accurate advection in complex wind | High |
+| Couple with wind plotfile | Moderate | Use real wind fields from solver | High |
+| Spatially-varying canopy | Easy | Realistic heterogeneous vegetation | Medium |
+| Chemical decay (1st-order) | Easy | Reactive species dispersion | Medium |
+| Plume rise (buoyancy) | Moderate | Heated/buoyant sources | Medium |
+| Particle settling | Easy | Size-dependent aerosol deposition | Low |
+| Python API | Easy | Coupled wildfire-smoke simulations | Future |
 
 ## Testing and Benchmarking
 
-### Test Case: Gaussian Puff in Uniform Wind
+### Test Cases
 
-**Input**: Point source at (150, 150, 10) emitting 1 unit/s for 50 s  
-**Wind**: 10 m/s from west (U=10, V=W=0)  
-**Domain**: 300 m × 300 m × 100 m  
+**1. puff_gaussian** - Baseline uniform wind test
+- **Input**: Point source at (150, 150, 10) emitting 1 unit/s for 50 s  
+- **Wind**: 10 m/s from west (U=10, V=W=0)  
+- **Domain**: 300 m × 300 m × 100 m  
+- **Purpose**: Validate basic puff advection and growth
+
+**2. puff_terrain** - Ground reflection over Gaussian hill
+- **Terrain**: 50m peak at center, 300m × 300m domain
+- **Source**: Upwind at 20m elevation
+- **Purpose**: Validate terrain reflection and image source method
+
+**3. puff_buildings** - Wake effects around single building
+- **Building**: 50m × 40m × 30m tall at domain center
+- **Wake**: 3x diffusivity in cavity, 1.5x in far wake
+- **Purpose**: Validate building masking and wake enhancement
+
+**4. puff_canopy** - Forest canopy effects
+- **Canopy**: 20m tall uniform forest
+- **Effects**: 3x vertical diffusivity, 0.7x horizontal, deposition
+- **Purpose**: Validate canopy turbulence and deposition
+
+**5. puff_coupled_full** - All features combined
+- **Terrain**: Gaussian hill (40m peak)
+- **Buildings**: 3 buildings of varying heights
+- **Canopy**: 15m forest with deposition
+- **Domain**: 400m × 400m × 150m
+- **Purpose**: Validate full integration in complex environment
+
+### Expected Results
+
+**Baseline (puff_gaussian)**:
+- Plume center drifts 500m downwind in 50s (50s × 10 m/s)
+- Puffs grow: σ_y(t) = √(1² + 2×1×t) meters
+- ~100 active puffs at end
+
+**Terrain (puff_terrain)**:
+- Puffs reflect when approaching ground
+- Concentration enhanced near terrain surface (image sources)
+- No puffs penetrate below terrain elevation
+
+**Buildings (puff_buildings)**:
+- Puffs deactivated inside building volume (masking)
+- Enhanced spreading in wake zones (3x in cavity, 1.5x in far wake)
+- Plume widens significantly downwind of building
+
+**Canopy (puff_canopy)**:
+- Increased vertical mixing within canopy (3x K_v)
+- Reduced horizontal spreading within canopy (0.7x K_h)
+- Mass decreases due to deposition (exponential decay)
+- Puffs above canopy show normal diffusion
+
+**Coupled (puff_coupled_full)**:
+- Combined effects: terrain reflection + building wakes + canopy deposition
+- Complex concentration patterns influenced by all features
+- Realistic urban/wildland dispersion simulation
+- **Domain**: 400m × 400m × 150m
+- **Purpose**: Validate full integration in complex environment
 **Duration**: 50 s with Δt=0.5 s (100 timesteps)  
 
 **Expected Results**:
