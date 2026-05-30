@@ -1,0 +1,6 @@
+# Flat terrain for buildings test - X[m]  Y[m]  Z[m]
+# Defines a simple flat surface for testing building implementation
+0.0   0.0   0.0
+200.0 0.0   0.0
+0.0   200.0 0.0
+200.0 200.0 0.0

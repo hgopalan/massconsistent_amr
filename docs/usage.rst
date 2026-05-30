@@ -147,6 +147,14 @@ Parameter Reference
    * - ``canopy_attenuation``
      - ``2.5``
      - Exponential attenuation coefficient α for Shaw-Pereira profile. Typical range: 2-4.
+   * - **Building Parameters**
+    -
+    -
+   * - ``building_file``
+    - (none)
+    - Path to building CSV file (optional). Each line defines a building box with
+      columns: ``xmin xmax ymin ymax zmin zmax`` [m]. Lines starting with ``#`` are
+      comments. Buildings are masked as solid obstacles (zero velocity inside).
 
 Terrain File Format
 -------------------
@@ -155,23 +163,39 @@ The terrain file must contain one data point per line with columns
 **X  Y  Z** (in metres, UTM or local coordinates).  Both whitespace and
 comma-separated formats are accepted.  Lines beginning with ``#`` are comments::
 
-    # X [m]  Y [m]  Z [m]
-    0.0      0.0    5.2
-    30.0     0.0    8.1
-    60.0     0.0   12.7
-    ...
+   # X [m]  Y [m]  Z [m]
+   0.0      0.0    5.2
+   30.0     0.0    8.1
+   60.0     0.0   12.7
+   ...
 
 The horizontal domain extents (x_lo, x_hi, y_lo, y_hi) are derived
 automatically from the min/max of the terrain data.  The grid dimensions are:
 
 .. code-block:: text
 
-    nx = round((x_hi - x_lo) / dx)
-    ny = round((y_hi - y_lo) / dy)
-    nz = round((z_hi - z_lo) / dz)
+   nx = round((x_hi - x_lo) / dx)
+   ny = round((y_hi - y_lo) / dy)
+   nz = round((z_hi - z_lo) / dz)
 
 where z_lo = min terrain elevation and z_hi = max terrain elevation +
 ``domain_height``.
+
+Building File Format
+--------------------
+
+Buildings are specified in a CSV file with one building per line.  Each line
+contains six values: **xmin xmax ymin ymax zmin zmax** (in metres).  Lines
+beginning with ``#`` are comments::
+
+   # xmin  xmax  ymin  ymax  zmin  zmax [m]
+   40.0    60.0  40.0  60.0  0.0   30.0   # Building 1: 20x20x30 m
+   100.0   140.0 60.0  80.0  0.0   50.0   # Building 2: 40x20x50 m
+
+Buildings are treated as solid obstacles — cells where the cell center falls
+inside a building (x in [xmin, xmax] and y in [ymin, ymax]) and below the
+building top (z_phys < zmax) are masked (velocity set to zero).  The vertical
+domain automatically extends to accommodate the tallest building.
 
 Output Files
 ------------

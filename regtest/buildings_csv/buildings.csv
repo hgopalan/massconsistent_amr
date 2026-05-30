@@ -1,0 +1,9 @@
+# Buildings CSV format test
+# Format: xmin xmax ymin ymax zmin zmax [m]
+# Three buildings of different heights and sizes
+# Building 1: small, 20m tall
+30.0  50.0  30.0  50.0   0.0  20.0
+# Building 2: medium, 40m tall
+80.0  120.0 60.0  90.0   0.0  40.0
+# Building 3: tall, 60m tall
+140.0 170.0 120.0 160.0  0.0  60.0

@@ -85,6 +85,43 @@ void read_terrain_file(const std::string& filename,
     }
 }
 
+void read_building_file(const std::string& filename,
+                        std::vector<Real>& xmin,
+                        std::vector<Real>& xmax,
+                        std::vector<Real>& ymin,
+                        std::vector<Real>& ymax,
+                        std::vector<Real>& zmin,
+                        std::vector<Real>& zmax)
+{
+    std::ifstream input(filename);
+    if (!input.is_open()) {
+        throw std::runtime_error("cannot open building file: " + filename);
+    }
+
+    std::string line;
+    while (std::getline(input, line)) {
+        auto comment_pos = line.find('#');
+        if (comment_pos != std::string::npos) {
+            line = line.substr(0, comment_pos);
+        }
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream iss(line);
+        Real x1, x2, y1, y2, z1, z2;
+        if (iss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
+            xmin.push_back(x1);
+            xmax.push_back(x2);
+            ymin.push_back(y1);
+            ymax.push_back(y2);
+            zmin.push_back(z1);
+            zmax.push_back(z2);
+        }
+    }
+
+    if (xmin.empty()) {
+        throw std::runtime_error("no building data read from: " + filename);
+    }
+}
+
 Real idw_terrain(Real xq, Real yq,
                  const std::vector<Real>& x,
                  const std::vector<Real>& y,
@@ -277,14 +314,14 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
                       state.terrain_y_data,
                       state.terrain_z_data);
     
-    // Parse building boxes (optional)
-    int n_buildings = pp.countval("building_boxes");
-    if (n_buildings > 0) {
-        if (n_buildings % 5 != 0) {
-            throw std::runtime_error("building_boxes must be multiples of 5 (x1 x2 y1 y2 height)");
-        }
-        state.building_boxes.resize(n_buildings);
-        pp.getarr("building_boxes", state.building_boxes, 0, n_buildings);
+    // Parse building file (optional)
+    std::string building_file = "";
+    pp.query("building_file", building_file);
+    if (!building_file.empty()) {
+        read_building_file(building_file,
+                          state.building_xmin, state.building_xmax,
+                          state.building_ymin, state.building_ymax,
+                          state.building_zmin, state.building_zmax);
     }
 
     const Real x_lo = *std::min_element(state.terrain_x_data.begin(), state.terrain_x_data.end());
@@ -330,14 +367,14 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
                                      g_wind_solver_runtime->terrain_host.end());
 
     // Apply buildings to create obstacle height field
-    if (!state.building_boxes.empty()) {
-        int n_buildings_total = static_cast<int>(state.building_boxes.size()) / 5;
-        for (int b = 0; b < n_buildings_total; ++b) {
-            Real bx1 = state.building_boxes[b * 5 + 0];
-            Real bx2 = state.building_boxes[b * 5 + 1];
-            Real by1 = state.building_boxes[b * 5 + 2];
-            Real by2 = state.building_boxes[b * 5 + 3];
-            Real bh  = state.building_boxes[b * 5 + 4];
+    if (!state.building_xmin.empty()) {
+        int n_buildings = static_cast<int>(state.building_xmin.size());
+        for (int b = 0; b < n_buildings; ++b) {
+            Real bx1 = state.building_xmin[b];
+            Real bx2 = state.building_xmax[b];
+            Real by1 = state.building_ymin[b];
+            Real by2 = state.building_ymax[b];
+            Real bz2 = state.building_zmax[b];
             
             for (int j = 0; j < state.ny; ++j) {
                 Real yc = state.ymin + (j + Real(0.5)) * state.dy;
@@ -345,8 +382,9 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
                     Real xc = state.xmin + (i + Real(0.5)) * state.dx;
                     if (xc >= bx1 && xc <= bx2 && yc >= by1 && yc <= by2) {
                         std::size_t idx = static_cast<std::size_t>(j) * state.nx + i;
+                        // Set obstacle height to building top (zmax)
                         g_wind_solver_runtime->terrain_host[idx] = 
-                            std::max(g_wind_solver_runtime->terrain_host[idx], bh);
+                            std::max(g_wind_solver_runtime->terrain_host[idx], bz2);
                     }
                 }
             }

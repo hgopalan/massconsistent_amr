@@ -74,9 +74,9 @@
 //   extract_agl   = -1.0          # terrain-aligned extraction AGL [m] (<0 = off)
 //   extract_k     = -1            # explicit k-index extraction (<0 = off)
 //   extract_file  = wind_extract.csv  # terrain-aligned CSV output filename
-//   building_boxes = x1 x2 y1 y2 height ...  # buildings as box union (optional)
-//                     # each building: x1 x2 y1 y2 height [m]
-//                     # buildings mask cells where z_phys < building_top
+//   building_file = buildings.csv # optional CSV file with building boxes
+//                                 # format: xmin xmax ymin ymax zmin zmax (one per line)
+//                                 # buildings mask cells where z_phys < building_zmax
 // ==========================================================================
 
 #include "canopy_models.H"
@@ -250,6 +250,44 @@ static void read_velocity_file(const std::string& filename,
 
     amrex::Print() << "wind_solver: read " << xd.size()
                    << " velocity points from " << filename << "\n";
+}
+
+// Read building file: xmin xmax ymin ymax zmin zmax (whitespace or comma separated; '#' comments).
+static void read_building_file(const std::string& filename,
+                               std::vector<Real>& xmin,
+                               std::vector<Real>& xmax,
+                               std::vector<Real>& ymin,
+                               std::vector<Real>& ymax,
+                               std::vector<Real>& zmin,
+                               std::vector<Real>& zmax)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open building file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real x1, x2, y1, y2, z1, z2;
+        if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
+            xmin.push_back(x1);
+            xmax.push_back(x2);
+            ymin.push_back(y1);
+            ymax.push_back(y2);
+            zmin.push_back(z1);
+            zmax.push_back(z2);
+        }
+    }
+    if (xmin.empty())
+        amrex::Abort("wind_solver: no data read from building file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << xmin.size()
+                   << " building(s) from " << filename << "\n";
 }
 
 // WENO 3 stencil for derivative at interior points
@@ -466,19 +504,21 @@ int main(int argc, char* argv[])
         Real dy = (y_hi - y_lo) / ny;
 
         // ----------------------------------------------------------------
-        // 4. Parse building boxes (optional)
-        //    Buildings are defined as a list of boxes: x1 x2 y1 y2 height
-        //    Multiple buildings are specified as space-separated values
+        // 4. Read building file (optional)
+        //    Buildings are defined in a CSV file: xmin xmax ymin ymax zmin zmax
+        //    One building per line, whitespace or comma separated
         // ----------------------------------------------------------------
-        std::vector<Real> building_boxes;
-        int n_buildings = pp.countval("building_boxes");
-        if (n_buildings > 0) {
-            if (n_buildings % 5 != 0) {
-                amrex::Abort("wind_solver: building_boxes must be multiples of 5 (x1 x2 y1 y2 height)");
-            }
-            building_boxes.resize(n_buildings);
-            pp.getarr("building_boxes", building_boxes, 0, n_buildings);
-            amrex::Print() << "wind_solver: " << n_buildings / 5 << " building(s) specified\n";
+        std::vector<Real> building_xmin, building_xmax;
+        std::vector<Real> building_ymin, building_ymax;
+        std::vector<Real> building_zmin, building_zmax;
+        
+        std::string building_file = "";
+        pp.query("building_file", building_file);
+        if (!building_file.empty()) {
+            read_building_file(building_file, 
+                             building_xmin, building_xmax,
+                             building_ymin, building_ymax,
+                             building_zmin, building_zmax);
         }
 
         // ----------------------------------------------------------------
@@ -499,22 +539,24 @@ int main(int argc, char* argv[])
         // ----------------------------------------------------------------
         // 6. Compute obstacle height field (terrain + buildings)
         //    z_obstacle[j*nx + i] = max(terrain_height, building_top)
+        //    For each cell, check all buildings to see if cell is inside any building
         // ----------------------------------------------------------------
         std::vector<Real> obstacle_h = terrain_h;  // Start with terrain
         
-        if (!building_boxes.empty()) {
-            int n_buildings_total = static_cast<int>(building_boxes.size()) / 5;
-            for (int b = 0; b < n_buildings_total; ++b) {
-                Real bx1 = building_boxes[b * 5 + 0];
-                Real bx2 = building_boxes[b * 5 + 1];
-                Real by1 = building_boxes[b * 5 + 2];
-                Real by2 = building_boxes[b * 5 + 3];
-                Real bh  = building_boxes[b * 5 + 4];
+        if (!building_xmin.empty()) {
+            int n_buildings = static_cast<int>(building_xmin.size());
+            for (int b = 0; b < n_buildings; ++b) {
+                Real bx1 = building_xmin[b];
+                Real bx2 = building_xmax[b];
+                Real by1 = building_ymin[b];
+                Real by2 = building_ymax[b];
+                Real bz1 = building_zmin[b];
+                Real bz2 = building_zmax[b];
                 
                 amrex::Print() << "wind_solver: building " << b + 1 
                                << ": x=[" << bx1 << ", " << bx2 << "] m"
                                << ", y=[" << by1 << ", " << by2 << "] m"
-                               << ", height=" << bh << " m\n";
+                               << ", z=[" << bz1 << ", " << bz2 << "] m\n";
                 
                 // Mark all cells within building footprint
                 for (int j = 0; j < ny; ++j) {
@@ -524,7 +566,8 @@ int main(int argc, char* argv[])
                         // Check if cell center is inside building footprint
                         if (xc >= bx1 && xc <= bx2 && yc >= by1 && yc <= by2) {
                             std::size_t idx = static_cast<std::size_t>(j) * nx + i;
-                            obstacle_h[idx] = std::max(obstacle_h[idx], bh);
+                            // Set obstacle height to building top (zmax)
+                            obstacle_h[idx] = std::max(obstacle_h[idx], bz2);
                         }
                     }
                 }
@@ -543,7 +586,7 @@ int main(int argc, char* argv[])
         Real obs_max = *std::max_element(obstacle_h.begin(), obstacle_h.end());
         amrex::Print() << "wind_solver: terrain elevation [" << zs_min
                        << ", " << zs_max << "] m\n";
-        if (!building_boxes.empty()) {
+        if (!building_xmin.empty()) {
             amrex::Print() << "wind_solver: obstacle height (terrain+buildings) max = "
                            << obs_max << " m\n";
         }

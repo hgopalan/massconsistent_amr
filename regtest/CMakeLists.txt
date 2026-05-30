@@ -61,6 +61,16 @@ add_regression_test(uniform_wind uniform_wind)
 # ===========================================================================
 add_regression_test(buildings_flat buildings_flat)
 
+# ===========================================================================
+# buildings_csv/ – Buildings from CSV file on flat terrain
+# ===========================================================================
+add_regression_test(buildings_csv buildings_csv)
+
+# ---------------------------------------------------------------------------
+# Canopy model tests
+# ---------------------------------------------------------------------------
+# Note: If canopy tests exist, they should be added here
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
@@ -80,5 +90,6 @@ message(STATUS "  gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives
 message(STATUS "  raws_synthetic/        : Gaussian hill with RAWS wind initialization (IDW interpolation)")
 message(STATUS "  uniform_wind/          : Gaussian hill with uniform wind initialization")
 message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
+message(STATUS "  buildings_csv/         : Buildings from CSV file (new format)")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

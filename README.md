@@ -50,12 +50,16 @@ A Python tool `tools/farsite_weather_reader.py` is provided to convert FARSITE w
 
 ## Buildings Support
 
-Buildings can be added as a union of rectangular boxes using the `building_boxes` parameter:
+Buildings can be specified in a CSV file with the format:
 ```
-building_boxes = x1 x2 y1 y2 height ...
-# Each building: x1 x2 y1 y2 height [m]
-# Example: Two buildings
-building_boxes = 40.0 60.0 40.0 60.0 30.0  100.0 140.0 60.0 80.0 50.0
+building_file = buildings.csv
+```
+
+The CSV file should contain one building per line with columns: `xmin xmax ymin ymax zmin zmax` (all in metres):
+```
+# xmin  xmax  ymin  ymax  zmin  zmax [m]
+40.0    60.0  40.0  60.0  0.0   30.0
+100.0   140.0 60.0  80.0  0.0   50.0
 ```
 
 Cells inside buildings are masked (zero velocity) similar to terrain cells. The vertical domain automatically extends to accommodate the tallest building.
