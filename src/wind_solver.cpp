@@ -838,12 +838,25 @@ int main(int argc, char* argv[])
             
             // Copy building data to device
             int n_buildings = static_cast<int>(building_xmin.size());
-            Gpu::DeviceVector<Real> d_bldg_xmin(building_xmin.begin(), building_xmin.end());
-            Gpu::DeviceVector<Real> d_bldg_xmax(building_xmax.begin(), building_xmax.end());
-            Gpu::DeviceVector<Real> d_bldg_ymin(building_ymin.begin(), building_ymin.end());
-            Gpu::DeviceVector<Real> d_bldg_ymax(building_ymax.begin(), building_ymax.end());
-            Gpu::DeviceVector<Real> d_bldg_zmin(building_zmin.begin(), building_zmin.end());
-            Gpu::DeviceVector<Real> d_bldg_zmax(building_zmax.begin(), building_zmax.end());
+            Gpu::DeviceVector<Real> d_bldg_xmin(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_xmax(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_ymin(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_ymax(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_zmin(n_buildings);
+            Gpu::DeviceVector<Real> d_bldg_zmax(n_buildings);
+            
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_xmin.begin(), building_xmin.end(), d_bldg_xmin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_xmax.begin(), building_xmax.end(), d_bldg_xmax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_ymin.begin(), building_ymin.end(), d_bldg_ymin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_ymax.begin(), building_ymax.end(), d_bldg_ymax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_zmin.begin(), building_zmin.end(), d_bldg_zmin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             building_zmax.begin(), building_zmax.end(), d_bldg_zmax.begin());
             
             Real const* d_bldg_xmin_ptr = d_bldg_xmin.data();
             Real const* d_bldg_xmax_ptr = d_bldg_xmax.data();
