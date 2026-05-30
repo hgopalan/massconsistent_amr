@@ -362,7 +362,7 @@ static void read_building_file(const std::string& filename,
             // Phase 3 Enhancement: Optional rotation angle (7th column, in degrees)
             // If provided, angle is converted from degrees to radians
             if (ss >> angle) {
-                constexpr Real pi = std::acos(Real(-1.0));
+                constexpr Real pi = Real(3.14159265358979323846);
                 angle = angle * pi / Real(180.0);  // Convert degrees to radians
             }
             xmin.push_back(x1);
