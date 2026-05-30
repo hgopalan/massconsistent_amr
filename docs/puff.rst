@@ -38,7 +38,7 @@ The puff center drifts with the local wind velocity using simple Euler time step
 
     \frac{d\mathbf{r}_i}{dt} = \mathbf{u}(\mathbf{r}_i, t)
 
-In practice:
+In the discrete implementation:
 
 .. math::
 
@@ -377,10 +377,9 @@ To validate the puff model:
 Expected Behavior
 ^^^^^^^^^^^^^^^^^
 
-1. **Plume Asymmetry**: The plume should drift downwind (positive x direction in this example)
-2. **Lateral Spreading**: The plume should spread equally in y-direction (isotropic lateral diffusion)
-3. **Vertical Asymmetry**: If :math:`K_v < K_h`, vertical spreading should be slower than lateral
-4. **Reflection**: The plume should reflect off the ground (z=0) — currently NOT implemented
+1. **Plume Asymmetry**: The plume drifts downwind (positive x direction in this example)
+2. **Lateral Spreading**: The plume spreads equally in y-direction (isotropic lateral diffusion)
+3. **Vertical Asymmetry**: If :math:`K_v < K_h`, vertical spreading is slower than lateral
 
 Key Features
 ------------
