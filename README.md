@@ -21,6 +21,7 @@ cmake --build build --parallel
 
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
 - **Terrain-following** — Log-law wind profiles over complex topography
+- **Multiple initialization modes** — Log-law, uniform, RAWS stations, or HRRR-style surface parameters
 - **Building support** — Wake modeling with Röckle (1990) parameterization
 - **Canopy modeling** — Forest canopy drag effects
 - **Gaussian puff dispersion** — Passive pollutant transport
@@ -34,7 +35,7 @@ See the [full documentation](https://hgopalan.github.io/massconsistent_amr/) for
 - Building and installation instructions
 - Input parameter reference
 - Usage examples and tutorials
-- Wind initialization modes (log-law, uniform, RAWS)
+- Wind initialization modes (log-law, uniform, RAWS, surface_data for HRRR)
 - Buildings and wake effects
 - Canopy modeling
 - Puff dispersion model

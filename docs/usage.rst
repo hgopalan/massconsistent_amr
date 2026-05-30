@@ -66,18 +66,41 @@ Parameter Reference
      - ``terrain.csv``
      - Path to terrain point-cloud file (X Y Z, whitespace or comma
        separated; ``#`` comments supported).
+   * - **Wind Initialization Mode**
+     -
+     -
+   * - ``init_mode``
+     - ``loglaw``
+     - Wind field initialization method. Options: ``loglaw`` (log-law profile),
+       ``uniform`` (constant wind), ``raws`` (interpolate from velocity file),
+       ``surface_data`` (HRRR-style surface parameters).
    * - ``U_ref``
      - ``10.0``
-     - Reference wind x-component [m/s] at height ``z_ref``.
+     - Reference wind x-component [m/s] at height ``z_ref``. Used for ``loglaw`` mode.
    * - ``V_ref``
      - ``0.0``
-     - Reference wind y-component [m/s] at height ``z_ref``.
+     - Reference wind y-component [m/s] at height ``z_ref``. Used for ``loglaw`` mode.
    * - ``z_ref``
      - ``10.0``
-     - Reference height above the local terrain surface [m].
+     - Reference height above the local terrain surface [m]. Used for ``loglaw`` mode.
    * - ``z0``
      - ``0.1``
-     - Aerodynamic roughness length [m].
+     - Aerodynamic roughness length [m]. Used for ``loglaw`` mode.
+   * - ``uniform_U``
+     - ``U_ref``
+     - Constant x-wind [m/s] for ``uniform`` mode.
+   * - ``uniform_V``
+     - ``V_ref``
+     - Constant y-wind [m/s] for ``uniform`` mode.
+   * - ``velocity_file``
+     - ``velocity.csv``
+     - Path to velocity data file for ``raws`` mode (format: X Y Z Ux Uy).
+   * - ``surface_data_file``
+     - ``surface_data.csv``
+     - Path to surface parameter file for ``surface_data`` mode (format: X Y Z USTAR Z0 U10 V10).
+   * - **Grid Parameters**
+     -
+     -
    * - ``dx``
      - ``30.0``
      - Horizontal grid spacing in x [m].
@@ -90,6 +113,9 @@ Parameter Reference
    * - ``domain_height``
      - ``300.0``
      - Vertical domain extent above the maximum terrain elevation [m].
+   * - **Mass-Consistency Parameters**
+     -
+     -
    * - ``alpha_h``
      - ``1.0``
      - Horizontal Lagrange anisotropy coefficient α_h.
@@ -195,6 +221,38 @@ automatically from the min/max of the terrain data.  The grid dimensions are:
 
 where z_lo = min terrain elevation and z_hi = max terrain elevation +
 ``domain_height``.
+
+Surface Data File Format (for ``init_mode = surface_data``)
+------------------------------------------------------------
+
+When using ``surface_data`` initialization mode (for HRRR-style inputs), the
+surface data file must contain one observation per line with columns
+**X  Y  Z  USTAR  Z0  U10  V10** (whitespace or comma-separated)::
+
+   # X[m]  Y[m]  Z[m]  USTAR[m/s]  Z0[m]   U10[m/s]  V10[m/s]
+   0.0     0.0   0.0   0.35        0.05    8.0       2.0
+   300.0   0.0   0.0   0.40        0.10    9.0       1.0
+   150.0   260.0 0.0   0.38        0.08    8.5       2.5
+
+where:
+
+* **X, Y, Z**: Spatial coordinates [m] of the observation point
+* **USTAR**: Friction velocity u* [m/s] from surface layer similarity theory
+* **Z0**: Aerodynamic roughness length [m]
+* **U10, V10**: 10-meter wind components [m/s] (eastward, northward)
+
+The solver uses inverse-distance weighting (IDW) to interpolate these parameters
+to each grid column, then constructs a vertical log-law profile at each (i,j)
+using the local friction velocity and roughness:
+
+.. math::
+
+   u(z) = \frac{u_*}{\kappa}\ln\!\left(\frac{z_\text{agl} + z_0}{z_0}\right)
+
+The wind direction is taken from the U10/V10 components. This mode is designed
+for ingesting HRRR (High-Resolution Rapid Refresh) model surface output or
+similar gridded analysis products that provide spatially-varying surface
+parameters.
 
 Building File Format
 --------------------

@@ -47,9 +47,16 @@ is estimated by inverse-distance-weighting (IDW) using the six nearest terrain
 data points with inverse-square-distance weights.  The result is stored in a
 host vector and copied to the device for use in GPU kernels.
 
-**5. Log-law initialisation** (GPU kernel)
+**5. Wind field initialisation** (GPU kernel)
 
-For every cell (i, j, k):
+The wind initialization method depends on the ``init_mode`` parameter:
+
+* **loglaw** (default): Log-law profile with global U_ref, V_ref, z_ref, z0
+* **uniform**: Constant wind field (uniform_U, uniform_V)
+* **raws**: Interpolate from velocity file (X Y Z U V format)
+* **surface_data**: HRRR-style surface parameters (X Y Z USTAR Z0 U10 V10)
+
+For **loglaw** mode, every cell (i, j, k):
 
 .. math::
 
@@ -63,6 +70,12 @@ the terrain:
    u_0(i,j,k) = \frac{u_*}{\kappa}\ln\!\left(\frac{z_\text{agl}+z_0}{z_0}\right)\hat{u}_x, \quad
    v_0(i,j,k) = \frac{u_*}{\kappa}\ln\!\left(\frac{z_\text{agl}+z_0}{z_0}\right)\hat{u}_y, \quad
    w_0(i,j,k) = 0
+
+For **surface_data** mode, the solver reads surface parameters (friction velocity,
+roughness length, 10m winds) from a data file, interpolates them to each column
+using IDW, then constructs per-column vertical profiles using the local parameters.
+This enables spatially-varying surface characteristics suitable for HRRR data
+ingestion.
 
 **6. Compute divergence** (GPU kernel)
 
