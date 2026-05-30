@@ -97,7 +97,7 @@ street_canyon_reduction = 0.3    # Velocity reduction factor (0-1)
 
 See `regtest/building_array/` for a complete example with a 3×3 building array demonstrating wake superposition and street canyon effects.
 
-###  Rooftop Vortices and Building Orientations:**
+###  Rooftop Vortices and Building Orientations
 
 For improved physical realism and support of non-grid-aligned buildings:
 
