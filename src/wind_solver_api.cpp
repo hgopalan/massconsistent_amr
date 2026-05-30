@@ -281,7 +281,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.init_mode = "loglaw";
     pp.query("init_mode", state.init_mode);
-    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws") {
+    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data") {
         throw std::runtime_error("invalid init_mode: " + state.init_mode);
     }
 
