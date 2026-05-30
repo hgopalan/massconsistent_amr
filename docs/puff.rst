@@ -477,37 +477,21 @@ New regression tests demonstrate terrain/building/canopy integration:
 * **regtest/puff_canopy**: Canopy diffusivity and deposition
 * **regtest/puff_coupled_full**: All features combined (terrain + buildings + canopy)
 
-Remaining Limitations
----------------------
+Limitations and Future Work
+----------------------------
 
 Current Limitations
 ^^^^^^^^^^^^^^^^^^^
 
-<<<<<<< HEAD
 1. **Nearest-neighbor velocity interpolation**: Should use trilinear interpolation for spatially-varying wind fields
 2. **No chemical decay**: No radioactive or chemical decay modeled
 3. **No plume rise**: No buoyancy effects for heated sources
 4. **Constant canopy properties**: Canopy parameters are spatially uniform
-=======
-1. ❌ **No ground reflection**: Puffs can go below z=0 (should reflect or deposit)
-2. ❌ **Nearest-neighbor velocity interpolation**: Should use trilinear interpolation
-3. ❌ **No deposition**: No dry/wet deposition modeled
-4. ❌ **No decay**: No radioactive or chemical decay
-5. ❌ **No plume rise**: No buoyancy effects for heated sources
-6. ❌ **Uniform diffusivity**: K_h and K_v are constant (should vary with height/stability)
->>>>>>> origin/main
+5. **Uniform diffusivity**: K_h and K_v are constant (should vary with height/stability)
 
-Future Extensions (Easy to Hard)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Future Extensions
+^^^^^^^^^^^^^^^^^
 
-<<<<<<< HEAD
-1. Add gravitational settling for particles (size-dependent)
-2. Add chemical decay (first-order kinetics)
-3. Add plume rise for heated/buoyant sources
-4. Couple with wind field from massconsistent solver (read from plotfile)
-5. Add Python API for coupling with fire/chemistry models
-6. Support spatially-varying canopy properties
-=======
 .. list-table::
    :header-rows: 1
    :widths: 30 15 55
@@ -515,18 +499,12 @@ Future Extensions (Easy to Hard)
    * - Feature
      - Effort
      - Benefit
-   * - Ground reflection/deposition
-     - Easy
-     - Realistic boundary behavior
-   * - Dry deposition velocity
-     - Easy
-     - Pollutant removal
-   * - Chemical decay (1st-order)
-     - Easy
-     - Reactive dispersion
    * - Particle settling
      - Easy
      - Aerosol/dust modeling
+   * - Chemical decay (1st-order)
+     - Easy
+     - Reactive dispersion
    * - Trilinear velocity interpolation
      - Moderate
      - Accurate advection
@@ -539,10 +517,12 @@ Future Extensions (Easy to Hard)
    * - Couple with wind plotfile
      - Moderate
      - Use real wind fields
+   * - Spatially-varying canopy
+     - Moderate
+     - Heterogeneous vegetation
    * - Python API
      - Easy
      - Coupled simulations
->>>>>>> origin/main
 
 References
 ----------
