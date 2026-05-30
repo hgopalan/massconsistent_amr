@@ -16,6 +16,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    usage
    wind_solver
    canopy
+   wake
    python_api
    regtests
 

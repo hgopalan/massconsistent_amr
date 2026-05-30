@@ -155,6 +155,21 @@ Parameter Reference
     - Path to building CSV file (optional). Each line defines a building box with
       columns: ``xmin xmax ymin ymax zmin zmax`` [m]. Lines starting with ``#`` are
       comments. Buildings are masked as solid obstacles (zero velocity inside).
+   * - **Wake Model Parameters**
+    -
+    -
+   * - ``enable_wake``
+    - ``false``
+    - Enable Röckle (1990) building wake parameterization. Requires ``building_file`` to be specified.
+   * - ``wake_c1``
+    - ``0.9``
+    - Cavity length coefficient. Cavity extends ``c1 × H`` downwind (H = building height).
+   * - ``wake_c2``
+    - ``0.3``
+    - Wake deficit coefficient. Controls velocity reduction magnitude in wake zones.
+   * - ``wake_separation_length``
+    - ``3.0``
+    - Wake extent factor. Far-wake extends to ``factor × H`` downwind from building.
 
 Terrain File Format
 -------------------
