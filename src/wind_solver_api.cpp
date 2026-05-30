@@ -374,7 +374,6 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
             Real bx2 = state.building_xmax[b];
             Real by1 = state.building_ymin[b];
             Real by2 = state.building_ymax[b];
-            Real bz1 = state.building_zmin[b];
             Real bz2 = state.building_zmax[b];
             
             for (int j = 0; j < state.ny; ++j) {
