@@ -122,19 +122,46 @@ Parameter Reference
    * - ``alpha_v``
      - ``1.0``
      - Vertical Lagrange anisotropy coefficient α_v.
+   * - **MLMG Solver Parameters**
+     -
+     -
    * - ``mlmg_verbose``
      - ``1``
      - MLMG solver verbosity (0 = silent, 4 = maximum).
    * - ``tol_rel``
      - ``1.0e-8``
      - MLMG relative convergence tolerance.
+   * - ``mlmg_max_iter``
+     - ``200``
+     - Maximum MLMG iterations. Reduce for faster (less accurate) solves.
+   * - ``mlmg_max_fmg_iter``
+     - ``20``
+     - Maximum Full Multigrid (FMG) iterations. Reduce for faster convergence.
+   * - ``mlmg_pre_smooth``
+     - ``16``
+     - Pre-smoothing iterations per V-cycle. Reduce to 8-12 for well-conditioned problems.
+   * - ``mlmg_post_smooth``
+     - ``16``
+     - Post-smoothing iterations per V-cycle. Reduce to 8-12 for well-conditioned problems.
+   * - ``mlmg_bottom_solver``
+     - ``default``
+     - Bottom solver method: ``default`` (auto-select), ``bicgstab`` (BiCGStab iterative),
+       ``cg`` (Conjugate Gradient), or ``smoother`` (smoother-only, fastest but may diverge).
+       Use ``bicgstab`` or ``cg`` for highly anisotropic problems.
    * - ``max_grid_size``
      - ``32``
-     - Maximum AMReX box size per spatial dimension.
+     - Maximum AMReX box size per spatial dimension. Increase to 64-256 for GPU acceleration
+       to improve cache utilization and GPU occupancy.
+   * - **Numerical Methods**
+     -
+     -
    * - ``deriv_method``
      - ``central``
      - Method for computing derivatives: ``central`` (2nd order, one-sided at boundaries),
        ``weno3`` (3rd order WENO), or ``weno5`` (5th order WENO).
+   * - **Output Parameters**
+     -
+     -
    * - ``plot_file``
      - ``plt_wind``
      - Output plotfile prefix.
@@ -425,3 +452,35 @@ Typical Workflow
        df = pd.read_csv("wind_10m.csv")
        plt.quiver(df.x, df.y, df.u, df.v)
        plt.show()
+
+Performance Tuning
+------------------
+
+The solver reports detailed timing for each phase to help identify bottlenecks.
+
+**MLMG Solver Tuning**
+
+For faster solves on well-conditioned problems (relatively flat terrain, moderate anisotropy)::
+
+    mlmg_max_iter = 100
+    mlmg_max_fmg_iter = 10
+    mlmg_pre_smooth = 8
+    mlmg_post_smooth = 8
+    mlmg_bottom_solver = bicgstab
+
+For highly anisotropic problems (α_h/α_v > 100, strong vertical stratification)::
+
+    mlmg_bottom_solver = bicgstab  # or cg
+    mlmg_pre_smooth = 12
+    mlmg_post_smooth = 12
+
+**GPU Optimization**
+
+When running on GPUs (CUDA, HIP, or SYCL), increase box size for better cache utilization::
+
+    max_grid_size = 128  # or 64, 256 depending on GPU memory
+
+**Parallel Scaling**
+
+For large MPI runs, adjust box size based on the number of ranks to ensure good load balance.
+Use ``mlmg_verbose = 2`` to see per-rank box distribution.

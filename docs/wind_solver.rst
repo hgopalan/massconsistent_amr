@@ -170,16 +170,75 @@ backend is selected.  This is handled automatically by CMake when
 Solver Settings
 ---------------
 
-The MLMG solver is configured with:
+The MLMG solver can be tuned via the following input parameters:
 
-* Max iterations: 200
-* Max FMG iterations: 20
-* Pre/post smoothing steps: 16 each
-* Bottom solver verbosity: 0
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
 
-These defaults are conservative and suitable for most single-level problems.
-For very large domains, reducing smoothing steps or increasing ``max_grid_size``
-can improve throughput.
+   * - Parameter
+     - Default
+     - Description
+   * - ``mlmg_max_iter``
+     - 200
+     - Maximum MLMG iterations
+   * - ``mlmg_max_fmg_iter``
+     - 20
+     - Maximum Full Multigrid (FMG) iterations
+   * - ``mlmg_pre_smooth``
+     - 16
+     - Pre-smoothing iterations per V-cycle
+   * - ``mlmg_post_smooth``
+     - 16
+     - Post-smoothing iterations per V-cycle
+   * - ``mlmg_bottom_solver``
+     - default
+     - Bottom solver: ``default``, ``bicgstab``, ``cg``, or ``smoother``
+   * - ``tol_rel``
+     - 1.0e-8
+     - Relative convergence tolerance
+   * - ``max_grid_size``
+     - 32
+     - Maximum AMReX box size per dimension
+
+**Performance Tuning Guidelines:**
+
+* **For well-conditioned problems:** Reduce ``mlmg_pre_smooth`` and ``mlmg_post_smooth`` 
+  to 8–12 for faster convergence
+* **For highly anisotropic problems** (α_h/α_v > 100): Use ``bicgstab`` or ``cg`` 
+  bottom solver for better convergence
+* **For GPU acceleration:** Increase ``max_grid_size`` to 64–256 for cache-friendly 
+  operations and better GPU occupancy
+* **For very large domains:** Reduce smoothing iterations and consider using 
+  ``bicgstab`` bottom solver
+
+**Example input for aggressive tuning:**
+
+.. code-block:: text
+
+   mlmg_max_iter = 100
+   mlmg_max_fmg_iter = 10
+   mlmg_pre_smooth = 8
+   mlmg_post_smooth = 8
+   mlmg_bottom_solver = bicgstab
+   max_grid_size = 128  # GPU optimization
+
+**Performance Timing:**
+
+The solver now reports detailed timing for each major phase:
+
+* Input parsing
+* Terrain reading and interpolation
+* Grid setup
+* Wind field initialization
+* RHS computation
+* Poisson operator setup
+* Poisson solve (core solver time)
+* Velocity correction
+* Divergence diagnostics
+* Output writing
+
+Use these timings to identify bottlenecks in your workflow.
 
 References
 ----------
