@@ -39,10 +39,10 @@ Cavity Zone
 * **Height**: ``Hr = 0.67 × H``
 * **Width**: ``Wr = W``
 * **Velocity deficit**: ``u_deficit = c2 × U_H`` (default: ``c2 = 0.3``)
-* **Vertical circulation** (Phase 3): Rooftop vortex with characteristic up-down pattern
+* **Vertical circulation**: Rooftop vortex with characteristic up-down pattern
 
 The cavity exhibits recirculation (negative velocity in the wind direction) combined with
-vertical circulation due to rooftop vortex formation (Phase 3 enhancement).
+vertical circulation due to rooftop vortex formation.
 
 Far-Wake Zone
 ^^^^^^^^^^^^^
@@ -80,7 +80,7 @@ specify building geometry via ``building_file``:
    # Building geometry
    building_file = buildings.csv
 
-The buildings CSV file should contain one building per line with optional rotation angle (Phase 3):
+The buildings CSV file should contain one building per line with optional rotation angle:
 
 .. code-block:: text
 
@@ -156,15 +156,15 @@ A simple test case with a single rectangular building (40m × 20m × 30m tall):
 
 See ``regtest/wake_single_building/`` for a complete regression test.
 
-Phase 3 Enhancements
---------------------
+Advanced Wake Features
+----------------------
 
-Rooftop Vortices (Phase 3)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Rooftop Vortices
+^^^^^^^^^^^^^^^^
 
 **Physical basis**: When wind flows around a building, separation at the top edges
 creates a rooftop vortex with vertical circulation inside the cavity zone. This
-enhancement adds realistic vertical velocity components to the Röckle model.
+feature adds realistic vertical velocity components to the Röckle model.
 
 **Implementation**: The rooftop vortex is parameterized as a parabolic circulation
 pattern in both the vertical (z) and streamwise (x) directions:
@@ -184,11 +184,11 @@ velocity profiles in the building cavity zone.
 **Reference**: Oke, T.R. (1988). Street design and urban canopy layer climate.
 *Energy and Buildings*, 11(1-3), 103-113.
 
-Building Orientation Effects (Phase 3)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Building Orientation Effects
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Motivation**: Real buildings rarely align perfectly with the computational grid.
-Phase 3 introduces support for arbitrary building orientations to improve wake modeling
+The solver supports arbitrary building orientations to improve wake modeling
 for non-grid-aligned structures.
 
 **Rotation parameter**: The buildings CSV file now accepts an optional 7th column
@@ -237,7 +237,7 @@ the velocity initialization in ``src/wind_solver.cpp``. The model:
 1. Computes the wind-aligned coordinate system for each building
 2. Applies building rotation angle to get effective dimensions in wind frame
 3. Determines if each grid cell falls within the cavity or far-wake zone
-4. Applies velocity deficits and rooftop vortex circulation (Phase 3)
+4. Applies velocity deficits and rooftop vortex circulation
 5. The modified field is then passed to the mass-consistency solver
 
 The wake calculations are performed on-device (GPU-compatible) using AMReX

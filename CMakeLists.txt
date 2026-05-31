@@ -97,6 +97,14 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
     src/wind_solver_api.cpp
     PROPERTIES LANGUAGE CUDA
   )
+  
+  # Workaround for CUDA 12.6 + Windows SDK 10.0.26100.0 type redefinition errors
+  # Pass flags to nvcc to suppress the duplicate definition warnings from Windows headers
+  if(WIN32)
+    target_compile_options(wind_solver PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>)
+    target_compile_options(puff_solver PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>)
+    target_compile_options(wind_solver_api PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>)
+  endif()
 endif()
 
 target_link_libraries(wind_solver PRIVATE AMReX::amrex)

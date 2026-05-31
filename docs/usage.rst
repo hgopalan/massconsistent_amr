@@ -299,7 +299,7 @@ Lines beginning with ``#`` are comments::
    40.0    60.0  40.0  60.0  0.0   30.0           # Building 1: grid-aligned
    100.0   140.0 60.0  80.0  0.0   50.0  45.0     # Building 2: rotated 45°
 
-**Rotation angle** (Phase 3 enhancement):
+**Rotation angle**:
 
 The optional 7th column specifies the building rotation angle in degrees,
 counter-clockwise from the x-axis. If omitted, the building is assumed to be
