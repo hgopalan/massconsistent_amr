@@ -24,6 +24,8 @@ cmake --build build --parallel
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, or HRRR-style surface parameters
 - **Building support** — Wake modeling with Röckle (1990) parameterization
 - **Canopy modeling** — Forest canopy drag effects
+- **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
+- **Performance timing** — Detailed timing output for profiling and optimization
 - **Gaussian puff dispersion** — Passive pollutant transport
 - **Python API** — Coupling with fire and atmospheric models
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
@@ -34,6 +36,7 @@ See the [full documentation](https://hgopalan.github.io/massconsistent_amr/) for
 
 - Building and installation instructions
 - Input parameter reference
+- Performance tuning guide
 - Usage examples and tutorials
 - Wind initialization modes (log-law, uniform, RAWS, surface_data for HRRR)
 - Buildings and wake effects
