@@ -560,6 +560,10 @@ int main(int argc, char* argv[])
         pp.query("max_grid_size", max_grid_size);
         pp.query("plot_file",     plot_file);
 
+        // VTK output option (ParaView-compatible format)
+        bool write_vtk = false;
+        pp.query("write_vtk", write_vtk);
+
          // Terrain-aligned extraction parameters
         // extract_agl  : sample at this height above local terrain [m]; snapped to
         //                the nearest cell-centre level.  Takes priority over extract_k.
@@ -636,6 +640,50 @@ int main(int argc, char* argv[])
                              building_ymin, building_ymax,
                              building_zmin, building_zmax,
                              building_rotation);
+        }
+
+        // ----------------------------------------------------------------
+        // Configuration validation - warn about unrecognized parameters
+        // ----------------------------------------------------------------
+        {
+            // List of all valid parameters
+            std::vector<std::string> valid_params = {
+                "terrain_file", "init_mode",
+                "U_ref", "V_ref", "z_ref", "z0",
+                "enable_canopy", "canopy_height", "frontal_area_index", "plan_area_index",
+                "canopy_drag_coeff", "canopy_attenuation", "use_exponential_profile",
+                "enable_wake", "wake_c1", "wake_c2", "wake_separation_length",
+                "wake_superposition", "enable_street_canyon", "street_canyon_reduction",
+                "uniform_U", "uniform_V", "velocity_file", "surface_data_file",
+                "dx", "dy", "dz", "domain_height",
+                "alpha_h", "alpha_v",
+                "mlmg_verbose", "tol_rel", "max_grid_size", "plot_file", "write_vtk",
+                "extract_agl", "extract_k", "extract_file",
+                "deriv_method", "building_file"
+            };
+
+            int n_entries = pp.countname();
+            bool found_unknown = false;
+            for (int i = 0; i < n_entries; ++i) {
+                std::string param_name = pp.getKey(i);
+                bool is_valid = false;
+                for (const auto& vp : valid_params) {
+                    if (param_name == vp) {
+                        is_valid = true;
+                        break;
+                    }
+                }
+                if (!is_valid) {
+                    if (!found_unknown) {
+                        amrex::Print() << "wind_solver: WARNING - unrecognized parameters detected:\n";
+                        found_unknown = true;
+                    }
+                    amrex::Print() << "  - '" << param_name << "' (possible typo?)\n";
+                }
+            }
+            if (found_unknown) {
+                amrex::Print() << "wind_solver: Please check your input file for typos.\n";
+            }
         }
 
         // ----------------------------------------------------------------
@@ -1633,6 +1681,13 @@ int main(int argc, char* argv[])
 
         WriteSingleLevelPlotfile(plot_file, output, var_names, geom, 0.0, 0);
         amrex::Print() << "wind_solver: plotfile written to " << plot_file << "\n";
+
+        // Write VTK format if requested (ParaView-compatible)
+        if (write_vtk) {
+            std::string vtk_file = plot_file + "_vtk";
+            WriteMultiLevelPlotfileVTK(vtk_file, 1, {&output}, var_names, {geom}, 0.0, {0});
+            amrex::Print() << "wind_solver: VTK plotfile written to " << vtk_file << "\n";
+        }
 
         // ----------------------------------------------------------------
         // 16. Optional terrain-aligned extraction
