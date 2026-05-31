@@ -96,6 +96,11 @@ add_regression_test(rooftop_vortex rooftop_vortex)
 add_regression_test(building_oriented building_oriented)
 
 # ---------------------------------------------------------------------------
+# multiheight_extraction/ – Multi-height wind field extraction (new feature)
+# ---------------------------------------------------------------------------
+add_regression_test(multiheight_extraction multiheight_extraction)
+
+# ---------------------------------------------------------------------------
 # Canopy model tests
 # ---------------------------------------------------------------------------
 # Note: If canopy tests exist, they should be added here
@@ -125,5 +130,6 @@ message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-a
 message(STATUS "  wake_single_building/  : Single building wake model (Röckle formulation)")
 message(STATUS "  rooftop_vortex/        : Phase 3 - Rooftop vortex in building cavity zones")
 message(STATUS "  building_oriented/     : Phase 3 - Arbitrary building orientation effects")
+message(STATUS "  multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

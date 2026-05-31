@@ -20,6 +20,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    puff
    python_api
    regtests
+   new_features
 
 Overview
 ========

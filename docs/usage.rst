@@ -141,13 +141,17 @@ Parameter Reference
    * - ``extract_agl``
      - ``-1.0``
      - Sample the corrected wind at this AGL height [m] and write a CSV
-       slice.  Negative value disables extraction.
+       slice. Can be a single value or space-separated list (e.g., ``10.0 50.0 100.0``).
+       Negative value disables extraction. **New: supports multiple heights.**
    * - ``extract_k``
      - ``-1``
      - Alternative: sample at explicit k-index (0 = lowest level).
+       Can be a single value or space-separated list.
        ``extract_agl`` takes priority when both are set.
    * - ``extract_file``
      - ``wind_extract.csv``
+     - Output filename for terrain-aligned CSV extraction. For multi-height extraction,
+       height suffix is automatically appended (e.g., ``wind_extract_10m.csv``).
      - Output filename for the terrain-aligned CSV slice.
    * - **Canopy Model Parameters**
      -
@@ -279,6 +283,64 @@ Buildings are treated as solid obstacles — cells where the cell center falls
 inside a building (x in [xmin, xmax] and y in [ymin, ymax]) and below the
 building top (z_phys < zmax) are masked (velocity set to zero). The vertical
 domain automatically extends to accommodate the tallest building.
+
+Terrain-Aligned Extraction
+---------------------------
+
+The solver can extract wind data at specific heights above ground level (AGL) and write
+them to CSV files for post-processing.
+
+Single Height Extraction
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To extract wind at a single height (e.g., 10 m AGL)::
+
+    extract_agl  = 10.0
+    extract_file = wind_10m.csv
+
+To extract at a specific k-index (vertical cell)::
+
+    extract_k    = 5
+    extract_file = wind_k5.csv
+
+**New Feature: Multi-Height Extraction**
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can now extract multiple heights in a single run by providing space-separated values::
+
+    extract_agl  = 10.0 50.0 100.0 200.0
+    extract_file = wind_extract.csv
+
+This will create four files:
+
+- ``wind_extract_10m.csv``   — wind at 10 m AGL
+- ``wind_extract_50m.csv``   — wind at 50 m AGL  
+- ``wind_extract_100m.csv``  — wind at 100 m AGL
+- ``wind_extract_200m.csv``  — wind at 200 m AGL
+
+Each CSV file contains columns::
+
+    x, y, z_terrain, z_physical, z_agl, u, v, w, speed
+
+Where:
+
+- ``x, y`` = horizontal coordinates [m]
+- ``z_terrain`` = local terrain elevation [m]
+- ``z_physical`` = physical height of the extraction plane [m]
+- ``z_agl`` = height above ground level for this column [m]
+- ``u, v, w`` = velocity components [m/s]
+- ``speed`` = total velocity magnitude [m/s]
+
+**Use Cases:**
+
+- Standard meteorology heights (10 m, 100 m, 200 m)
+- Wind turbine hub heights (80 m, 120 m, 150 m)
+- Aviation heights (50 m, 100 m, 150 m, 300 m)
+- Multi-level validation against weather station data
+
+**Example:**
+
+See ``regtest/multiheight_extraction/inputs.i`` for a complete example.
 
 Output Files
 ------------

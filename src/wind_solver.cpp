@@ -563,13 +563,31 @@ int main(int argc, char* argv[])
          // Terrain-aligned extraction parameters
         // extract_agl  : sample at this height above local terrain [m]; snapped to
         //                the nearest cell-centre level.  Takes priority over extract_k.
+        //                Can be a single value or comma-separated list: "10.0, 50.0, 100.0"
         // extract_k    : sample at this k-index (0 = lowest model level).
         // Either < 0 disables that mode.  If both are < 0, no extraction is written.
-        Real extract_agl = -1.0;
-        int  extract_k   = -1;
+        std::vector<Real> extract_agl_list;
+        std::vector<int>  extract_k_list;
         std::string extract_file = "wind_extract.csv";
-        pp.query("extract_agl",  extract_agl);
-        pp.query("extract_k",    extract_k);
+        
+        // Parse extract_agl (single value or space-separated list)
+        {
+            int n_agl = pp.countval("extract_agl");
+            if (n_agl > 0) {
+                extract_agl_list.resize(n_agl);
+                pp.getarr("extract_agl", extract_agl_list, 0, n_agl);
+            }
+        }
+        
+        // Parse extract_k (single value or space-separated list)
+        {
+            int n_k = pp.countval("extract_k");
+            if (n_k > 0) {
+                extract_k_list.resize(n_k);
+                pp.getarr("extract_k", extract_k_list, 0, n_k);
+            }
+        }
+        
         pp.query("extract_file", extract_file);
 
         // Derivative computation method: "central", "weno3", or "weno5"
@@ -1635,148 +1653,166 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: plotfile written to " << plot_file << "\n";
 
         // ----------------------------------------------------------------
-        // 16. Optional terrain-aligned extraction
+        // 16. Optional terrain-aligned extraction (multi-height support)
         //
-        //  Determine the extraction k-index:
-        //   • If extract_agl >= 0: snap to the cell whose physical centre
-        //     lies at z_lo + extract_agl (i.e. extract_agl above the minimum
-        //     terrain level),
-        //         k_ext = clamp( floor(extract_agl / dz), 0, nz-1 )
-        //   • Else if extract_k >= 0: use that index directly (clamped).
+        //  Determine the extraction k-indices (can extract multiple heights):
+        //   • If extract_agl_list is non-empty: snap each to the nearest cell
+        //   • Else if extract_k_list is non-empty: use those indices directly
         //   • Otherwise skip.
         //
-        //  For each horizontal column (i, j) the extracted point has:
-        //     z_terrain  = interpolated terrain elevation [m]
-        //     z_physical = z_lo + (k_ext + 0.5) * dz     [m, same for all columns]
-        //     z_agl      = z_physical - z_terrain(i,j)    [m above local terrain, per-column]
-        //
+        //  For each height, write a separate CSV file.
         //  Output CSV columns:
         //     x, y, z_terrain, z_physical, z_agl, u, v, w, speed
         // ----------------------------------------------------------------
-        const bool do_extract = (extract_agl >= Real(0.0)) || (extract_k >= 0);
+        const bool do_extract = !extract_agl_list.empty() || !extract_k_list.empty();
 
         if (do_extract) {
-            // Determine k_ext
-            // extract_agl is the requested height above local terrain [m].
-            // Physical z of the target level = z_lo + (k+0.5)*dz, so
-            //   k_ext = floor(extract_agl / dz)
-            // (z_lo cancels when measuring AGL from the minimum-terrain baseline).
-            int k_ext = -1;
-            Real z_phys_ext = Real(0.0);  // physical z at k_ext cell centre
-
-            if (extract_agl >= Real(0.0)) {
-                // Snap requested AGL to the nearest cell-centre level
-                k_ext = static_cast<int>(std::floor(extract_agl / dz));
-                k_ext = std::max(0, std::min(nz - 1, k_ext));
-                z_phys_ext = z_lo + (k_ext + Real(0.5)) * dz;
-                amrex::Print() << "wind_solver: terrain-aligned extraction at AGL = "
-                               << extract_agl << " m  →  k = " << k_ext
-                               << "  (physical z = " << z_phys_ext << " m)\n";
-            } else {
-                k_ext = std::max(0, std::min(nz - 1, extract_k));
-                z_phys_ext = z_lo + (k_ext + Real(0.5)) * dz;
-                amrex::Print() << "wind_solver: terrain-aligned extraction at k = "
-                               << k_ext << "  (physical z = " << z_phys_ext << " m)\n";
+            // Build list of (k_index, agl_value) pairs to extract
+            std::vector<std::pair<int, Real>> extraction_levels;
+            
+            // Process extract_agl_list (priority)
+            if (!extract_agl_list.empty()) {
+                for (Real agl_req : extract_agl_list) {
+                    int k_ext = static_cast<int>(std::floor(agl_req / dz));
+                    k_ext = std::max(0, std::min(nz - 1, k_ext));
+                    extraction_levels.push_back({k_ext, agl_req});
+                }
             }
+            // Otherwise process extract_k_list
+            else if (!extract_k_list.empty()) {
+                for (int k_req : extract_k_list) {
+                    int k_ext = std::max(0, std::min(nz - 1, k_req));
+                    Real agl_est = (k_ext + Real(0.5)) * dz;
+                    extraction_levels.push_back({k_ext, agl_est});
+                }
+            }
+            
+            // Extract each level
+            for (size_t level_idx = 0; level_idx < extraction_levels.size(); ++level_idx) {
+                int k_ext = extraction_levels[level_idx].first;
+                Real agl_target = extraction_levels[level_idx].second;
+                Real z_phys_ext = z_lo + (k_ext + Real(0.5)) * dz;
+                
+                amrex::Print() << "wind_solver: terrain-aligned extraction " << (level_idx + 1)
+                               << "/" << extraction_levels.size() << " at AGL = "
+                               << agl_target << " m  →  k = " << k_ext
+                               << "  (physical z = " << z_phys_ext << " m)\n";
 
-            // Ensure all GPU work is complete before host-side data access
-            amrex::Gpu::streamSynchronize();
-
-            // Collect (x, y, z_terrain, z_physical, z_agl, u, v, w, speed)
-            // per column for the k_ext level.
-            // z_agl is computed per-column: z_phys_ext - z_terrain(i,j)
-            // Each MPI rank collects its own portion; all ranks write
-            // sequentially to produce a complete file.
-            struct ExtPt {
-                Real x, y, z_terrain, z_phys, z_agl_val;
-                Real u, v, w, speed;
-                int gi, gj;   // global cell indices for sort-order
-            };
-            std::vector<ExtPt> local_pts;
-            local_pts.reserve(static_cast<std::size_t>(nx) * ny / 4 + 1);
-
-            for (MFIter mfi(vel_c, false /*no tiling*/); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.validbox();
-                // Skip boxes that do not contain the extraction level
-                if (k_ext < bx.smallEnd(2) || k_ext > bx.bigEnd(2)) continue;
-
-                // On CPU builds const_array() returns host-accessible data.
-                // On GPU builds a Gpu::streamSynchronize() above ensures the
-                // data is up to date; array() here still accesses device memory,
-                // so copy the slice to a host FArrayBox first.
-#ifdef AMREX_USE_GPU
-                Box slice_bx(IntVect(bx.smallEnd(0), bx.smallEnd(1), k_ext),
-                              IntVect(bx.bigEnd(0),   bx.bigEnd(1),   k_ext));
-                FArrayBox slice_fab(slice_bx, 3, The_Pinned_Arena());
-                slice_fab.copy<RunOn::Device>(vel_c[mfi], slice_bx);
+                // Ensure all GPU work is complete before host-side data access
                 amrex::Gpu::streamSynchronize();
-                auto const& vc = slice_fab.const_array();
+
+                // Struct for extraction points
+                struct ExtPt {
+                    Real x, y, z_terrain, z_phys, z_agl_val;
+                    Real u, v, w, speed;
+                    int gi, gj;   // global cell indices for sort-order
+                };
+                
+                // Collect data points
+                std::vector<ExtPt> local_pts;
+                local_pts.reserve(static_cast<std::size_t>(nx) * ny / 4 + 1);
+
+                for (MFIter mfi(vel_c, false /*no tiling*/); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.validbox();
+                    // Skip boxes that do not contain the extraction level
+                    if (k_ext < bx.smallEnd(2) || k_ext > bx.bigEnd(2)) continue;
+
+                    // On CPU builds const_array() returns host-accessible data.
+                    // On GPU builds a Gpu::streamSynchronize() above ensures the
+                    // data is up to date; array() here still accesses device memory,
+                    // so copy the slice to a host FArrayBox first.
+#ifdef AMREX_USE_GPU
+                    Box slice_bx(IntVect(bx.smallEnd(0), bx.smallEnd(1), k_ext),
+                                  IntVect(bx.bigEnd(0),   bx.bigEnd(1),   k_ext));
+                    FArrayBox slice_fab(slice_bx, 3, The_Pinned_Arena());
+                    slice_fab.copy<RunOn::Device>(vel_c[mfi], slice_bx);
+                    amrex::Gpu::streamSynchronize();
+                    auto const& vc = slice_fab.const_array();
 #else
-                auto const& vc = vel_c.const_array(mfi);
+                    auto const& vc = vel_c.const_array(mfi);
 #endif
 
-                for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
-                    for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
-                        Real zs      = terrain_h[static_cast<std::size_t>(j) * nx + i];
-                        Real xc      = x_lo + (i + Real(0.5)) * dx;
-                        Real yc      = y_lo + (j + Real(0.5)) * dy;
-                        Real z_agl_c = z_phys_ext - zs;  // per-column AGL
-                        Real u_  = vc(i, j, k_ext, 0);
-                        Real v_  = vc(i, j, k_ext, 1);
-                        Real w_  = vc(i, j, k_ext, 2);
-                        Real spd = std::sqrt(u_*u_ + v_*v_ + w_*w_);
-                        local_pts.push_back({xc, yc, zs, z_phys_ext,
-                                             z_agl_c, u_, v_, w_, spd,
-                                             i, j});
+                    for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                            Real zs      = terrain_h[static_cast<std::size_t>(j) * nx + i];
+                            Real xc      = x_lo + (i + Real(0.5)) * dx;
+                            Real yc      = y_lo + (j + Real(0.5)) * dy;
+                            Real z_agl_c = z_phys_ext - zs;  // per-column AGL
+                            Real u_  = vc(i, j, k_ext, 0);
+                            Real v_  = vc(i, j, k_ext, 1);
+                            Real w_  = vc(i, j, k_ext, 2);
+                            Real spd = std::sqrt(u_*u_ + v_*v_ + w_*w_);
+                            local_pts.push_back({xc, yc, zs, z_phys_ext,
+                                                 z_agl_c, u_, v_, w_, spd,
+                                                 i, j});
+                        }
                     }
                 }
-            }
 
-            // Sort local portion by (j, i) for reproducible output ordering
-            std::sort(local_pts.begin(), local_pts.end(),
-                      [](const ExtPt& a, const ExtPt& b) {
-                          return (a.gj != b.gj) ? (a.gj < b.gj) : (a.gi < b.gi);
-                      });
+                // Sort local portion by (j, i) for reproducible output ordering
+                std::sort(local_pts.begin(), local_pts.end(),
+                          [](const ExtPt& a, const ExtPt& b) {
+                              return (a.gj != b.gj) ? (a.gj < b.gj) : (a.gi < b.gi);
+                          });
 
-            // Sequential write: rank 0 creates the file with the header;
-            // higher ranks append their portion in rank order.
-            const int nranks = amrex::ParallelDescriptor::NProcs();
-            const int myrank = amrex::ParallelDescriptor::MyProc();
-
-            auto write_pts = [&](bool write_header) {
-                std::ofstream outf(extract_file,
-                                   write_header ? std::ios::out
-                                                : std::ios::app);
-                outf << std::scientific << std::setprecision(6);
-                if (write_header) {
-                    outf << "x,y,z_terrain,z_physical,z_agl,u,v,w,speed\n";
+                // Generate output filename for this height
+                std::string output_file;
+                if (extraction_levels.size() == 1) {
+                    // Single height - use the specified extract_file
+                    output_file = extract_file;
+                } else {
+                    // Multiple heights - append height to filename
+                    // e.g., wind_extract.csv -> wind_extract_10m.csv
+                    size_t dot_pos = extract_file.find_last_of('.');
+                    std::string base = (dot_pos != std::string::npos) ? 
+                                       extract_file.substr(0, dot_pos) : extract_file;
+                    std::string ext = (dot_pos != std::string::npos) ? 
+                                      extract_file.substr(dot_pos) : ".csv";
+                    std::ostringstream fname;
+                    fname << base << "_" << static_cast<int>(agl_target) << "m" << ext;
+                    output_file = fname.str();
                 }
-                for (const auto& p : local_pts) {
-                    outf << p.x       << ","
-                         << p.y       << ","
-                         << p.z_terrain << ","
-                         << p.z_phys  << ","
-                         << p.z_agl_val << ","
-                         << p.u       << ","
-                         << p.v       << ","
-                         << p.w       << ","
-                         << p.speed   << "\n";
-                }
-            };
 
-            if (myrank == 0) {
-                write_pts(true /*header*/);
-            }
-            for (int r = 1; r < nranks; ++r) {
+                // Sequential write: rank 0 creates the file with the header;
+                // higher ranks append their portion in rank order.
+                const int nranks = amrex::ParallelDescriptor::NProcs();
+                const int myrank = amrex::ParallelDescriptor::MyProc();
+
+                auto write_pts = [&](bool write_header) {
+                    std::ofstream outf(output_file,
+                                       write_header ? std::ios::out
+                                                    : std::ios::app);
+                        outf << std::scientific << std::setprecision(6);
+                    if (write_header) {
+                        outf << "x,y,z_terrain,z_physical,z_agl,u,v,w,speed\n";
+                    }
+                    for (const auto& p : local_pts) {
+                        outf << p.x       << ","
+                             << p.y       << ","
+                             << p.z_terrain << ","
+                             << p.z_phys  << ","
+                             << p.z_agl_val << ","
+                             << p.u       << ","
+                             << p.v       << ","
+                             << p.w       << ","
+                             << p.speed   << "\n";
+                    }
+                };
+
+                if (myrank == 0) {
+                    write_pts(true /*header*/);
+                }
+                for (int r = 1; r < nranks; ++r) {
+                    amrex::ParallelDescriptor::Barrier();
+                    if (myrank == r) {
+                        write_pts(false /*no header — append*/);
+                    }
+                }
                 amrex::ParallelDescriptor::Barrier();
-                if (myrank == r) {
-                    write_pts(false /*no header — append*/);
-                }
-            }
-            amrex::ParallelDescriptor::Barrier();
 
-            amrex::Print() << "wind_solver: terrain-aligned extraction written to "
-                           << extract_file << "  (" << (nx * ny) << " points)\n";
+                amrex::Print() << "wind_solver: terrain-aligned extraction written to "
+                               << output_file << "  (" << (nx * ny) << " points)\n";
+            } // end loop over extraction levels
         }
 
         amrex::Print() << "wind_solver: done.\n";
