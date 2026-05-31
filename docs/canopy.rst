@@ -160,7 +160,7 @@ References
 Future Enhancements
 -------------------
 
-Potential additions for more sophisticated canopy modeling:
+Potential additions for canopy modeling:
 
 1. **Spatial variability**: Read canopy parameters from file (similar to terrain)
 2. **Cionco drag-force model**: Add momentum source terms

@@ -307,8 +307,8 @@ Performance Notes
 * Coupling overhead is negligible compared to solve time
 * Recommended coupling frequency: every 1-10 fire timesteps
 
-Future Enhancements
--------------------
+Planned Enhancements
+--------------------
 
 Potential additions for future development:
 

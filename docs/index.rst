@@ -40,7 +40,7 @@ elevation file and a reference wind speed, the solver:
 Key Features
 ------------
 
-* **Terrain-aware initialisation** — IDW interpolation of arbitrary-density
+* **Terrain-aware initialization** — IDW interpolation of arbitrary-density
   terrain point clouds onto the computational grid.
 * **Log-law profile** — von Kármán constant, aerodynamic roughness length,
   and reference height all configurable.
@@ -50,6 +50,11 @@ Key Features
   and verbosity.
 * **GPU-ready** — AMReX GPU kernels (CUDA, HIP, SYCL) for all field operations.
 * **Terrain-aligned CSV output** — sample the corrected field at any AGL height.
+* **Building wake modeling** — Röckle (1990) parameterization with rooftop vortices
+  and arbitrary building orientations.
+* **Canopy effects** — Forest canopy drag modeling for vegetated terrain.
+* **Puff dispersion** — Gaussian puff transport for pollutant modeling.
+* **Python API** — Coupling interface for fire and atmospheric models.
 
 Quick Start
 -----------
