@@ -69,7 +69,12 @@
 //   alpha_v       = 1.0           # vertical   Lagrange anisotropy factor
 //   mlmg_verbose  = 1             # MLMG verbosity (0 = silent, 4 = max)
 //   tol_rel       = 1.e-8         # MLMG relative tolerance
-//   max_grid_size = 32            # maximum AMReX box size (per dimension)
+//   mlmg_max_iter = 200           # MLMG maximum iterations
+//   mlmg_max_fmg_iter = 20        # MLMG maximum FMG iterations
+//   mlmg_pre_smooth = 16          # MLMG pre-smoothing iterations
+//   mlmg_post_smooth = 16         # MLMG post-smoothing iterations
+//   mlmg_bottom_solver = default  # MLMG bottom solver: default, bicgstab, cg, smoother
+//   max_grid_size = 32            # maximum AMReX box size (per dimension; 64-256 for GPUs)
 //   plot_file     = plt_wind      # output plotfile prefix
 //   extract_agl   = -1.0          # terrain-aligned extraction AGL [m] (<0 = off)
 //   extract_k     = -1            # explicit k-index extraction (<0 = off)
@@ -457,9 +462,14 @@ int main(int argc, char* argv[])
 {
     amrex::Initialize(argc, argv);
     {
+        // Performance timing
+        Real t_total = amrex::second();
+        Real t_phase = 0.0;
+        
         // ----------------------------------------------------------------
         // 1. Parse user inputs
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         ParmParse pp;
 
         std::string terrain_file = "terrain.csv";
@@ -553,10 +563,20 @@ int main(int argc, char* argv[])
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
+        int  mlmg_max_iter = 200;
+        int  mlmg_max_fmg_iter = 20;
+        int  mlmg_pre_smooth = 16;
+        int  mlmg_post_smooth = 16;
+        std::string mlmg_bottom_solver = "default";
         int  max_grid_size = 32;
         std::string plot_file = "plt_wind";
         pp.query("mlmg_verbose",  mlmg_verbose);
         pp.query("tol_rel",       tol_rel);
+        pp.query("mlmg_max_iter", mlmg_max_iter);
+        pp.query("mlmg_max_fmg_iter", mlmg_max_fmg_iter);
+        pp.query("mlmg_pre_smooth", mlmg_pre_smooth);
+        pp.query("mlmg_post_smooth", mlmg_post_smooth);
+        pp.query("mlmg_bottom_solver", mlmg_bottom_solver);
         pp.query("max_grid_size", max_grid_size);
         pp.query("plot_file",     plot_file);
 
@@ -604,6 +624,10 @@ int main(int argc, char* argv[])
         }
         amrex::Print() << "wind_solver: using " << deriv_method << " derivatives\n";
         
+        // Print timing for input parsing
+        amrex::Print() << "wind_solver: input parsing time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+        
         // Convert deriv_method string to integer for GPU capture
         // 0 = central, 1 = weno3, 2 = weno5
         int deriv_method_int = 0;
@@ -613,6 +637,7 @@ int main(int argc, char* argv[])
         // ----------------------------------------------------------------
         // 2. Read terrain file and determine horizontal domain bounds
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         std::vector<Real> x_terr, y_terr, z_terr;
         read_terrain_file(terrain_file, x_terr, y_terr, z_terr);
 
@@ -656,9 +681,13 @@ int main(int argc, char* argv[])
                              building_rotation);
         }
 
+        amrex::Print() << "wind_solver: terrain reading time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
         // ----------------------------------------------------------------
         // 5. Precompute per-column terrain height via IDW (host side)
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         // terrain_h[j*nx + i] = interpolated elevation at column (i,j) [m]
         std::vector<Real> terrain_h(static_cast<std::size_t>(nx) * ny);
 
@@ -730,6 +759,9 @@ int main(int argc, char* argv[])
                            << obs_max << " m\n";
         }
 
+        amrex::Print() << "wind_solver: terrain interpolation time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
         // ----------------------------------------------------------------
         // 7. Determine vertical domain and build AMReX geometry
         //    Vertical range: [z_lo, z_hi] where
@@ -738,6 +770,7 @@ int main(int argc, char* argv[])
         //    This ensures the domain covers all terrain and extends at least
         //    domain_height metres above the highest obstacle point.
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         Real z_lo = zs_min;
         Real z_hi = obs_max + domain_height;
         int  nz   = std::max(1, static_cast<int>(std::round((z_hi - z_lo) / dz_req)));
@@ -783,9 +816,13 @@ int main(int argc, char* argv[])
         const Real z_lo_cap_init  = z_lo;   // physical z at bottom of domain
         const int  nx_cap_init    = nx;
 
+        amrex::Print() << "wind_solver: grid setup time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
         // ----------------------------------------------------------------
         // 9. Fill initial wind field based on initialization mode
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         amrex::Print() << "wind_solver: initializing wind field with mode: " << init_mode << "\n";
 
         if (init_mode == "loglaw") {
@@ -1170,12 +1207,16 @@ int main(int argc, char* argv[])
             vel0.FillBoundary(geom.periodicity());
         }
 
+        amrex::Print() << "wind_solver: wind initialization time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
         // ----------------------------------------------------------------
         // 10. Compute divergence of initial wind  →  RHS = -(∇·u0)
         //    One-sided differences at physical domain boundaries;
         //    centred differences (or WENO) in the interior.
         //    Terrain (sub-surface) cells: rhs = 0 (not enforced).
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         const IntVect glo = domain.smallEnd();
         const IntVect ghi = domain.bigEnd();
         const int ilo = glo[0], ihi = ghi[0];
@@ -1290,6 +1331,9 @@ int main(int argc, char* argv[])
             });
         }
 
+        amrex::Print() << "wind_solver: RHS computation time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
         // ----------------------------------------------------------------
         // 11. Set up MLABecLaplacian and MLMG for the Poisson solve
         //
@@ -1300,6 +1344,7 @@ int main(int argc, char* argv[])
         //     y-faces (lo, hi): Neumann ∂λ/∂y = 0 (lateral symmetry)
         //     z-faces (lo, hi): Neumann ∂λ/∂z = 0 (ground, top)
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         LPInfo info;
         info.setAgglomeration(true);
         info.setConsolidation(true);
@@ -1341,22 +1386,43 @@ int main(int argc, char* argv[])
         // Level BC: homogeneous (λ = 0 on Dirichlet faces)
         mlabec.setLevelBC(0, nullptr);
 
+        amrex::Print() << "wind_solver: Poisson operator setup time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
         // ----------------------------------------------------------------
         // 12. Solve with MLMG
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         MLMG mlmg(mlabec);
-        mlmg.setMaxIter(200);
-        mlmg.setMaxFmgIter(20);
+        mlmg.setMaxIter(mlmg_max_iter);
+        mlmg.setMaxFmgIter(mlmg_max_fmg_iter);
         mlmg.setVerbose(mlmg_verbose);
         mlmg.setBottomVerbose(0);
-        mlmg.setPreSmooth(16);
-        mlmg.setPostSmooth(16);
+        mlmg.setPreSmooth(mlmg_pre_smooth);
+        mlmg.setPostSmooth(mlmg_post_smooth);
+        
+        // Set bottom solver based on user input
+        if (mlmg_bottom_solver == "bicgstab") {
+            mlmg.setBottomSolver(MLMG::BottomSolver::bicgstab);
+            amrex::Print() << "wind_solver: using BiCGStab bottom solver\n";
+        } else if (mlmg_bottom_solver == "cg") {
+            mlmg.setBottomSolver(MLMG::BottomSolver::cg);
+            amrex::Print() << "wind_solver: using CG bottom solver\n";
+        } else if (mlmg_bottom_solver == "smoother") {
+            mlmg.setBottomSolver(MLMG::BottomSolver::smoother);
+            amrex::Print() << "wind_solver: using smoother-only bottom solver\n";
+        } else if (mlmg_bottom_solver != "default") {
+            amrex::Print() << "wind_solver: warning: unknown bottom solver '" 
+                          << mlmg_bottom_solver << "', using default\n";
+        }
 
         lam.setVal(0.0);  // initial guess
 
         amrex::Print() << "wind_solver: starting MLMG Poisson solve...\n";
         mlmg.solve({&lam}, {&rhs}, tol_rel, Real(0.0));
         amrex::Print() << "wind_solver: MLMG solve complete.\n";
+        amrex::Print() << "wind_solver: Poisson solve time = " 
+                       << (amrex::second() - t_phase) << " s\n";
 
         // Fill interior ghost cells of λ (needed for gradient computation)
         lam.FillBoundary(geom.periodicity());
@@ -1366,6 +1432,7 @@ int main(int argc, char* argv[])
         //     One-sided gradient at physical domain boundaries.
         //     Terrain cells are reset to zero.
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         MultiFab vel_c(ba, dm, 3, 0);
 
         for (MFIter mfi(vel_c); mfi.isValid(); ++mfi) {
@@ -1469,9 +1536,13 @@ int main(int argc, char* argv[])
             });
         }
 
+        amrex::Print() << "wind_solver: velocity correction time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
         // ----------------------------------------------------------------
         // 14. Compute diagnostics: divergence before and after correction
         // ----------------------------------------------------------------
+        t_phase = amrex::second();
         MultiFab div_before(ba, dm, 1, 0);
         MultiFab div_after (ba, dm, 1, 0);
 
@@ -1649,8 +1720,14 @@ int main(int argc, char* argv[])
             "terrain_z"
         };
 
+        amrex::Print() << "wind_solver: divergence computation time = " 
+                       << (amrex::second() - t_phase) << " s\n";
+
+        t_phase = amrex::second();
         WriteSingleLevelPlotfile(plot_file, output, var_names, geom, 0.0, 0);
         amrex::Print() << "wind_solver: plotfile written to " << plot_file << "\n";
+        amrex::Print() << "wind_solver: output writing time = " 
+                       << (amrex::second() - t_phase) << " s\n";
 
         // ----------------------------------------------------------------
         // 16. Optional terrain-aligned extraction (multi-height support)
@@ -1815,6 +1892,11 @@ int main(int argc, char* argv[])
             } // end loop over extraction levels
         }
 
+        // Print total execution time
+        amrex::Print() << "wind_solver: ========================================\n";
+        amrex::Print() << "wind_solver: total execution time = " 
+                       << (amrex::second() - t_total) << " s\n";
+        amrex::Print() << "wind_solver: ========================================\n";
         amrex::Print() << "wind_solver: done.\n";
     }
     amrex::Finalize();
