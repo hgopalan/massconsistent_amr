@@ -35,6 +35,7 @@
 #include "canopy_models.H"
 #include <algorithm>
 #include <cmath>
+#include <string>
 #include <vector>
 
 namespace {
