@@ -219,6 +219,26 @@ Parameter Reference
    * - ``canopy_attenuation``
      - ``2.5``
      - Exponential attenuation coefficient α for Shaw-Pereira profile. Typical range: 2-4.
+   * - **Ekman Spiral Veer Parameters**
+    -
+    -
+   * - ``enable_ekman_veer``
+    - ``false``
+    - Enable Ekman spiral wind veer correction. Wind direction rotates (veers) with height
+      due to Coriolis effects and surface friction balance.
+   * - ``latitude``
+    - ``45.0``
+    - Latitude in degrees (positive = North, negative = South). Used to compute Coriolis
+      parameter. Affects veer direction: clockwise in Northern Hemisphere, counter-clockwise
+      in Southern Hemisphere.
+   * - ``ekman_veer_total``
+    - ``20.0``
+    - Total wind veer from surface to domain top [degrees]. Typical values: 10-30° for
+      mid-latitudes. Higher values for stable conditions, lower for unstable conditions.
+   * - ``ekman_veer_height``
+    - ``200.0``
+    - Height scale for veer profile [m]. Most veer occurs within this height. Typical values:
+      100-200 m for boundary layer depth scale.
    * - **Building Parameters**
     -
     -
