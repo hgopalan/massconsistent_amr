@@ -35,6 +35,10 @@ cmake --build build --parallel
 - **Building support** — Wake modeling with Röckle (1990) parameterization
 - **Canopy modeling** — Forest canopy drag effects
 - **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height
+- **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions
+- **Elevation-dependent wind scaling** — Terrain elevation effects on reference wind speed for mountain-valley flows
+- **Time-varying boundary conditions** — Support for transient wind simulations with time series input
+- **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
