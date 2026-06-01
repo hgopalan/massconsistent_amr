@@ -9,6 +9,7 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include "math_constants.H"
 #include <cmath>
 
 // ---------------------------------------------------------------------------
@@ -36,12 +37,11 @@ amrex::Real psi_m_unstable(amrex::Real zeta) noexcept
     // where x = (1 - 16*zeta)^0.25
     const amrex::Real x = std::pow(amrex::Real(1.0) - amrex::Real(16.0) * zeta, amrex::Real(0.25));
     const amrex::Real x2 = x * x;
-    const amrex::Real pi = amrex::Real(3.14159265358979323846);
     
     return amrex::Real(2.0) * std::log((amrex::Real(1.0) + x) / amrex::Real(2.0))
          + std::log((amrex::Real(1.0) + x2) / amrex::Real(2.0))
          - amrex::Real(2.0) * std::atan(x)
-         + pi / amrex::Real(2.0);
+         + MathConstants::pi / amrex::Real(2.0);
 }
 
 // Combined stability function psi_m(zeta)

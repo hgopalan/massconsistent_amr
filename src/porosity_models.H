@@ -154,8 +154,9 @@ void apply_porosity_drag(
         
         // Apply drag reduction (exponential form for stability)
         // For small drag_factor: reduction ≈ 1 - drag_factor * dt
-        // We use dt = 1.0 as characteristic time for steady-state
-        amrex::Real reduction = std::exp(-drag_factor * amrex::Real(0.1));
+        // We use characteristic_time = 0.1 s as time scale for steady-state adjustment
+        const amrex::Real characteristic_time = amrex::Real(0.1);  // Empirical time scale for drag application
+        amrex::Real reduction = std::exp(-drag_factor * characteristic_time);
         
         u *= reduction;
         v *= reduction;

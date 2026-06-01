@@ -404,7 +404,7 @@ static void read_building_file(const std::string& filename,
             // Phase 3 Enhancement: Optional rotation angle (7th column, in degrees)
             // If provided, angle is converted from degrees to radians
             if (ss >> angle) {
-                angle = angle * MathConstants::pi / Real(180.0);  // Convert degrees to radians
+                angle = angle * MathConstants::deg_to_rad;
             }
             xmin.push_back(x1);
             xmax.push_back(x2);
@@ -450,7 +450,7 @@ static void read_porous_building_file(const std::string& filename,
         if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2 >> por) {
             // Optional rotation angle (8th column, in degrees)
             if (ss >> angle) {
-                angle = angle * MathConstants::pi / Real(180.0);  // Convert degrees to radians
+                angle = angle * MathConstants::deg_to_rad;
             }
             xmin.push_back(x1);
             xmax.push_back(x2);
