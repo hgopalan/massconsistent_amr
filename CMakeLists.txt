@@ -98,12 +98,36 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
     PROPERTIES LANGUAGE CUDA
   )
   
-  # Workaround for CUDA 12.6 + Windows SDK 10.0.26100.0 type redefinition errors
-  # Pass flags to nvcc to suppress the duplicate definition warnings from Windows headers
+  # Workaround for CUDA 12.6 + Windows SDK 10.0.26100.0 with C++20
+  # Known issue: nvcc on Windows with MSVC 19.40+ (VS 2022 17.10+) and C++20
+  # causes CRT header redefinition errors. This is a confirmed CUDA/MSVC interaction bug.
+  # Workaround: Use --allow-unsupported-compiler and add defines to suppress specific errors.
+  # Note: This is not ideal but allows builds to proceed until NVIDIA fixes nvcc.
   if(WIN32)
-    target_compile_options(wind_solver PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>)
-    target_compile_options(puff_solver PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>)
-    target_compile_options(wind_solver_api PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>)
+    # Allow compilation with potentially unsupported MSVC versions
+    target_compile_options(wind_solver PRIVATE 
+      $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
+    )
+    target_compile_options(puff_solver PRIVATE 
+      $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
+    )
+    target_compile_options(wind_solver_api PRIVATE 
+      $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
+    )
+    
+    # Add preprocessor defines to work around MSVC/CUDA incompatibilities
+    target_compile_definitions(wind_solver PRIVATE 
+      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
+    )
+    target_compile_definitions(puff_solver PRIVATE 
+      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
+    )
+    target_compile_definitions(wind_solver_api PRIVATE 
+      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
+    )
   endif()
 endif()
 
