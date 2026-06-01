@@ -52,7 +52,65 @@ struct WallFunctionParams {
     
     amrex::Real min_wall_distance = 0.1;            // Minimum distance from wall [m]
     amrex::Real kappa = 0.41;                       // von Karman constant
+    
+    // Stability correction parameters
+    bool enable_stability_correction = false;       // Enable Monin-Obukhov stability corrections
+    amrex::Real stability_length = 1.0e10;          // Obukhov length L [m] (large = neutral)
+    
+    // Adaptive activation parameters
+    bool enable_adaptive_activation = false;        // Enable automatic on/off based on grid resolution
+    amrex::Real adaptive_resolution_threshold = 30.0; // Activate only if dz < threshold*z0 [dimensionless]
+    amrex::Real adaptive_min_cells_in_log_layer = 3.0; // Minimum cells in log layer for activation
 };
+
+// ============================================================================
+// Check if grid resolution is fine enough to activate wall functions
+//
+// Wall functions are appropriate when the first cell height is within the
+// log-layer but not too close to the wall. Typical criteria:
+//   - First cell height z > z0 (above roughness)
+//   - First cell height z < 0.1*boundary layer height (in log layer)
+//   - At least min_cells cells within log layer region
+//
+// Inputs:
+//   dz            - Grid spacing in wall-normal direction [m]
+//   z0            - Surface roughness length [m]
+//   resolution_threshold - Max ratio dz/z0 for activation (default: 30)
+//   min_cells_in_log - Minimum cells in log layer (default: 3)
+//
+// Returns:
+//   true if grid is fine enough for wall functions, false otherwise
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool is_grid_resolution_suitable_for_wall_function(
+    amrex::Real dz,
+    amrex::Real z0,
+    amrex::Real resolution_threshold = amrex::Real(30.0),
+    amrex::Real min_cells_in_log = amrex::Real(3.0))
+{
+    // Check if first cell is above roughness elements
+    if (dz < z0) {
+        return false;  // Grid too fine - first cell inside roughness
+    }
+    
+    // Check if grid spacing is reasonable relative to roughness
+    // dz/z0 < threshold means grid is fine enough to resolve log-layer
+    amrex::Real ratio = dz / z0;
+    if (ratio > resolution_threshold) {
+        return false;  // Grid too coarse - cannot resolve log-layer
+    }
+    
+    // Check if we have enough cells in the log-layer region
+    // Log layer extends roughly to z = 0.1*δ where δ ~ 1000*z0 for ABL
+    // For practical purposes, check if we have min_cells within first ~100*z0
+    amrex::Real log_layer_height = amrex::Real(100.0) * z0;
+    amrex::Real cells_in_log = log_layer_height / dz;
+    if (cells_in_log < min_cells_in_log) {
+        return false;  // Not enough grid points in log layer
+    }
+    
+    return true;  // Grid resolution is suitable
+}
 
 // ============================================================================
 // Blending function for smooth transition between wall function and outer flow
@@ -123,6 +181,95 @@ amrex::Real compute_friction_velocity(
 }
 
 // ============================================================================
+// Compute friction velocity with Monin-Obukhov stability correction
+//
+// Extends the neutral log-law to non-neutral atmospheric conditions using
+// Businger-Dyer stability functions. This version solves:
+//   U(z) = (u*/κ) * [ln((z+z0)/z0) - ψ_m(z/L) + ψ_m(z0/L)]
+//
+// For u* given U(z), requires iterative solution since ψ_m depends on u*.
+// We use the neutral solution as first guess and apply one correction step.
+//
+// Inputs:
+//   speed         - Velocity magnitude at height z [m/s]
+//   z             - Height above surface [m]
+//   z0            - Surface roughness length [m]
+//   L_obukhov     - Obukhov length [m] (>0 stable, <0 unstable, large = neutral)
+//   kappa         - von Karman constant (default: 0.41)
+//
+// Returns:
+//   u*            - Friction velocity [m/s]
+//
+// Note: Requires psi_m function from stability_models.H
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_friction_velocity_stability(
+    amrex::Real speed,
+    amrex::Real z,
+    amrex::Real z0,
+    amrex::Real L_obukhov,
+    amrex::Real kappa = amrex::Real(0.41))
+{
+    if (speed < amrex::Real(1.0e-10) || z < z0) {
+        return amrex::Real(0.0);
+    }
+    
+    // For neutral or nearly neutral conditions, use simple log-law
+    if (std::abs(L_obukhov) > amrex::Real(1.0e8)) {
+        return compute_friction_velocity(speed, z, z0, kappa);
+    }
+    
+    // Stability parameters
+    amrex::Real zeta = z / L_obukhov;
+    amrex::Real zeta0 = z0 / L_obukhov;
+    
+    // Limit zeta to prevent numerical issues
+    const amrex::Real zeta_max = amrex::Real(2.0);
+    const amrex::Real zeta_min = amrex::Real(-2.0);
+    zeta = (zeta > zeta_max) ? zeta_max : zeta;
+    zeta = (zeta < zeta_min) ? zeta_min : zeta;
+    
+    // Compute stability function (requires psi_m from stability_models.H)
+    // For stable: psi_m = -5*zeta
+    // For unstable: psi_m = 2*ln((1+x)/2) + ln((1+x^2)/2) - 2*atan(x) + pi/2
+    //               where x = (1-16*zeta)^0.25
+    amrex::Real psi_m_z, psi_m_z0;
+    
+    if (zeta > amrex::Real(0.0)) {
+        // Stable
+        psi_m_z = -amrex::Real(5.0) * zeta;
+        psi_m_z0 = -amrex::Real(5.0) * zeta0;
+    } else if (zeta < amrex::Real(0.0)) {
+        // Unstable
+        const amrex::Real x = std::pow(amrex::Real(1.0) - amrex::Real(16.0) * zeta, amrex::Real(0.25));
+        const amrex::Real x2 = x * x;
+        psi_m_z = amrex::Real(2.0) * std::log((amrex::Real(1.0) + x) / amrex::Real(2.0))
+                + std::log((amrex::Real(1.0) + x2) / amrex::Real(2.0))
+                - amrex::Real(2.0) * std::atan(x)
+                + amrex::Real(1.5707963267948966);  // pi/2
+        
+        const amrex::Real x0 = std::pow(amrex::Real(1.0) - amrex::Real(16.0) * zeta0, amrex::Real(0.25));
+        const amrex::Real x02 = x0 * x0;
+        psi_m_z0 = amrex::Real(2.0) * std::log((amrex::Real(1.0) + x0) / amrex::Real(2.0))
+                 + std::log((amrex::Real(1.0) + x02) / amrex::Real(2.0))
+                 - amrex::Real(2.0) * std::atan(x0)
+                 + amrex::Real(1.5707963267948966);
+    } else {
+        // Neutral
+        psi_m_z = amrex::Real(0.0);
+        psi_m_z0 = amrex::Real(0.0);
+    }
+    
+    // Modified log term with stability correction
+    amrex::Real log_term = std::log((z + z0) / z0) - psi_m_z + psi_m_z0;
+    if (log_term < amrex::Real(1.0e-10)) {
+        return amrex::Real(0.0);
+    }
+    
+    return kappa * speed / log_term;
+}
+
+// ============================================================================
 // Apply log-law wall function to velocity components for flat horizontal surface
 //
 // For a flat surface (normal vector = [0, 0, 1]), the wall-parallel velocity
@@ -133,19 +280,28 @@ amrex::Real compute_friction_velocity(
 //   - Wall-parallel magnitude: sqrt(u² + v²) = (u*/κ) * ln((z + z0) / z0)
 //   - Direction preserved: (u, v) scaled by wall function
 //
+// Supports optional stability corrections via Monin-Obukhov similarity theory.
+// Supports optional adaptive activation based on grid resolution.
+//
 // Inputs:
 //   u, v, w       - Velocity components [m/s] (modified in place)
 //   z             - Height above flat surface [m]
 //   z0            - Surface roughness length [m]
 //   u_ref         - Reference velocity magnitude for computing u* [m/s]
 //   z_ref         - Reference height for computing u* [m]
+//   dz            - Grid spacing (for adaptive activation) [m]
 //   kappa         - von Karman constant
+//   enable_stability - Enable stability corrections (default: false)
+//   L_obukhov     - Obukhov length [m] (only used if enable_stability=true)
+//   enable_adaptive - Enable adaptive activation (default: false)
+//   adaptive_threshold - Resolution threshold for adaptive activation
 //
 // Algorithm:
-// 1. Compute u* from reference conditions
-// 2. Apply log-law to get wall-parallel speed at height z
-// 3. Scale horizontal velocity to match log-law while preserving direction
-// 4. Set vertical velocity to zero (impermeability)
+// 1. Check if grid resolution is suitable (if adaptive mode enabled)
+// 2. Compute u* from reference conditions (with or without stability)
+// 3. Apply log-law to get wall-parallel speed at height z
+// 4. Scale horizontal velocity to match log-law while preserving direction
+// 5. Set vertical velocity to zero (impermeability)
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void apply_flat_surface_wall_function(
@@ -156,7 +312,12 @@ void apply_flat_surface_wall_function(
     amrex::Real z0,
     amrex::Real u_ref,
     amrex::Real z_ref,
-    amrex::Real kappa = amrex::Real(0.41))
+    amrex::Real dz,
+    amrex::Real kappa = amrex::Real(0.41),
+    bool enable_stability = false,
+    amrex::Real L_obukhov = amrex::Real(1.0e10),
+    bool enable_adaptive = false,
+    amrex::Real adaptive_threshold = amrex::Real(30.0))
 {
     // Ensure height is positive
     if (z <= amrex::Real(0.0)) {
@@ -166,8 +327,21 @@ void apply_flat_surface_wall_function(
         return;
     }
     
+    // Check grid resolution suitability (if adaptive activation enabled)
+    if (enable_adaptive) {
+        if (!is_grid_resolution_suitable_for_wall_function(dz, z0, adaptive_threshold)) {
+            // Grid not suitable - don't modify velocity (use original field)
+            return;
+        }
+    }
+    
     // Compute friction velocity from reference conditions
-    amrex::Real ustar = compute_friction_velocity(u_ref, z_ref, z0, kappa);
+    amrex::Real ustar;
+    if (enable_stability && std::abs(L_obukhov) < amrex::Real(1.0e8)) {
+        ustar = compute_friction_velocity_stability(u_ref, z_ref, z0, L_obukhov, kappa);
+    } else {
+        ustar = compute_friction_velocity(u_ref, z_ref, z0, kappa);
+    }
     
     if (ustar < amrex::Real(1.0e-10)) {
         u = amrex::Real(0.0);
@@ -176,16 +350,62 @@ void apply_flat_surface_wall_function(
         return;
     }
     
-    // Apply log-law to get speed at height z
-    amrex::Real log_term = std::log((z + z0) / z0);
-    if (log_term < amrex::Real(1.0e-10)) {
-        u = amrex::Real(0.0);
-        v = amrex::Real(0.0);
-        w = amrex::Real(0.0);
-        return;
+    // Apply log-law (with optional stability correction) to get speed at height z
+    amrex::Real speed_wall;
+    if (enable_stability && std::abs(L_obukhov) < amrex::Real(1.0e8)) {
+        // Stability-corrected log-law
+        amrex::Real zeta = z / L_obukhov;
+        amrex::Real zeta0 = z0 / L_obukhov;
+        
+        // Limit zeta
+        const amrex::Real zeta_max = amrex::Real(2.0);
+        const amrex::Real zeta_min = amrex::Real(-2.0);
+        zeta = (zeta > zeta_max) ? zeta_max : zeta;
+        zeta = (zeta < zeta_min) ? zeta_min : zeta;
+        
+        // Compute psi_m
+        amrex::Real psi_m_z, psi_m_z0;
+        if (zeta > amrex::Real(0.0)) {
+            psi_m_z = -amrex::Real(5.0) * zeta;
+            psi_m_z0 = -amrex::Real(5.0) * zeta0;
+        } else if (zeta < amrex::Real(0.0)) {
+            const amrex::Real x = std::pow(amrex::Real(1.0) - amrex::Real(16.0) * zeta, amrex::Real(0.25));
+            const amrex::Real x2 = x * x;
+            psi_m_z = amrex::Real(2.0) * std::log((amrex::Real(1.0) + x) / amrex::Real(2.0))
+                    + std::log((amrex::Real(1.0) + x2) / amrex::Real(2.0))
+                    - amrex::Real(2.0) * std::atan(x)
+                    + amrex::Real(1.5707963267948966);
+            
+            const amrex::Real x0 = std::pow(amrex::Real(1.0) - amrex::Real(16.0) * zeta0, amrex::Real(0.25));
+            const amrex::Real x02 = x0 * x0;
+            psi_m_z0 = amrex::Real(2.0) * std::log((amrex::Real(1.0) + x0) / amrex::Real(2.0))
+                     + std::log((amrex::Real(1.0) + x02) / amrex::Real(2.0))
+                     - amrex::Real(2.0) * std::atan(x0)
+                     + amrex::Real(1.5707963267948966);
+        } else {
+            psi_m_z = amrex::Real(0.0);
+            psi_m_z0 = amrex::Real(0.0);
+        }
+        
+        amrex::Real log_term = std::log((z + z0) / z0) - psi_m_z + psi_m_z0;
+        if (log_term < amrex::Real(1.0e-10)) {
+            u = amrex::Real(0.0);
+            v = amrex::Real(0.0);
+            w = amrex::Real(0.0);
+            return;
+        }
+        speed_wall = (ustar / kappa) * log_term;
+    } else {
+        // Neutral log-law
+        amrex::Real log_term = std::log((z + z0) / z0);
+        if (log_term < amrex::Real(1.0e-10)) {
+            u = amrex::Real(0.0);
+            v = amrex::Real(0.0);
+            w = amrex::Real(0.0);
+            return;
+        }
+        speed_wall = (ustar / kappa) * log_term;
     }
-    
-    amrex::Real speed_wall = (ustar / kappa) * log_term;
     
     // Current horizontal speed
     amrex::Real speed_current = std::sqrt(u * u + v * v);
@@ -211,6 +431,8 @@ void apply_flat_surface_wall_function(
 // This version blends between the wall function (near wall) and the
 // existing velocity field (outer flow) using a smooth blending function.
 //
+// Supports optional stability corrections and adaptive activation.
+//
 // Inputs:
 //   u, v, w       - Velocity components [m/s] (modified in place)
 //   u_outer, v_outer, w_outer - Outer flow velocity [m/s]
@@ -221,6 +443,10 @@ void apply_flat_surface_wall_function(
 //   dz            - Grid spacing in z [m]
 //   blend_height  - Blending layer height [cells]
 //   kappa         - von Karman constant
+//   enable_stability - Enable stability corrections (default: false)
+//   L_obukhov     - Obukhov length [m] (only used if enable_stability=true)
+//   enable_adaptive - Enable adaptive activation (default: false)
+//   adaptive_threshold - Resolution threshold for adaptive activation
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void apply_flat_surface_wall_function_blended(
@@ -236,8 +462,23 @@ void apply_flat_surface_wall_function_blended(
     amrex::Real z_ref,
     amrex::Real dz,
     amrex::Real blend_height = amrex::Real(2.0),
-    amrex::Real kappa = amrex::Real(0.41))
+    amrex::Real kappa = amrex::Real(0.41),
+    bool enable_stability = false,
+    amrex::Real L_obukhov = amrex::Real(1.0e10),
+    bool enable_adaptive = false,
+    amrex::Real adaptive_threshold = amrex::Real(30.0))
 {
+    // Check adaptive activation first
+    if (enable_adaptive) {
+        if (!is_grid_resolution_suitable_for_wall_function(dz, z0, adaptive_threshold)) {
+            // Grid not suitable - use outer flow
+            u = u_outer;
+            v = v_outer;
+            w = w_outer;
+            return;
+        }
+    }
+    
     // Compute distance from surface in cells
     amrex::Real distance_cells = z / dz;
     
@@ -258,7 +499,8 @@ void apply_flat_surface_wall_function_blended(
     amrex::Real u_wall = u;
     amrex::Real v_wall = v;
     amrex::Real w_wall = w;
-    apply_flat_surface_wall_function(u_wall, v_wall, w_wall, z, z0, u_ref, z_ref, kappa);
+    apply_flat_surface_wall_function(u_wall, v_wall, w_wall, z, z0, u_ref, z_ref, dz, 
+                                     kappa, enable_stability, L_obukhov, enable_adaptive, adaptive_threshold);
     
     // Blend wall function with outer flow
     u = (amrex::Real(1.0) - blend) * u_wall + blend * u_outer;
@@ -357,6 +599,8 @@ void decompose_velocity(
 // and wall-normal components, apply log-law to parallel component, and
 // enforce impermeability (zero normal component).
 //
+// Supports optional stability corrections and adaptive activation.
+//
 // Inputs:
 //   u, v, w       - Velocity components [m/s] (modified in place)
 //   nx, ny, nz    - Terrain normal vector (must be normalized)
@@ -364,7 +608,12 @@ void decompose_velocity(
 //   z0            - Surface roughness length [m]
 //   u_ref         - Reference velocity magnitude [m/s]
 //   z_ref         - Reference height [m]
+//   dz            - Grid spacing (for adaptive activation) [m]
 //   kappa         - von Karman constant
+//   enable_stability - Enable stability corrections (default: false)
+//   L_obukhov     - Obukhov length [m] (only used if enable_stability=true)
+//   enable_adaptive - Enable adaptive activation (default: false)
+//   adaptive_threshold - Resolution threshold for adaptive activation
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void apply_terrain_wall_function(
@@ -378,7 +627,12 @@ void apply_terrain_wall_function(
     amrex::Real z0,
     amrex::Real u_ref,
     amrex::Real z_ref,
-    amrex::Real kappa = amrex::Real(0.41))
+    amrex::Real dz,
+    amrex::Real kappa = amrex::Real(0.41),
+    bool enable_stability = false,
+    amrex::Real L_obukhov = amrex::Real(1.0e10),
+    bool enable_adaptive = false,
+    amrex::Real adaptive_threshold = amrex::Real(30.0))
 {
     // Ensure height is positive
     if (z_agl <= amrex::Real(0.0)) {
@@ -388,12 +642,25 @@ void apply_terrain_wall_function(
         return;
     }
     
+    // Check grid resolution suitability (if adaptive activation enabled)
+    if (enable_adaptive) {
+        if (!is_grid_resolution_suitable_for_wall_function(dz, z0, adaptive_threshold)) {
+            // Grid not suitable - don't modify velocity (use original field)
+            return;
+        }
+    }
+    
     // Decompose velocity into parallel and normal components
     amrex::Real u_par, v_par, w_par, u_norm;
     decompose_velocity(u, v, w, nx, ny, nz, u_par, v_par, w_par, u_norm);
     
     // Compute friction velocity from reference conditions
-    amrex::Real ustar = compute_friction_velocity(u_ref, z_ref, z0, kappa);
+    amrex::Real ustar;
+    if (enable_stability && std::abs(L_obukhov) < amrex::Real(1.0e8)) {
+        ustar = compute_friction_velocity_stability(u_ref, z_ref, z0, L_obukhov, kappa);
+    } else {
+        ustar = compute_friction_velocity(u_ref, z_ref, z0, kappa);
+    }
     
     if (ustar < amrex::Real(1.0e-10)) {
         u = amrex::Real(0.0);
@@ -402,18 +669,64 @@ void apply_terrain_wall_function(
         return;
     }
     
-    // Apply log-law to parallel component magnitude
+    // Apply log-law (with optional stability correction) to parallel component magnitude
     amrex::Real speed_par = std::sqrt(u_par * u_par + v_par * v_par + w_par * w_par);
+    amrex::Real speed_wall;
     
-    amrex::Real log_term = std::log((z_agl + z0) / z0);
-    if (log_term < amrex::Real(1.0e-10)) {
-        u = amrex::Real(0.0);
-        v = amrex::Real(0.0);
-        w = amrex::Real(0.0);
-        return;
+    if (enable_stability && std::abs(L_obukhov) < amrex::Real(1.0e8)) {
+        // Stability-corrected log-law
+        amrex::Real zeta = z_agl / L_obukhov;
+        amrex::Real zeta0 = z0 / L_obukhov;
+        
+        // Limit zeta
+        const amrex::Real zeta_max = amrex::Real(2.0);
+        const amrex::Real zeta_min = amrex::Real(-2.0);
+        zeta = (zeta > zeta_max) ? zeta_max : zeta;
+        zeta = (zeta < zeta_min) ? zeta_min : zeta;
+        
+        // Compute psi_m
+        amrex::Real psi_m_z, psi_m_z0;
+        if (zeta > amrex::Real(0.0)) {
+            psi_m_z = -amrex::Real(5.0) * zeta;
+            psi_m_z0 = -amrex::Real(5.0) * zeta0;
+        } else if (zeta < amrex::Real(0.0)) {
+            const amrex::Real x = std::pow(amrex::Real(1.0) - amrex::Real(16.0) * zeta, amrex::Real(0.25));
+            const amrex::Real x2 = x * x;
+            psi_m_z = amrex::Real(2.0) * std::log((amrex::Real(1.0) + x) / amrex::Real(2.0))
+                    + std::log((amrex::Real(1.0) + x2) / amrex::Real(2.0))
+                    - amrex::Real(2.0) * std::atan(x)
+                    + amrex::Real(1.5707963267948966);
+            
+            const amrex::Real x0 = std::pow(amrex::Real(1.0) - amrex::Real(16.0) * zeta0, amrex::Real(0.25));
+            const amrex::Real x02 = x0 * x0;
+            psi_m_z0 = amrex::Real(2.0) * std::log((amrex::Real(1.0) + x0) / amrex::Real(2.0))
+                     + std::log((amrex::Real(1.0) + x02) / amrex::Real(2.0))
+                     - amrex::Real(2.0) * std::atan(x0)
+                     + amrex::Real(1.5707963267948966);
+        } else {
+            psi_m_z = amrex::Real(0.0);
+            psi_m_z0 = amrex::Real(0.0);
+        }
+        
+        amrex::Real log_term = std::log((z_agl + z0) / z0) - psi_m_z + psi_m_z0;
+        if (log_term < amrex::Real(1.0e-10)) {
+            u = amrex::Real(0.0);
+            v = amrex::Real(0.0);
+            w = amrex::Real(0.0);
+            return;
+        }
+        speed_wall = (ustar / kappa) * log_term;
+    } else {
+        // Neutral log-law
+        amrex::Real log_term = std::log((z_agl + z0) / z0);
+        if (log_term < amrex::Real(1.0e-10)) {
+            u = amrex::Real(0.0);
+            v = amrex::Real(0.0);
+            w = amrex::Real(0.0);
+            return;
+        }
+        speed_wall = (ustar / kappa) * log_term;
     }
-    
-    amrex::Real speed_wall = (ustar / kappa) * log_term;
     
     // Scale parallel component to match wall function
     if (speed_par > amrex::Real(1.0e-10)) {
