@@ -1194,7 +1194,6 @@ int main(int argc, char* argv[])
         } else {
             amrex::Print() << "wind_solver: wall functions DISABLED (using no-slip boundary conditions)\n";
         }
->>>>>>> 0c15d9a6f113c6e7800a4078066fb19fe7ff79b1
         // Copy terrain gradients to device (if kinematic BC enabled)
         Gpu::DeviceVector<Real> d_terr_grad_x, d_terr_grad_y;
         Real const* d_terr_grad_x_ptr = nullptr;
@@ -1409,7 +1408,6 @@ int main(int argc, char* argv[])
                     amrex::Print() << "  using MacDonald displacement height\n";
                 }
             }
-=======
             
             // Print Ekman veer status
             if (enable_ekman_veer) {
@@ -1449,7 +1447,6 @@ int main(int argc, char* argv[])
             const Real wf_stability_length = wall_function_stability_length;
             const bool wf_enable_adaptive = wall_function_enable_adaptive;
             const Real wf_adaptive_threshold = wall_function_adaptive_threshold;
->>>>>>> 0c15d9a6f113c6e7800a4078066fb19fe7ff79b1
 
             // Capture buoyancy parameters
             const bool use_buoyancy = enable_buoyancy_stratification;
@@ -1865,7 +1862,6 @@ Real u_vel = speed * ux_h;
             canopy_params.drag_coefficient = canopy_drag_coeff;
             canopy_params.attenuation_coeff = canopy_attenuation;
             canopy_params.use_exponential_profile = use_exponential_profile;
-=======
             
             // Capture Ekman veer parameters
             const bool use_ekman = enable_ekman_veer;

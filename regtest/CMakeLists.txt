@@ -124,7 +124,6 @@ add_regression_test(wall_function_unstable wall_function_unstable)
 # wall_function_adaptive/ – Wall function with adaptive activation
 # ---------------------------------------------------------------------------
 add_regression_test(wall_function_adaptive wall_function_adaptive)
->>>>>>> 0c15d9a6f113c6e7800a4078066fb19fe7ff79b1
 # ---------------------------------------------------------------------------
 # Thermal Stratification and Kinematic BC tests
 # ---------------------------------------------------------------------------
