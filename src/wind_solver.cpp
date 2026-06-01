@@ -89,6 +89,7 @@
 #include "math_constants.H"
 #include "stability_models.H"
 #include "porosity_models.H"
+#include "buoyancy_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -375,6 +376,38 @@ static void read_surface_data_file(const std::string& filename,
 
     amrex::Print() << "wind_solver: read " << xd.size()
                    << " surface data points from " << filename << "\n";
+}
+
+// Read Z T temperature profile file (whitespace or comma separated; '#' comments).
+// Format: Z T
+// where Z = height above sea level [m], T = temperature [K]
+static void read_temperature_file(const std::string& filename,
+                                  std::vector<Real>& zd,
+                                  std::vector<Real>& Td)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open temperature file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real z, T;
+        if (ss >> z >> T) {
+            zd.push_back(z);
+            Td.push_back(T);
+        }
+    }
+    if (zd.empty())
+        amrex::Abort("wind_solver: no data read from temperature file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << zd.size()
+                   << " temperature profile points from " << filename << "\n";
 }
 
 // Read building file: xmin xmax ymin ymax zmin zmax (whitespace or comma separated; '#' comments).
@@ -732,6 +765,26 @@ int main(int argc, char* argv[])
         pp.query("building_porosity_file", building_porosity_file);
         pp.query("default_building_porosity", default_building_porosity);
         pp.query("porosity_drag_coefficient", porosity_drag_coefficient);
+
+        // Feature 9: Thermal Stratification with Buoyancy
+        // Add buoyancy effects from temperature stratification to vertical momentum
+        bool enable_buoyancy_stratification = false;
+        std::string temperature_file = "temperature.csv";
+        Real temperature_reference = 300.0;  // Reference temperature T₀ [K]
+        Real buoyancy_coefficient = 1.0;     // Tuning parameter for buoyancy strength
+        Real buoyancy_timescale = 10.0;      // Characteristic time scale Δt [s]
+        pp.query("enable_buoyancy_stratification", enable_buoyancy_stratification);
+        pp.query("temperature_file", temperature_file);
+        pp.query("temperature_reference", temperature_reference);
+        pp.query("buoyancy_coefficient", buoyancy_coefficient);
+        pp.query("buoyancy_timescale", buoyancy_timescale);
+
+        // Feature 10: Kinematic Terrain-Following Boundary Condition
+        // Enforce w = u·∇h at terrain surface instead of simply zeroing
+        bool enable_terrain_kinematic_bc = false;
+        Real terrain_bc_relaxation = 1.0;  // Relaxation factor (1.0 = strict, <1.0 = relaxed)
+        pp.query("enable_terrain_kinematic_bc", enable_terrain_kinematic_bc);
+        pp.query("terrain_bc_relaxation", terrain_bc_relaxation);
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
