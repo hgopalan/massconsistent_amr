@@ -156,6 +156,9 @@ Where:
 Available in plotfile output as ``drag_coeff`` variable. Useful for surface flux
 parameterizations and coupling with atmospheric models.
 
+**Regression Test**: See ``regtest/drag_diagnostic/`` for a test case with spatially-varying
+roughness demonstrating drag coefficient and heat flux computation.
+
 Implementation Notes
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -191,6 +194,10 @@ Based on Businger et al. (1971) and Dyer (1974). Provides more realistic wind pr
 in non-neutral atmospheric boundary layers.
 
 **Example**: Stable nocturnal boundary layer with L = 100 m suppresses vertical mixing.
+
+**Regression Tests**: 
+- ``regtest/stability_stable/`` tests stable atmospheric conditions (L > 0)
+- ``regtest/stability_unstable/`` tests unstable atmospheric conditions (L < 0)
 
 6. Elevation-Dependent Wind Speed Scaling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
