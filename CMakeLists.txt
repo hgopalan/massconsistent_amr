@@ -104,30 +104,23 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   # Workaround: Use --allow-unsupported-compiler and add defines to suppress specific errors.
   # Note: This is not ideal but allows builds to proceed until NVIDIA fixes nvcc.
   if(WIN32)
-    # Allow compilation with potentially unsupported MSVC versions
-    target_compile_options(wind_solver PRIVATE 
+    # Define common compile options and definitions for all CUDA targets on Windows
+    set(_cuda_windows_compile_opts
       $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
     )
-    target_compile_options(puff_solver PRIVATE 
-      $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
-    )
-    target_compile_options(wind_solver_api PRIVATE 
-      $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
+    set(_cuda_windows_compile_defs
+      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
     )
     
-    # Add preprocessor defines to work around MSVC/CUDA incompatibilities
-    target_compile_definitions(wind_solver PRIVATE 
-      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
-    )
-    target_compile_definitions(puff_solver PRIVATE 
-      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
-    )
-    target_compile_definitions(wind_solver_api PRIVATE 
-      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
-    )
+    # Apply to all targets
+    target_compile_options(wind_solver PRIVATE ${_cuda_windows_compile_opts})
+    target_compile_options(puff_solver PRIVATE ${_cuda_windows_compile_opts})
+    target_compile_options(wind_solver_api PRIVATE ${_cuda_windows_compile_opts})
+    
+    target_compile_definitions(wind_solver PRIVATE ${_cuda_windows_compile_defs})
+    target_compile_definitions(puff_solver PRIVATE ${_cuda_windows_compile_defs})
+    target_compile_definitions(wind_solver_api PRIVATE ${_cuda_windows_compile_defs})
   endif()
 endif()
 
