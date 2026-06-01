@@ -192,9 +192,9 @@ Diffusivity and Growth
     sigma_y0 = 1.0                # Lateral [m]
     sigma_z0 = 1.0                # Vertical [m]
 
-**Height-dependent diffusivity (NEW):**
+**Height-dependent diffusivity:**
 
-The solver now supports height-varying eddy diffusivity K(z) using power-law
+The solver supports height-varying eddy diffusivity K(z) using power-law
 profiles for more realistic atmospheric boundary layer physics:
 
 .. code-block:: ini
@@ -235,7 +235,7 @@ where n is typically 0.5–1.0 in neutral atmospheric conditions.
 First-Order Decay
 ^^^^^^^^^^^^^^^^^
 
-**NEW**: Exponential decay for radioactive or chemically-reactive species:
+Exponential decay for radioactive or chemically-reactive species:
 
 .. code-block:: ini
 
@@ -496,7 +496,7 @@ Code Quality
 Terrain, Building, and Canopy Integration
 ------------------------------------------
 
-**NEW**: The puff model now includes comprehensive support for terrain, buildings, and tree canopy effects.
+The puff model includes comprehensive support for terrain, buildings, and tree canopy effects.
 
 Terrain Awareness
 ~~~~~~~~~~~~~~~~~

@@ -184,7 +184,7 @@ Parameter Reference
      - ``-1.0``
      - Sample the corrected wind at this AGL height [m] and write a CSV
        slice. Can be a single value or space-separated list (e.g., ``10.0 50.0 100.0``).
-       Negative value disables extraction. **New: supports multiple heights.**
+       Negative value disables extraction.
    * - ``extract_k``
      - ``-1``
      - Alternative: sample at explicit k-index (0 = lowest level).
@@ -345,10 +345,10 @@ To extract at a specific k-index (vertical cell)::
     extract_k    = 5
     extract_file = wind_k5.csv
 
-**New Feature: Multi-Height Extraction**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Height Extraction
+~~~~~~~~~~~~~~~~~~~~~~~
 
-You can now extract multiple heights in a single run by providing space-separated values::
+You can extract multiple heights in a single run by providing space-separated values::
 
     extract_agl  = 10.0 50.0 100.0 200.0
     extract_file = wind_extract.csv

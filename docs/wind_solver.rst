@@ -225,7 +225,7 @@ The MLMG solver can be tuned via the following input parameters:
 Position-Dependent Roughness
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**NEW**: The solver supports spatially-varying aerodynamic roughness length
+The solver supports spatially-varying aerodynamic roughness length
 z₀(x,y) for more realistic land-use heterogeneity.
 
 **Usage:**
