@@ -82,7 +82,7 @@ add_regression_test(buildings_terrain buildings_terrain)
 add_regression_test(wake_single_building wake_single_building)
 
 # ===========================================================================
-# Wake model enhancements
+# Advanced features
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
