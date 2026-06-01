@@ -614,21 +614,6 @@ int main(int argc, char* argv[])
         pp.query("V_ref", V_ref);
         pp.query("z_ref", z_ref);
         pp.query("z0",    z0);
-        
-        // Feature 7: Override U_ref and V_ref with first time point if time-varying mode is enabled
-        // Note: Full time-stepping implementation would require restructuring the solver loop.
-        // This implementation uses the first time point as a proof-of-concept.
-        // Future enhancement: wrap solver in time loop for transient simulations.
-        if (enable_time_varying && !time_series_times.empty()) {
-            U_ref = time_series_U_refs[0];
-            V_ref = time_series_V_refs[0];
-            amrex::Print() << "wind_solver: time-varying mode enabled, using t=" 
-                          << time_series_times[0] << " s with U_ref=" << U_ref 
-                          << " m/s, V_ref=" << V_ref << " m/s\n";
-            amrex::Print() << "wind_solver: note - full time-stepping requires solver loop restructuring\n";
-            amrex::Print() << "wind_solver: for now, using first time point from series with " 
-                          << time_series_times.size() << " total time points\n";
-        }
 
         // Canopy model parameters
         bool enable_canopy = false;
@@ -894,6 +879,21 @@ int main(int argc, char* argv[])
                                  time_series_times,
                                  time_series_U_refs,
                                  time_series_V_refs);
+            
+            // Override U_ref and V_ref with first time point
+            // Note: Full time-stepping implementation would require restructuring the solver loop.
+            // This implementation uses the first time point as a proof-of-concept.
+            // Future enhancement: wrap solver in time loop for transient simulations.
+            if (!time_series_times.empty()) {
+                U_ref = time_series_U_refs[0];
+                V_ref = time_series_V_refs[0];
+                amrex::Print() << "wind_solver: time-varying mode enabled, using t=" 
+                              << time_series_times[0] << " s with U_ref=" << U_ref 
+                              << " m/s, V_ref=" << V_ref << " m/s\n";
+                amrex::Print() << "wind_solver: note - full time-stepping requires solver loop restructuring\n";
+                amrex::Print() << "wind_solver: for now, using first time point from series with " 
+                              << time_series_times.size() << " total time points\n";
+            }
         }
 
         amrex::Print() << "wind_solver: terrain reading time = " 
