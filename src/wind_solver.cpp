@@ -749,6 +749,15 @@ int main(int argc, char* argv[])
         bool wall_function_enable_flat_surface = false;   // Use flat surface mode
         Real wall_function_min_wall_distance = 0.1;       // Minimum distance from wall [m]
         
+        // Stability correction for wall functions
+        bool wall_function_enable_stability = false;     // Enable Monin-Obukhov corrections
+        Real wall_function_stability_length = 1.0e10;    // Obukhov length L [m]
+        
+        // Adaptive activation based on grid resolution
+        bool wall_function_enable_adaptive = false;      // Enable adaptive activation
+        Real wall_function_adaptive_threshold = 30.0;    // Max dz/z0 ratio for activation
+        Real wall_function_adaptive_min_cells = 3.0;     // Min cells in log layer
+        
         pp.query("enable_wall_functions", enable_wall_functions);
         pp.query("enable_terrain_wall_function", enable_terrain_wall_function);
         pp.query("enable_flat_surface_wall_function", enable_flat_surface_wall_function);
@@ -760,6 +769,13 @@ int main(int argc, char* argv[])
         pp.query("wall_function_flat_surface_elevation", wall_function_flat_surface_elevation);
         pp.query("wall_function_enable_flat_surface", wall_function_enable_flat_surface);
         pp.query("wall_function_min_wall_distance", wall_function_min_wall_distance);
+        
+        // Query new stability and adaptive parameters
+        pp.query("wall_function_enable_stability", wall_function_enable_stability);
+        pp.query("wall_function_stability_length", wall_function_stability_length);
+        pp.query("wall_function_enable_adaptive", wall_function_enable_adaptive);
+        pp.query("wall_function_adaptive_threshold", wall_function_adaptive_threshold);
+        pp.query("wall_function_adaptive_min_cells", wall_function_adaptive_min_cells);
         
         // Auto-enable sub-features if master enable is true
         if (enable_wall_functions) {
@@ -1018,6 +1034,30 @@ int main(int argc, char* argv[])
             }
             amrex::Print() << "  blend height = " << wall_function_blend_height << " cells\n";
             amrex::Print() << "  max distance = " << wall_function_max_distance << " cells\n";
+            
+            // Print stability correction status
+            if (wall_function_enable_stability) {
+                amrex::Print() << "  stability correction: ENABLED\n";
+                amrex::Print() << "    Obukhov length L = " << wall_function_stability_length << " m\n";
+                if (wall_function_stability_length > 0) {
+                    amrex::Print() << "    (stable conditions)\n";
+                } else if (wall_function_stability_length < 0) {
+                    amrex::Print() << "    (unstable conditions)\n";
+                } else {
+                    amrex::Print() << "    (neutral conditions)\n";
+                }
+            } else {
+                amrex::Print() << "  stability correction: DISABLED (neutral log-law)\n";
+            }
+            
+            // Print adaptive activation status
+            if (wall_function_enable_adaptive) {
+                amrex::Print() << "  adaptive activation: ENABLED\n";
+                amrex::Print() << "    resolution threshold = " << wall_function_adaptive_threshold << " (dz/z0)\n";
+                amrex::Print() << "    min cells in log layer = " << wall_function_adaptive_min_cells << "\n";
+            } else {
+                amrex::Print() << "  adaptive activation: DISABLED (always active when enabled)\n";
+            }
         } else {
             amrex::Print() << "wind_solver: wall functions DISABLED (using no-slip boundary conditions)\n";
         }
@@ -1221,6 +1261,12 @@ int main(int argc, char* argv[])
             const bool use_terrain_wall = enable_terrain_wall_function;
             const Real wf_blend_height = wall_function_blend_height;
             const Real speed_ref_cap = speed_ref;  // For wall function reference
+            
+            // New wall function enhancements
+            const bool wf_enable_stability = wall_function_enable_stability;
+            const Real wf_stability_length = wall_function_stability_length;
+            const bool wf_enable_adaptive = wall_function_enable_adaptive;
+            const Real wf_adaptive_threshold = wall_function_adaptive_threshold;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1290,7 +1336,9 @@ int main(int argc, char* argv[])
                             u_wf, v_wf, w_wf,
                             u_outer, v_outer, w_outer,
                             z_agl, z0_local, speed_ref_cap, z_ref_cap,
-                            dz_cap_init, wf_blend_height, kappa_cap);
+                            dz_cap_init, wf_blend_height, kappa_cap,
+                            wf_enable_stability, wf_stability_length,
+                            wf_enable_adaptive, wf_adaptive_threshold);
                         
                         vel(i, j, k, 0) = u_wf;
                         vel(i, j, k, 1) = v_wf;
@@ -1349,6 +1397,12 @@ int main(int argc, char* argv[])
             const Real z_ref_cap = z_ref;
             const Real kappa_cap = 0.41;
             const Real speed_ref_cap = std::sqrt(u_uniform * u_uniform + v_uniform * v_uniform);
+            
+            // New wall function enhancements
+            const bool wf_enable_stability = wall_function_enable_stability;
+            const Real wf_stability_length = wall_function_stability_length;
+            const bool wf_enable_adaptive = wall_function_enable_adaptive;
+            const Real wf_adaptive_threshold = wall_function_adaptive_threshold;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1374,7 +1428,9 @@ int main(int argc, char* argv[])
                             u_wf, v_wf, w_wf,
                             u_uniform, v_uniform, Real(0.0),
                             z_agl, z0_local_cap, speed_ref_cap, z_ref_cap,
-                            dz_cap_init, wf_blend_height, kappa_cap);
+                            dz_cap_init, wf_blend_height, kappa_cap,
+                            wf_enable_stability, wf_stability_length,
+                            wf_enable_adaptive, wf_adaptive_threshold);
                         
                         vel(i, j, k, 0) = u_wf;
                         vel(i, j, k, 1) = v_wf;
