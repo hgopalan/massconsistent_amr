@@ -387,3 +387,119 @@ To enable canopy effects in an input file::
 * Cionco, R.M. (1965). A mathematical model for air flow in a vegetative
   canopy. *Journal of Applied Meteorology*, 4, 517-522.
 
+Ekman Spiral Wind Veer Correction
+----------------------------------
+
+The solver includes an Ekman spiral correction that adds wind direction
+rotation (veer) with height due to Coriolis effects. This is important for
+large-scale atmospheric flows and wind energy applications.
+
+**Physical Background**
+
+In the atmospheric boundary layer, winds are influenced by:
+
+1. Pressure gradient force (drives geostrophic wind aloft)
+2. Surface friction (retards near-surface wind)
+3. Coriolis force (due to Earth's rotation)
+
+The balance between these forces causes the wind direction to rotate with
+height — a phenomenon known as the Ekman spiral. In the Northern Hemisphere,
+winds typically veer (rotate clockwise) with height; in the Southern Hemisphere,
+they back (rotate counter-clockwise).
+
+**Implementation**
+
+The wind veer is applied using an exponential profile:
+
+.. math::
+
+   \\theta(z) = \\theta_{\\text{total}} \\times [1 - \\exp(-z / h_{\\text{veer}})]
+
+where:
+
+* :math:`\\theta(z)` is the veer angle at height z [radians]
+* :math:`\\theta_{\\text{total}}` is the total veer from surface to domain top
+* :math:`h_{\\text{veer}}` is the height scale for the veer profile
+
+The horizontal wind components are then rotated:
+
+.. math::
+
+   \\begin{aligned}
+   u(z) &= u_{\\text{base}} \\cos(\\theta) - v_{\\text{base}} \\sin(\\theta) \\\\
+   v(z) &= u_{\\text{base}} \\sin(\\theta) + v_{\\text{base}} \\cos(\\theta)
+   \\end{aligned}
+
+where :math:`u_{\\text{base}}` and :math:`v_{\\text{base}}` are computed from
+the selected wind profile (log-law, power-law, or surface_data).
+
+**Usage Example**
+
+To enable Ekman veer in an input file::
+
+    enable_ekman_veer = true
+    latitude = 45.0              # Mid-latitude Northern Hemisphere
+    ekman_veer_total = 25.0      # 25 degrees total veer
+    ekman_veer_height = 150.0    # Most veer in lowest 150 m
+
+**Typical Parameter Values**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - Region
+     - Total Veer [degrees]
+     - Notes
+   * - Low latitudes (0-30°)
+     - 5 - 15
+     - Weak Coriolis effect
+   * - Mid latitudes (30-60°)
+     - 15 - 30
+     - Typical for most applications
+   * - High latitudes (60-90°)
+     - 30 - 45
+     - Strong Coriolis effect
+   * - Stable conditions
+     - +50% enhancement
+     - Increased stratification
+   * - Unstable conditions
+     - -30% reduction
+     - Enhanced mixing
+
+**Height Scale Guidelines**
+
+The veer height :math:`h_{\\text{veer}}` controls how quickly wind direction
+changes with height:
+
+* **100-150 m**: Shallow boundary layer or stable conditions
+* **150-200 m**: Typical neutral conditions
+* **200-300 m**: Deep convective boundary layer
+
+**Compatibility**
+
+Ekman veer works with all wind initialization modes:
+
+* **loglaw**: Veer is applied after computing log-law speed
+* **powerlaw**: Veer is applied after computing power-law speed
+* **surface_data**: Veer is applied to each column's profile
+
+The mass-consistency solver adjusts the final wind field to enforce
+:math:`\\nabla \\cdot \\mathbf{u} = 0`, while preserving the veer structure
+as much as possible.
+
+**Validation and Testing**
+
+See regression test ``regtest/ekman_veer/`` for a complete example demonstrating
+wind veer on flat terrain. The test extracts wind at multiple heights to verify
+the veer profile.
+
+**References**
+
+* Ekman, V.W. (1905). On the influence of the Earth's rotation on ocean currents.
+  *Arkiv för Matematik, Astronomi och Fysik*, 2(11).
+* Arya, S.P. (1988). *Introduction to Micrometeorology*. Academic Press, Ch. 9.
+* Stull, R.B. (1988). *An Introduction to Boundary Layer Meteorology*. Kluwer, Ch. 9.
+* IEC 61400-1 Ed. 4 (2019). Wind energy generation systems — Part 1: Design requirements.
+  Section 6.3.1.3: Wind veer for turbine load analysis.
+

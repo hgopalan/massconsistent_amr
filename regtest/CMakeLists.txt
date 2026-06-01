@@ -148,6 +148,11 @@ add_regression_test(stability_stable stability_stable)
 add_regression_test(stability_unstable stability_unstable)
 
 # ---------------------------------------------------------------------------
+# ekman_veer/ – Ekman spiral wind veer correction
+# ---------------------------------------------------------------------------
+add_regression_test(ekman_veer ekman_veer)
+
+# ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
 add_custom_target(regtest
@@ -179,5 +184,6 @@ message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC 
 message(STATUS "  drag_diagnostic/       : Phase 4 - Drag coefficient and heat flux diagnostics")
 message(STATUS "  stability_stable/      : Phase 5 - Non-neutral stability (stable conditions, L > 0)")
 message(STATUS "  stability_unstable/    : Phase 5 - Non-neutral stability (unstable conditions, L < 0)")
+message(STATUS "  ekman_veer/            : Ekman spiral wind veer correction (Coriolis effects)")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
