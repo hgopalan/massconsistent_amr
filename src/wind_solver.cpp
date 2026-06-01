@@ -89,6 +89,7 @@
 #include "math_constants.H"
 #include "stability_models.H"
 #include "porosity_models.H"
+#include "wall_functions.H"
 #include "buoyancy_models.H"
 
 #include <AMReX.H>
@@ -766,6 +767,56 @@ int main(int argc, char* argv[])
         pp.query("default_building_porosity", default_building_porosity);
         pp.query("porosity_drag_coefficient", porosity_drag_coefficient);
 
+        // Wall Function Parameters
+        // NEW REQUIREMENT: Allow switching between no-slip and log-law boundary conditions
+        // Default is false (no-slip) for backward compatibility
+        bool enable_wall_functions = false;
+        bool enable_terrain_wall_function = false;
+        bool enable_flat_surface_wall_function = false;
+        bool enable_building_wall_function = false;
+        Real wall_function_z0_building = 0.001;  // Building wall roughness [m]
+        Real wall_function_z0_flat = 0.01;       // Flat surface roughness [m]
+        Real wall_function_blend_height = 2.0;   // Blending layer height [cells]
+        Real wall_function_max_distance = 3.0;   // Max distance for wall function [cells]
+        Real wall_function_flat_surface_elevation = 0.0;  // Elevation of flat surface [m]
+        bool wall_function_enable_flat_surface = false;   // Use flat surface mode
+        Real wall_function_min_wall_distance = 0.1;       // Minimum distance from wall [m]
+        
+        // Stability correction for wall functions
+        bool wall_function_enable_stability = false;     // Enable Monin-Obukhov corrections
+        Real wall_function_stability_length = 1.0e10;    // Obukhov length L [m]
+        
+        // Adaptive activation based on grid resolution
+        bool wall_function_enable_adaptive = false;      // Enable adaptive activation
+        Real wall_function_adaptive_threshold = 30.0;    // Max dz/z0 ratio for activation
+        Real wall_function_adaptive_min_cells = 3.0;     // Min cells in log layer
+        
+        pp.query("enable_wall_functions", enable_wall_functions);
+        pp.query("enable_terrain_wall_function", enable_terrain_wall_function);
+        pp.query("enable_flat_surface_wall_function", enable_flat_surface_wall_function);
+        pp.query("enable_building_wall_function", enable_building_wall_function);
+        pp.query("wall_function_z0_building", wall_function_z0_building);
+        pp.query("wall_function_z0_flat", wall_function_z0_flat);
+        pp.query("wall_function_blend_height", wall_function_blend_height);
+        pp.query("wall_function_max_distance", wall_function_max_distance);
+        pp.query("wall_function_flat_surface_elevation", wall_function_flat_surface_elevation);
+        pp.query("wall_function_enable_flat_surface", wall_function_enable_flat_surface);
+        pp.query("wall_function_min_wall_distance", wall_function_min_wall_distance);
+        
+        // Query new stability and adaptive parameters
+        pp.query("wall_function_enable_stability", wall_function_enable_stability);
+        pp.query("wall_function_stability_length", wall_function_stability_length);
+        pp.query("wall_function_enable_adaptive", wall_function_enable_adaptive);
+        pp.query("wall_function_adaptive_threshold", wall_function_adaptive_threshold);
+        pp.query("wall_function_adaptive_min_cells", wall_function_adaptive_min_cells);
+        
+        // Auto-enable sub-features if master enable is true
+        if (enable_wall_functions) {
+            if (!pp.contains("enable_terrain_wall_function")) {
+                enable_terrain_wall_function = true;
+            }
+        }
+
         // Thermal Stratification with Buoyancy
         // Add buoyancy effects from temperature stratification to vertical momentum
         bool enable_buoyancy_stratification = false;
@@ -1096,6 +1147,53 @@ int main(int argc, char* argv[])
                          obstacle_h.begin(), obstacle_h.end(), d_terr.begin());
         Real const* d_terr_ptr = d_terr.data();
 
+// Print wall function configuration
+        if (enable_wall_functions) {
+            amrex::Print() << "wind_solver: wall functions ENABLED\n";
+            if (enable_terrain_wall_function) {
+                amrex::Print() << "  terrain wall function: ENABLED\n";
+            }
+            if (enable_flat_surface_wall_function) {
+                amrex::Print() << "  flat surface wall function: ENABLED\n";
+                amrex::Print() << "    z0_flat = " << wall_function_z0_flat << " m\n";
+                if (wall_function_enable_flat_surface) {
+                    amrex::Print() << "    flat surface elevation = " 
+                                  << wall_function_flat_surface_elevation << " m\n";
+                }
+            }
+            if (enable_building_wall_function) {
+                amrex::Print() << "  building wall function: ENABLED\n";
+                amrex::Print() << "    z0_building = " << wall_function_z0_building << " m\n";
+            }
+            amrex::Print() << "  blend height = " << wall_function_blend_height << " cells\n";
+            amrex::Print() << "  max distance = " << wall_function_max_distance << " cells\n";
+            
+            // Print stability correction status
+            if (wall_function_enable_stability) {
+                amrex::Print() << "  stability correction: ENABLED\n";
+                amrex::Print() << "    Obukhov length L = " << wall_function_stability_length << " m\n";
+                if (wall_function_stability_length > 0) {
+                    amrex::Print() << "    (stable conditions)\n";
+                } else if (wall_function_stability_length < 0) {
+                    amrex::Print() << "    (unstable conditions)\n";
+                } else {
+                    amrex::Print() << "    (neutral conditions)\n";
+                }
+            } else {
+                amrex::Print() << "  stability correction: DISABLED (neutral log-law)\n";
+            }
+            
+            // Print adaptive activation status
+            if (wall_function_enable_adaptive) {
+                amrex::Print() << "  adaptive activation: ENABLED\n";
+                amrex::Print() << "    resolution threshold = " << wall_function_adaptive_threshold << " (dz/z0)\n";
+                amrex::Print() << "    min cells in log layer = " << wall_function_adaptive_min_cells << "\n";
+            } else {
+                amrex::Print() << "  adaptive activation: DISABLED (always active when enabled)\n";
+            }
+        } else {
+            amrex::Print() << "wind_solver: wall functions DISABLED (using no-slip boundary conditions)\n";
+        }
         // Copy terrain gradients to device (if kinematic BC enabled)
         Gpu::DeviceVector<Real> d_terr_grad_x, d_terr_grad_y;
         Real const* d_terr_grad_x_ptr = nullptr;
@@ -1337,6 +1435,18 @@ int main(int argc, char* argv[])
             const Real elev_scale_factor = elevation_scaling_factor;
             const Real elev_height_scale = elevation_height_scale;
             const Real terrain_min = zs_min;
+            
+            // Wall function parameters
+            const bool use_wall_func = enable_wall_functions;
+            const bool use_terrain_wall = enable_terrain_wall_function;
+            const Real wf_blend_height = wall_function_blend_height;
+            const Real speed_ref_cap = speed_ref;  // For wall function reference
+            
+            // New wall function enhancements
+            const bool wf_enable_stability = wall_function_enable_stability;
+            const Real wf_stability_length = wall_function_stability_length;
+            const bool wf_enable_adaptive = wall_function_enable_adaptive;
+            const Real wf_adaptive_threshold = wall_function_adaptive_threshold;
 
             // Capture buoyancy parameters
             const bool use_buoyancy = enable_buoyancy_stratification;
@@ -1366,7 +1476,70 @@ int main(int argc, char* argv[])
                     Real terrain_elev = d_terr_ptr[j * nx_cap_init + i];
                     Real z_agl      = z_physical - terrain_elev;
 
+// Handle near-terrain and below-terrain cells
                     if (z_agl <= Real(0.0)) {
+                        // Below terrain - always zero velocity
+                        vel(i, j, k, 0) = Real(0.0);
+                        vel(i, j, k, 1) = Real(0.0);
+                        vel(i, j, k, 2) = Real(0.0);
+                    } else if (use_wall_func && use_terrain_wall && z_agl <= wf_blend_height * dz_cap_init) {
+                        // Near terrain - apply wall function if enabled
+                        // Use position-dependent z0 if available
+                        Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
+                        
+                        // Apply flat surface wall function with blending
+                        // (For now, simplified version for flat terrain assumption)
+                        Real u_outer = vel(i, j, k, 0);
+                        Real v_outer = vel(i, j, k, 1);
+                        Real w_outer = vel(i, j, k, 2);
+                        
+                        // Compute outer flow velocity using standard log-law
+                        Real ustar_local = ustar_cap;
+                        if (use_pos_z0 && z0_local > Real(1.0e-10)) {
+                            Real speed_ref_denom = std::log((z_ref_cap + z0_cap) / z0_cap);
+                            Real speed_ref_local = (speed_ref_denom > Real(1.0e-10)) 
+                                ? ustar_cap * speed_ref_denom / kappa_cap : Real(0.0);
+                            Real log_term = std::log((z_ref_cap + z0_local) / z0_local);
+                            ustar_local = (log_term > Real(1.0e-10)) 
+                                ? kappa_cap * speed_ref_local / log_term : Real(0.0);
+                        }
+                        
+                        if (use_elev_scaling && elev_height_scale > Real(1.0e-10)) {
+                            Real scale = elevation_wind_scaling(Real(1.0), terrain_elev, 
+                                                               terrain_min, elev_scale_factor, 
+                                                               elev_height_scale);
+                            ustar_local *= scale;
+                        }
+                        
+                        Real speed;
+                        if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
+                            speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
+                                                          kappa_cap, L_obukhov);
+                        } else {
+                            speed = canopy_wind_profile(
+                                z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
+                        }
+                        
+                        u_outer = speed * ux_h;
+                        v_outer = speed * uy_h;
+                        w_outer = Real(0.0);
+                        
+                        // Apply wall function with blending
+                        Real u_wf = vel(i, j, k, 0);
+                        Real v_wf = vel(i, j, k, 1);
+                        Real w_wf = vel(i, j, k, 2);
+                        apply_flat_surface_wall_function_blended(
+                            u_wf, v_wf, w_wf,
+                            u_outer, v_outer, w_outer,
+                            z_agl, z0_local, speed_ref_cap, z_ref_cap,
+                            dz_cap_init, wf_blend_height, kappa_cap,
+                            wf_enable_stability, wf_stability_length,
+                            wf_enable_adaptive, wf_adaptive_threshold);
+                        
+                        vel(i, j, k, 0) = u_wf;
+                        vel(i, j, k, 1) = v_wf;
+                        vel(i, j, k, 2) = w_wf;
+if (z_agl <= Real(0.0)) {
                         vel(i, j, k, 0) = Real(0.0);
                         vel(i, j, k, 1) = Real(0.0);
                         vel(i, j, k, 2) = Real(0.0);
@@ -1420,7 +1593,6 @@ int main(int argc, char* argv[])
                             u_vel = speed * ux_h;
                             v_vel = speed * uy_h;
                         }
-                        
                         Real w_vel = Real(0.0);
                         
                         // Add buoyancy effects to vertical velocity
@@ -1481,6 +1653,20 @@ int main(int argc, char* argv[])
             // Uniform wind field initialization (constant U, V)
             const Real u_uniform = uniform_U;
             const Real v_uniform = uniform_V;
+// Wall function parameters
+            const bool use_wall_func = enable_wall_functions;
+            const bool use_terrain_wall = enable_terrain_wall_function;
+            const Real wf_blend_height = wall_function_blend_height;
+            const Real z0_local_cap = z0;
+            const Real z_ref_cap = z_ref;
+            const Real kappa_cap = 0.41;
+            const Real speed_ref_cap = std::sqrt(u_uniform * u_uniform + v_uniform * v_uniform);
+            
+            // New wall function enhancements
+            const bool wf_enable_stability = wall_function_enable_stability;
+            const Real wf_stability_length = wall_function_stability_length;
+            const bool wf_enable_adaptive = wall_function_enable_adaptive;
+            const Real wf_adaptive_threshold = wall_function_adaptive_threshold;
 
             // Capture buoyancy parameters
             const bool use_buoyancy = enable_buoyancy_stratification;
@@ -1508,6 +1694,22 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 0) = Real(0.0);
                         vel(i, j, k, 1) = Real(0.0);
                         vel(i, j, k, 2) = Real(0.0);
+                    } else if (use_wall_func && use_terrain_wall && z_agl <= wf_blend_height * dz_cap_init) {
+                        // Near terrain - apply wall function if enabled
+                        Real u_wf = vel(i, j, k, 0);
+                        Real v_wf = vel(i, j, k, 1);
+                        Real w_wf = vel(i, j, k, 2);
+                        apply_flat_surface_wall_function_blended(
+                            u_wf, v_wf, w_wf,
+                            u_uniform, v_uniform, Real(0.0),
+                            z_agl, z0_local_cap, speed_ref_cap, z_ref_cap,
+                            dz_cap_init, wf_blend_height, kappa_cap,
+                            wf_enable_stability, wf_stability_length,
+                            wf_enable_adaptive, wf_adaptive_threshold);
+                        
+                        vel(i, j, k, 0) = u_wf;
+                        vel(i, j, k, 1) = v_wf;
+                        vel(i, j, k, 2) = w_wf;
                     } else {
                         Real u_vel = u_uniform;
                         Real v_vel = v_uniform;
@@ -1695,7 +1897,6 @@ int main(int argc, char* argv[])
                         // Construct vertical profile using log-law with column-specific ustar and z0
                         Real speed = canopy_wind_profile(
                             z_agl, canopy_params, z0_col, ustar_col, kappa_cap);
-                        
                         // Apply Ekman veer rotation
                         Real u_vel, v_vel;
                         if (use_ekman) {
@@ -1790,7 +1991,6 @@ int main(int argc, char* argv[])
                             u_vel = speed * ux_h;
                             v_vel = speed * uy_h;
                         }
-                        
                         Real w_vel = Real(0.0);
                         
                         // Add buoyancy effects to vertical velocity
