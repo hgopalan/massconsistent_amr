@@ -308,6 +308,16 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("canopy_drag_coeff", state.canopy_drag_coeff);
     pp.query("canopy_attenuation", state.canopy_attenuation);
     pp.query("use_exponential_profile", state.use_exponential_profile);
+    
+    // Ekman spiral veer parameters
+    state.enable_ekman_veer = false;
+    state.latitude = 45.0;
+    state.ekman_veer_total = 20.0;
+    state.ekman_veer_height = 200.0;
+    pp.query("enable_ekman_veer", state.enable_ekman_veer);
+    pp.query("latitude", state.latitude);
+    pp.query("ekman_veer_total", state.ekman_veer_total);
+    pp.query("ekman_veer_height", state.ekman_veer_height);
 
     read_terrain_file(terrain_file,
                       state.terrain_x_data,

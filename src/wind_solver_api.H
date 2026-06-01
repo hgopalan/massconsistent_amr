@@ -85,6 +85,12 @@ struct WindSolverState {
     amrex::Real canopy_attenuation;    // Exponential attenuation coefficient α
     bool use_exponential_profile;      // Use Shaw-Pereira exponential profile
     
+    // Ekman spiral veer parameters
+    bool enable_ekman_veer;            // Enable Ekman spiral wind veer
+    amrex::Real latitude;              // Latitude [degrees] for Coriolis parameter
+    amrex::Real ekman_veer_total;      // Total veer from surface to top [degrees]
+    amrex::Real ekman_veer_height;     // Height scale for veer profile [m]
+    
     // MLMG solver parameters
     int mlmg_verbose;
     amrex::Real tol_rel;

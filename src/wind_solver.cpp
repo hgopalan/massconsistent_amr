@@ -837,6 +837,19 @@ int main(int argc, char* argv[])
         pp.query("enable_terrain_kinematic_bc", enable_terrain_kinematic_bc);
         pp.query("terrain_bc_relaxation", terrain_bc_relaxation);
 
+        // Ekman Spiral Wind Veer Correction
+        // Add wind direction rotation (veer) with height due to Coriolis effects
+        bool enable_ekman_veer = false;
+        Real latitude = 45.0;               // Latitude [degrees] for Coriolis parameter (positive = North)
+        Real ekman_veer_total = 20.0;       // Total wind veer from surface to domain top [degrees]
+        Real ekman_veer_height = 200.0;     // Height scale for veer profile [m]
+        pp.query("enable_ekman_veer", enable_ekman_veer);
+        pp.query("latitude", latitude);
+        pp.query("ekman_veer_total", ekman_veer_total);
+        pp.query("ekman_veer_height", ekman_veer_height);
+        
+        // Convert ekman_veer_total from degrees to radians for internal use
+        Real ekman_veer_total_rad = ekman_veer_total * MathConstants::pi / Real(180.0);
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
@@ -1134,7 +1147,7 @@ int main(int argc, char* argv[])
                          obstacle_h.begin(), obstacle_h.end(), d_terr.begin());
         Real const* d_terr_ptr = d_terr.data();
 
-        // Print wall function configuration
+// Print wall function configuration
         if (enable_wall_functions) {
             amrex::Print() << "wind_solver: wall functions ENABLED\n";
             if (enable_terrain_wall_function) {
@@ -1181,8 +1194,7 @@ int main(int argc, char* argv[])
         } else {
             amrex::Print() << "wind_solver: wall functions DISABLED (using no-slip boundary conditions)\n";
         }
-
-
+>>>>>>> 0c15d9a6f113c6e7800a4078066fb19fe7ff79b1
         // Copy terrain gradients to device (if kinematic BC enabled)
         Gpu::DeviceVector<Real> d_terr_grad_x, d_terr_grad_y;
         Real const* d_terr_grad_x_ptr = nullptr;
@@ -1198,7 +1210,6 @@ int main(int argc, char* argv[])
             d_terr_grad_x_ptr = d_terr_grad_x.data();
             d_terr_grad_y_ptr = d_terr_grad_y.data();
         }
-
 
         // Summary statistics
         Real zs_min = *std::min_element(terrain_h.begin(), terrain_h.end());
@@ -1398,6 +1409,15 @@ int main(int argc, char* argv[])
                     amrex::Print() << "  using MacDonald displacement height\n";
                 }
             }
+=======
+            
+            // Print Ekman veer status
+            if (enable_ekman_veer) {
+                amrex::Print() << "wind_solver: Ekman spiral wind veer enabled\n";
+                amrex::Print() << "  latitude = " << latitude << " degrees\n";
+                amrex::Print() << "  total_veer = " << ekman_veer_total << " degrees\n";
+                amrex::Print() << "  veer_height = " << ekman_veer_height << " m\n";
+            }
 
             // Capture parameters for GPU lambda
             const Real ustar_cap = ustar;
@@ -1429,6 +1449,7 @@ int main(int argc, char* argv[])
             const Real wf_stability_length = wall_function_stability_length;
             const bool wf_enable_adaptive = wall_function_enable_adaptive;
             const Real wf_adaptive_threshold = wall_function_adaptive_threshold;
+>>>>>>> 0c15d9a6f113c6e7800a4078066fb19fe7ff79b1
 
             // Capture buoyancy parameters
             const bool use_buoyancy = enable_buoyancy_stratification;
@@ -1440,6 +1461,11 @@ int main(int argc, char* argv[])
             // Capture kinematic BC parameters
             const bool use_kinematic_bc = enable_terrain_kinematic_bc;
             const Real bc_relax = terrain_bc_relaxation;
+            
+            // Capture Ekman veer parameters
+            const bool use_ekman = enable_ekman_veer;
+            const Real veer_height = ekman_veer_height;
+            const Real veer_total = ekman_veer_total_rad;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1453,7 +1479,7 @@ int main(int argc, char* argv[])
                     Real terrain_elev = d_terr_ptr[j * nx_cap_init + i];
                     Real z_agl      = z_physical - terrain_elev;
 
-                    // Handle near-terrain and below-terrain cells
+// Handle near-terrain and below-terrain cells
                     if (z_agl <= Real(0.0)) {
                         // Below terrain - always zero velocity
                         vel(i, j, k, 0) = Real(0.0);
@@ -1516,6 +1542,10 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 0) = u_wf;
                         vel(i, j, k, 1) = v_wf;
                         vel(i, j, k, 2) = w_wf;
+if (z_agl <= Real(0.0)) {
+                        vel(i, j, k, 0) = Real(0.0);
+                        vel(i, j, k, 1) = Real(0.0);
+                        vel(i, j, k, 2) = Real(0.0);
                     } else {
                         // Use position-dependent z0 if available, otherwise use constant
                         Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
@@ -1551,8 +1581,23 @@ int main(int argc, char* argv[])
                                 z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
                         }
                         
-                        Real u_vel = speed * ux_h;
+Real u_vel = speed * ux_h;
                         Real v_vel = speed * uy_h;
+// Apply Ekman veer rotation
+                        Real u_vel, v_vel;
+                        if (use_ekman) {
+                            // Compute veer angle at this height
+                            Real veer_angle = ekman_veer_angle(z_agl, veer_height, veer_total);
+                            
+                            // Apply rotation to horizontal wind components
+                            Real u_base = speed * ux_h;
+                            Real v_base = speed * uy_h;
+                            apply_ekman_veer(u_base, v_base, veer_angle, u_vel, v_vel);
+                        } else {
+                            // No veer - use base wind direction
+                            u_vel = speed * ux_h;
+                            v_vel = speed * uy_h;
+                        }
                         Real w_vel = Real(0.0);
                         
                         // Add buoyancy effects to vertical velocity
@@ -1613,8 +1658,7 @@ int main(int argc, char* argv[])
             // Uniform wind field initialization (constant U, V)
             const Real u_uniform = uniform_U;
             const Real v_uniform = uniform_V;
-            
-            // Wall function parameters
+// Wall function parameters
             const bool use_wall_func = enable_wall_functions;
             const bool use_terrain_wall = enable_terrain_wall_function;
             const Real wf_blend_height = wall_function_blend_height;
@@ -1821,6 +1865,12 @@ int main(int argc, char* argv[])
             canopy_params.drag_coefficient = canopy_drag_coeff;
             canopy_params.attenuation_coeff = canopy_attenuation;
             canopy_params.use_exponential_profile = use_exponential_profile;
+=======
+            
+            // Capture Ekman veer parameters
+            const bool use_ekman = enable_ekman_veer;
+            const Real veer_height = ekman_veer_height;
+            const Real veer_total = ekman_veer_total_rad;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1855,6 +1905,24 @@ int main(int argc, char* argv[])
                             z_agl, canopy_params, z0_col, ustar_col, kappa_cap);
                         vel(i, j, k, 0) = speed * ux_hat;
                         vel(i, j, k, 1) = speed * uy_hat;
+// Apply Ekman veer rotation
+                        Real u_vel, v_vel;
+                        if (use_ekman) {
+                            // Compute veer angle at this height
+                            Real veer_angle = ekman_veer_angle(z_agl, veer_height, veer_total);
+                            
+                            // Apply rotation to horizontal wind components
+                            Real u_base = speed * ux_hat;
+                            Real v_base = speed * uy_hat;
+                            apply_ekman_veer(u_base, v_base, veer_angle, u_vel, v_vel);
+                        } else {
+                            // No veer - use base wind direction
+                            u_vel = speed * ux_hat;
+                            v_vel = speed * uy_hat;
+                        }
+                        
+                        vel(i, j, k, 0) = u_vel;
+                        vel(i, j, k, 1) = v_vel;
                         vel(i, j, k, 2) = Real(0.0);
                     }
                 });
@@ -1888,6 +1956,11 @@ int main(int argc, char* argv[])
             // Capture kinematic BC parameters
             const bool use_kinematic_bc = enable_terrain_kinematic_bc;
             const Real bc_relax = terrain_bc_relaxation;
+            
+            // Capture Ekman veer parameters
+            const bool use_ekman = enable_ekman_veer;
+            const Real veer_height = ekman_veer_height;
+            const Real veer_total = ekman_veer_total_rad;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1913,6 +1986,21 @@ int main(int argc, char* argv[])
                         
                         Real u_vel = speed * ux_h;
                         Real v_vel = speed * uy_h;
+// Apply Ekman veer rotation
+                        Real u_vel, v_vel;
+                        if (use_ekman) {
+                            // Compute veer angle at this height
+                            Real veer_angle = ekman_veer_angle(z_agl, veer_height, veer_total);
+                            
+                            // Apply rotation to horizontal wind components
+                            Real u_base = speed * ux_h;
+                            Real v_base = speed * uy_h;
+                            apply_ekman_veer(u_base, v_base, veer_angle, u_vel, v_vel);
+                        } else {
+                            // No veer - use base wind direction
+                            u_vel = speed * ux_h;
+                            v_vel = speed * uy_h;
+                        }
                         Real w_vel = Real(0.0);
                         
                         // Add buoyancy effects to vertical velocity

@@ -117,4 +117,100 @@ amrex::Real elevation_wind_scaling(amrex::Real U_ref,
     return U_ref * scale;
 }
 
+// ---------------------------------------------------------------------------
+// Ekman spiral wind veer correction
+// ---------------------------------------------------------------------------
+
+// Compute wind veer angle (in radians) due to Ekman spiral effects
+// Wind direction rotates with height due to Coriolis force and surface friction
+//
+// Parameters:
+//   z_agl          - Height above ground level [m]
+//   veer_height    - Height scale for veer profile [m]
+//   total_veer     - Total veer from surface to top [radians]
+//
+// Returns: veer angle in radians (positive = clockwise rotation in NH)
+//
+// The veer profile uses an exponential form:
+//   θ(z) = total_veer × [1 - exp(-z / veer_height)]
+//
+// This gives:
+//   - Zero veer at surface (z=0)
+//   - Asymptotic approach to total_veer at large z
+//   - Most veer occurs in lowest veer_height meters
+//
+// Typical values:
+//   - Mid-latitudes: total_veer = 15-30° (0.26-0.52 rad)
+//   - veer_height = 100-200 m (boundary layer depth scale)
+//
+// References:
+//   - Ekman, V.W. (1905). On the influence of the Earth's rotation
+//   - Arya, S.P. (1988). Introduction to Micrometeorology, Ch. 9
+//   - Stull, R.B. (1988). An Introduction to Boundary Layer Meteorology
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real ekman_veer_angle(amrex::Real z_agl,
+                              amrex::Real veer_height,
+                              amrex::Real total_veer) noexcept
+{
+    // Exponential veer profile
+    // Approaches total_veer asymptotically with height
+    // Most veer occurs within first veer_height meters
+    if (veer_height > amrex::Real(1.0e-10)) {
+        return total_veer * (amrex::Real(1.0) - std::exp(-z_agl / veer_height));
+    } else {
+        // Zero veer height means no veer
+        return amrex::Real(0.0);
+    }
+}
+
+// Apply Ekman veer rotation to wind components
+// Rotates the horizontal wind vector by the veer angle
+//
+// Parameters:
+//   u_in, v_in     - Input wind components [m/s]
+//   veer_angle     - Veer angle in radians (from ekman_veer_angle)
+//   u_out, v_out   - Output wind components [m/s]
+//
+// The rotation is applied as:
+//   u_out = u_in × cos(θ) - v_in × sin(θ)
+//   v_out = u_in × sin(θ) + v_in × cos(θ)
+//
+// This corresponds to a counter-clockwise rotation in the (u,v) plane.
+// In the Northern Hemisphere, winds typically veer (rotate clockwise)
+// with height, so positive veer_angle rotates the wind vector clockwise.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void apply_ekman_veer(amrex::Real u_in,
+                      amrex::Real v_in,
+                      amrex::Real veer_angle,
+                      amrex::Real& u_out,
+                      amrex::Real& v_out) noexcept
+{
+    // Standard 2D rotation matrix
+    // For clockwise rotation (Northern Hemisphere veer), use positive angle
+    amrex::Real cos_theta = std::cos(veer_angle);
+    amrex::Real sin_theta = std::sin(veer_angle);
+    
+    u_out = u_in * cos_theta - v_in * sin_theta;
+    v_out = u_in * sin_theta + v_in * cos_theta;
+}
+
+// Compute Coriolis parameter f = 2 × Ω × sin(latitude)
+// where Ω = 7.2921e-5 rad/s is Earth's angular velocity
+//
+// Parameters:
+//   latitude_deg   - Latitude in degrees (positive = North)
+//
+// Returns: Coriolis parameter f [rad/s]
+//
+// Used for theoretical Ekman height calculation:
+//   h_e = sqrt(2 × K_m / f)
+// where K_m is eddy viscosity [m²/s]
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real coriolis_parameter(amrex::Real latitude_deg) noexcept
+{
+    const amrex::Real omega = amrex::Real(7.2921e-5);  // Earth's angular velocity [rad/s]
+    amrex::Real latitude_rad = latitude_deg * MathConstants::pi / amrex::Real(180.0);
+    return amrex::Real(2.0) * omega * std::sin(latitude_rad);
+}
+
 #endif // STABILITY_MODELS_H
