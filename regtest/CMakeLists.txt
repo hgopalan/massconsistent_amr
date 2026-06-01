@@ -82,7 +82,7 @@ add_regression_test(buildings_terrain buildings_terrain)
 add_regression_test(wake_single_building wake_single_building)
 
 # ===========================================================================
-# Phase 3 Enhancements
+# Wake model enhancements
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
@@ -99,6 +99,30 @@ add_regression_test(building_oriented building_oriented)
 # multiheight_extraction/ – Multi-height wind field extraction (new feature)
 # ---------------------------------------------------------------------------
 add_regression_test(multiheight_extraction multiheight_extraction)
+
+# ===========================================================================
+# Wall function tests
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# wall_function_flat/ – Basic wall function test on flat terrain
+# ---------------------------------------------------------------------------
+add_regression_test(wall_function_flat wall_function_flat)
+
+# ---------------------------------------------------------------------------
+# wall_function_stable/ – Wall function with stable stability corrections
+# ---------------------------------------------------------------------------
+add_regression_test(wall_function_stable wall_function_stable)
+
+# ---------------------------------------------------------------------------
+# wall_function_unstable/ – Wall function with unstable stability corrections
+# ---------------------------------------------------------------------------
+add_regression_test(wall_function_unstable wall_function_unstable)
+
+# ---------------------------------------------------------------------------
+# wall_function_adaptive/ – Wall function with adaptive activation
+# ---------------------------------------------------------------------------
+add_regression_test(wall_function_adaptive wall_function_adaptive)
 
 # ---------------------------------------------------------------------------
 # Canopy model tests
@@ -128,8 +152,12 @@ message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat te
 message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terrain")
 message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
 message(STATUS "  wake_single_building/  : Single building wake model (Röckle formulation)")
-message(STATUS "  rooftop_vortex/        : Phase 3 - Rooftop vortex in building cavity zones")
-message(STATUS "  building_oriented/     : Phase 3 - Arbitrary building orientation effects")
+message(STATUS "  rooftop_vortex/        : Rooftop vortex in building cavity zones")
+message(STATUS "  building_oriented/     : Arbitrary building orientation effects")
 message(STATUS "  multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
+message(STATUS "  wall_function_flat/    : Wall function on flat terrain")
+message(STATUS "  wall_function_stable/  : Wall function with stable atmospheric corrections")
+message(STATUS "  wall_function_unstable/: Wall function with unstable atmospheric corrections")
+message(STATUS "  wall_function_adaptive/: Wall function with adaptive grid resolution activation")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
