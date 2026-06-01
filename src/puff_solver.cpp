@@ -225,6 +225,22 @@ int main(int argc, char* argv[])
         pp.query("sigma_y0", sigma_y0);
         pp.query("sigma_z0", sigma_z0);
         
+        // Feature 2: Height-dependent diffusivity parameters
+        bool enable_height_dependent_K = false;
+        std::string K_profile = "constant";
+        Real K_power_law_exponent = 0.5;
+        Real K_reference_height = 10.0;
+        pp.query("enable_height_dependent_K", enable_height_dependent_K);
+        pp.query("K_profile", K_profile);
+        pp.query("K_power_law_exponent", K_power_law_exponent);
+        pp.query("K_reference_height", K_reference_height);
+        
+        // Feature 3: First-order decay parameters
+        bool enable_decay = false;
+        Real decay_constant = 0.0;  // [1/s]
+        pp.query("enable_decay", enable_decay);
+        pp.query("decay_constant", decay_constant);
+        
         // Time stepping
         Real dt_puff = 1.0;
         int n_steps_puff = 100;
@@ -332,6 +348,17 @@ int main(int argc, char* argv[])
         amrex::Print() << "  Emission rate: " << emission_rate << " units/s\n";
         amrex::Print() << "  Emission duration: " << emission_duration << " s\n";
         amrex::Print() << "  K_h = " << K_h << " m²/s, K_v = " << K_v << " m²/s\n";
+        if (enable_height_dependent_K) {
+            amrex::Print() << "  Height-dependent diffusivity enabled\n";
+            amrex::Print() << "    Profile: " << K_profile << "\n";
+            amrex::Print() << "    Power-law exponent: " << K_power_law_exponent << "\n";
+            amrex::Print() << "    Reference height: " << K_reference_height << " m\n";
+        }
+        if (enable_decay) {
+            amrex::Print() << "  First-order decay enabled\n";
+            amrex::Print() << "    Decay constant: " << decay_constant << " 1/s\n";
+            amrex::Print() << "    Half-life: " << (0.693147 / std::max(decay_constant, 1.0e-10)) << " s\n";
+        }
         amrex::Print() << "  Initial puff size: σy₀ = " << sigma_y0 
                        << " m, σz₀ = " << sigma_z0 << " m\n";
         amrex::Print() << "  Wind: U = " << U_wind << ", V = " << V_wind 
@@ -418,11 +445,24 @@ int main(int argc, char* argv[])
                 Real K_h_eff = K_h;
                 Real K_v_eff = K_v;
                 
-                // Apply canopy effects
+                // Apply height-dependent diffusivity (Feature 2)
                 Real z_agl = puff.z - terrain_height;
+                if (enable_height_dependent_K && z_agl >= 0.0) {
+                    // Create temporary PuffParams for height-dependent K function
+                    PuffParams temp_params;
+                    temp_params.enable_height_dependent_K = enable_height_dependent_K;
+                    temp_params.K_profile = K_profile;
+                    temp_params.K_power_law_exponent = K_power_law_exponent;
+                    temp_params.K_reference_height = K_reference_height;
+                    
+                    K_h_eff = compute_K_height_dependent(z_agl, K_h, temp_params);
+                    K_v_eff = compute_K_height_dependent(z_agl, K_v, temp_params);
+                }
+                
+                // Apply canopy effects
                 if (enable_canopy_effects && z_agl >= 0.0) {
                     compute_canopy_diffusivity(
-                        z_agl, canopy_height, K_h, K_v,
+                        z_agl, canopy_height, K_h_eff, K_v_eff,
                         canopy_enhancement_factor, canopy_sheltering_factor,
                         K_h_eff, K_v_eff);
                 }
@@ -454,6 +494,11 @@ int main(int argc, char* argv[])
                 
                 // Update age
                 update_puff_age(puff, dt_puff);
+                
+                // Apply first-order decay (Feature 3)
+                if (enable_decay && decay_constant > 0.0) {
+                    apply_puff_decay(puff, dt_puff, decay_constant);
+                }
                 
                 // Check bounds with terrain awareness
                 if (enable_terrain_reflection) {

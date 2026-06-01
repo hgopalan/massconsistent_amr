@@ -180,6 +180,8 @@ Core Parameters
 Diffusivity and Growth
 ^^^^^^^^^^^^^^^^^^^^^^
 
+**Standard diffusivity (constant):**
+
 .. code-block:: ini
 
     # Turbulent diffusion parameters
@@ -189,6 +191,91 @@ Diffusivity and Growth
     # Initial puff size (σ0)
     sigma_y0 = 1.0                # Lateral [m]
     sigma_z0 = 1.0                # Vertical [m]
+
+**Height-dependent diffusivity (NEW):**
+
+The solver now supports height-varying eddy diffusivity K(z) using power-law
+profiles for more realistic atmospheric boundary layer physics:
+
+.. code-block:: ini
+
+    # Enable height-dependent diffusivity
+    enable_height_dependent_K = true
+    K_profile = power_law         # Profile type
+    K_power_law_exponent = 0.5    # K(z) = K₀ * (z/z_ref)^n
+    K_reference_height = 10.0     # Reference height [m]
+
+**Power-law profile:**
+
+.. math::
+
+    K(z) = K_0 \cdot \left(\frac{z}{z_\text{ref}}\right)^n
+
+where n is typically 0.5–1.0 in neutral atmospheric conditions.
+
+**Typical parameters:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Condition
+     - Exponent (n)
+     - Description
+   * - Neutral
+     - 0.5–0.7
+     - Standard ABL profile
+   * - Unstable
+     - 1.0–1.5
+     - Convective conditions
+   * - Stable
+     - 0.2–0.4
+     - Suppressed turbulence
+
+First-Order Decay
+^^^^^^^^^^^^^^^^^
+
+**NEW**: Exponential decay for radioactive or chemically-reactive species:
+
+.. code-block:: ini
+
+    # Enable first-order decay
+    enable_decay = true
+    decay_constant = 0.001        # Decay constant λ [1/s]
+
+**Decay model:**
+
+.. math::
+
+    m(t) = m_0 \cdot e^{-\lambda t}
+
+where λ is the decay constant. The half-life is T_{1/2} = ln(2)/λ.
+
+**Example decay rates:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 25 25 20
+
+   * - Species
+     - λ [1/s]
+     - Half-life
+     - Application
+   * - I-131 (radioactive)
+     - 1.0e-6
+     - ~8 days
+     - Nuclear
+   * - Reactive pollutant
+     - 1.0e-4
+     - ~2 hours
+     - Urban air quality
+   * - Volatile organic
+     - 1.0e-3
+     - ~11 min
+     - Chemical release
+
+Puffs are automatically deactivated when their mass drops below 10⁻¹² of
+the initial value.
 
 Wind Field
 ^^^^^^^^^^
