@@ -73,19 +73,23 @@ Parameter Reference
      - ``loglaw``
      - Wind field initialization method. Options: ``loglaw`` (log-law profile),
        ``uniform`` (constant wind), ``raws`` (interpolate from velocity file),
-       ``surface_data`` (HRRR-style surface parameters).
+       ``surface_data`` (HRRR-style surface parameters), ``powerlaw`` (power-law profile, Phase 1).
    * - ``U_ref``
      - ``10.0``
-     - Reference wind x-component [m/s] at height ``z_ref``. Used for ``loglaw`` mode.
+     - Reference wind x-component [m/s] at height ``z_ref``. Used for ``loglaw`` and ``powerlaw`` modes.
    * - ``V_ref``
      - ``0.0``
-     - Reference wind y-component [m/s] at height ``z_ref``. Used for ``loglaw`` mode.
+     - Reference wind y-component [m/s] at height ``z_ref``. Used for ``loglaw`` and ``powerlaw`` modes.
    * - ``z_ref``
      - ``10.0``
-     - Reference height above the local terrain surface [m]. Used for ``loglaw`` mode.
+     - Reference height above the local terrain surface [m]. Used for ``loglaw`` and ``powerlaw`` modes.
    * - ``z0``
      - ``0.1``
      - Aerodynamic roughness length [m]. Used for ``loglaw`` mode.
+   * - ``powerlaw_exponent``
+     - ``0.143``
+     - Power-law exponent α for ``powerlaw`` mode: u(z) = U_ref * (z/z_ref)^α. 
+       Typical value: 0.143 (~1/7) for neutral conditions. Range: 0.1-0.4. (Phase 1)
    * - ``uniform_U``
      - ``U_ref``
      - Constant x-wind [m/s] for ``uniform`` mode.
@@ -121,7 +125,18 @@ Parameter Reference
      - Horizontal Lagrange anisotropy coefficient α_h.
    * - ``alpha_v``
      - ``1.0``
-     - Vertical Lagrange anisotropy coefficient α_v.
+     - Vertical Lagrange anisotropy coefficient α_v (constant if height-dependent mode is disabled).
+   * - ``use_height_dependent_alpha_v``
+     - ``false``
+     - Enable height-dependent vertical anisotropy: α_v(z) varies linearly from surface to top. (Phase 1)
+   * - ``alpha_v_surface``
+     - ``alpha_v``
+     - Vertical anisotropy coefficient at domain surface (z=z_lo). Only used when 
+       ``use_height_dependent_alpha_v = true``. (Phase 1)
+   * - ``alpha_v_top``
+     - ``alpha_v``
+     - Vertical anisotropy coefficient at domain top (z=z_hi). Only used when 
+       ``use_height_dependent_alpha_v = true``. (Phase 1)
    * - **MLMG Solver Parameters**
      -
      -
