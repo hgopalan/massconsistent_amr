@@ -1340,6 +1340,15 @@ int main(int argc, char* argv[])
             // Uniform wind field initialization (constant U, V)
             const Real u_uniform = uniform_U;
             const Real v_uniform = uniform_V;
+            
+            // Wall function parameters
+            const bool use_wall_func = enable_wall_functions;
+            const bool use_terrain_wall = enable_terrain_wall_function;
+            const Real wf_blend_height = wall_function_blend_height;
+            const Real z0_local_cap = z0;
+            const Real z_ref_cap = z_ref;
+            const Real kappa_cap = 0.41;
+            const Real speed_ref_cap = std::sqrt(u_uniform * u_uniform + v_uniform * v_uniform);
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1356,6 +1365,20 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 0) = Real(0.0);
                         vel(i, j, k, 1) = Real(0.0);
                         vel(i, j, k, 2) = Real(0.0);
+                    } else if (use_wall_func && use_terrain_wall && z_agl <= wf_blend_height * dz_cap_init) {
+                        // Near terrain - apply wall function if enabled
+                        Real u_wf = vel(i, j, k, 0);
+                        Real v_wf = vel(i, j, k, 1);
+                        Real w_wf = vel(i, j, k, 2);
+                        apply_flat_surface_wall_function_blended(
+                            u_wf, v_wf, w_wf,
+                            u_uniform, v_uniform, Real(0.0),
+                            z_agl, z0_local_cap, speed_ref_cap, z_ref_cap,
+                            dz_cap_init, wf_blend_height, kappa_cap);
+                        
+                        vel(i, j, k, 0) = u_wf;
+                        vel(i, j, k, 1) = v_wf;
+                        vel(i, j, k, 2) = w_wf;
                     } else {
                         vel(i, j, k, 0) = u_uniform;
                         vel(i, j, k, 1) = v_uniform;
