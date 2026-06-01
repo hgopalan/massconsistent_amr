@@ -298,6 +298,40 @@ static void read_velocity_file(const std::string& filename,
                    << " velocity points from " << filename << "\n";
 }
 
+// Read X Y Z0 roughness file (whitespace or comma separated; '#' comments).
+// Format: X Y Z0
+// where Z0 = aerodynamic roughness length [m]
+static void read_roughness_file(const std::string& filename,
+                                std::vector<Real>& xd,
+                                std::vector<Real>& yd,
+                                std::vector<Real>& z0_d)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open roughness file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real x, y, z0;
+        if (ss >> x >> y >> z0) {
+            xd.push_back(x);
+            yd.push_back(y);
+            z0_d.push_back(z0);
+        }
+    }
+    if (xd.empty())
+        amrex::Abort("wind_solver: no data read from roughness file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << xd.size()
+                   << " roughness points from " << filename << "\n";
+}
+
 // Read X Y Z USTAR Z0 U10 V10 surface data file (whitespace or comma separated; '#' comments).
 // Used for HRRR-style surface parameters with per-column friction velocity and roughness.
 // Format: X Y Z USTAR Z0 U10 V10
@@ -545,6 +579,14 @@ int main(int argc, char* argv[])
         // Surface data mode parameters (for HRRR-style initialization)
         std::string surface_data_file = "surface_data.csv";
         pp.query("surface_data_file", surface_data_file);
+
+        // Position-dependent roughness file (for spatially-varying z0)
+        std::string z0_file = "";
+        bool use_z0_file = false;
+        pp.query("z0_file", z0_file);
+        if (!z0_file.empty()) {
+            use_z0_file = true;
+        }
 
         Real dx_req = 30.0;
         Real dy_req = 30.0;
@@ -825,6 +867,62 @@ int main(int argc, char* argv[])
         t_phase = amrex::second();
         amrex::Print() << "wind_solver: initializing wind field with mode: " << init_mode << "\n";
 
+        // Handle position-dependent roughness for loglaw mode
+        std::vector<Real> z0_h(static_cast<std::size_t>(nx) * ny, z0);  // default to constant z0
+        Gpu::DeviceVector<Real> d_z0_pos;
+        const Real* d_z0_pos_ptr = nullptr;
+        
+        if (init_mode == "loglaw" && use_z0_file) {
+            amrex::Print() << "wind_solver: reading position-dependent roughness from " << z0_file << "\n";
+            std::vector<Real> x_z0, y_z0, z0_data;
+            read_roughness_file(z0_file, x_z0, y_z0, z0_data);
+            
+            // Interpolate z0 to grid columns using IDW
+            for (int j = 0; j < ny; ++j) {
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + Real(0.5)) * dx;
+                    Real yc = y_lo + (j + Real(0.5)) * dy;
+                    
+                    // IDW interpolation (same method as terrain)
+                    Real z0_interp = z0;  // fallback to constant
+                    Real wsum = 0.0;
+                    Real z0_sum = 0.0;
+                    std::vector<std::pair<Real, int>> d2(x_z0.size());
+                    for (std::size_t m = 0; m < x_z0.size(); ++m) {
+                        Real dx_pt = xc - x_z0[m];
+                        Real dy_pt = yc - y_z0[m];
+                        d2[m] = {dx_pt * dx_pt + dy_pt * dy_pt, static_cast<int>(m)};
+                    }
+                    std::sort(d2.begin(), d2.end());
+                    
+                    const int n_pts = std::min(6, static_cast<int>(d2.size()));
+                    for (int m = 0; m < n_pts; ++m) {
+                        Real dist = std::sqrt(d2[m].first);
+                        if (dist < Real(1.0e-12)) {
+                            z0_interp = z0_data[d2[m].second];
+                            wsum = 1.0;
+                            break;
+                        }
+                        Real w = Real(1.0) / (dist * dist);
+                        wsum += w;
+                        z0_sum += w * z0_data[d2[m].second];
+                    }
+                    if (wsum > Real(0.0)) {
+                        z0_interp = z0_sum / wsum;
+                    }
+                    
+                    z0_h[static_cast<std::size_t>(j) * nx + i] = z0_interp;
+                }
+            }
+            
+            // Copy to device
+            d_z0_pos.resize(z0_h.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, z0_h.begin(), z0_h.end(), d_z0_pos.begin());
+            d_z0_pos_ptr = d_z0_pos.data();
+            
+            amrex::Print() << "wind_solver: position-dependent roughness interpolated to grid\n";
+        }
+
         if (init_mode == "loglaw") {
             // Log-law profile initialization
             Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
@@ -868,8 +966,10 @@ int main(int argc, char* argv[])
             const Real ustar_cap = ustar;
             const Real kappa_cap = kappa;
             const Real z0_cap    = z0;
+            const Real z_ref_cap = z_ref;
             const Real ux_h      = ux_hat;
             const Real uy_h      = uy_hat;
+            const bool use_pos_z0 = use_z0_file;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -887,8 +987,22 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 1) = Real(0.0);
                         vel(i, j, k, 2) = Real(0.0);
                     } else {
+                        // Use position-dependent z0 if available, otherwise use constant
+                        Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
+                        
+                        // Recompute ustar with local z0 if using position-dependent roughness
+                        Real ustar_local = ustar_cap;
+                        if (use_pos_z0 && z0_local > Real(1.0e-10)) {
+                            Real speed_ref_denom = std::log((z_ref_cap + z0_cap) / z0_cap);
+                            Real speed_ref_local = (speed_ref_denom > Real(1.0e-10)) 
+                                ? ustar_cap * speed_ref_denom / kappa_cap : Real(0.0);
+                            Real log_term = std::log((z_ref_cap + z0_local) / z0_local);
+                            ustar_local = (log_term > Real(1.0e-10)) 
+                                ? kappa_cap * speed_ref_local / log_term : Real(0.0);
+                        }
+                        
                         Real speed = canopy_wind_profile(
-                            z_agl, canopy_params, z0_cap, ustar_cap, kappa_cap);
+                            z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
                         vel(i, j, k, 0) = speed * ux_h;
                         vel(i, j, k, 1) = speed * uy_h;
                         vel(i, j, k, 2) = Real(0.0);

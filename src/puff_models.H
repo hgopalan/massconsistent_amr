@@ -64,10 +64,21 @@ struct PuffParams {
     amrex::Real source_z = 10.0;             // Source height [m]
     amrex::Real emission_rate = 1.0;         // Emission rate [units/s]
     amrex::Real emission_duration = 100.0;   // Duration of emission [s]
-    amrex::Real K_h = 1.0;                   // Horizontal diffusivity [m²/s]
-    amrex::Real K_v = 0.5;                   // Vertical diffusivity [m²/s]
+    amrex::Real K_h = 1.0;                   // Horizontal diffusivity [m²/s] (base value)
+    amrex::Real K_v = 0.5;                   // Vertical diffusivity [m²/s] (base value)
     amrex::Real sigma_y0 = 1.0;              // Initial puff width σy [m]
     amrex::Real sigma_z0 = 1.0;              // Initial puff height σz [m]
+    
+    // Height-dependent diffusivity parameters (Feature 2)
+    bool enable_height_dependent_K = false;  // Enable K(z) profiles
+    std::string K_profile = "constant";      // Profile type: constant, power_law, stability
+    amrex::Real K_power_law_exponent = 0.5;  // Exponent for power-law: K(z) = K0 * (z/z0)^n
+    amrex::Real K_reference_height = 10.0;   // Reference height for power-law [m]
+    
+    // First-order decay parameters (Feature 3)
+    bool enable_decay = false;               // Enable exponential decay
+    amrex::Real decay_constant = 0.0;        // Decay constant λ [1/s] (e.g., 0.001 = 1e-3/s)
+    
     bool enable_terrain_reflection = false;  // Enable ground reflection
     bool use_image_source = true;            // Use image source method for concentration
     bool enable_building_masking = false;    // Enable building collision detection
@@ -627,6 +638,82 @@ void update_puff_age(
     
     // Deactivate if exceeded max age
     if (max_age > amrex::Real(0.0) && puff.age > max_age) {
+        puff.active = false;
+    }
+}
+
+// ============================================================================
+// Compute height-dependent diffusivity (Feature 2)
+//
+// Computes effective diffusivity as a function of height above ground.
+//
+// Profiles:
+//   - constant: K(z) = K0 (default, no height dependence)
+//   - power_law: K(z) = K0 * (z / z_ref)^n  (common in ABL, n ~ 0.5-1.0)
+//   - stability: K(z) = K0 * (z / 10m)^0.5  (neutral conditions approximation)
+//
+// Inputs:
+//   z_agl          - Height above ground level [m]
+//   K_base         - Base diffusivity value [m²/s]
+//   params         - Puff parameters with K_profile settings
+//
+// Returns:
+//   Effective diffusivity at height z [m²/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_K_height_dependent(
+    amrex::Real z_agl,
+    amrex::Real K_base,
+    const PuffParams& params)
+{
+    if (!params.enable_height_dependent_K) {
+        return K_base;  // Constant diffusivity
+    }
+    
+    // Ensure minimum height
+    const amrex::Real z_safe = std::max(z_agl, amrex::Real(0.1));
+    
+    // Power-law profile: K(z) = K0 * (z / z_ref)^n
+    const amrex::Real z_ref = std::max(params.K_reference_height, amrex::Real(1.0));
+    const amrex::Real exponent = params.K_power_law_exponent;
+    const amrex::Real ratio = z_safe / z_ref;
+    const amrex::Real K_height = K_base * std::pow(ratio, exponent);
+    
+    return K_height;
+}
+
+// ============================================================================
+// Apply first-order exponential decay to puff mass (Feature 3)
+//
+// Implements radioactive or chemical decay: dm/dt = -λ * m
+// Solution: m(t) = m0 * exp(-λ * t)
+//
+// Inputs:
+//   puff           - Puff structure (mass will be modified)
+//   dt             - Time step [s]
+//   decay_constant - Decay constant λ [1/s]
+//
+// Examples:
+//   - λ = 0.001 /s  → half-life ~ 693 s (11.6 min)
+//   - λ = 0.0001 /s → half-life ~ 6930 s (115.5 min)
+//   - λ = ln(2)/T_half  for known half-life T_half
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_puff_decay(
+    Puff& puff,
+    amrex::Real dt,
+    amrex::Real decay_constant)
+{
+    if (decay_constant <= amrex::Real(0.0)) {
+        return;  // No decay
+    }
+    
+    // Exponential decay: m(t+dt) = m(t) * exp(-λ * dt)
+    const amrex::Real decay_factor = std::exp(-decay_constant * dt);
+    puff.mass *= decay_factor;
+    
+    // Deactivate puff if mass becomes negligible
+    if (puff.mass < amrex::Real(1.0e-12)) {
         puff.active = false;
     }
 }
