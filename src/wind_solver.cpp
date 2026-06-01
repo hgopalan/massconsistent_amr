@@ -1578,9 +1578,7 @@ if (z_agl <= Real(0.0)) {
                                 z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
                         }
                         
-Real u_vel = speed * ux_h;
-                        Real v_vel = speed * uy_h;
-// Apply Ekman veer rotation
+                        // Apply Ekman veer rotation
                         Real u_vel, v_vel;
                         if (use_ekman) {
                             // Compute veer angle at this height
@@ -1899,9 +1897,7 @@ Real u_vel = speed * ux_h;
                         // Construct vertical profile using log-law with column-specific ustar and z0
                         Real speed = canopy_wind_profile(
                             z_agl, canopy_params, z0_col, ustar_col, kappa_cap);
-                        vel(i, j, k, 0) = speed * ux_hat;
-                        vel(i, j, k, 1) = speed * uy_hat;
-// Apply Ekman veer rotation
+                        // Apply Ekman veer rotation
                         Real u_vel, v_vel;
                         if (use_ekman) {
                             // Compute veer angle at this height
@@ -1980,9 +1976,7 @@ Real u_vel = speed * ux_h;
                         z_ratio = (z_ratio < Real(0.01)) ? Real(0.01) : z_ratio;
                         Real speed = speed_ref_cap * std::pow(z_ratio, exponent);
                         
-                        Real u_vel = speed * ux_h;
-                        Real v_vel = speed * uy_h;
-// Apply Ekman veer rotation
+                        // Apply Ekman veer rotation
                         Real u_vel, v_vel;
                         if (use_ekman) {
                             // Compute veer angle at this height
