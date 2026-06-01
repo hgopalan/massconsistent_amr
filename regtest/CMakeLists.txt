@@ -101,6 +101,25 @@ add_regression_test(building_oriented building_oriented)
 add_regression_test(multiheight_extraction multiheight_extraction)
 
 # ---------------------------------------------------------------------------
+# Thermal Stratification and Kinematic BC tests
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# buoyancy_stratification/ – Thermal stratification with buoyancy effects
+# ---------------------------------------------------------------------------
+add_regression_test(buoyancy_stratification buoyancy_stratification)
+
+# ---------------------------------------------------------------------------
+# terrain_kinematic_bc/ – Kinematic terrain-following boundary condition
+# ---------------------------------------------------------------------------
+add_regression_test(terrain_kinematic_bc terrain_kinematic_bc)
+
+# ---------------------------------------------------------------------------
+# combined_thermal_terrain/ – Combined buoyancy and kinematic BC features
+# ---------------------------------------------------------------------------
+add_regression_test(combined_thermal_terrain combined_thermal_terrain)
+
+# ---------------------------------------------------------------------------
 # Canopy model tests
 # ---------------------------------------------------------------------------
 # Note: If canopy tests exist, they should be added here
@@ -131,5 +150,8 @@ message(STATUS "  wake_single_building/  : Single building wake model (Röckle f
 message(STATUS "  rooftop_vortex/        : Phase 3 - Rooftop vortex in building cavity zones")
 message(STATUS "  building_oriented/     : Phase 3 - Arbitrary building orientation effects")
 message(STATUS "  multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
+message(STATUS "  buoyancy_stratification/: Thermal stratification with buoyancy effects")
+message(STATUS "  terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
+message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
