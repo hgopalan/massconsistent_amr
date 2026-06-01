@@ -9,6 +9,11 @@ on:
     branches:
       - main
       - master
+  pull_request_target:
+    types: [closed]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 permissions:
@@ -19,6 +24,7 @@ jobs:
   build:
     name: Build (${{ matrix.os }}, ${{ matrix.build_type }})
     runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
     strategy:
       fail-fast: false
       matrix:
@@ -68,6 +74,7 @@ jobs:
   build_windows:
     name: Build (windows-latest, ${{ matrix.build_type }})
     runs-on: windows-latest
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
     strategy:
       fail-fast: false
       matrix:
@@ -100,6 +107,7 @@ jobs:
   build_cuda:
     name: Build CUDA (ubuntu-22.04, Release)
     runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
 
     steps:
       - name: Checkout repository (with submodules)
@@ -142,6 +150,7 @@ jobs:
   build_hip:
     name: Build HIP (ubuntu-22.04, Release)
     runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
 
     steps:
       - name: Checkout repository (with submodules)
@@ -200,6 +209,7 @@ jobs:
   build_sycl:
     name: Build SYCL (ubuntu-22.04, Release)
     runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
 
     steps:
       - name: Checkout repository (with submodules)
@@ -253,6 +263,7 @@ jobs:
   build_windows_cuda:
     name: Build Windows CUDA (windows-2022, Release)
     runs-on: windows-2022
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
 
     steps:
       - name: Checkout repository (with submodules)
