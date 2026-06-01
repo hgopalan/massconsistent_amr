@@ -87,6 +87,8 @@
 #include "canopy_models.H"
 #include "wake_models.H"
 #include "math_constants.H"
+#include "stability_models.H"
+#include "porosity_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -420,6 +422,85 @@ static void read_building_file(const std::string& filename,
                    << " building(s) from " << filename << "\n";
 }
 
+// Read porous building file: xmin xmax ymin ymax zmin zmax porosity [rotation_angle]
+// (whitespace or comma separated; '#' comments).
+static void read_porous_building_file(const std::string& filename,
+                               std::vector<Real>& xmin,
+                               std::vector<Real>& xmax,
+                               std::vector<Real>& ymin,
+                               std::vector<Real>& ymax,
+                               std::vector<Real>& zmin,
+                               std::vector<Real>& zmax,
+                               std::vector<Real>& porosity,
+                               std::vector<Real>& rotation)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open porous building file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real x1, x2, y1, y2, z1, z2, por = 0.0, angle = 0.0;
+        if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2 >> por) {
+            // Optional rotation angle (8th column, in degrees)
+            if (ss >> angle) {
+                angle = angle * MathConstants::pi / Real(180.0);  // Convert degrees to radians
+            }
+            xmin.push_back(x1);
+            xmax.push_back(x2);
+            ymin.push_back(y1);
+            ymax.push_back(y2);
+            zmin.push_back(z1);
+            zmax.push_back(z2);
+            porosity.push_back(por);
+            rotation.push_back(angle);
+        }
+    }
+    if (xmin.empty())
+        amrex::Abort("wind_solver: no data read from porous building file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << xmin.size()
+                   << " porous building(s) from " << filename << "\n";
+}
+
+// Read time series file: time U_ref V_ref (whitespace or comma separated; '#' comments)
+static void read_time_series_file(const std::string& filename,
+                                   std::vector<Real>& times,
+                                   std::vector<Real>& U_refs,
+                                   std::vector<Real>& V_refs)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open time series file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real t, u, v;
+        if (ss >> t >> u >> v) {
+            times.push_back(t);
+            U_refs.push_back(u);
+            V_refs.push_back(v);
+        }
+    }
+    if (times.empty())
+        amrex::Abort("wind_solver: no data read from time series file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << times.size()
+                   << " time points from " << filename << "\n";
+}
+
 // WENO 3 stencil for derivative at interior points
 // Assumes uniform grid spacing, returns du/dx with WENO-3 approximation
 // Uses 3-point stencil: f[-1], f[0], f[+1] with spacing h
@@ -618,6 +699,40 @@ int main(int argc, char* argv[])
         pp.query("alpha_v_surface", alpha_v_surface);
         pp.query("alpha_v_top", alpha_v_top);
 
+        // Feature 5: Non-Neutral Log-Law (Businger-Dyer profiles)
+        // Stability correction parameters for Monin-Obukhov similarity theory
+        bool enable_stability_correction = false;
+        Real stability_length = 1000.0;  // Obukhov length L [m] (>0 stable, <0 unstable, very large for neutral)
+        pp.query("enable_stability_correction", enable_stability_correction);
+        pp.query("stability_length", stability_length);
+
+        // Feature 6: Elevation-Dependent Wind Speed Scaling
+        // Scale reference wind based on terrain elevation for mountain-valley effects
+        bool enable_elevation_scaling = false;
+        Real elevation_scaling_factor = 0.0;    // Scaling factor (0 = no scaling)
+        Real elevation_height_scale = 1000.0;   // Characteristic height scale [m]
+        pp.query("enable_elevation_scaling", enable_elevation_scaling);
+        pp.query("elevation_scaling_factor", elevation_scaling_factor);
+        pp.query("elevation_height_scale", elevation_height_scale);
+
+        // Feature 7: Time-Varying Wind Boundary Conditions
+        // Allow time-dependent inflow conditions for transient simulations
+        bool enable_time_varying = false;
+        std::string time_series_file = "time_series.csv";
+        pp.query("enable_time_varying", enable_time_varying);
+        pp.query("time_series_file", time_series_file);
+
+        // Feature 8: Building Porosity Model
+        // Allow partial flow through porous buildings (trees, fences)
+        bool enable_building_porosity = false;
+        std::string building_porosity_file = "";
+        Real default_building_porosity = 0.0;  // Default porosity (0 = solid)
+        Real porosity_drag_coefficient = 0.2;  // Drag coefficient for porous flow
+        pp.query("enable_building_porosity", enable_building_porosity);
+        pp.query("building_porosity_file", building_porosity_file);
+        pp.query("default_building_porosity", default_building_porosity);
+        pp.query("porosity_drag_coefficient", porosity_drag_coefficient);
+
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
         int  mlmg_max_iter = 200;
@@ -736,6 +851,34 @@ int main(int argc, char* argv[])
                              building_ymin, building_ymax,
                              building_zmin, building_zmax,
                              building_rotation);
+        }
+
+        // Feature 8: Read porous building file (if enabled)
+        std::vector<Real> porous_building_xmin, porous_building_xmax;
+        std::vector<Real> porous_building_ymin, porous_building_ymax;
+        std::vector<Real> porous_building_zmin, porous_building_zmax;
+        std::vector<Real> porous_building_porosity;
+        std::vector<Real> porous_building_rotation;
+        
+        if (enable_building_porosity && !building_porosity_file.empty()) {
+            read_porous_building_file(building_porosity_file,
+                                    porous_building_xmin, porous_building_xmax,
+                                    porous_building_ymin, porous_building_ymax,
+                                    porous_building_zmin, porous_building_zmax,
+                                    porous_building_porosity,
+                                    porous_building_rotation);
+        }
+
+        // Feature 7: Read time series file (if enabled)
+        std::vector<Real> time_series_times;
+        std::vector<Real> time_series_U_refs;
+        std::vector<Real> time_series_V_refs;
+        
+        if (enable_time_varying) {
+            read_time_series_file(time_series_file,
+                                 time_series_times,
+                                 time_series_U_refs,
+                                 time_series_V_refs);
         }
 
         amrex::Print() << "wind_solver: terrain reading time = " 
@@ -987,6 +1130,16 @@ int main(int argc, char* argv[])
             const Real ux_h      = ux_hat;
             const Real uy_h      = uy_hat;
             const bool use_pos_z0 = use_z0_file;
+            
+            // Feature 5: Capture stability correction parameters
+            const bool use_stability = enable_stability_correction;
+            const Real L_obukhov = stability_length;
+            
+            // Feature 6: Capture elevation scaling parameters
+            const bool use_elev_scaling = enable_elevation_scaling;
+            const Real elev_scale_factor = elevation_scaling_factor;
+            const Real elev_height_scale = elevation_height_scale;
+            const Real terrain_min = zs_min;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -997,7 +1150,8 @@ int main(int argc, char* argv[])
                 {
                     // Height above local terrain for this column
                     Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
-                    Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
+                    Real terrain_elev = d_terr_ptr[j * nx_cap_init + i];
+                    Real z_agl      = z_physical - terrain_elev;
 
                     if (z_agl <= Real(0.0)) {
                         vel(i, j, k, 0) = Real(0.0);
@@ -1018,8 +1172,26 @@ int main(int argc, char* argv[])
                                 ? kappa_cap * speed_ref_local / log_term : Real(0.0);
                         }
                         
-                        Real speed = canopy_wind_profile(
-                            z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
+                        // Feature 6: Apply elevation scaling to modify ustar
+                        if (use_elev_scaling && elev_height_scale > Real(1.0e-10)) {
+                            Real scale = elevation_wind_scaling(Real(1.0), terrain_elev, 
+                                                               terrain_min, elev_scale_factor, 
+                                                               elev_height_scale);
+                            ustar_local *= scale;
+                        }
+                        
+                        // Feature 5: Apply stability correction to wind profile
+                        Real speed;
+                        if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
+                            // Use non-neutral log-law with Businger-Dyer corrections
+                            speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
+                                                          kappa_cap, L_obukhov);
+                        } else {
+                            // Use standard canopy wind profile (includes neutral log-law)
+                            speed = canopy_wind_profile(
+                                z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
+                        }
+                        
                         vel(i, j, k, 0) = speed * ux_h;
                         vel(i, j, k, 1) = speed * uy_h;
                         vel(i, j, k, 2) = Real(0.0);
@@ -1382,6 +1554,118 @@ int main(int argc, char* argv[])
             }
             
             // Fill boundary after wake modification
+            vel0.FillBoundary(geom.periodicity());
+        }
+
+        // ----------------------------------------------------------------
+        // 9b. Apply building porosity model (if enabled) - Feature 8
+        //     Modifies velocity in porous buildings based on porosity parameter
+        // ----------------------------------------------------------------
+        if (enable_building_porosity && !porous_building_xmin.empty()) {
+            amrex::Print() << "wind_solver: applying building porosity model\n";
+            amrex::Print() << "  porosity drag coefficient = " << porosity_drag_coefficient << "\n";
+            
+            // Setup porosity parameters
+            PorosityParams porosity_params;
+            porosity_params.enabled = true;
+            porosity_params.default_porosity = default_building_porosity;
+            porosity_params.drag_coefficient = porosity_drag_coefficient;
+            
+            // Copy porous building data to device
+            int n_porous = static_cast<int>(porous_building_xmin.size());
+            Gpu::DeviceVector<Real> d_porous_xmin(n_porous);
+            Gpu::DeviceVector<Real> d_porous_xmax(n_porous);
+            Gpu::DeviceVector<Real> d_porous_ymin(n_porous);
+            Gpu::DeviceVector<Real> d_porous_ymax(n_porous);
+            Gpu::DeviceVector<Real> d_porous_zmin(n_porous);
+            Gpu::DeviceVector<Real> d_porous_zmax(n_porous);
+            Gpu::DeviceVector<Real> d_porous_porosity(n_porous);
+            Gpu::DeviceVector<Real> d_porous_rotation(n_porous);
+            
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_xmin.begin(), porous_building_xmin.end(), d_porous_xmin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_xmax.begin(), porous_building_xmax.end(), d_porous_xmax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_ymin.begin(), porous_building_ymin.end(), d_porous_ymin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_ymax.begin(), porous_building_ymax.end(), d_porous_ymax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_zmin.begin(), porous_building_zmin.end(), d_porous_zmin.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_zmax.begin(), porous_building_zmax.end(), d_porous_zmax.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_porosity.begin(), porous_building_porosity.end(), d_porous_porosity.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             porous_building_rotation.begin(), porous_building_rotation.end(), d_porous_rotation.begin());
+            
+            Real const* d_porous_xmin_ptr = d_porous_xmin.data();
+            Real const* d_porous_xmax_ptr = d_porous_xmax.data();
+            Real const* d_porous_ymin_ptr = d_porous_ymin.data();
+            Real const* d_porous_ymax_ptr = d_porous_ymax.data();
+            Real const* d_porous_zmin_ptr = d_porous_zmin.data();
+            Real const* d_porous_zmax_ptr = d_porous_zmax.data();
+            Real const* d_porous_porosity_ptr = d_porous_porosity.data();
+            Real const* d_porous_rotation_ptr = d_porous_rotation.data();
+            
+            const int n_porous_cap = n_porous;
+            const Real dx_porous = dx;
+            const Real dy_porous = dy;
+            const Real dz_porous = dz;
+            const Real x_lo_porous = x_lo;
+            const Real y_lo_porous = y_lo;
+            const Real z_lo_porous = z_lo;
+            const Real drag_coeff = porosity_drag_coefficient;
+            
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
+                
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Physical coordinates
+                    Real x = x_lo_porous + (i + Real(0.5)) * dx_porous;
+                    Real y = y_lo_porous + (j + Real(0.5)) * dy_porous;
+                    Real z = z_lo_porous + (k + Real(0.5)) * dz_porous;
+                    
+                    // Check all porous buildings to find porosity at this location
+                    Real porosity = Real(1.0);  // default: fully open (no porous building)
+                    
+                    for (int b = 0; b < n_porous_cap; ++b) {
+                        PorousBuilding pb;
+                        pb.xmin = d_porous_xmin_ptr[b];
+                        pb.xmax = d_porous_xmax_ptr[b];
+                        pb.ymin = d_porous_ymin_ptr[b];
+                        pb.ymax = d_porous_ymax_ptr[b];
+                        pb.zmin = d_porous_zmin_ptr[b];
+                        pb.zmax = d_porous_zmax_ptr[b];
+                        pb.porosity = d_porous_porosity_ptr[b];
+                        pb.rotation = d_porous_rotation_ptr[b];
+                        
+                        Real p = point_in_porous_building(x, y, z, pb);
+                        if (p < porosity) {
+                            porosity = p;  // use minimum porosity (maximum blockage)
+                        }
+                    }
+                    
+                    // Apply porosity drag if inside a porous building
+                    if (porosity < Real(0.999)) {
+                        Real u = vel(i, j, k, 0);
+                        Real v = vel(i, j, k, 1);
+                        Real w = vel(i, j, k, 2);
+                        
+                        apply_porosity_drag(u, v, w, porosity, drag_coeff, 
+                                          dx_porous, dy_porous, dz_porous);
+                        
+                        vel(i, j, k, 0) = u;
+                        vel(i, j, k, 1) = v;
+                        vel(i, j, k, 2) = w;
+                    }
+                });
+            }
+            
+            // Fill boundary after porosity modification
             vel0.FillBoundary(geom.periodicity());
         }
 
