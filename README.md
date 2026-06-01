@@ -39,6 +39,8 @@ cmake --build build --parallel
 - **Elevation-dependent wind scaling** — Terrain elevation effects on reference wind speed for mountain-valley flows
 - **Time-varying boundary conditions** — Support for transient wind simulations with time series input
 - **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
+- **Thermal stratification with buoyancy** — Temperature-driven buoyancy effects on vertical velocity using Boussinesq approximation
+- **Kinematic terrain-following BC** — No-flow-through condition w = u·∇h at terrain surface for improved terrain representation
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
