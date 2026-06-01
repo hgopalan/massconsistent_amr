@@ -969,6 +969,72 @@ int main(int argc, char* argv[])
         }
 
         // ----------------------------------------------------------------
+        // 5a. Read temperature profile (if buoyancy stratification enabled)
+        // ----------------------------------------------------------------
+        std::vector<Real> z_temp, T_temp;  // Temperature profile data
+        if (enable_buoyancy_stratification) {
+            read_temperature_file(temperature_file, z_temp, T_temp);
+            amrex::Print() << "wind_solver: buoyancy stratification enabled\n";
+            amrex::Print() << "  temperature_reference = " << temperature_reference << " K\n";
+            amrex::Print() << "  buoyancy_coefficient = " << buoyancy_coefficient << "\n";
+            amrex::Print() << "  buoyancy_timescale = " << buoyancy_timescale << " s\n";
+        }
+
+        // ----------------------------------------------------------------
+        // 5b. Compute terrain gradients (if kinematic BC enabled)
+        // ----------------------------------------------------------------
+        std::vector<Real> terrain_grad_x(static_cast<std::size_t>(nx) * ny, 0.0);
+        std::vector<Real> terrain_grad_y(static_cast<std::size_t>(nx) * ny, 0.0);
+        
+        if (enable_terrain_kinematic_bc) {
+            amrex::Print() << "wind_solver: kinematic terrain BC enabled\n";
+            amrex::Print() << "  terrain_bc_relaxation = " << terrain_bc_relaxation << "\n";
+            
+            // Compute ∂h/∂x and ∂h/∂y using central differences
+            for (int j = 0; j < ny; ++j) {
+                for (int i = 0; i < nx; ++i) {
+                    std::size_t idx = static_cast<std::size_t>(j) * nx + i;
+                    
+                    // ∂h/∂x: central difference (one-sided at boundaries)
+                    if (i == 0) {
+                        // Forward difference
+                        Real h_ip1 = terrain_h[static_cast<std::size_t>(j) * nx + (i+1)];
+                        Real h_i   = terrain_h[idx];
+                        terrain_grad_x[idx] = (h_ip1 - h_i) / dx;
+                    } else if (i == nx - 1) {
+                        // Backward difference
+                        Real h_i   = terrain_h[idx];
+                        Real h_im1 = terrain_h[static_cast<std::size_t>(j) * nx + (i-1)];
+                        terrain_grad_x[idx] = (h_i - h_im1) / dx;
+                    } else {
+                        // Central difference
+                        Real h_ip1 = terrain_h[static_cast<std::size_t>(j) * nx + (i+1)];
+                        Real h_im1 = terrain_h[static_cast<std::size_t>(j) * nx + (i-1)];
+                        terrain_grad_x[idx] = (h_ip1 - h_im1) / (2.0 * dx);
+                    }
+                    
+                    // ∂h/∂y: central difference (one-sided at boundaries)
+                    if (j == 0) {
+                        // Forward difference
+                        Real h_jp1 = terrain_h[static_cast<std::size_t>(j+1) * nx + i];
+                        Real h_j   = terrain_h[idx];
+                        terrain_grad_y[idx] = (h_jp1 - h_j) / dy;
+                    } else if (j == ny - 1) {
+                        // Backward difference
+                        Real h_j   = terrain_h[idx];
+                        Real h_jm1 = terrain_h[static_cast<std::size_t>(j-1) * nx + i];
+                        terrain_grad_y[idx] = (h_j - h_jm1) / dy;
+                    } else {
+                        // Central difference
+                        Real h_jp1 = terrain_h[static_cast<std::size_t>(j+1) * nx + i];
+                        Real h_jm1 = terrain_h[static_cast<std::size_t>(j-1) * nx + i];
+                        terrain_grad_y[idx] = (h_jp1 - h_jm1) / (2.0 * dy);
+                    }
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------
         // 6. Compute obstacle height field (terrain + buildings)
         //    z_obstacle[j*nx + i] = max(terrain_height, building_top)
         //    For each cell, check all buildings to see if cell is inside any building
@@ -1015,6 +1081,22 @@ int main(int argc, char* argv[])
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                          obstacle_h.begin(), obstacle_h.end(), d_terr.begin());
         Real const* d_terr_ptr = d_terr.data();
+
+        // Copy terrain gradients to device (if kinematic BC enabled)
+        Gpu::DeviceVector<Real> d_terr_grad_x, d_terr_grad_y;
+        Real const* d_terr_grad_x_ptr = nullptr;
+        Real const* d_terr_grad_y_ptr = nullptr;
+        
+        if (enable_terrain_kinematic_bc) {
+            d_terr_grad_x.resize(terrain_grad_x.size());
+            d_terr_grad_y.resize(terrain_grad_y.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                            terrain_grad_x.begin(), terrain_grad_x.end(), d_terr_grad_x.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                            terrain_grad_y.begin(), terrain_grad_y.end(), d_terr_grad_y.begin());
+            d_terr_grad_x_ptr = d_terr_grad_x.data();
+            d_terr_grad_y_ptr = d_terr_grad_y.data();
+        }
 
         // Summary statistics
         Real zs_min = *std::min_element(terrain_h.begin(), terrain_h.end());
@@ -1073,6 +1155,31 @@ int main(int argc, char* argv[])
         vel0.setVal(0.0);
         lam .setVal(0.0);
         rhs .setVal(0.0);
+
+        // Temperature MultiFab (if buoyancy stratification enabled)
+        MultiFab temp(ba, dm, 1, 0);
+        temp.setVal(temperature_reference);  // Initialize to reference temperature
+        
+        // Copy temperature profile data to device (if buoyancy enabled)
+        Gpu::DeviceVector<Real> d_temp_z, d_temp_T;
+        Real const* d_temp_z_ptr = nullptr;
+        Real const* d_temp_T_ptr = nullptr;
+        int n_temp_points = 0;
+        
+        if (enable_buoyancy_stratification && !z_temp.empty()) {
+            n_temp_points = static_cast<int>(z_temp.size());
+            d_temp_z.resize(z_temp.size());
+            d_temp_T.resize(T_temp.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                            z_temp.begin(), z_temp.end(), d_temp_z.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                            T_temp.begin(), T_temp.end(), d_temp_T.begin());
+            d_temp_z_ptr = d_temp_z.data();
+            d_temp_T_ptr = d_temp_T.data();
+            
+            amrex::Print() << "wind_solver: temperature profile copied to device (" 
+                          << n_temp_points << " points)\n";
+        }
 
         // For RAWS mode: device vectors for wind field interpolation
         Gpu::DeviceVector<Real> d_vel_u(0), d_vel_v(0);
@@ -1209,6 +1316,17 @@ int main(int argc, char* argv[])
             const Real elev_height_scale = elevation_height_scale;
             const Real terrain_min = zs_min;
 
+            // Feature 9: Capture buoyancy parameters
+            const bool use_buoyancy = enable_buoyancy_stratification;
+            const Real T_ref = temperature_reference;
+            const Real buoy_coeff = buoyancy_coefficient;
+            const Real buoy_dt = buoyancy_timescale;
+            const int n_temp_pts = n_temp_points;
+            
+            // Feature 10: Capture kinematic BC parameters
+            const bool use_kinematic_bc = enable_terrain_kinematic_bc;
+            const Real bc_relax = terrain_bc_relaxation;
+
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto vel = vel0.array(mfi);
@@ -1260,9 +1378,61 @@ int main(int argc, char* argv[])
                                 z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
                         }
                         
-                        vel(i, j, k, 0) = speed * ux_h;
-                        vel(i, j, k, 1) = speed * uy_h;
-                        vel(i, j, k, 2) = Real(0.0);
+                        Real u_vel = speed * ux_h;
+                        Real v_vel = speed * uy_h;
+                        Real w_vel = Real(0.0);
+                        
+                        // Feature 9: Add buoyancy effects to vertical velocity
+                        if (use_buoyancy && n_temp_pts > 0) {
+                            // Interpolate temperature from profile
+                            Real T_local = T_ref;  // Default to reference temperature
+                            
+                            // Linear interpolation from temperature profile
+                            if (n_temp_pts == 1) {
+                                T_local = d_temp_T_ptr[0];
+                            } else if (z_physical <= d_temp_z_ptr[0]) {
+                                // Below first point: use first value
+                                T_local = d_temp_T_ptr[0];
+                            } else if (z_physical >= d_temp_z_ptr[n_temp_pts - 1]) {
+                                // Above last point: use last value
+                                T_local = d_temp_T_ptr[n_temp_pts - 1];
+                            } else {
+                                // Find bracketing points and interpolate
+                                for (int m = 0; m < n_temp_pts - 1; ++m) {
+                                    if (z_physical >= d_temp_z_ptr[m] && 
+                                        z_physical <= d_temp_z_ptr[m + 1]) {
+                                        T_local = temperature_linear_interp(
+                                            z_physical,
+                                            d_temp_z_ptr[m], d_temp_T_ptr[m],
+                                            d_temp_z_ptr[m + 1], d_temp_T_ptr[m + 1]);
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Compute buoyancy-induced vertical velocity
+                            w_vel += buoyancy_velocity(T_local, T_ref, buoy_dt, buoy_coeff);
+                        }
+                        
+                        // Feature 10: Apply kinematic terrain BC at first cell above terrain
+                        // Check if this is the first cell above terrain (k is smallest with z_agl > 0)
+                        if (use_kinematic_bc && k > 0) {
+                            Real z_physical_below = z_lo_cap_init + (k - Real(0.5)) * dz_cap_init;
+                            Real z_agl_below = z_physical_below - terrain_elev;
+                            
+                            // If cell below is inside terrain, this is the interface cell
+                            if (z_agl_below <= Real(0.0)) {
+                                // Apply kinematic BC: w = u·∇h
+                                std::size_t idx_2d = static_cast<std::size_t>(j) * nx_cap_init + i;
+                                Real dh_dx = d_terr_grad_x_ptr[idx_2d];
+                                Real dh_dy = d_terr_grad_y_ptr[idx_2d];
+                                w_vel = terrain_kinematic_w(u_vel, v_vel, dh_dx, dh_dy, bc_relax);
+                            }
+                        }
+                        
+                        vel(i, j, k, 0) = u_vel;
+                        vel(i, j, k, 1) = v_vel;
+                        vel(i, j, k, 2) = w_vel;
                     }
                 });
             }
