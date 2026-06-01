@@ -1,12 +1,12 @@
 # Power-Law Profile Wind Solver Test (Flat Terrain)
-# Tests: power-law wind initialization (Phase 1 Feature 1) on flat domain
+# Tests: power-law wind initialization on flat domain
 # Profile: u(z) = U_ref * (z/z_ref)^alpha
 # Typical for neutral atmospheric conditions
 
 # Terrain file (3x3 grid, 0-100 m in x and y, all z=0)
 terrain_file = terrain.csv
 
-# Power-law initialization mode (Phase 1 Feature 1)
+# Power-law initialization mode
 init_mode = powerlaw
 U_ref = 8.0
 V_ref = 0.0

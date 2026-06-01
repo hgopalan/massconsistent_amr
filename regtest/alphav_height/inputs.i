@@ -1,5 +1,5 @@
 # Height-Dependent Alpha_v Test
-# Tests: height-dependent vertical anisotropy coefficient (Phase 1 Feature 2)
+# Tests: height-dependent vertical anisotropy coefficient
 # Alpha_v varies linearly from surface to domain top
 # Terrain: Gaussian hill for realistic terrain-following scenario
 
@@ -27,7 +27,7 @@ domain_height = 100.0
 # Lagrange anisotropy coefficients
 alpha_h = 1.0
 
-# Phase 1 Feature 2: Height-dependent alpha_v
+# Height-dependent alpha_v: strong vertical adjustment near surface, weaker aloft
 use_height_dependent_alpha_v = true
 alpha_v_surface = 0.5   # Strong vertical adjustment near surface
 alpha_v_top = 2.0       # Weaker vertical adjustment aloft
