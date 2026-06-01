@@ -89,6 +89,7 @@
 #include "math_constants.H"
 #include "stability_models.H"
 #include "porosity_models.H"
+#include "wall_functions.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -733,6 +734,40 @@ int main(int argc, char* argv[])
         pp.query("default_building_porosity", default_building_porosity);
         pp.query("porosity_drag_coefficient", porosity_drag_coefficient);
 
+        // Wall Function Parameters
+        // NEW REQUIREMENT: Allow switching between no-slip and log-law boundary conditions
+        // Default is false (no-slip) for backward compatibility
+        bool enable_wall_functions = false;
+        bool enable_terrain_wall_function = false;
+        bool enable_flat_surface_wall_function = false;
+        bool enable_building_wall_function = false;
+        Real wall_function_z0_building = 0.001;  // Building wall roughness [m]
+        Real wall_function_z0_flat = 0.01;       // Flat surface roughness [m]
+        Real wall_function_blend_height = 2.0;   // Blending layer height [cells]
+        Real wall_function_max_distance = 3.0;   // Max distance for wall function [cells]
+        Real wall_function_flat_surface_elevation = 0.0;  // Elevation of flat surface [m]
+        bool wall_function_enable_flat_surface = false;   // Use flat surface mode
+        Real wall_function_min_wall_distance = 0.1;       // Minimum distance from wall [m]
+        
+        pp.query("enable_wall_functions", enable_wall_functions);
+        pp.query("enable_terrain_wall_function", enable_terrain_wall_function);
+        pp.query("enable_flat_surface_wall_function", enable_flat_surface_wall_function);
+        pp.query("enable_building_wall_function", enable_building_wall_function);
+        pp.query("wall_function_z0_building", wall_function_z0_building);
+        pp.query("wall_function_z0_flat", wall_function_z0_flat);
+        pp.query("wall_function_blend_height", wall_function_blend_height);
+        pp.query("wall_function_max_distance", wall_function_max_distance);
+        pp.query("wall_function_flat_surface_elevation", wall_function_flat_surface_elevation);
+        pp.query("wall_function_enable_flat_surface", wall_function_enable_flat_surface);
+        pp.query("wall_function_min_wall_distance", wall_function_min_wall_distance);
+        
+        // Auto-enable sub-features if master enable is true
+        if (enable_wall_functions) {
+            if (!pp.contains("enable_terrain_wall_function")) {
+                enable_terrain_wall_function = true;
+            }
+        }
+
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
         int  mlmg_max_iter = 200;
@@ -963,6 +998,31 @@ int main(int argc, char* argv[])
                          obstacle_h.begin(), obstacle_h.end(), d_terr.begin());
         Real const* d_terr_ptr = d_terr.data();
 
+        // Print wall function configuration
+        if (enable_wall_functions) {
+            amrex::Print() << "wind_solver: wall functions ENABLED\n";
+            if (enable_terrain_wall_function) {
+                amrex::Print() << "  terrain wall function: ENABLED\n";
+            }
+            if (enable_flat_surface_wall_function) {
+                amrex::Print() << "  flat surface wall function: ENABLED\n";
+                amrex::Print() << "    z0_flat = " << wall_function_z0_flat << " m\n";
+                if (wall_function_enable_flat_surface) {
+                    amrex::Print() << "    flat surface elevation = " 
+                                  << wall_function_flat_surface_elevation << " m\n";
+                }
+            }
+            if (enable_building_wall_function) {
+                amrex::Print() << "  building wall function: ENABLED\n";
+                amrex::Print() << "    z0_building = " << wall_function_z0_building << " m\n";
+            }
+            amrex::Print() << "  blend height = " << wall_function_blend_height << " cells\n";
+            amrex::Print() << "  max distance = " << wall_function_max_distance << " cells\n";
+        } else {
+            amrex::Print() << "wind_solver: wall functions DISABLED (using no-slip boundary conditions)\n";
+        }
+
+
         // Summary statistics
         Real zs_min = *std::min_element(terrain_h.begin(), terrain_h.end());
         Real zs_max = *std::max_element(terrain_h.begin(), terrain_h.end());
@@ -1155,6 +1215,12 @@ int main(int argc, char* argv[])
             const Real elev_scale_factor = elevation_scaling_factor;
             const Real elev_height_scale = elevation_height_scale;
             const Real terrain_min = zs_min;
+            
+            // Wall function parameters
+            const bool use_wall_func = enable_wall_functions;
+            const bool use_terrain_wall = enable_terrain_wall_function;
+            const Real wf_blend_height = wall_function_blend_height;
+            const Real speed_ref_cap = speed_ref;  // For wall function reference
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1168,10 +1234,67 @@ int main(int argc, char* argv[])
                     Real terrain_elev = d_terr_ptr[j * nx_cap_init + i];
                     Real z_agl      = z_physical - terrain_elev;
 
+                    // Handle near-terrain and below-terrain cells
                     if (z_agl <= Real(0.0)) {
+                        // Below terrain - always zero velocity
                         vel(i, j, k, 0) = Real(0.0);
                         vel(i, j, k, 1) = Real(0.0);
                         vel(i, j, k, 2) = Real(0.0);
+                    } else if (use_wall_func && use_terrain_wall && z_agl <= wf_blend_height * dz_cap_init) {
+                        // Near terrain - apply wall function if enabled
+                        // Use position-dependent z0 if available
+                        Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
+                        
+                        // Apply flat surface wall function with blending
+                        // (For now, simplified version for flat terrain assumption)
+                        Real u_outer = vel(i, j, k, 0);
+                        Real v_outer = vel(i, j, k, 1);
+                        Real w_outer = vel(i, j, k, 2);
+                        
+                        // Compute outer flow velocity using standard log-law
+                        Real ustar_local = ustar_cap;
+                        if (use_pos_z0 && z0_local > Real(1.0e-10)) {
+                            Real speed_ref_denom = std::log((z_ref_cap + z0_cap) / z0_cap);
+                            Real speed_ref_local = (speed_ref_denom > Real(1.0e-10)) 
+                                ? ustar_cap * speed_ref_denom / kappa_cap : Real(0.0);
+                            Real log_term = std::log((z_ref_cap + z0_local) / z0_local);
+                            ustar_local = (log_term > Real(1.0e-10)) 
+                                ? kappa_cap * speed_ref_local / log_term : Real(0.0);
+                        }
+                        
+                        if (use_elev_scaling && elev_height_scale > Real(1.0e-10)) {
+                            Real scale = elevation_wind_scaling(Real(1.0), terrain_elev, 
+                                                               terrain_min, elev_scale_factor, 
+                                                               elev_height_scale);
+                            ustar_local *= scale;
+                        }
+                        
+                        Real speed;
+                        if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
+                            speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
+                                                          kappa_cap, L_obukhov);
+                        } else {
+                            speed = canopy_wind_profile(
+                                z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
+                        }
+                        
+                        u_outer = speed * ux_h;
+                        v_outer = speed * uy_h;
+                        w_outer = Real(0.0);
+                        
+                        // Apply wall function with blending
+                        Real u_wf = vel(i, j, k, 0);
+                        Real v_wf = vel(i, j, k, 1);
+                        Real w_wf = vel(i, j, k, 2);
+                        apply_flat_surface_wall_function_blended(
+                            u_wf, v_wf, w_wf,
+                            u_outer, v_outer, w_outer,
+                            z_agl, z0_local, speed_ref_cap, z_ref_cap,
+                            dz_cap_init, wf_blend_height, kappa_cap);
+                        
+                        vel(i, j, k, 0) = u_wf;
+                        vel(i, j, k, 1) = v_wf;
+                        vel(i, j, k, 2) = w_wf;
                     } else {
                         // Use position-dependent z0 if available, otherwise use constant
                         Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
