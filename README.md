@@ -31,11 +31,14 @@ cmake --build build --parallel
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, or HRRR-style surface parameters
+- **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file (NEW)
 - **Building support** — Wake modeling with Röckle (1990) parameterization
 - **Canopy modeling** — Forest canopy drag effects
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
 - **Performance timing** — Detailed timing output for profiling and optimization
-- **Gaussian puff dispersion** — Passive pollutant transport
+- **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
+  - **Height-dependent diffusivity** — K(z) profiles for realistic atmospheric mixing (NEW)
+  - **First-order decay** — Exponential decay for radioactive/chemical species (NEW)
 - **Python API** — Coupling with fire and atmospheric models
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 

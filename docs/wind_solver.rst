@@ -219,9 +219,53 @@ The MLMG solver can be tuned via the following input parameters:
    mlmg_max_iter = 100
    mlmg_max_fmg_iter = 10
    mlmg_pre_smooth = 8
-   mlmg_post_smooth = 8
-   mlmg_bottom_solver = bicgstab
+   mlmg_post_smooth = 16
    max_grid_size = 128  # GPU optimization
+
+Position-Dependent Roughness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**NEW**: The solver supports spatially-varying aerodynamic roughness length
+z₀(x,y) for more realistic land-use heterogeneity.
+
+**Usage:**
+
+.. code-block:: text
+
+   # Enable position-dependent roughness
+   z0_file = roughness.csv
+
+where ``roughness.csv`` contains:
+
+.. code-block:: text
+
+   # X [m]  Y [m]  Z0 [m]
+   0.0      0.0    0.03    # Grass
+   500.0    0.0    0.5     # Forest
+   1000.0   0.0    0.0001  # Water
+
+The roughness is interpolated to each grid column using inverse-distance
+weighting (IDW) with the 6 nearest points, enabling smooth transitions
+between land-use types.
+
+**Typical roughness values:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 20
+
+   * - Land Use Type
+    - z₀ [m]
+   * - Open water
+    - 0.0001 - 0.001
+   * - Grass/crops
+    - 0.01 - 0.05
+   * - Shrubs/bushes
+    - 0.1 - 0.3
+   * - Forest
+    - 0.5 - 1.0
+   * - Urban/suburban
+    - 0.5 - 2.0
 
 **Performance Timing:**
 
