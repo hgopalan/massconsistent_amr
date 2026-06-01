@@ -595,7 +595,7 @@ int main(int argc, char* argv[])
         // "uniform"      : constant horizontal wind (uniform_U, uniform_V) at all heights
         // "raws"         : interpolate from velocity file (X Y Z U V format)
         // "surface_data" : construct vertical profiles from surface parameters (X Y Z USTAR Z0 U10 V10)
-        // "powerlaw"     : power-law profile u(z) = U_ref * (z/z_ref)^alpha (Phase 1 Feature 1)
+        // "powerlaw"     : power-law profile u(z) = U_ref * (z/z_ref)^alpha
         std::string init_mode = "loglaw";
         pp.query("init_mode", init_mode);
 
@@ -655,7 +655,7 @@ int main(int argc, char* argv[])
         pp.query("uniform_U", uniform_U);
         pp.query("uniform_V", uniform_V);
 
-        // Power-law mode parameters (Phase 1 Feature 1)
+        // Power-law mode parameters
         Real powerlaw_exponent = 0.143;  // ~1/7 typical for neutral conditions
         pp.query("powerlaw_exponent", powerlaw_exponent);
 
@@ -690,7 +690,7 @@ int main(int argc, char* argv[])
         pp.query("alpha_h", alpha_h);
         pp.query("alpha_v", alpha_v);
 
-        // Phase 1 Feature 2: Height-dependent alpha_v
+        // Height-dependent alpha_v
         // Allow alpha_v to vary linearly with height: alpha_v(z) = alpha_v_surface + (alpha_v_top - alpha_v_surface) * (z - z_lo) / (z_hi - z_lo)
         bool use_height_dependent_alpha_v = false;
         Real alpha_v_surface = alpha_v;  // alpha_v at surface (default to constant alpha_v)
@@ -1382,7 +1382,7 @@ int main(int argc, char* argv[])
                 });
             }
         } else if (init_mode == "powerlaw") {
-            // Power-law profile initialization (Phase 1 Feature 1)
+            // Power-law profile initialization
             // u(z) = U_ref * (z/z_ref)^alpha
             // Typical exponent: alpha ≈ 1/7 (0.143) for neutral atmospheric conditions
             Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
@@ -1849,7 +1849,7 @@ int main(int argc, char* argv[])
 
         // B coefficients (face-centred, anisotropic)
         //   b_x = b_y = alpha_h², b_z = alpha_v²
-        //   Phase 1 Feature 2: b_z can vary with height if use_height_dependent_alpha_v is true
+        //   b_z can vary with height if use_height_dependent_alpha_v is true
         const Real bh = alpha_h * alpha_h;
         const Real bv = alpha_v * alpha_v;
         Array<MultiFab, AMREX_SPACEDIM> bcoef;
@@ -2189,14 +2189,14 @@ int main(int argc, char* argv[])
         //      8  div_before    ∇·u₀ before correction [s⁻¹]
         //      9  div_after     ∇·u  after  correction [s⁻¹]
         //     10  terrain_z     terrain elevation at column [m]
-        //     11  heat_flux     surface sensible heat flux Q_H [W/m²] (Phase 1 Feature 3)
-        //     12  drag_coeff    drag coefficient Cd [-] (Phase 1 Feature 4)
+        //     11  heat_flux     surface sensible heat flux Q_H [W/m²]
+        //     12  drag_coeff    drag coefficient Cd [-]
         // ----------------------------------------------------------------
         const int nout = 13;
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
         
-        // Phase 1 Features 3 & 4: Compute diagnostics
+        // Compute diagnostics (heat flux and drag coefficient)
         // Constants for heat flux calculation
         const Real rho_air = 1.225;      // air density [kg/m³] at sea level, 15°C
         const Real cp_air = 1005.0;      // specific heat at constant pressure [J/(kg·K)]
@@ -2229,7 +2229,7 @@ int main(int argc, char* argv[])
                 out(i,j,k, 9) = dia(i,j,k);
                 out(i,j,k,10) = d_terr_ptr[j * nx_cap_out + i];
                 
-                // Phase 1 Feature 3: Surface sensible heat flux Q_H = ρ c_p u* θ*
+                // Surface sensible heat flux Q_H = ρ c_p u* θ*
                 // Compute friction velocity from near-surface wind speed
                 Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
                 Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_out + i];
@@ -2252,7 +2252,7 @@ int main(int argc, char* argv[])
                         // Heat flux: Q_H = ρ c_p u* θ*  [W/m²]
                         heat_flux = rho_air * cp_air * ustar_local * theta_star;
                         
-                        // Phase 1 Feature 4: Drag coefficient Cd = (κ / ln(z/z0))²
+                        // Drag coefficient Cd = (κ / ln(z/z0))²
                         Cd = (kappa_diag / log_term) * (kappa_diag / log_term);
                     }
                 }

@@ -1,11 +1,11 @@
 # Power-Law Profile Wind Solver Test (Complex Terrain)
-# Tests: power-law wind initialization (Phase 1 Feature 1) on Gaussian hill
+# Tests: power-law wind initialization on Gaussian hill
 # Terrain: 11x11 grid over a 300x300 m domain, peak elevation 50 m at centre
 
 # Terrain file (pre-generated 11x11 Gaussian hill)
 terrain_file = terrain.csv
 
-# Power-law initialization mode (Phase 1 Feature 1)
+# Power-law initialization mode
 init_mode = powerlaw
 U_ref = 10.0
 V_ref = 0.0

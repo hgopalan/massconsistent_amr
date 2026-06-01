@@ -30,21 +30,21 @@ cmake --build build --parallel
 
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
 - **Terrain-following** — Log-law wind profiles over complex topography
-- **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles (Phase 1)
-- **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file (NEW)
+- **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
+- **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file
 - **Building support** — Wake modeling with Röckle (1990) parameterization
 - **Canopy modeling** — Forest canopy drag effects
-- **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height (Phase 1)
-- **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions (NEW)
-- **Elevation-dependent wind scaling** — Terrain elevation effects on reference wind speed for mountain-valley flows (NEW)
-- **Time-varying boundary conditions** — Support for transient wind simulations with time series input (NEW)
-- **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization (NEW)
+- **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height
+- **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions
+- **Elevation-dependent wind scaling** — Terrain elevation effects on reference wind speed for mountain-valley flows
+- **Time-varying boundary conditions** — Support for transient wind simulations with time series input
+- **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
-  - **Height-dependent diffusivity** — K(z) profiles for realistic atmospheric mixing (NEW)
-  - **First-order decay** — Exponential decay for radioactive/chemical species (NEW)
-- **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields (Phase 1)
+  - **Height-dependent diffusivity** — K(z) profiles for realistic atmospheric mixing
+  - **First-order decay** — Exponential decay for radioactive/chemical species
+- **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields
 - **Python API** — Coupling with fire and atmospheric models
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 

@@ -73,7 +73,7 @@ Parameter Reference
      - ``loglaw``
      - Wind field initialization method. Options: ``loglaw`` (log-law profile),
        ``uniform`` (constant wind), ``raws`` (interpolate from velocity file),
-       ``surface_data`` (HRRR-style surface parameters), ``powerlaw`` (power-law profile, Phase 1).
+       ``surface_data`` (HRRR-style surface parameters), ``powerlaw`` (power-law profile).
    * - ``U_ref``
      - ``10.0``
      - Reference wind x-component [m/s] at height ``z_ref``. Used for ``loglaw`` and ``powerlaw`` modes.
@@ -89,7 +89,7 @@ Parameter Reference
    * - ``powerlaw_exponent``
      - ``0.143``
      - Power-law exponent α for ``powerlaw`` mode: u(z) = U_ref * (z/z_ref)^α. 
-       Typical value: 0.143 (~1/7) for neutral conditions. Range: 0.1-0.4. (Phase 1)
+       Typical value: 0.143 (~1/7) for neutral conditions. Range: 0.1-0.4.
    * - ``uniform_U``
      - ``U_ref``
      - Constant x-wind [m/s] for ``uniform`` mode.
@@ -128,15 +128,15 @@ Parameter Reference
      - Vertical Lagrange anisotropy coefficient α_v (constant if height-dependent mode is disabled).
    * - ``use_height_dependent_alpha_v``
      - ``false``
-     - Enable height-dependent vertical anisotropy: α_v(z) varies linearly from surface to top. (Phase 1)
+     - Enable height-dependent vertical anisotropy: α_v(z) varies linearly from surface to top.
    * - ``alpha_v_surface``
      - ``alpha_v``
      - Vertical anisotropy coefficient at domain surface (z=z_lo). Only used when 
-       ``use_height_dependent_alpha_v = true``. (Phase 1)
+       ``use_height_dependent_alpha_v = true``.
    * - ``alpha_v_top``
      - ``alpha_v``
      - Vertical anisotropy coefficient at domain top (z=z_hi). Only used when 
-       ``use_height_dependent_alpha_v = true``. (Phase 1)
+       ``use_height_dependent_alpha_v = true``.
    * - **MLMG Solver Parameters**
      -
      -
@@ -184,7 +184,7 @@ Parameter Reference
      - ``-1.0``
      - Sample the corrected wind at this AGL height [m] and write a CSV
        slice. Can be a single value or space-separated list (e.g., ``10.0 50.0 100.0``).
-       Negative value disables extraction. **New: supports multiple heights.**
+       Negative value disables extraction.
    * - ``extract_k``
      - ``-1``
      - Alternative: sample at explicit k-index (0 = lowest level).
@@ -345,10 +345,10 @@ To extract at a specific k-index (vertical cell)::
     extract_k    = 5
     extract_file = wind_k5.csv
 
-**New Feature: Multi-Height Extraction**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Height Extraction
+~~~~~~~~~~~~~~~~~~~~~~~
 
-You can now extract multiple heights in a single run by providing space-separated values::
+You can extract multiple heights in a single run by providing space-separated values::
 
     extract_agl  = 10.0 50.0 100.0 200.0
     extract_file = wind_extract.csv

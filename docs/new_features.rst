@@ -85,13 +85,13 @@ Extracting multiple heights adds minimal overhead:
 
 For example, extracting 4 heights instead of 1 adds approximately 3-6% to total runtime.
 
-Phase 1 Physics Features (June 2026)
--------------------------------------
+Physics Features (June 2026)
+-----------------------------
 
 **Added:** June 2026
 **Use Case:** Enhanced wind modeling, atmospheric stability, diagnostics
 
-Four new physics features were added in Phase 1 to extend the solver capabilities:
+Four new physics features were added to extend the solver capabilities:
 
 1. Power-Law Wind Profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -165,13 +165,13 @@ Implementation Notes
 - Diagnostics computed from corrected wind field (after mass-consistency)
 - Minimal performance overhead: <1% for power-law, ~2% for height-dependent α_v
 
-Phase 2 Physics Features (June 2026)
--------------------------------------
+Advanced Physics Features (June 2026)
+--------------------------------------
 
 **Added:** June 2026
 **Use Case:** Non-neutral atmospheric conditions, mountain flows, transient simulations, porous obstacles
 
-Four new physics features were added in Phase 2 to extend atmospheric realism and modeling capabilities:
+Four additional physics features were added to extend atmospheric realism and modeling capabilities:
 
 5. Non-Neutral Log-Law (Businger-Dyer Profiles)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

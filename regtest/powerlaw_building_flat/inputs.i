@@ -1,5 +1,5 @@
 # Power-Law Profile Wind Solver Test (Flat + Building)
-# Tests: power-law wind initialization (Phase 1 Feature 1) with buildings on flat terrain
+# Tests: power-law wind initialization with buildings on flat terrain
 # Building wake effects combined with power-law profile
 
 # Terrain file (flat domain)
@@ -8,7 +8,7 @@ terrain_file = terrain.csv
 # Building file
 building_file = buildings.csv
 
-# Power-law initialization mode (Phase 1 Feature 1)
+# Power-law initialization mode
 init_mode = powerlaw
 U_ref = 8.0
 V_ref = 0.0
