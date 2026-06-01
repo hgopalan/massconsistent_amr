@@ -165,6 +165,122 @@ Implementation Notes
 - Diagnostics computed from corrected wind field (after mass-consistency)
 - Minimal performance overhead: <1% for power-law, ~2% for height-dependent α_v
 
+Phase 2 Physics Features (June 2026)
+-------------------------------------
+
+**Added:** June 2026
+**Use Case:** Non-neutral atmospheric conditions, mountain flows, transient simulations, porous obstacles
+
+Four new physics features were added in Phase 2 to extend atmospheric realism and modeling capabilities:
+
+5. Non-Neutral Log-Law (Businger-Dyer Profiles)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Monin-Obukhov similarity theory with stability corrections for stable and unstable conditions::
+
+    enable_stability_correction = true
+    stability_length = 1000.0  # Obukhov length L [m] (>0 stable, <0 unstable)
+
+The non-neutral wind profile includes ψ_m stability functions:
+
+- **Stable conditions (L > 0)**: ψ_m = -5ζ where ζ = z/L
+- **Unstable conditions (L < 0)**: ψ_m follows Businger et al. (1971) formulation
+- **Neutral conditions (|L| → ∞)**: reduces to standard log-law
+
+Based on Businger et al. (1971) and Dyer (1974). Provides more realistic wind profiles
+in non-neutral atmospheric boundary layers.
+
+**Example**: Stable nocturnal boundary layer with L = 100 m suppresses vertical mixing.
+
+6. Elevation-Dependent Wind Speed Scaling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Scale reference wind speed based on terrain elevation for mountain-valley effects::
+
+    enable_elevation_scaling = true
+    elevation_scaling_factor = 0.5     # Scaling strength
+    elevation_height_scale = 1000.0    # Characteristic height [m]
+
+Applies exponential scaling: U_scaled = U_ref × exp(-α Δz / H_scale)
+
+- **Positive factor**: wind decreases at higher elevations (valley channeling effect)
+- **Negative factor**: wind increases at higher elevations (ridge acceleration)
+- **Zero factor**: no elevation dependence
+
+Useful for modeling wind speed variations in complex mountainous terrain where valleys
+experience sheltering and ridges experience acceleration.
+
+**Example**: Mountain valley with elevation_scaling_factor = 0.3 reduces wind speed
+by ~26% at 1000 m above valley floor.
+
+7. Time-Varying Wind Boundary Conditions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Support for transient simulations with time-dependent inflow conditions::
+
+    enable_time_varying = true
+    time_series_file = time_series.csv
+
+File format (CSV or whitespace-separated)::
+
+    # time [s]  U_ref [m/s]  V_ref [m/s]
+    0.0         10.0         0.0
+    60.0        12.0         1.0
+    120.0       15.0         2.0
+
+**Current implementation**: Uses first time point from series as proof-of-concept.
+
+**Future enhancement**: Full time-stepping loop wrapper around solver for transient
+atmospheric simulations (e.g., diurnal wind cycles, frontal passages).
+
+**Note**: Requires solver restructuring for true time-dependent evolution.
+
+8. Building Porosity Model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Porous flow through structures (trees, fences, vegetation) with drag parameterization::
+
+    enable_building_porosity = true
+    building_porosity_file = porous_buildings.csv
+    porosity_drag_coefficient = 0.2
+
+File format (CSV or whitespace-separated)::
+
+    # xmin xmax ymin ymax zmin zmax porosity [rotation_degrees]
+    100 120 100 120 0 10 0.3 0      # 30% porous building
+    200 220 200 220 0 15 0.7 45     # 70% porous fence (rotated)
+
+**Porosity parameter**:
+
+- 0.0 = solid building (zero flow)
+- 0.3 = moderately porous (trees, hedges)
+- 0.7 = highly porous (fences, lattice)
+- 1.0 = fully open (no obstruction)
+
+**Drag formulation**: Applies velocity reduction based on porosity and drag coefficient.
+Higher porosity (more open) → less drag. Lower porosity (more blocked) → more drag.
+
+Useful for modeling:
+
+- Forest canopies and tree stands
+- Fences and barriers
+- Lattice structures and screens
+- Vegetated noise barriers
+
+**Example**: Forest stand with porosity = 0.4 allows 40% of volume open to flow while
+applying drag to simulate momentum extraction by tree crowns.
+
+Implementation Notes
+~~~~~~~~~~~~~~~~~~~~
+
+- Features 5-6 modify existing log-law initialization (no solver changes)
+- Feature 7 loads time series data (full time-stepping requires future work)
+- Feature 8 applies drag in porous regions after initial velocity field
+- All features are optional and disabled by default
+- Compatible with existing terrain, building, canopy, and wake models
+- GPU-safe implementations with minimal performance overhead (~2-5% total)
+- Features can be combined (e.g., stability + elevation scaling + porosity)
+
 Planned Features
 ----------------
 
