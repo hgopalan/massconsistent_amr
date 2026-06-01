@@ -509,18 +509,20 @@ int main(int argc, char* argv[])
         std::string terrain_file = "terrain.csv";
         pp.query("terrain_file", terrain_file);
 
-        // Wind initialization mode: "loglaw" (default), "uniform", "raws", or "surface_data"
+        // Wind initialization mode: "loglaw" (default), "uniform", "raws", "surface_data", or "powerlaw"
         // "loglaw"       : use log-law profile with U_ref, V_ref at z_ref height
         // "uniform"      : constant horizontal wind (uniform_U, uniform_V) at all heights
         // "raws"         : interpolate from velocity file (X Y Z U V format)
         // "surface_data" : construct vertical profiles from surface parameters (X Y Z USTAR Z0 U10 V10)
+        // "powerlaw"     : power-law profile u(z) = U_ref * (z/z_ref)^alpha (Phase 1 Feature 1)
         std::string init_mode = "loglaw";
         pp.query("init_mode", init_mode);
 
         // Validate init_mode
-        if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && init_mode != "surface_data") {
+        if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
+            init_mode != "surface_data" && init_mode != "powerlaw") {
             amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                         " (must be 'loglaw', 'uniform', 'raws', or 'surface_data')");
+                         " (must be 'loglaw', 'uniform', 'raws', 'surface_data', or 'powerlaw')");
         }
 
         Real U_ref = 10.0;  // x-component of reference wind [m/s]
@@ -572,6 +574,10 @@ int main(int argc, char* argv[])
         pp.query("uniform_U", uniform_U);
         pp.query("uniform_V", uniform_V);
 
+        // Power-law mode parameters (Phase 1 Feature 1)
+        Real powerlaw_exponent = 0.143;  // ~1/7 typical for neutral conditions
+        pp.query("powerlaw_exponent", powerlaw_exponent);
+
         // RAWS mode parameters
         std::string velocity_file = "velocity.csv";
         pp.query("velocity_file", velocity_file);
@@ -602,6 +608,15 @@ int main(int argc, char* argv[])
         Real alpha_v = 1.0;  // vertical   Lagrange anisotropy coeff
         pp.query("alpha_h", alpha_h);
         pp.query("alpha_v", alpha_v);
+
+        // Phase 1 Feature 2: Height-dependent alpha_v
+        // Allow alpha_v to vary linearly with height: alpha_v(z) = alpha_v_surface + (alpha_v_top - alpha_v_surface) * (z - z_lo) / (z_hi - z_lo)
+        bool use_height_dependent_alpha_v = false;
+        Real alpha_v_surface = alpha_v;  // alpha_v at surface (default to constant alpha_v)
+        Real alpha_v_top = alpha_v;      // alpha_v at domain top (default to constant alpha_v)
+        pp.query("use_height_dependent_alpha_v", use_height_dependent_alpha_v);
+        pp.query("alpha_v_surface", alpha_v_surface);
+        pp.query("alpha_v_top", alpha_v_top);
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
@@ -857,6 +872,8 @@ int main(int argc, char* argv[])
         const Real dz_cap_init    = dz;
         const Real z_lo_cap_init  = z_lo;   // physical z at bottom of domain
         const int  nx_cap_init    = nx;
+        const Real z0_cap         = z0;      // surface roughness for diagnostics
+        const bool use_pos_z0     = use_z0_file;  // position-dependent z0 flag
 
         amrex::Print() << "wind_solver: grid setup time = " 
                        << (amrex::second() - t_phase) << " s\n";
@@ -1177,6 +1194,53 @@ int main(int argc, char* argv[])
                     }
                 });
             }
+        } else if (init_mode == "powerlaw") {
+            // Power-law profile initialization (Phase 1 Feature 1)
+            // u(z) = U_ref * (z/z_ref)^alpha
+            // Typical exponent: alpha ≈ 1/7 (0.143) for neutral atmospheric conditions
+            Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+            Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
+            Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
+            
+            const Real exponent = powerlaw_exponent;
+            const Real z_ref_cap = z_ref;
+            const Real speed_ref_cap = speed_ref;
+            const Real ux_h = ux_hat;
+            const Real uy_h = uy_hat;
+
+            amrex::Print() << "wind_solver: power-law profile initialization\n";
+            amrex::Print() << "  U_ref = " << U_ref << " m/s, V_ref = " << V_ref << " m/s\n";
+            amrex::Print() << "  z_ref = " << z_ref << " m\n";
+            amrex::Print() << "  powerlaw_exponent = " << powerlaw_exponent << "\n";
+
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
+
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Height above local terrain for this column
+                    Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                    Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_init + i];
+
+                    if (z_agl <= Real(0.0)) {
+                        vel(i, j, k, 0) = Real(0.0);
+                        vel(i, j, k, 1) = Real(0.0);
+                        vel(i, j, k, 2) = Real(0.0);
+                    } else {
+                        // Power-law profile: u(z) = U_ref * (z/z_ref)^alpha
+                        Real z_ratio = z_agl / z_ref_cap;
+                        // Clamp z_ratio to avoid extrapolation below reference height
+                        z_ratio = (z_ratio < Real(0.01)) ? Real(0.01) : z_ratio;
+                        Real speed = speed_ref_cap * std::pow(z_ratio, exponent);
+                        
+                        vel(i, j, k, 0) = speed * ux_h;
+                        vel(i, j, k, 1) = speed * uy_h;
+                        vel(i, j, k, 2) = Real(0.0);
+                    }
+                });
+            }
         }
 
         // Fill interior (inter-box) ghost cells via MPI exchange
@@ -1486,6 +1550,7 @@ int main(int argc, char* argv[])
 
         // B coefficients (face-centred, anisotropic)
         //   b_x = b_y = alpha_h², b_z = alpha_v²
+        //   Phase 1 Feature 2: b_z can vary with height if use_height_dependent_alpha_v is true
         const Real bh = alpha_h * alpha_h;
         const Real bv = alpha_v * alpha_v;
         Array<MultiFab, AMREX_SPACEDIM> bcoef;
@@ -1494,7 +1559,38 @@ int main(int argc, char* argv[])
         bcoef[2].define(convert(ba, IntVect(0, 0, 1)), dm, 1, 0);
         bcoef[0].setVal(bh);
         bcoef[1].setVal(bh);
-        bcoef[2].setVal(bv);
+        
+        if (use_height_dependent_alpha_v) {
+            // Set height-dependent alpha_v for z-direction
+            amrex::Print() << "wind_solver: using height-dependent alpha_v\n";
+            amrex::Print() << "  alpha_v_surface = " << alpha_v_surface << "\n";
+            amrex::Print() << "  alpha_v_top = " << alpha_v_top << "\n";
+            
+            const Real alpha_v_surf_sq = alpha_v_surface * alpha_v_surface;
+            const Real alpha_v_top_sq = alpha_v_top * alpha_v_top;
+            const Real z_lo_alphav = z_lo;
+            const Real z_hi_alphav = z_hi;
+            
+            for (MFIter mfi(bcoef[2]); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto bz = bcoef[2].array(mfi);
+                
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // z-face is located at k (not k+0.5 for cell center)
+                    Real z_face = z_lo_alphav + k * dz;
+                    Real z_frac = (z_face - z_lo_alphav) / (z_hi_alphav - z_lo_alphav);
+                    z_frac = std::max(Real(0.0), std::min(Real(1.0), z_frac));
+                    
+                    // Linear interpolation: alpha_v^2(z) = alpha_v_surf^2 + (alpha_v_top^2 - alpha_v_surf^2) * z_frac
+                    Real alpha_v_sq = alpha_v_surf_sq + (alpha_v_top_sq - alpha_v_surf_sq) * z_frac;
+                    bz(i, j, k) = alpha_v_sq;
+                });
+            }
+        } else {
+            bcoef[2].setVal(bv);
+        }
         mlabec.setBCoeffs(0, GetArrOfConstPtrs(bcoef));
 
         // Level BC: homogeneous (λ = 0 on Dirichlet faces)
@@ -1794,10 +1890,20 @@ int main(int argc, char* argv[])
         //      8  div_before    ∇·u₀ before correction [s⁻¹]
         //      9  div_after     ∇·u  after  correction [s⁻¹]
         //     10  terrain_z     terrain elevation at column [m]
+        //     11  heat_flux     surface sensible heat flux Q_H [W/m²] (Phase 1 Feature 3)
+        //     12  drag_coeff    drag coefficient Cd [-] (Phase 1 Feature 4)
         // ----------------------------------------------------------------
-        const int nout = 11;
+        const int nout = 13;
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
+        
+        // Phase 1 Features 3 & 4: Compute diagnostics
+        // Constants for heat flux calculation
+        const Real rho_air = 1.225;      // air density [kg/m³] at sea level, 15°C
+        const Real cp_air = 1005.0;      // specific heat at constant pressure [J/(kg·K)]
+        const Real theta_star = 0.1;     // characteristic temperature scale [K] (typical for neutral conditions)
+        const Real kappa_diag = 0.41;    // von Karman constant
+        const Real z_ref_diag = z_ref;   // reference height for diagnostics
 
         for (MFIter mfi(output); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -1823,6 +1929,37 @@ int main(int argc, char* argv[])
                 out(i,j,k, 8) = dib(i,j,k);
                 out(i,j,k, 9) = dia(i,j,k);
                 out(i,j,k,10) = d_terr_ptr[j * nx_cap_out + i];
+                
+                // Phase 1 Feature 3: Surface sensible heat flux Q_H = ρ c_p u* θ*
+                // Compute friction velocity from near-surface wind speed
+                Real z_physical = z_lo_cap_init + (k + Real(0.5)) * dz_cap_init;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_out + i];
+                Real u_mag = std::sqrt(u*u + v*v);
+                Real ustar_local = Real(0.0);
+                Real heat_flux = Real(0.0);
+                Real Cd = Real(0.0);
+                
+                if (z_agl > Real(0.0) && u_mag > Real(1.0e-6)) {
+                    // Use local z0 if available, otherwise constant
+                    Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_out + i] : z0_cap;
+                    z0_local = std::max(z0_local, Real(1.0e-6));  // avoid division by zero
+                    
+                    // Estimate u* from near-surface velocity using log-law inverse
+                    // u* = κ u / ln((z + z0) / z0)
+                    Real log_term = std::log((z_agl + z0_local) / z0_local);
+                    if (log_term > Real(0.1)) {
+                        ustar_local = kappa_diag * u_mag / log_term;
+                        
+                        // Heat flux: Q_H = ρ c_p u* θ*  [W/m²]
+                        heat_flux = rho_air * cp_air * ustar_local * theta_star;
+                        
+                        // Phase 1 Feature 4: Drag coefficient Cd = (κ / ln(z/z0))²
+                        Cd = (kappa_diag / log_term) * (kappa_diag / log_term);
+                    }
+                }
+                
+                out(i,j,k,11) = heat_flux;
+                out(i,j,k,12) = Cd;
             });
         }
 
@@ -1831,7 +1968,8 @@ int main(int argc, char* argv[])
             "u0", "v0", "w0",
             "lambda",
             "div_before", "div_after",
-            "terrain_z"
+            "terrain_z",
+            "heat_flux", "drag_coeff"
         };
 
         amrex::Print() << "wind_solver: divergence computation time = " 
