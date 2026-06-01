@@ -89,11 +89,8 @@
 #include "math_constants.H"
 #include "stability_models.H"
 #include "porosity_models.H"
-<<<<<<< HEAD
 #include "wall_functions.H"
-=======
 #include "buoyancy_models.H"
->>>>>>> origin/main
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -770,7 +767,6 @@ int main(int argc, char* argv[])
         pp.query("default_building_porosity", default_building_porosity);
         pp.query("porosity_drag_coefficient", porosity_drag_coefficient);
 
-<<<<<<< HEAD
         // Wall Function Parameters
         // NEW REQUIREMENT: Allow switching between no-slip and log-law boundary conditions
         // Default is false (no-slip) for backward compatibility
@@ -820,7 +816,7 @@ int main(int argc, char* argv[])
                 enable_terrain_wall_function = true;
             }
         }
-=======
+
         // Thermal Stratification with Buoyancy
         // Add buoyancy effects from temperature stratification to vertical momentum
         bool enable_buoyancy_stratification = false;
@@ -840,7 +836,7 @@ int main(int argc, char* argv[])
         Real terrain_bc_relaxation = 1.0;  // Relaxation factor (1.0 = strict, <1.0 = relaxed)
         pp.query("enable_terrain_kinematic_bc", enable_terrain_kinematic_bc);
         pp.query("terrain_bc_relaxation", terrain_bc_relaxation);
->>>>>>> origin/main
+
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
@@ -1138,7 +1134,6 @@ int main(int argc, char* argv[])
                          obstacle_h.begin(), obstacle_h.end(), d_terr.begin());
         Real const* d_terr_ptr = d_terr.data();
 
-<<<<<<< HEAD
         // Print wall function configuration
         if (enable_wall_functions) {
             amrex::Print() << "wind_solver: wall functions ENABLED\n";
@@ -1188,7 +1183,6 @@ int main(int argc, char* argv[])
         }
 
 
-=======
         // Copy terrain gradients to device (if kinematic BC enabled)
         Gpu::DeviceVector<Real> d_terr_grad_x, d_terr_grad_y;
         Real const* d_terr_grad_x_ptr = nullptr;
@@ -1205,7 +1199,7 @@ int main(int argc, char* argv[])
             d_terr_grad_y_ptr = d_terr_grad_y.data();
         }
 
->>>>>>> origin/main
+
         // Summary statistics
         Real zs_min = *std::min_element(terrain_h.begin(), terrain_h.end());
         Real zs_max = *std::max_element(terrain_h.begin(), terrain_h.end());

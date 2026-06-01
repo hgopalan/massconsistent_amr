@@ -197,18 +197,15 @@ message(STATUS "  wake_single_building/  : Single building wake model (Röckle f
 message(STATUS "  rooftop_vortex/        : Rooftop vortex in building cavity zones")
 message(STATUS "  building_oriented/     : Arbitrary building orientation effects")
 message(STATUS "  multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
-<<<<<<< HEAD
 message(STATUS "  wall_function_flat/    : Wall function on flat terrain")
 message(STATUS "  wall_function_stable/  : Wall function with stable atmospheric corrections")
 message(STATUS "  wall_function_unstable/: Wall function with unstable atmospheric corrections")
 message(STATUS "  wall_function_adaptive/: Wall function with adaptive grid resolution activation")
-=======
 message(STATUS "  buoyancy_stratification/: Thermal stratification with buoyancy effects")
 message(STATUS "  terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
 message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
 message(STATUS "  drag_diagnostic/       : Phase 4 - Drag coefficient and heat flux diagnostics")
 message(STATUS "  stability_stable/      : Phase 5 - Non-neutral stability (stable conditions, L > 0)")
 message(STATUS "  stability_unstable/    : Phase 5 - Non-neutral stability (unstable conditions, L < 0)")
->>>>>>> origin/main
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
