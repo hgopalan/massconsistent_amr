@@ -91,6 +91,10 @@ struct WindSolverState {
     amrex::Real ekman_veer_total;      // Total veer from surface to top [degrees]
     amrex::Real ekman_veer_height;     // Height scale for veer profile [m]
     
+    // Terrain-following (streamline) coordinates parameters
+    bool enable_terrain_following;     // Enable terrain-following coordinates
+    amrex::Real terrain_decay_height;  // Decay height scale for terrain-following transition [m]
+    
     // MLMG solver parameters
     int mlmg_verbose;
     amrex::Real tol_rel;

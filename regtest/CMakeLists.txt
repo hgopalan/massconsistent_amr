@@ -316,6 +316,11 @@ add_regression_test(puff_canopy puff_canopy)
 add_regression_test(puff_coupled_full puff_coupled_full)
 
 # ---------------------------------------------------------------------------
+# terrain_following_steep/ – Terrain-following coordinates on steep terrain
+# ---------------------------------------------------------------------------
+add_regression_test(terrain_following_steep terrain_following_steep)
+
+# ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
 add_custom_target(regtest
@@ -374,5 +379,6 @@ message(STATUS "  puff_terrain/          : Puff dispersion on terrain-following 
 message(STATUS "  puff_buildings/        : Puff dispersion with building wake effects")
 message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
 message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
+message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain (Feature 17)")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
