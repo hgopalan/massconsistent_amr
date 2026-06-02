@@ -92,6 +92,8 @@
 #include "wall_functions.H"
 #include "buoyancy_models.H"
 #include "orographic_models.H"
+#include "thermal_circulation_models.H"
+#include "terrain_blocking_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -998,6 +1000,62 @@ int main(int argc, char* argv[])
         pp.query("orographic_separation_factor", orographic_separation_factor);
         pp.query("orographic_smoothing_factor", orographic_smoothing_factor);
 
+        // Sea Breeze Parameterization (Thermal Circulation)
+        // Add thermal circulation component for land-sea temperature contrast
+        bool enable_thermal_circulation = false;
+        Real thermal_temperature_contrast = 0.0;         // Land-sea temperature difference ΔT [K]
+        Real thermal_reference_temperature = 300.0;      // Reference temperature T₀ [K]
+        Real thermal_coefficient = 1.0;                  // Scaling coefficient (dimensionless)
+        Real thermal_vertical_decay_height = 1000.0;     // Vertical decay height scale [m]
+        Real thermal_distance_scale = 5000.0;            // Horizontal distance scale from coast [m]
+        Real thermal_coastline_x = 0.0;                  // Coastline X coordinate [m]
+        Real thermal_coastline_y = 0.0;                  // Coastline Y coordinate [m]
+        Real thermal_coast_normal_x = 1.0;               // Coast normal X component (unit vector)
+        Real thermal_coast_normal_y = 0.0;               // Coast normal Y component (unit vector)
+        std::string land_sea_mask_file = "";             // Optional land-sea mask file (X Y MASK)
+        pp.query("enable_thermal_circulation", enable_thermal_circulation);
+        pp.query("thermal_temperature_contrast", thermal_temperature_contrast);
+        pp.query("thermal_reference_temperature", thermal_reference_temperature);
+        pp.query("thermal_coefficient", thermal_coefficient);
+        pp.query("thermal_vertical_decay_height", thermal_vertical_decay_height);
+        pp.query("thermal_distance_scale", thermal_distance_scale);
+        pp.query("thermal_coastline_x", thermal_coastline_x);
+        pp.query("thermal_coastline_y", thermal_coastline_y);
+        pp.query("thermal_coast_normal_x", thermal_coast_normal_x);
+        pp.query("thermal_coast_normal_y", thermal_coast_normal_y);
+        pp.query("land_sea_mask_file", land_sea_mask_file);
+        
+        // Normalize coast normal vector
+        Real coast_normal_mag = std::sqrt(thermal_coast_normal_x * thermal_coast_normal_x + 
+                                         thermal_coast_normal_y * thermal_coast_normal_y);
+        if (coast_normal_mag > Real(1.0e-10)) {
+            thermal_coast_normal_x /= coast_normal_mag;
+            thermal_coast_normal_y /= coast_normal_mag;
+        }
+
+        // Froude Number Terrain Blocking
+        // Reduce wind speed upstream of steep terrain when flow cannot overtop obstacle
+        bool enable_terrain_blocking = false;
+        Real terrain_blocking_brunt_vaisala_frequency = 0.01;    // Brunt-Väisälä frequency N [1/s]
+        Real terrain_blocking_reduction_factor = 0.5;            // Maximum reduction factor (0-1)
+        Real terrain_blocking_transition_froude = 1.0;           // Froude number for transition
+        Real terrain_blocking_flank_enhancement = 1.2;           // Speed enhancement on flanks
+        Real terrain_blocking_lapse_rate = 0.0065;               // Temperature lapse rate [K/m]
+        Real terrain_blocking_reference_temperature = 288.0;     // Reference temperature [K]
+        pp.query("enable_terrain_blocking", enable_terrain_blocking);
+        pp.query("terrain_blocking_brunt_vaisala_frequency", terrain_blocking_brunt_vaisala_frequency);
+        pp.query("terrain_blocking_reduction_factor", terrain_blocking_reduction_factor);
+        pp.query("terrain_blocking_transition_froude", terrain_blocking_transition_froude);
+        pp.query("terrain_blocking_flank_enhancement", terrain_blocking_flank_enhancement);
+        pp.query("terrain_blocking_lapse_rate", terrain_blocking_lapse_rate);
+        pp.query("terrain_blocking_reference_temperature", terrain_blocking_reference_temperature);
+        
+        // Auto-compute Brunt-Väisälä frequency if lapse rate is provided
+        if (enable_terrain_blocking && pp.contains("terrain_blocking_lapse_rate")) {
+            terrain_blocking_brunt_vaisala_frequency = brunt_vaisala_frequency(
+                terrain_blocking_reference_temperature, terrain_blocking_lapse_rate);
+        }
+
         // Time-Varying Wind Boundary Conditions
         // Allow time-dependent inflow conditions for transient simulations
         bool enable_time_varying = false;
@@ -1699,6 +1757,8 @@ int main(int argc, char* argv[])
         // Common capture variables for wind field initialization and correction
         const Real dz_cap_init    = dz;
         const Real z_lo_cap_init  = z_lo;   // physical z at bottom of domain
+        const Real x_lo_cap_init  = x_lo;   // physical x at domain left edge
+        const Real y_lo_cap_init  = y_lo;   // physical y at domain bottom edge
         const int  nx_cap_init    = nx;
         const int  ny_cap_init    = ny;
         const Real dx_cap_init    = dx;
@@ -1792,6 +1852,28 @@ int main(int argc, char* argv[])
             orog_params.speedup_factor_max = orographic_speedup_factor_max;
             orog_params.separation_factor = orographic_separation_factor;
             orog_params.smoothing_factor = orographic_smoothing_factor;
+            
+            // Setup thermal circulation parameters
+            ThermalCirculationParams thermal_params;
+            thermal_params.enabled = enable_thermal_circulation;
+            thermal_params.temperature_contrast = thermal_temperature_contrast;
+            thermal_params.reference_temperature = thermal_reference_temperature;
+            thermal_params.thermal_coefficient = thermal_coefficient;
+            thermal_params.vertical_decay_height = thermal_vertical_decay_height;
+            thermal_params.distance_scale = thermal_distance_scale;
+            
+            const Real coastline_x = thermal_coastline_x;
+            const Real coastline_y = thermal_coastline_y;
+            const Real coast_normal_x = thermal_coast_normal_x;
+            const Real coast_normal_y = thermal_coast_normal_y;
+            
+            // Setup terrain blocking parameters
+            TerrainBlockingParams blocking_params;
+            blocking_params.enabled = enable_terrain_blocking;
+            blocking_params.brunt_vaisala_frequency = terrain_blocking_brunt_vaisala_frequency;
+            blocking_params.blocking_reduction_factor = terrain_blocking_reduction_factor;
+            blocking_params.transition_froude = terrain_blocking_transition_froude;
+            blocking_params.flank_enhancement_factor = terrain_blocking_flank_enhancement;
 
             // Setup canopy parameters
             CanopyParams canopy_params;
@@ -1846,6 +1928,28 @@ int main(int argc, char* argv[])
                 amrex::Print() << "  speedup_factor_max = " << orographic_speedup_factor_max << "\n";
                 amrex::Print() << "  separation_factor = " << orographic_separation_factor << "\n";
                 amrex::Print() << "  smoothing_factor = " << orographic_smoothing_factor << "\n";
+            }
+            
+            // Print thermal circulation status
+            if (enable_thermal_circulation) {
+                amrex::Print() << "wind_solver: thermal circulation (sea breeze) enabled\n";
+                amrex::Print() << "  temperature_contrast = " << thermal_temperature_contrast << " K\n";
+                amrex::Print() << "  reference_temperature = " << thermal_reference_temperature << " K\n";
+                amrex::Print() << "  thermal_coefficient = " << thermal_coefficient << "\n";
+                amrex::Print() << "  vertical_decay_height = " << thermal_vertical_decay_height << " m\n";
+                amrex::Print() << "  distance_scale = " << thermal_distance_scale << " m\n";
+                amrex::Print() << "  coastline = (" << thermal_coastline_x << ", " << thermal_coastline_y << ") m\n";
+                amrex::Print() << "  coast_normal = (" << thermal_coast_normal_x << ", " << thermal_coast_normal_y << ")\n";
+            }
+            
+            // Print terrain blocking status
+            if (enable_terrain_blocking) {
+                amrex::Print() << "wind_solver: Froude number terrain blocking enabled\n";
+                amrex::Print() << "  brunt_vaisala_frequency = " << terrain_blocking_brunt_vaisala_frequency << " 1/s\n";
+                amrex::Print() << "  reduction_factor = " << terrain_blocking_reduction_factor << "\n";
+                amrex::Print() << "  transition_froude = " << terrain_blocking_transition_froude << "\n";
+                amrex::Print() << "  flank_enhancement = " << terrain_blocking_flank_enhancement << "\n";
+                amrex::Print() << "  reference_temperature = " << terrain_blocking_reference_temperature << " K\n";
             }
 
             // Capture parameters for GPU lambda
@@ -2144,6 +2248,56 @@ int main(int argc, char* argv[])
                             
                             // Apply speedup to horizontal wind components
                             apply_orographic_speedup(u_vel, v_vel, speedup_factor);
+                        }
+                        
+                        // Apply thermal circulation (sea breeze parameterization)
+                        if (thermal_params.enabled) {
+                            // Compute current cell coordinates
+                            Real x_cell = x_lo_cap_init + (i + Real(0.5)) * dx_cap_init;
+                            Real y_cell = y_lo_cap_init + (j + Real(0.5)) * dy_cap_init;
+                            
+                            // Compute distance from coastline (simplified proxy)
+                            // For more sophisticated use, provide actual distance field
+                            Real land_sea_mask = Real(1.0);  // Assume land by default
+                            Real dist_from_coast = compute_distance_from_coast(
+                                land_sea_mask, x_cell, y_cell, coastline_x, coastline_y);
+                            
+                            // Apply thermal circulation to wind components
+                            apply_thermal_circulation(
+                                u_vel, v_vel, dist_from_coast, z_agl,
+                                coast_normal_x, coast_normal_y, thermal_params);
+                        }
+                        
+                        // Apply Froude number terrain blocking
+                        if (blocking_params.enabled) {
+                            // Compute terrain slope from neighbors
+                            int im = std::max(i - 1, 0);
+                            int ip = std::min(i + 1, nx_cap_init - 1);
+                            int jm = std::max(j - 1, 0);
+                            int jp = std::min(j + 1, ny_cap_init - 1);
+                            
+                            Real z_xm = d_terr_ptr[j * nx_cap_init + im];
+                            Real z_xp = d_terr_ptr[j * nx_cap_init + ip];
+                            Real z_ym = d_terr_ptr[jm * nx_cap_init + i];
+                            Real z_yp = d_terr_ptr[jp * nx_cap_init + i];
+                            
+                            Real slope_x = (z_xp - z_xm) / (Real(2.0) * dx_cap_init);
+                            Real slope_y = (z_yp - z_ym) / (Real(2.0) * dy_cap_init);
+                            
+                            Real curvature = compute_terrain_curvature(
+                                terrain_elev, z_xm, z_xp, z_ym, z_yp,
+                                dx_cap_init, dy_cap_init);
+                            
+                            // Compute current wind speed
+                            Real wind_speed = std::sqrt(u_vel * u_vel + v_vel * v_vel);
+                            
+                            // Estimate obstacle height (elevation above minimum)
+                            Real obstacle_height = terrain_elev - terrain_min;
+                            
+                            // Apply terrain blocking to wind components
+                            apply_terrain_blocking(
+                                u_vel, v_vel, wind_speed, obstacle_height,
+                                slope_x, slope_y, curvature, blocking_params);
                         }
                         
                         vel(i, j, k, 0) = u_vel;
