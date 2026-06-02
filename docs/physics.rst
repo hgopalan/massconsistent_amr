@@ -633,6 +633,93 @@ For terrain-following flow preservation::
 
 * ``regtest/alphav_height/`` — height-dependent vertical anisotropy
 
+Katabatic/Anabatic Slope Flows
+-------------------------------
+
+**Physical Motivation**
+
+In mountainous terrain, differential heating/cooling between the surface and air creates
+thermally-driven flows parallel to terrain slopes:
+
+* **Anabatic flows**: Daytime up-slope winds when surface is warmer than air
+* **Katabatic flows**: Nighttime down-slope winds when surface is cooler than air (cold air drainage)
+
+These flows are often the dominant feature in mountain meteorology, overriding synoptic winds.
+Critical for:
+
+* Valley cold air drainage and frost forecasting
+* Fire spread on slopes (upslope winds accelerate fire)
+* Pollutant transport in complex terrain
+* Mountain-valley circulation systems
+
+**Implementation**
+
+The slope flow velocity is parameterized as:
+
+.. math::
+
+   V_{slope} = C \cdot g \cdot \frac{\Delta T}{T} \cdot \sin(\theta) \cdot \exp(-z/H)
+
+where:
+
+* *C* = empirical coefficient (1-5 m/s, typically 2.5)
+* *g* = gravitational acceleration (9.81 m/s²)
+* Δ*T* = surface - air temperature difference [K]
+* *T* = reference temperature [K]
+* θ = terrain slope angle
+* *z* = height above ground [m]
+* *H* = vertical decay height (50-200 m typical)
+
+**Direction**: The flow is directed:
+
+* **Upslope** when Δ*T* > 0 (anabatic)
+* **Downslope** when Δ*T* < 0 (katabatic)
+
+The slope aspect (upslope direction) is computed from terrain gradients.
+
+**Usage**
+
+Enable slope flows in your input file::
+
+    # Katabatic/Anabatic Slope Flows
+    enable_slope_flows = true
+    slope_flow_temperature_diff = -5.0              # Surface 5K cooler (katabatic)
+    slope_flow_reference_temperature = 300.0        # Reference temperature [K]
+    slope_flow_empirical_coefficient = 2.5          # Empirical constant [m/s]
+    slope_flow_vertical_decay_height = 50.0         # Vertical decay [m]
+    slope_flow_min_slope = 0.05                     # Minimum slope (~3 degrees)
+
+**Example: Nighttime Katabatic Flow**
+
+Cold air drainage down mountain slopes::
+
+    enable_slope_flows = true
+    slope_flow_temperature_diff = -8.0      # 8K cooling (strong katabatic)
+    slope_flow_empirical_coefficient = 3.0  # Moderate strength
+
+**Example: Daytime Anabatic Flow**
+
+Upslope winds from surface heating::
+
+    enable_slope_flows = true
+    slope_flow_temperature_diff = 5.0       # 5K heating (anabatic)
+    slope_flow_empirical_coefficient = 2.0  # Weaker than katabatic
+
+**Regression Tests**
+
+* ``regtest/katabatic_flow/`` — nighttime downslope cold air drainage
+* ``regtest/anabatic_flow/`` — daytime upslope heating flow
+
+**References**
+
+* Whiteman, C.D. (1990). Observations of thermally developed wind systems in
+  mountainous terrain. *Atmospheric Processes over Complex Terrain*, Meteorological
+  Monographs, 23, 5-42.
+* Manins, P.C., & Sawford, B.L. (1979). A model of katabatic winds. *Journal of
+  the Atmospheric Sciences*, 36(4), 619-630.
+* Zardi, D., & Whiteman, C.D. (2013). Diurnal mountain wind systems. *Mountain
+  Weather Research and Forecasting*, 35-119.
+
 Summary of Physics Models
 --------------------------
 
@@ -668,8 +755,11 @@ Summary of Physics Models
      - Forest canopy parameterization
      - ``canopy_models.H``
    * - Building wakes
-     - Röckle wake parameterization
+     - Röckle and Huber-Snyder wake models
      - ``wake_models.H``
+   * - Slope flows
+     - Katabatic/anabatic thermally-driven flows
+     - ``slope_flow_models.H``
 
 All physics models are:
 
