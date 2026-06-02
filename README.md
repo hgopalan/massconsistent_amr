@@ -38,6 +38,8 @@ cmake --build build --parallel
 - **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions
 - **Elevation-dependent wind scaling** — Terrain elevation effects on reference wind speed for mountain-valley flows
 - **Orographic speed-up** — Jackson & Hunt (1975) model for hill/ridge acceleration and lee-side flow separation
+- **Sea breeze parameterization** — Thermal circulation from land-sea temperature contrast driving onshore/offshore winds
+- **Froude number terrain blocking** — Flow blocking and channeling around steep terrain in stable stratification
 - **Time-varying boundary conditions** — Support for transient wind simulations with time series input
 - **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
 - **Thermal stratification with buoyancy** — Temperature-driven buoyancy effects on vertical velocity using Boussinesq approximation
