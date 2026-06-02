@@ -1,8 +1,0 @@
-# Building CSV file: xmin xmax ymin ymax zmin zmax [rotation_degrees]
-# Phase 3: Optional 7th column for building rotation angle (in degrees, CCW from x-axis)
-#
-# Single building test case:
-# Building dimensions: 30m (E-W) x 20m (N-S) x 30m (height)
-# Location: centered at (300m, 300m), base at z=0
-# Rotation: 0 degrees (grid-aligned for this test)
-270.0 330.0 290.0 310.0 0.0 30.0 0.0

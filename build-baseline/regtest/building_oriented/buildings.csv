@@ -1,6 +1,0 @@
-# Phase 3: Building with arbitrary orientation
-# Building dimensions: 25m (original x) x 15m (original y) x 35m (height)
-# Location: centered at (400m, 400m)
-# Rotation angle: 45 degrees (CCW from x-axis)
-# This tests wind-relative effective dimension computation
-375.0 425.0 385.0 415.0 0.0 35.0 45.0
