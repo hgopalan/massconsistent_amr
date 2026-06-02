@@ -481,6 +481,66 @@ static std::pair<Real, Real> idw_alpha_coefficients(
     return {ah_val / wsum, av_val / wsum};
 }
 
+// GPU-compatible IDW interpolation for alpha coefficients
+// Returns pair: (alpha_h, alpha_v)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+std::pair<Real, Real> idw_alpha_coefficients(
+    Real xq, Real yq,
+    const Real* x,
+    const Real* y,
+    const Real* alpha_h_data,
+    const Real* alpha_v_data,
+    int n,
+    int k = 6)
+{
+    k = (k < n) ? k : n;
+    
+    // Simple O(n) approach to find k nearest neighbors
+    // Store distances and indices
+    Real d2_vals[100];  // Max 100 data points for GPU kernel
+    int  idx_vals[100];
+    
+    if (n > 100) n = 100;  // Safety limit for GPU
+    
+    for (int i = 0; i < n; ++i) {
+        Real dx = x[i] - xq;
+        Real dy = y[i] - yq;
+        d2_vals[i] = dx * dx + dy * dy;
+        idx_vals[i] = i;
+    }
+    
+    // Partial selection sort to find k nearest
+    for (int i = 0; i < k && i < n; ++i) {
+        int min_idx = i;
+        for (int j = i + 1; j < n; ++j) {
+            if (d2_vals[j] < d2_vals[min_idx]) {
+                min_idx = j;
+            }
+        }
+        if (min_idx != i) {
+            Real tmp_d = d2_vals[i];
+            d2_vals[i] = d2_vals[min_idx];
+            d2_vals[min_idx] = tmp_d;
+            int tmp_i = idx_vals[i];
+            idx_vals[i] = idx_vals[min_idx];
+            idx_vals[min_idx] = tmp_i;
+        }
+    }
+    
+    Real wsum = Real(0.0), ah_val = Real(0.0), av_val = Real(0.0);
+    for (int i = 0; i < k; ++i) {
+        if (d2_vals[i] < DISTANCE_EPSILON) {
+            return {alpha_h_data[idx_vals[i]], alpha_v_data[idx_vals[i]]}; // exact hit
+        }
+        Real w = Real(1.0) / d2_vals[i];  // inverse-square-distance weight
+        wsum += w;
+        ah_val += w * alpha_h_data[idx_vals[i]];
+        av_val += w * alpha_v_data[idx_vals[i]];
+    }
+    return {ah_val / wsum, av_val / wsum};
+}
+
+
 // Read building file: xmin xmax ymin ymax zmin zmax (whitespace or comma separated; '#' comments).
 static void read_building_file(const std::string& filename,
                                std::vector<Real>& xmin,
@@ -1143,6 +1203,18 @@ int main(int argc, char* argv[])
         }
 
         // ----------------------------------------------------------------
+        // 5a2. Read spatially-varying alpha coefficients (if enabled)
+        // ----------------------------------------------------------------
+        std::vector<Real> x_alpha, y_alpha, alpha_h_data, alpha_v_data;
+        if (use_spatial_alpha_coefficients && !alpha_coefficients_file.empty()) {
+            read_alpha_coefficients_file(alpha_coefficients_file, x_alpha, y_alpha, 
+                                        alpha_h_data, alpha_v_data);
+            amrex::Print() << "wind_solver: spatially-varying Lagrange coefficients enabled\n";
+            amrex::Print() << "  alpha_coefficients_file = " << alpha_coefficients_file << "\n";
+            amrex::Print() << "  number of data points = " << x_alpha.size() << "\n";
+        }
+
+        // ----------------------------------------------------------------
         // 5b. Compute terrain gradients (if kinematic BC enabled)
         // ----------------------------------------------------------------
         std::vector<Real> terrain_grad_x(static_cast<std::size_t>(nx) * ny, 0.0);
@@ -1356,14 +1428,76 @@ int main(int argc, char* argv[])
         // 8. Allocate MultiFabs
         //    lam   – Lagrange multiplier λ                   [1 comp,  ng=1]
         //    rhs   – Poisson RHS = -(∇·u0)                  [1 comp,  ng=0]
+        //    alpha_h_field – Spatially-varying horizontal Lagrange coeff [1 comp, ng=1]
+        //    alpha_v_field – Spatially-varying vertical Lagrange coeff   [1 comp, ng=1]
         // ----------------------------------------------------------------
         MultiFab vel0(ba, dm, 3, 1);
         MultiFab lam (ba, dm, 1, 1);
         MultiFab rhs (ba, dm, 1, 0);
+        
+        // Create alpha coefficient fields if spatial variation is enabled
+        MultiFab alpha_h_field(ba, dm, 1, 1);
+        MultiFab alpha_v_field(ba, dm, 1, 1);
 
         vel0.setVal(0.0);
         lam .setVal(0.0);
         rhs .setVal(0.0);
+        
+        // Initialize alpha coefficient fields
+        if (use_spatial_alpha_coefficients && !alpha_h_data.empty()) {
+            // Fill with IDW interpolated values from file data
+            // Copy alpha data to device
+            Gpu::DeviceVector<Real> d_x_alpha(x_alpha.size());
+            Gpu::DeviceVector<Real> d_y_alpha(y_alpha.size());
+            Gpu::DeviceVector<Real> d_alpha_h(alpha_h_data.size());
+            Gpu::DeviceVector<Real> d_alpha_v(alpha_v_data.size());
+            
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, x_alpha.begin(), x_alpha.end(), d_x_alpha.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, y_alpha.begin(), y_alpha.end(), d_y_alpha.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, alpha_h_data.begin(), alpha_h_data.end(), d_alpha_h.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, alpha_v_data.begin(), alpha_v_data.end(), d_alpha_v.begin());
+            
+            const Real* d_x_alpha_ptr = d_x_alpha.data();
+            const Real* d_y_alpha_ptr = d_y_alpha.data();
+            const Real* d_alpha_h_ptr = d_alpha_h.data();
+            const Real* d_alpha_v_ptr = d_alpha_v.data();
+            const int n_alpha_pts = static_cast<int>(x_alpha.size());
+            
+            const Real x_lo_cap = x_lo;
+            const Real y_lo_cap = y_lo;
+            const Real dx_cap = dx;
+            const Real dy_cap = dy;
+            
+            for (MFIter mfi(alpha_h_field); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto alpha_h_arr = alpha_h_field.array(mfi);
+                auto alpha_v_arr = alpha_v_field.array(mfi);
+                
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real xc = x_lo_cap + (i + Real(0.5)) * dx_cap;
+                    Real yc = y_lo_cap + (j + Real(0.5)) * dy_cap;
+                    
+                    // IDW interpolation for alpha coefficients
+                    auto alpha_vals = idw_alpha_coefficients(xc, yc,
+                        d_x_alpha_ptr, d_y_alpha_ptr,
+                        d_alpha_h_ptr, d_alpha_v_ptr, n_alpha_pts, 6);
+                    
+                    alpha_h_arr(i, j, k) = alpha_vals.first;
+                    alpha_v_arr(i, j, k) = alpha_vals.second;
+                });
+            }
+            
+            alpha_h_field.FillBoundary(geom.periodicity());
+            alpha_v_field.FillBoundary(geom.periodicity());
+            
+            amrex::Print() << "wind_solver: filled spatially-varying alpha coefficient fields\n";
+        } else {
+            // Use constant values
+            alpha_h_field.setVal(alpha_h);
+            alpha_v_field.setVal(alpha_v);
+        }
 
         // Temperature MultiFab (if buoyancy stratification enabled)
         MultiFab temp(ba, dm, 1, 0);
@@ -2586,45 +2720,99 @@ int main(int argc, char* argv[])
         // B coefficients (face-centred, anisotropic)
         //   b_x = b_y = alpha_h², b_z = alpha_v²
         //   b_z can vary with height if use_height_dependent_alpha_v is true
+        //   Can also be spatially-varying if use_spatial_alpha_coefficients is true
         const Real bh = alpha_h * alpha_h;
         const Real bv = alpha_v * alpha_v;
         Array<MultiFab, AMREX_SPACEDIM> bcoef;
         bcoef[0].define(convert(ba, IntVect(1, 0, 0)), dm, 1, 0);
         bcoef[1].define(convert(ba, IntVect(0, 1, 0)), dm, 1, 0);
         bcoef[2].define(convert(ba, IntVect(0, 0, 1)), dm, 1, 0);
-        bcoef[0].setVal(bh);
-        bcoef[1].setVal(bh);
         
-        if (use_height_dependent_alpha_v) {
-            // Set height-dependent alpha_v for z-direction
-            amrex::Print() << "wind_solver: using height-dependent alpha_v\n";
-            amrex::Print() << "  alpha_v_surface = " << alpha_v_surface << "\n";
-            amrex::Print() << "  alpha_v_top = " << alpha_v_top << "\n";
+        if (use_spatial_alpha_coefficients && !alpha_h_data.empty()) {
+            // Use spatially-varying alpha coefficients
+            // For face-centered B coefficients, average neighboring cell values
+            amrex::Print() << "wind_solver: using spatially-varying Lagrange coefficients in Poisson solver\n";
             
-            const Real alpha_v_surf_sq = alpha_v_surface * alpha_v_surface;
-            const Real alpha_v_top_sq = alpha_v_top * alpha_v_top;
-            const Real z_lo_alphav = z_lo;
-            const Real z_hi_alphav = z_hi;
-            
-            for (MFIter mfi(bcoef[2]); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.validbox();
-                auto bz = bcoef[2].array(mfi);
+            for (MFIter mfi(bcoef[0]); mfi.isValid(); ++mfi) {
+                const Box& bx_x = mfi.validbox();
+                const Box& bx_y = convert(mfi.validbox(), IntVect(0, 1, 0));
+                const Box& bx_z = convert(mfi.validbox(), IntVect(0, 0, 1));
                 
-                amrex::ParallelFor(bx,
+                auto bx_arr = bcoef[0].array(mfi);
+                auto by_arr = bcoef[1].array(mfi);
+                auto bz_arr = bcoef[2].array(mfi);
+                auto ah_arr = alpha_h_field.const_array(mfi);
+                auto av_arr = alpha_v_field.const_array(mfi);
+                
+                // X-faces: average alpha_h from neighboring cells
+                amrex::ParallelFor(bx_x,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    // z-face is located at k (not k+0.5 for cell center)
-                    Real z_face = z_lo_alphav + k * dz;
-                    Real z_frac = (z_face - z_lo_alphav) / (z_hi_alphav - z_lo_alphav);
-                    z_frac = std::max(Real(0.0), std::min(Real(1.0), z_frac));
-                    
-                    // Linear interpolation: alpha_v^2(z) = alpha_v_surf^2 + (alpha_v_top^2 - alpha_v_surf^2) * z_frac
-                    Real alpha_v_sq = alpha_v_surf_sq + (alpha_v_top_sq - alpha_v_surf_sq) * z_frac;
-                    bz(i, j, k) = alpha_v_sq;
+                    // X-face at (i, j, k) is between cells (i-1, j, k) and (i, j, k)
+                    Real ah_left = (i > 0) ? ah_arr(i-1, j, k) : ah_arr(i, j, k);
+                    Real ah_right = ah_arr(i, j, k);
+                    Real ah_avg = Real(0.5) * (ah_left + ah_right);
+                    bx_arr(i, j, k) = ah_avg * ah_avg;
+                });
+                
+                // Y-faces: average alpha_h from neighboring cells
+                amrex::ParallelFor(bx_y,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Y-face at (i, j, k) is between cells (i, j-1, k) and (i, j, k)
+                    Real ah_bottom = (j > 0) ? ah_arr(i, j-1, k) : ah_arr(i, j, k);
+                    Real ah_top = ah_arr(i, j, k);
+                    Real ah_avg = Real(0.5) * (ah_bottom + ah_top);
+                    by_arr(i, j, k) = ah_avg * ah_avg;
+                });
+                
+                // Z-faces: average alpha_v from neighboring cells
+                amrex::ParallelFor(bx_z,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Z-face at (i, j, k) is between cells (i, j, k-1) and (i, j, k)
+                    Real av_below = (k > 0) ? av_arr(i, j, k-1) : av_arr(i, j, k);
+                    Real av_above = av_arr(i, j, k);
+                    Real av_avg = Real(0.5) * (av_below + av_above);
+                    bz_arr(i, j, k) = av_avg * av_avg;
                 });
             }
         } else {
-            bcoef[2].setVal(bv);
+            // Use constant or height-dependent alpha
+            bcoef[0].setVal(bh);
+            bcoef[1].setVal(bh);
+            
+            if (use_height_dependent_alpha_v) {
+                // Set height-dependent alpha_v for z-direction
+                amrex::Print() << "wind_solver: using height-dependent alpha_v\n";
+                amrex::Print() << "  alpha_v_surface = " << alpha_v_surface << "\n";
+                amrex::Print() << "  alpha_v_top = " << alpha_v_top << "\n";
+                
+                const Real alpha_v_surf_sq = alpha_v_surface * alpha_v_surface;
+                const Real alpha_v_top_sq = alpha_v_top * alpha_v_top;
+                const Real z_lo_alphav = z_lo;
+                const Real z_hi_alphav = z_hi;
+                
+                for (MFIter mfi(bcoef[2]); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.validbox();
+                    auto bz = bcoef[2].array(mfi);
+                    
+                    amrex::ParallelFor(bx,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        // z-face is located at k (not k+0.5 for cell center)
+                        Real z_face = z_lo_alphav + k * dz;
+                        Real z_frac = (z_face - z_lo_alphav) / (z_hi_alphav - z_lo_alphav);
+                        z_frac = std::max(Real(0.0), std::min(Real(1.0), z_frac));
+                        
+                        // Linear interpolation: alpha_v^2(z) = alpha_v_surf^2 + (alpha_v_top^2 - alpha_v_surf^2) * z_frac
+                        Real alpha_v_sq = alpha_v_surf_sq + (alpha_v_top_sq - alpha_v_surf_sq) * z_frac;
+                        bz(i, j, k) = alpha_v_sq;
+                    });
+                }
+            } else {
+                bcoef[2].setVal(bv);
+            }
         }
         mlabec.setBCoeffs(0, GetArrOfConstPtrs(bcoef));
 
