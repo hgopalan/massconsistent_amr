@@ -94,7 +94,11 @@
 #include "orographic_models.H"
 #include "thermal_circulation_models.H"
 #include "terrain_blocking_models.H"
+<<<<<<< HEAD
 #include "slope_flow_models.H"
+=======
+#include "gap_flow_models.H"
+>>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1059,6 +1063,7 @@ int main(int argc, char* argv[])
                 terrain_blocking_reference_temperature, terrain_blocking_lapse_rate);
         }
 
+<<<<<<< HEAD
         // Katabatic/Anabatic Slope Flows Parameterization
         // Thermally-driven up-slope (anabatic, daytime) and down-slope (katabatic, nighttime) flows
         bool enable_slope_flows = false;
@@ -1075,6 +1080,30 @@ int main(int argc, char* argv[])
         pp.query("slope_flow_empirical_coefficient", slope_flow_empirical_coefficient);
         pp.query("slope_flow_vertical_decay_height", slope_flow_vertical_decay_height);
         pp.query("slope_flow_min_slope", slope_flow_min_slope);
+=======
+        // Gap Flow Parameterization
+        // Enhanced flow through mountain gaps/passes due to pressure-driven channeling
+        bool enable_gap_flow = false;
+        Real gap_flow_orientation = 0.0;           // Gap axis orientation [degrees, 0=east, 90=north]
+        Real gap_flow_width = 1000.0;              // Gap width [m]
+        Real gap_flow_depth = 500.0;               // Gap depth (elevation range) [m]
+        Real gap_flow_pressure_coefficient = 1.0;  // Pressure-driven flow coefficient
+        Real gap_flow_speedup_max = 3.0;           // Maximum gap flow speedup (typically 2-4)
+        Real gap_flow_center_x = 0.0;              // Gap center X coordinate [m]
+        Real gap_flow_center_y = 0.0;              // Gap center Y coordinate [m]
+        Real gap_flow_transition_width = 500.0;    // Transition zone width [m]
+        Real gap_flow_vertical_extent = 1000.0;    // Vertical extent of gap flow influence [m]
+        pp.query("enable_gap_flow", enable_gap_flow);
+        pp.query("gap_flow_orientation", gap_flow_orientation);
+        pp.query("gap_flow_width", gap_flow_width);
+        pp.query("gap_flow_depth", gap_flow_depth);
+        pp.query("gap_flow_pressure_coefficient", gap_flow_pressure_coefficient);
+        pp.query("gap_flow_speedup_max", gap_flow_speedup_max);
+        pp.query("gap_flow_center_x", gap_flow_center_x);
+        pp.query("gap_flow_center_y", gap_flow_center_y);
+        pp.query("gap_flow_transition_width", gap_flow_transition_width);
+        pp.query("gap_flow_vertical_extent", gap_flow_vertical_extent);
+>>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
 
         // Time-Varying Wind Boundary Conditions
         // Allow time-dependent inflow conditions for transient simulations
@@ -1895,6 +1924,7 @@ int main(int argc, char* argv[])
             blocking_params.transition_froude = terrain_blocking_transition_froude;
             blocking_params.flank_enhancement_factor = terrain_blocking_flank_enhancement;
 
+<<<<<<< HEAD
             // Setup slope flow parameters
             SlopeFlowParams slope_flow_params;
             slope_flow_params.enabled = enable_slope_flows;
@@ -1903,6 +1933,20 @@ int main(int argc, char* argv[])
             slope_flow_params.empirical_coefficient = slope_flow_empirical_coefficient;
             slope_flow_params.vertical_decay_height = slope_flow_vertical_decay_height;
             slope_flow_params.min_slope = slope_flow_min_slope;
+=======
+            // Setup gap flow parameters
+            GapFlowParams gap_params;
+            gap_params.enabled = enable_gap_flow;
+            gap_params.gap_orientation_deg = gap_flow_orientation;
+            gap_params.gap_width = gap_flow_width;
+            gap_params.gap_depth = gap_flow_depth;
+            gap_params.pressure_coefficient = gap_flow_pressure_coefficient;
+            gap_params.speedup_factor_max = gap_flow_speedup_max;
+            gap_params.gap_center_x = gap_flow_center_x;
+            gap_params.gap_center_y = gap_flow_center_y;
+            gap_params.transition_width = gap_flow_transition_width;
+            gap_params.vertical_extent = gap_flow_vertical_extent;
+>>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
 
             // Setup canopy parameters
             CanopyParams canopy_params;
@@ -1994,6 +2038,19 @@ int main(int argc, char* argv[])
                 amrex::Print() << "  empirical_coefficient = " << slope_flow_empirical_coefficient << " m/s\n";
                 amrex::Print() << "  vertical_decay_height = " << slope_flow_vertical_decay_height << " m\n";
                 amrex::Print() << "  min_slope = " << slope_flow_min_slope << "\n";
+            }
+
+            // Print gap flow status
+            if (enable_gap_flow) {
+                amrex::Print() << "wind_solver: gap flow parameterization enabled\n";
+                amrex::Print() << "  gap_orientation = " << gap_flow_orientation << " degrees\n";
+                amrex::Print() << "  gap_width = " << gap_flow_width << " m\n";
+                amrex::Print() << "  gap_depth = " << gap_flow_depth << " m\n";
+                amrex::Print() << "  pressure_coefficient = " << gap_flow_pressure_coefficient << "\n";
+                amrex::Print() << "  speedup_max = " << gap_flow_speedup_max << "\n";
+                amrex::Print() << "  gap_center = (" << gap_flow_center_x << ", " << gap_flow_center_y << ") m\n";
+                amrex::Print() << "  transition_width = " << gap_flow_transition_width << " m\n";
+                amrex::Print() << "  vertical_extent = " << gap_flow_vertical_extent << " m\n";
             }
 
             // Capture parameters for GPU lambda
@@ -2344,6 +2401,7 @@ int main(int argc, char* argv[])
                                 slope_x, slope_y, curvature, blocking_params);
                         }
                         
+<<<<<<< HEAD
                         // Apply slope flows (katabatic/anabatic)
                         if (slope_flow_params.enabled) {
                             // Compute terrain slope from neighbors
@@ -2361,6 +2419,29 @@ int main(int argc, char* argv[])
                             apply_slope_flow(
                                 u_vel, v_vel, z_xm, z_xp, z_ym, z_yp,
                                 dx_cap_init, dy_cap_init, z_agl, slope_flow_params);
+=======
+                        // Apply gap flow parameterization
+                        if (gap_params.enabled) {
+                            // Compute current cell coordinates
+                            Real x_cell = x_lo_cap_init + (i + Real(0.5)) * dx_cap_init;
+                            Real y_cell = y_lo_cap_init + (j + Real(0.5)) * dy_cap_init;
+                            
+                            // Use reference wind as synoptic wind for pressure calculation
+                            Real U_synoptic = U_ref_cap;
+                            Real V_synoptic = V_ref_cap;
+                            
+                            // Apply gap flow effect
+                            Real u_gap, v_gap;
+                            apply_gap_flow(
+                                x_cell, y_cell, z_agl,
+                                u_vel, v_vel,
+                                U_synoptic, V_synoptic,
+                                gap_params,
+                                u_gap, v_gap);
+                            
+                            u_vel = u_gap;
+                            v_vel = v_gap;
+>>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
                         }
                         
                         vel(i, j, k, 0) = u_vel;
