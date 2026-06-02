@@ -735,6 +735,88 @@ AMREX_GPU_DEVICE static Real weno5_deriv(Real fm2, Real fm1, Real f0, Real fp1, 
 }
 
 // ---------------------------------------------------------------------------
+// Fetch-dependent roughness transition helpers
+// ---------------------------------------------------------------------------
+
+// Compute internal boundary layer height based on fetch distance
+// Uses empirical formula from Elliott (1958) and Garratt (1990)
+// for transition from upstream roughness z01 to downstream roughness z02
+//
+// Parameters:
+//   fetch      - Distance from roughness change [m]
+//   z01        - Upstream roughness length [m]
+//   z02        - Downstream roughness length [m]
+//   blend_height - Blending height scale [m] (controls transition rate)
+//
+// Returns: Internal boundary layer height [m]
+//
+// The internal boundary layer (IBL) is the region where the flow adjusts
+// to the new surface roughness. Above the IBL, the flow still "remembers"
+// the upstream surface characteristics.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real internal_boundary_layer_height(amrex::Real fetch,
+                                           amrex::Real z01,
+                                           amrex::Real z02,
+                                           amrex::Real blend_height) noexcept
+{
+    // Empirical formula: h_IBL ≈ blend_height * (fetch / L_fetch)^0.8
+    // where L_fetch is a characteristic length scale
+    // For simplicity, use blend_height as the asymptotic IBL height
+    
+    if (fetch < amrex::Real(1.0)) {
+        return amrex::Real(0.0);  // No IBL development yet
+    }
+    
+    // Roughness ratio influences IBL growth rate
+    amrex::Real roughness_ratio = z02 / std::max(z01, amrex::Real(1.0e-10));
+    amrex::Real growth_factor = std::log(std::max(roughness_ratio, amrex::Real(0.1)));
+    
+    // IBL height grows as power law with fetch
+    amrex::Real h_ibl = blend_height * std::pow(fetch / blend_height, amrex::Real(0.8));
+    h_ibl *= std::abs(growth_factor) / (amrex::Real(1.0) + std::abs(growth_factor));
+    
+    // Cap at blend_height
+    return std::min(h_ibl, blend_height);
+}
+
+// Blend roughness lengths based on fetch and height
+// Returns effective roughness length that transitions from upwind to local value
+//
+// Parameters:
+//   z_agl      - Height above ground [m]
+//   z0_upwind  - Upwind/upstream roughness length [m]
+//   z0_local   - Local roughness length [m]
+//   fetch      - Distance from roughness change [m]
+//   blend_height - Blending height scale [m]
+//
+// Returns: Blended roughness length [m]
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real blend_roughness_fetch(amrex::Real z_agl,
+                                  amrex::Real z0_upwind,
+                                  amrex::Real z0_local,
+                                  amrex::Real fetch,
+                                  amrex::Real blend_height) noexcept
+{
+    // Compute IBL height
+    amrex::Real h_ibl = internal_boundary_layer_height(fetch, z0_upwind, z0_local, blend_height);
+    
+    // Below IBL: blend from upwind to local based on height ratio
+    // Above IBL: use upwind roughness
+    if (z_agl >= h_ibl) {
+        return z0_upwind;  // Above IBL, use upwind value
+    } else {
+        // Below IBL: smooth transition from local (at surface) to upwind (at IBL top)
+        amrex::Real blend_factor = z_agl / std::max(h_ibl, amrex::Real(1.0));
+        blend_factor = amrex::Real(1.0) - blend_factor;  // 1 at surface, 0 at IBL top
+        
+        // Logarithmic blending (roughness lengths combine logarithmically)
+        amrex::Real log_z0_blend = blend_factor * std::log(z0_local) + 
+                                   (amrex::Real(1.0) - blend_factor) * std::log(std::max(z0_upwind, amrex::Real(1.0e-10)));
+        return std::exp(log_z0_blend);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 int main(int argc, char* argv[])
@@ -1647,6 +1729,19 @@ int main(int argc, char* argv[])
                 amrex::Print() << "  total_veer = " << ekman_veer_total << " degrees\n";
                 amrex::Print() << "  veer_height = " << ekman_veer_height << " m\n";
             }
+            
+            // Print wind direction gradient status
+            if (enable_wind_direction_gradient) {
+                amrex::Print() << "wind_solver: linear wind direction gradient enabled\n";
+                amrex::Print() << "  shear_rate = " << wind_direction_shear_rate << " degrees/100m\n";
+            }
+            
+            // Print fetch-dependent roughness status
+            if (enable_fetch_roughness_transition) {
+                amrex::Print() << "wind_solver: fetch-dependent roughness transition enabled (infrastructure)\n";
+                amrex::Print() << "  blending_height = " << fetch_transition_blending_height << " m\n";
+                amrex::Print() << "  Note: Full fetch tracing implementation requires upwind distance calculation\n";
+            }
 
             // Capture parameters for GPU lambda
             const Real ustar_cap = ustar;
@@ -1698,6 +1793,10 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
+            
+            // Capture fetch-dependent roughness transition parameters  
+            const bool use_fetch_transition = enable_fetch_roughness_transition;
+            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -2108,6 +2207,10 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
+            
+            // Capture fetch-dependent roughness transition parameters
+            const bool use_fetch_transition = enable_fetch_roughness_transition;
+            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -2208,6 +2311,10 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
+            
+            // Capture fetch-dependent roughness transition parameters
+            const bool use_fetch_transition = enable_fetch_roughness_transition;
+            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
