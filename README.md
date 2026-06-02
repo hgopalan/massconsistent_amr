@@ -42,6 +42,7 @@ cmake --build build --parallel
 - **Froude number terrain blocking** — Flow blocking and channeling around steep terrain in stable stratification
 - **Katabatic/Anabatic slope flows** — Thermally-driven up-slope (daytime) and down-slope (nighttime) flows on inclined terrain
 - **Valley channeling factor** — Wind alignment with valley axis and speed adjustment based on valley geometry (width/depth)
+- **Gap flow parameterization** — Pressure-driven channeling through mountain gaps/passes with 2-4× wind speed enhancement
 - **Time-varying boundary conditions** — Support for transient wind simulations with time series input
 - **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
 - **Thermal stratification with buoyancy** — Temperature-driven buoyancy effects on vertical velocity using Boussinesq approximation
