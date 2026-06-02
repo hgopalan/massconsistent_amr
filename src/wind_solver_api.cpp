@@ -1,5 +1,6 @@
 #include "wind_solver_api.H"
 #include "canopy_models.H"
+#include "terrain_following_coords.H"
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
@@ -319,6 +320,19 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("ekman_veer_total", state.ekman_veer_total);
     pp.query("ekman_veer_height", state.ekman_veer_height);
 
+    // Terrain-following (streamline) coordinates parameters
+    state.enable_terrain_following = false;
+    state.terrain_decay_height = -1.0;  // Default: auto-set to domain_height / 3
+    pp.query("enable_terrain_following", state.enable_terrain_following);
+    pp.query("terrain_decay_height", state.terrain_decay_height);
+    
+    // Auto-set decay height if not specified
+    if (state.enable_terrain_following && state.terrain_decay_height < 0.0) {
+        state.terrain_decay_height = domain_height / Real(3.0);
+        amrex::Print() << "terrain_following: auto-setting decay_height = "
+                       << state.terrain_decay_height << " m (domain_height / 3)\n";
+    }
+
     read_terrain_file(terrain_file,
                       state.terrain_x_data,
                       state.terrain_y_data,
@@ -594,6 +608,10 @@ void compute_divergence(const WindSolverState& state,
     const Real z_lo = state.zmin;
     const Real dz = state.dz;
     const int nx = state.nx;
+    
+    // Terrain-following coordinates parameters
+    const bool use_terrain_following = state.enable_terrain_following;
+    const Real decay_height = state.terrain_decay_height;
 
     divergence.setVal(0.0);
     for (MFIter mfi(divergence); mfi.isValid(); ++mfi) {
@@ -602,7 +620,8 @@ void compute_divergence(const WindSolverState& state,
         auto div = divergence.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real z_phys = z_lo + (k + Real(0.5)) * dz;
-            const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+            const Real z_terrain = terrain_ptr[j * nx + i];
+            const Real z_agl = z_phys - z_terrain;
             if (z_agl <= Real(0.0)) {
                 div(i, j, k) = Real(0.0);
                 return;
@@ -642,7 +661,42 @@ void compute_divergence(const WindSolverState& state,
                 }
             }
 
+            // Standard Cartesian divergence
             div(i, j, k) = du + dv + dw;
+            
+            // Add terrain-following coordinate metric corrections
+            if (use_terrain_following) {
+                // Compute vertical derivatives of u and v for metric corrections
+                Real dudz = Real(0.0);
+                Real dvdz = Real(0.0);
+                
+                if (khi > klo) {
+                    if (k == klo) {
+                        dudz = (vel(i, j, k + 1, 0) - vel(i, j, k, 0)) * inv1dz;
+                        dvdz = (vel(i, j, k + 1, 1) - vel(i, j, k, 1)) * inv1dz;
+                    } else if (k == khi) {
+                        dudz = (vel(i, j, k, 0) - vel(i, j, k - 1, 0)) * inv1dz;
+                        dvdz = (vel(i, j, k, 1) - vel(i, j, k - 1, 1)) * inv1dz;
+                    } else {
+                        dudz = (vel(i, j, k + 1, 0) - vel(i, j, k - 1, 0)) * inv2dz;
+                        dvdz = (vel(i, j, k + 1, 1) - vel(i, j, k - 1, 1)) * inv2dz;
+                    }
+                }
+                
+                // Compute terrain slopes
+                const Real dz_terrain_dx = TerrainFollowingCoords::compute_terrain_slope_x(
+                    i, j, terrain_ptr, nx, state.dx, ilo, ihi);
+                const Real dz_terrain_dy = TerrainFollowingCoords::compute_terrain_slope_y(
+                    i, j, terrain_ptr, nx, state.dy, jlo, jhi);
+                
+                // Add metric correction to divergence
+                const Real w = vel(i, j, k, 2);
+                const Real correction = TerrainFollowingCoords::divergence_metric_correction(
+                    dudz, dvdz, w, dw, dz_terrain_dx, dz_terrain_dy,
+                    z_terrain, z_agl, decay_height);
+                
+                div(i, j, k) += correction;
+            }
         });
     }
 }
@@ -883,6 +937,39 @@ bool wind_solver_solve()
         bcoef[0].setVal(bh);
         bcoef[1].setVal(bh);
         bcoef[2].setVal(bv);
+        
+        // Apply terrain-following coordinate metric corrections to B coefficients
+        if (state.enable_terrain_following) {
+            const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+            const Real z_lo = state.zmin;
+            const Real dz_val = state.dz;
+            const int nx_val = state.nx;
+            const Real decay_height = state.terrain_decay_height;
+            const int klo_val = lo[2];
+            const int khi_val = hi[2];
+            
+            // Modify vertical B coefficient (bcoef[2]) to include Jacobian
+            for (MFIter mfi(bcoef[2]); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto bz = bcoef[2].array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    // k is at face (z-face), so evaluate at k - 0.5 for cell center
+                    const Real z_phys = z_lo + k * dz_val;
+                    const Real z_terrain = terrain_ptr[j * nx_val + i];
+                    const Real z_agl = z_phys - z_terrain;
+                    
+                    if (z_agl > Real(0.0)) {
+                        // Compute Jacobian at this location
+                        const Real J = TerrainFollowingCoords::jacobian(
+                            z_terrain, z_agl, decay_height);
+                        // Scale vertical B coefficient by Jacobian squared
+                        // This accounts for metric tensor in terrain-following coords
+                        bz(i, j, k) = bv * J * J;
+                    }
+                });
+            }
+        }
+        
         mlabec.setBCoeffs(0, GetArrOfConstPtrs(bcoef));
         mlabec.setLevelBC(0, nullptr);
 
