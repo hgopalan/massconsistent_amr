@@ -309,7 +309,7 @@ AMREX_GPU_HOST_DEVICE AMREX_INLINE
 std::pair<amrex::Real, amrex::Real> terrain_adaptive_alpha_coefficients(
     amrex::Real slope,
     amrex::Real curvature,
-    amrex::Real elevation,
+    amrex::Real /*elevation*/,
     amrex::Real alpha_h_base = amrex::Real(1.0),
     amrex::Real alpha_v_flat = amrex::Real(1.0),
     amrex::Real slope_scale = amrex::Real(0.25))

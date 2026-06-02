@@ -87,7 +87,7 @@ namespace ValleyChannelingConstants {
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 amrex::Real detect_valley_axis(
-    amrex::Real z_center,
+    amrex::Real /*z_center*/,
     amrex::Real z_xm, amrex::Real z_xp,
     amrex::Real z_ym, amrex::Real z_yp,
     amrex::Real dx, amrex::Real dy)

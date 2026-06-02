@@ -649,7 +649,7 @@ bool aermod_prime_wake_deficit(
     amrex::Real U_ref,
     amrex::Real wind_dir_x,
     amrex::Real wind_dir_y,
-    const WakeParams& params,
+    const WakeParams& /*params*/,
     amrex::Real& du,
     amrex::Real& dv,
     amrex::Real& dw)

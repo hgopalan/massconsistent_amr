@@ -167,10 +167,10 @@ Real interpolate_velocity_component(
 // ============================================================================
 void read_velocity_plotfile(
     const std::string& plotfile_prefix,
-    std::unique_ptr<MultiFab>& vel_mf,
-    std::unique_ptr<Geometry>& geom,
-    amrex::Box& domain,
-    int& ng)
+    std::unique_ptr<MultiFab>& /*vel_mf*/,
+    std::unique_ptr<Geometry>& /*geom*/,
+    amrex::Box& /*domain*/,
+    int& /*ng*/)
 {
     // Note: This is simplified. In practice, would use AMReX::VisMF utilities
     amrex::Print() << "puff_solver: reading velocity from " << plotfile_prefix << "\n";

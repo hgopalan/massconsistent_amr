@@ -453,40 +453,6 @@ static void read_alpha_coefficients_file(const std::string& filename,
                    << " alpha coefficient points from " << filename << "\n";
 }
 
-// IDW interpolation: alpha coefficients at query point (xq, yq)
-// Returns pair: (alpha_h, alpha_v)
-static std::pair<Real, Real> idw_alpha_coefficients(
-    Real xq, Real yq,
-    const std::vector<Real>& x,
-    const std::vector<Real>& y,
-    const std::vector<Real>& alpha_h_data,
-    const std::vector<Real>& alpha_v_data,
-    int k = 6)
-{
-    int n = static_cast<int>(x.size());
-    k = std::min(k, n);
-
-    std::vector<std::pair<Real, int>> d2(n);
-    for (int i = 0; i < n; ++i) {
-        Real dx = x[i] - xq;
-        Real dy = y[i] - yq;
-        d2[i] = {dx * dx + dy * dy, i};
-    }
-    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
-
-    Real wsum = 0.0, ah_val = 0.0, av_val = 0.0;
-    for (int i = 0; i < k; ++i) {
-        if (d2[i].first < DISTANCE_EPSILON) {
-            return {alpha_h_data[d2[i].second], alpha_v_data[d2[i].second]}; // exact hit
-        }
-        Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
-        wsum += w;
-        ah_val += w * alpha_h_data[d2[i].second];
-        av_val += w * alpha_v_data[d2[i].second];
-    }
-    return {ah_val / wsum, av_val / wsum};
-}
-
 // GPU-compatible IDW interpolation for alpha coefficients
 // Returns pair: (alpha_h, alpha_v)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -2104,10 +2070,7 @@ int main(int argc, char* argv[])
             const bool use_veg_roughness = enable_vegetation_roughness;
             const Real veg_state_val = vegetation_state;
             const int veg_state_type_val = vegetation_state_type;
-            
-            // Diurnal temperature (only affects temperature, used later if enabled)
-            const bool use_diurnal_temp = enable_diurnal_temperature;
-            
+             
             // Wall function parameters
             const bool use_wall_func = enable_wall_functions;
             const bool use_terrain_wall = enable_terrain_wall_function;
@@ -2140,10 +2103,6 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters  
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -2711,19 +2670,15 @@ int main(int argc, char* argv[])
             canopy_params.drag_coefficient = canopy_drag_coeff;
             canopy_params.attenuation_coeff = canopy_attenuation;
             canopy_params.use_exponential_profile = use_exponential_profile;
-            
+             
             // Capture Ekman veer parameters
             const bool use_ekman = enable_ekman_veer;
             const Real veer_height = ekman_veer_height;
             const Real veer_total = ekman_veer_total_rad;
-            
+             
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -2889,19 +2844,15 @@ int main(int argc, char* argv[])
             // Capture kinematic BC parameters
             const bool use_kinematic_bc = enable_terrain_kinematic_bc;
             const Real bc_relax = terrain_bc_relaxation;
-            
+             
             // Capture Ekman veer parameters
             const bool use_ekman = enable_ekman_veer;
             const Real veer_height = ekman_veer_height;
             const Real veer_total = ekman_veer_total_rad;
-            
+             
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -3883,7 +3834,6 @@ int main(int argc, char* argv[])
         const Real cp_air = 1005.0;      // specific heat at constant pressure [J/(kg·K)]
         const Real theta_star = 0.1;     // characteristic temperature scale [K] (typical for neutral conditions)
         const Real kappa_diag = 0.41;    // von Karman constant
-        const Real z_ref_diag = z_ref;   // reference height for diagnostics
 
         for (MFIter mfi(output); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
