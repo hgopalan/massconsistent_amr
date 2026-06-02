@@ -1560,6 +1560,10 @@ int main(int argc, char* argv[])
             const bool use_ekman = enable_ekman_veer;
             const Real veer_height = ekman_veer_height;
             const Real veer_total = ekman_veer_total_rad;
+            
+            // Capture wind direction gradient parameters
+            const bool use_wind_dir_gradient = enable_wind_direction_gradient;
+            const Real dir_shear_rate = wind_direction_shear_rate_rad;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -1681,6 +1685,14 @@ int main(int argc, char* argv[])
                             Real u_base = speed * ux_h;
                             Real v_base = speed * uy_h;
                             apply_ekman_veer(u_base, v_base, veer_angle, u_vel, v_vel);
+                        } else if (use_wind_dir_gradient) {
+                            // Apply linear wind direction gradient
+                            Real dir_angle = wind_direction_gradient_angle(z_agl, dir_shear_rate);
+                            
+                            // Apply rotation to horizontal wind components
+                            Real u_base = speed * ux_h;
+                            Real v_base = speed * uy_h;
+                            apply_ekman_veer(u_base, v_base, dir_angle, u_vel, v_vel);
                         } else {
                             // No veer - use base wind direction
                             u_vel = speed * ux_h;
@@ -1958,6 +1970,10 @@ int main(int argc, char* argv[])
             const bool use_ekman = enable_ekman_veer;
             const Real veer_height = ekman_veer_height;
             const Real veer_total = ekman_veer_total_rad;
+            
+            // Capture wind direction gradient parameters
+            const bool use_wind_dir_gradient = enable_wind_direction_gradient;
+            const Real dir_shear_rate = wind_direction_shear_rate_rad;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -2000,6 +2016,14 @@ int main(int argc, char* argv[])
                             Real u_base = speed * ux_hat;
                             Real v_base = speed * uy_hat;
                             apply_ekman_veer(u_base, v_base, veer_angle, u_vel, v_vel);
+                        } else if (use_wind_dir_gradient) {
+                            // Apply linear wind direction gradient
+                            Real dir_angle = wind_direction_gradient_angle(z_agl, dir_shear_rate);
+                            
+                            // Apply rotation to horizontal wind components
+                            Real u_base = speed * ux_hat;
+                            Real v_base = speed * uy_hat;
+                            apply_ekman_veer(u_base, v_base, dir_angle, u_vel, v_vel);
                         } else {
                             // No veer - use base wind direction
                             u_vel = speed * ux_hat;
@@ -2046,6 +2070,10 @@ int main(int argc, char* argv[])
             const bool use_ekman = enable_ekman_veer;
             const Real veer_height = ekman_veer_height;
             const Real veer_total = ekman_veer_total_rad;
+            
+            // Capture wind direction gradient parameters
+            const bool use_wind_dir_gradient = enable_wind_direction_gradient;
+            const Real dir_shear_rate = wind_direction_shear_rate_rad;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -2079,6 +2107,14 @@ int main(int argc, char* argv[])
                             Real u_base = speed * ux_h;
                             Real v_base = speed * uy_h;
                             apply_ekman_veer(u_base, v_base, veer_angle, u_vel, v_vel);
+                        } else if (use_wind_dir_gradient) {
+                            // Apply linear wind direction gradient
+                            Real dir_angle = wind_direction_gradient_angle(z_agl, dir_shear_rate);
+                            
+                            // Apply rotation to horizontal wind components
+                            Real u_base = speed * ux_h;
+                            Real v_base = speed * uy_h;
+                            apply_ekman_veer(u_base, v_base, dir_angle, u_vel, v_vel);
                         } else {
                             // No veer - use base wind direction
                             u_vel = speed * ux_h;
