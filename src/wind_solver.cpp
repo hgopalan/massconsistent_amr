@@ -1539,10 +1539,6 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 0) = u_wf;
                         vel(i, j, k, 1) = v_wf;
                         vel(i, j, k, 2) = w_wf;
-if (z_agl <= Real(0.0)) {
-                        vel(i, j, k, 0) = Real(0.0);
-                        vel(i, j, k, 1) = Real(0.0);
-                        vel(i, j, k, 2) = Real(0.0);
                     } else {
                         // Use position-dependent z0 if available, otherwise use constant
                         Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
