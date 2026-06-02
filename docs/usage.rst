@@ -239,6 +239,32 @@ Parameter Reference
     - ``200.0``
     - Height scale for veer profile [m]. Most veer occurs within this height. Typical values:
       100-200 m for boundary layer depth scale.
+   * - **Buoyancy Stratification Parameters**
+    -
+    -
+   * - ``enable_buoyancy_stratification``
+    - ``false``
+    - Enable buoyancy effects from thermal stratification. Requires ``temperature_file`` to be specified.
+   * - ``temperature_file``
+    - ``temperature.csv``
+    - Path to temperature profile CSV file. Format: ``Z T`` (height [m above sea level], temperature [K]).
+      Lines starting with ``#`` are comments. Temperature is interpolated to grid cells.
+   * - ``temperature_reference``
+    - ``300.0``
+    - Reference temperature T₀ [K] for buoyancy computation. Typically set to mean atmospheric temperature.
+   * - ``buoyancy_coefficient``
+    - ``1.0``
+    - Tuning coefficient for buoyancy strength. Typical range: 0.1-2.0. Higher values strengthen
+      buoyancy effects.
+   * - ``buoyancy_method``
+    - ``velocity``
+    - Method for applying buoyancy: ``velocity`` (add to vertical velocity before mass-consistency)
+      or ``rhs`` (add source term directly to lambda equation RHS). Both are physically consistent;
+      ``rhs`` method avoids the need for ``buoyancy_timescale`` parameter.
+   * - ``buoyancy_timescale``
+    - ``10.0``
+    - Characteristic time scale Δt [s] for integrating buoyancy acceleration to velocity.
+      Only used when ``buoyancy_method = velocity``. Typical range: 5-20 s.
    * - **Building Parameters**
     -
     -

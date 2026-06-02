@@ -824,11 +824,13 @@ int main(int argc, char* argv[])
         Real temperature_reference = 300.0;  // Reference temperature T₀ [K]
         Real buoyancy_coefficient = 1.0;     // Tuning parameter for buoyancy strength
         Real buoyancy_timescale = 10.0;      // Characteristic time scale Δt [s]
+        std::string buoyancy_method = "velocity";  // Method: "velocity" or "rhs"
         pp.query("enable_buoyancy_stratification", enable_buoyancy_stratification);
         pp.query("temperature_file", temperature_file);
         pp.query("temperature_reference", temperature_reference);
         pp.query("buoyancy_coefficient", buoyancy_coefficient);
         pp.query("buoyancy_timescale", buoyancy_timescale);
+        pp.query("buoyancy_method", buoyancy_method);
 
         // Kinematic Terrain-Following Boundary Condition
         // Enforce w = u·∇h at terrain surface instead of simply zeroing
@@ -1042,7 +1044,10 @@ int main(int argc, char* argv[])
             amrex::Print() << "wind_solver: buoyancy stratification enabled\n";
             amrex::Print() << "  temperature_reference = " << temperature_reference << " K\n";
             amrex::Print() << "  buoyancy_coefficient = " << buoyancy_coefficient << "\n";
-            amrex::Print() << "  buoyancy_timescale = " << buoyancy_timescale << " s\n";
+            amrex::Print() << "  buoyancy_method = " << buoyancy_method << "\n";
+            if (buoyancy_method == "velocity") {
+                amrex::Print() << "  buoyancy_timescale = " << buoyancy_timescale << " s\n";
+            }
         }
 
         // ----------------------------------------------------------------
@@ -1454,6 +1459,7 @@ int main(int argc, char* argv[])
             const Real buoy_coeff = buoyancy_coefficient;
             const Real buoy_dt = buoyancy_timescale;
             const int n_temp_pts = n_temp_points;
+            const bool buoy_use_velocity = (buoyancy_method == "velocity");
             
             // Capture kinematic BC parameters
             const bool use_kinematic_bc = enable_terrain_kinematic_bc;
@@ -1619,8 +1625,10 @@ int main(int argc, char* argv[])
                                 }
                             }
                             
-                            // Compute buoyancy-induced vertical velocity
-                            w_vel += buoyancy_velocity(T_local, T_ref, buoy_dt, buoy_coeff);
+                            // Compute buoyancy-induced vertical velocity (if using velocity method)
+                            if (buoy_use_velocity) {
+                                w_vel += buoyancy_velocity(T_local, T_ref, buoy_dt, buoy_coeff);
+                            }
                         }
                         
                         // Apply kinematic terrain BC at first cell above terrain
@@ -1670,6 +1678,7 @@ int main(int argc, char* argv[])
             const Real buoy_coeff = buoyancy_coefficient;
             const Real buoy_dt = buoyancy_timescale;
             const int n_temp_pts = n_temp_points;
+            const bool buoy_use_velocity = (buoyancy_method == "velocity");
             
             // Capture kinematic BC parameters
             const bool use_kinematic_bc = enable_terrain_kinematic_bc;
@@ -1732,7 +1741,9 @@ int main(int argc, char* argv[])
                                     }
                                 }
                             }
-                            w_vel += buoyancy_velocity(T_local, T_ref, buoy_dt, buoy_coeff);
+                            if (buoy_use_velocity) {
+                                w_vel += buoyancy_velocity(T_local, T_ref, buoy_dt, buoy_coeff);
+                            }
                         }
                         
                         // Apply kinematic terrain BC at interface
@@ -1940,6 +1951,7 @@ int main(int argc, char* argv[])
             const Real buoy_coeff = buoyancy_coefficient;
             const Real buoy_dt = buoyancy_timescale;
             const int n_temp_pts = n_temp_points;
+            const bool buoy_use_velocity = (buoyancy_method == "velocity");
             
             // Capture kinematic BC parameters
             const bool use_kinematic_bc = enable_terrain_kinematic_bc;
@@ -2010,7 +2022,9 @@ int main(int argc, char* argv[])
                                     }
                                 }
                             }
-                            w_vel += buoyancy_velocity(T_local, T_ref, buoy_dt, buoy_coeff);
+                            if (buoy_use_velocity) {
+                                w_vel += buoyancy_velocity(T_local, T_ref, buoy_dt, buoy_coeff);
+                            }
                         }
                         
                         // Apply kinematic terrain BC at interface
@@ -2316,6 +2330,12 @@ int main(int argc, char* argv[])
         const Real dz_cap_div = dz;  // rename to avoid conflict
         const Real z_lo_cap_div = z_lo;   // capture z_lo for divergence computation
         const int  nx_cap_div   = nx;     // capture nx for divergence computation
+        
+        // Capture buoyancy parameters for RHS method
+        const bool use_buoyancy_rhs = enable_buoyancy_stratification && (buoyancy_method == "rhs");
+        const Real T_ref_rhs = temperature_reference;
+        const Real buoy_coeff_rhs = buoyancy_coefficient;
+        const int n_temp_pts_rhs = n_temp_points;
 
         for (MFIter mfi(rhs); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -2408,6 +2428,30 @@ int main(int argc, char* argv[])
                 }
 
                 rh(i, j, k) = -(du + dv + dw);   // rhs = -div(u0)
+                
+                // Add buoyancy source term to RHS if using RHS method
+                if (use_buoyancy_rhs && n_temp_pts_rhs > 0) {
+                    Real T_local = T_ref_rhs;
+                    if (n_temp_pts_rhs == 1) {
+                        T_local = d_temp_T_ptr[0];
+                    } else if (z_physical <= d_temp_z_ptr[0]) {
+                        T_local = d_temp_T_ptr[0];
+                    } else if (z_physical >= d_temp_z_ptr[n_temp_pts_rhs - 1]) {
+                        T_local = d_temp_T_ptr[n_temp_pts_rhs - 1];
+                    } else {
+                        for (int m = 0; m < n_temp_pts_rhs - 1; ++m) {
+                            if (z_physical >= d_temp_z_ptr[m] && 
+                                z_physical <= d_temp_z_ptr[m + 1]) {
+                                T_local = temperature_linear_interp(
+                                    z_physical,
+                                    d_temp_z_ptr[m], d_temp_T_ptr[m],
+                                    d_temp_z_ptr[m + 1], d_temp_T_ptr[m + 1]);
+                                break;
+                            }
+                        }
+                    }
+                    rh(i, j, k) += buoyancy_rhs_term(T_local, T_ref_rhs, buoy_coeff_rhs);
+                }
             });
         }
 

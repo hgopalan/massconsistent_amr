@@ -134,6 +134,11 @@ add_regression_test(wall_function_adaptive wall_function_adaptive)
 add_regression_test(buoyancy_stratification buoyancy_stratification)
 
 # ---------------------------------------------------------------------------
+# buoyancy_rhs/ – Buoyancy RHS method (source term in lambda equation)
+# ---------------------------------------------------------------------------
+add_regression_test(buoyancy_rhs buoyancy_rhs)
+
+# ---------------------------------------------------------------------------
 # terrain_kinematic_bc/ – Kinematic terrain-following boundary condition
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_kinematic_bc terrain_kinematic_bc)
@@ -207,6 +212,7 @@ message(STATUS "  wall_function_stable/  : Wall function with stable atmospheric
 message(STATUS "  wall_function_unstable/: Wall function with unstable atmospheric corrections")
 message(STATUS "  wall_function_adaptive/: Wall function with adaptive grid resolution activation")
 message(STATUS "  buoyancy_stratification/: Thermal stratification with buoyancy effects")
+message(STATUS "  buoyancy_rhs/          : Buoyancy RHS method (source term in lambda equation)")
 message(STATUS "  terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
 message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
 message(STATUS "  drag_diagnostic/       : Phase 4 - Drag coefficient and heat flux diagnostics")
