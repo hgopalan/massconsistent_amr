@@ -94,11 +94,8 @@
 #include "orographic_models.H"
 #include "thermal_circulation_models.H"
 #include "terrain_blocking_models.H"
-<<<<<<< HEAD
 #include "slope_flow_models.H"
-=======
 #include "gap_flow_models.H"
->>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1063,7 +1060,6 @@ int main(int argc, char* argv[])
                 terrain_blocking_reference_temperature, terrain_blocking_lapse_rate);
         }
 
-<<<<<<< HEAD
         // Katabatic/Anabatic Slope Flows Parameterization
         // Thermally-driven up-slope (anabatic, daytime) and down-slope (katabatic, nighttime) flows
         bool enable_slope_flows = false;
@@ -1080,7 +1076,7 @@ int main(int argc, char* argv[])
         pp.query("slope_flow_empirical_coefficient", slope_flow_empirical_coefficient);
         pp.query("slope_flow_vertical_decay_height", slope_flow_vertical_decay_height);
         pp.query("slope_flow_min_slope", slope_flow_min_slope);
-=======
+
         // Gap Flow Parameterization
         // Enhanced flow through mountain gaps/passes due to pressure-driven channeling
         bool enable_gap_flow = false;
@@ -1103,7 +1099,6 @@ int main(int argc, char* argv[])
         pp.query("gap_flow_center_y", gap_flow_center_y);
         pp.query("gap_flow_transition_width", gap_flow_transition_width);
         pp.query("gap_flow_vertical_extent", gap_flow_vertical_extent);
->>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
 
         // Time-Varying Wind Boundary Conditions
         // Allow time-dependent inflow conditions for transient simulations
@@ -1924,7 +1919,6 @@ int main(int argc, char* argv[])
             blocking_params.transition_froude = terrain_blocking_transition_froude;
             blocking_params.flank_enhancement_factor = terrain_blocking_flank_enhancement;
 
-<<<<<<< HEAD
             // Setup slope flow parameters
             SlopeFlowParams slope_flow_params;
             slope_flow_params.enabled = enable_slope_flows;
@@ -1933,7 +1927,7 @@ int main(int argc, char* argv[])
             slope_flow_params.empirical_coefficient = slope_flow_empirical_coefficient;
             slope_flow_params.vertical_decay_height = slope_flow_vertical_decay_height;
             slope_flow_params.min_slope = slope_flow_min_slope;
-=======
+
             // Setup gap flow parameters
             GapFlowParams gap_params;
             gap_params.enabled = enable_gap_flow;
@@ -1946,7 +1940,6 @@ int main(int argc, char* argv[])
             gap_params.gap_center_y = gap_flow_center_y;
             gap_params.transition_width = gap_flow_transition_width;
             gap_params.vertical_extent = gap_flow_vertical_extent;
->>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
 
             // Setup canopy parameters
             CanopyParams canopy_params;
@@ -2401,7 +2394,6 @@ int main(int argc, char* argv[])
                                 slope_x, slope_y, curvature, blocking_params);
                         }
                         
-<<<<<<< HEAD
                         // Apply slope flows (katabatic/anabatic)
                         if (slope_flow_params.enabled) {
                             // Compute terrain slope from neighbors
@@ -2419,7 +2411,8 @@ int main(int argc, char* argv[])
                             apply_slope_flow(
                                 u_vel, v_vel, z_xm, z_xp, z_ym, z_yp,
                                 dx_cap_init, dy_cap_init, z_agl, slope_flow_params);
-=======
+                        }
+
                         // Apply gap flow parameterization
                         if (gap_params.enabled) {
                             // Compute current cell coordinates
@@ -2441,7 +2434,6 @@ int main(int argc, char* argv[])
                             
                             u_vel = u_gap;
                             v_vel = v_gap;
->>>>>>> dd40799 (Integrate gap flow into wind_solver.cpp with parameter parsing and application)
                         }
                         
                         vel(i, j, k, 0) = u_vel;
