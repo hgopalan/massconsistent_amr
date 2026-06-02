@@ -39,7 +39,7 @@
 #include <string>
 #include <algorithm>
 
-// Selective using declarations from AMReX namespace
+// Selective using declarations from amrex namespace
 using amrex::Real;
 using amrex::Box;
 using amrex::MultiFab;

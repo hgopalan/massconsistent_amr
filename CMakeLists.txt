@@ -111,25 +111,10 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   # Workaround for CUDA 12.6 + Windows SDK with MSVC compatibility issues
   # When compiling CUDA code on Windows with MSVC, the STL version may not match CUDA's expectations
   # This can cause header redefinition errors in vadefs.h and corecrt.h
+  # Note: Flags are already set globally via CMAKE_CUDA_FLAGS at project configuration time
   if(WIN32)
-    # Define common compile options and definitions for all CUDA targets on Windows
-    set(_cuda_windows_compile_opts
-      $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244,/wd2953,/wd4011>
-    )
-    set(_cuda_windows_compile_defs
-      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
-      $<$<COMPILE_LANGUAGE:CUDA>:_CRT_SECURE_NO_WARNINGS>
-    )
-    
-    # Apply to all targets
-    target_compile_options(wind_solver PRIVATE ${_cuda_windows_compile_opts})
-    target_compile_options(puff_solver PRIVATE ${_cuda_windows_compile_opts})
-    target_compile_options(wind_solver_api PRIVATE ${_cuda_windows_compile_opts})
-    
-    target_compile_definitions(wind_solver PRIVATE ${_cuda_windows_compile_defs})
-    target_compile_definitions(puff_solver PRIVATE ${_cuda_windows_compile_defs})
-    target_compile_definitions(wind_solver_api PRIVATE ${_cuda_windows_compile_defs})
+    # Additional target-specific settings can be added here if needed
+    # Currently all Windows-specific CUDA flags are handled by CMAKE_CUDA_FLAGS
   endif()
 endif()
 
