@@ -74,13 +74,13 @@ struct PuffParams {
     amrex::Real sigma_y0 = 1.0;              // Initial puff width σy [m]
     amrex::Real sigma_z0 = 1.0;              // Initial puff height σz [m]
     
-    // Height-dependent diffusivity parameters (Feature 2)
+    // Height-dependent diffusivity parameters
     bool enable_height_dependent_K = false;  // Enable K(z) profiles
     std::string K_profile = "constant";      // Profile type: constant, power_law, stability
     amrex::Real K_power_law_exponent = 0.5;  // Exponent for power-law: K(z) = K0 * (z/z0)^n
     amrex::Real K_reference_height = 10.0;   // Reference height for power-law [m]
     
-    // First-order decay parameters (Feature 3)
+    // First-order decay parameters
     bool enable_decay = false;               // Enable exponential decay
     amrex::Real decay_constant = 0.0;        // Decay constant λ [1/s] (e.g., 0.001 = 1e-3/s)
     
@@ -652,7 +652,7 @@ void update_puff_age(
 }
 
 // ============================================================================
-// Compute height-dependent diffusivity (Feature 2)
+// Compute height-dependent diffusivity
 //
 // Computes effective diffusivity as a function of height above ground.
 //
@@ -692,7 +692,7 @@ amrex::Real compute_K_height_dependent(
 }
 
 // ============================================================================
-// Apply first-order exponential decay to puff mass (Feature 3)
+// Apply first-order exponential decay to puff mass
 //
 // Implements radioactive or chemical decay: dm/dt = -λ * m
 // Solution: m(t) = m0 * exp(-λ * t)
@@ -728,7 +728,7 @@ void apply_puff_decay(
 }
 
 // ============================================================================
-// Apply deposition/sedimentation for puffs near ground (Feature 11)
+// Apply deposition/sedimentation for puffs near ground
 //
 // Removes mass from puffs that touch the ground due to:
 //   1. Gravitational settling (particles with terminal velocity v_d)
