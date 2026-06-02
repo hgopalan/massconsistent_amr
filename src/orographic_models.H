@@ -260,7 +260,7 @@ void apply_orographic_speedup(
 }
 
 // ============================================================================
-// Terrain-Adaptive Alpha Coefficients (Feature 12)
+// Terrain-Adaptive Alpha Coefficients
 //
 // Computes spatially-varying anisotropy coefficients (α_h, α_v) based on
 // local terrain characteristics to improve mass-consistent wind field
