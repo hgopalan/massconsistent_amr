@@ -259,4 +259,135 @@ void apply_orographic_speedup(
     v *= speedup_factor;
 }
 
+// ============================================================================
+// Terrain-Adaptive Alpha Coefficients (Feature 12)
+//
+// Computes spatially-varying anisotropy coefficients (α_h, α_v) based on
+// local terrain characteristics to improve mass-consistent wind field
+// adjustment over complex terrain.
+//
+// Strategy:
+//   - Flat areas: isotropic (α_h = α_v = 1.0) - equal adjustment in all directions
+//   - Steep slopes: preserve terrain-following (α_v << α_h) - minimal vertical adjustment
+//   - Valley bottoms: allow more vertical adjustment (larger α_v)
+//   - Ridge tops: constrain vertical motion (smaller α_v)
+//
+// The vertical coefficient α_v is a function of slope magnitude:
+//   α_v = α_v_flat * exp(-slope / slope_scale)
+//
+// where:
+//   α_v_flat: alpha_v for flat terrain (typically 1.0)
+//   slope_scale: characteristic slope for decay (typically 0.2-0.3)
+//   
+// For steep slopes (slope > 0.3):
+//   - α_v becomes small (< 0.3)
+//   - Wind adjustment preserves terrain-following structure
+//
+// For flat terrain (slope < 0.05):
+//   - α_v ≈ α_v_flat
+//   - Wind adjustment is nearly isotropic
+//
+// Parameters:
+//   slope          - Terrain slope magnitude (dimensionless, rise/run)
+//   curvature      - Terrain curvature [1/m] (positive=ridge, negative=valley)
+//   elevation      - Local terrain elevation [m]
+//   alpha_h_base   - Base horizontal coefficient (typically 1.0)
+//   alpha_v_flat   - Vertical coefficient for flat terrain (typically 1.0)
+//   slope_scale    - Slope decay parameter (typically 0.2-0.3)
+//
+// Returns:
+//   Pair (α_h, α_v) for this location
+//
+// References:
+//   - Ross, D.G., et al. (1988). Diagnostic wind field modeling for complex terrain.
+//     J. Appl. Meteor., 27, 785-796.
+//   - Sherman, C.A. (1978). A mass-consistent model for wind fields over complex terrain.
+//     J. Appl. Meteor., 17, 312-319.
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+std::pair<amrex::Real, amrex::Real> terrain_adaptive_alpha_coefficients(
+    amrex::Real slope,
+    amrex::Real curvature,
+    amrex::Real elevation,
+    amrex::Real alpha_h_base = amrex::Real(1.0),
+    amrex::Real alpha_v_flat = amrex::Real(1.0),
+    amrex::Real slope_scale = amrex::Real(0.25))
+{
+    // Horizontal coefficient: typically constant
+    amrex::Real alpha_h = alpha_h_base;
+    
+    // Vertical coefficient: depends on terrain slope
+    // For steep slopes: α_v << 1 (preserve terrain-following)
+    // For flat terrain: α_v ≈ α_v_flat (allow vertical adjustment)
+    
+    // Exponential decay with slope: α_v = α_v_flat × exp(-slope / slope_scale)
+    amrex::Real alpha_v = alpha_v_flat * std::exp(-slope / slope_scale);
+    
+    // Apply curvature modulation:
+    // - Ridge tops (positive curvature): reduce α_v further (constrain vertical motion)
+    // - Valley bottoms (negative curvature): increase α_v (allow more vertical adjustment)
+    
+    if (std::abs(curvature) > amrex::Real(1.0e-6)) {
+        // Curvature strength indicator (dimensionless)
+        // Normalize by characteristic length scale L = 100 m
+        const amrex::Real L_char = amrex::Real(100.0);  // meters
+        const amrex::Real curv_strength = std::min(
+            std::abs(curvature) * L_char * L_char,
+            amrex::Real(1.0)
+        );
+        
+        if (curvature > amrex::Real(0.0)) {
+            // Ridge top (positive curvature): reduce α_v by up to 30%
+            const amrex::Real ridge_factor = amrex::Real(1.0) - amrex::Real(0.3) * curv_strength;
+            alpha_v *= ridge_factor;
+        } else {
+            // Valley bottom (negative curvature): increase α_v by up to 50%
+            const amrex::Real valley_factor = amrex::Real(1.0) + amrex::Real(0.5) * curv_strength;
+            alpha_v *= valley_factor;
+            
+            // Clamp to reasonable maximum
+            alpha_v = std::min(alpha_v, amrex::Real(1.5) * alpha_v_flat);
+        }
+    }
+    
+    // Clamp α_v to physically reasonable range
+    // Minimum: 0.1 × α_v_flat (very steep terrain, strong terrain-following)
+    // Maximum: 1.5 × α_v_flat (valley bottoms, enhanced vertical adjustment)
+    const amrex::Real alpha_v_min = amrex::Real(0.1) * alpha_v_flat;
+    const amrex::Real alpha_v_max = amrex::Real(1.5) * alpha_v_flat;
+    alpha_v = std::max(alpha_v_min, std::min(alpha_v, alpha_v_max));
+    
+    return {alpha_h, alpha_v};
+}
+
+// ============================================================================
+// Simplified terrain-adaptive alpha (slope-only version)
+//
+// Computes α_v based solely on terrain slope, without curvature effects.
+// Simpler interface for basic terrain adaptation.
+//
+// Parameters:
+//   slope          - Terrain slope magnitude (dimensionless)
+//   alpha_v_flat   - Vertical coefficient for flat terrain (default 1.0)
+//   slope_scale    - Slope decay parameter (default 0.25)
+//
+// Returns:
+//   α_v for this slope
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real terrain_adaptive_alpha_v(
+    amrex::Real slope,
+    amrex::Real alpha_v_flat = amrex::Real(1.0),
+    amrex::Real slope_scale = amrex::Real(0.25))
+{
+    // Exponential decay with slope
+    amrex::Real alpha_v = alpha_v_flat * std::exp(-slope / slope_scale);
+    
+    // Clamp to reasonable range
+    const amrex::Real alpha_v_min = amrex::Real(0.1) * alpha_v_flat;
+    alpha_v = std::max(alpha_v_min, std::min(alpha_v, alpha_v_flat));
+    
+    return alpha_v;
+}
+
 #endif // OROGRAPHIC_MODELS_H

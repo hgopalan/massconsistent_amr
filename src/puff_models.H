@@ -728,6 +728,114 @@ void apply_puff_decay(
 }
 
 // ============================================================================
+// Apply deposition/sedimentation for puffs near ground (Feature 11)
+//
+// Removes mass from puffs that touch the ground due to:
+//   1. Gravitational settling (particles with terminal velocity v_d)
+//   2. Surface uptake (gases deposited by vegetation/surfaces)
+//
+// When puff center z < 3*σ_z (significant ground contact):
+//   - Compute ground-level concentration C_ground
+//   - Remove mass: Δm = C_ground × v_d × A_surface × Δt
+//   - Update puff: m_new = m_old × (1 - deposition_fraction)
+//
+// Parameters:
+//   puff               - Puff structure (mass will be modified)
+//   dt                 - Time step [s]
+//   terrain_height     - Ground elevation at puff location [m]
+//   deposition_velocity - Deposition velocity v_d [m/s]
+//                        Typical values:
+//                        - Particles: 0.001-0.1 m/s (diameter-dependent)
+//                        - SO2: 0.005-0.01 m/s
+//                        - NO2: 0.002-0.006 m/s
+//                        - O3: 0.003-0.008 m/s
+//
+// Method:
+//   1. Check if puff touches ground: z_center < terrain + 3*σ_z
+//   2. Compute ground concentration using Gaussian formula
+//   3. Compute deposition flux: Φ = v_d × C_ground
+//   4. Estimate effective surface area from puff footprint: A ≈ π × (2σ_y)²
+//   5. Remove mass: Δm = Φ × A × Δt
+//   6. Update puff mass: m_new = m_old - Δm
+//
+// References:
+//   - Seinfeld & Pandis (2016). Atmospheric Chemistry and Physics, Ch. 19
+//   - Wesely & Hicks (1977). Some factors that affect the deposition rates
+//     of sulfur dioxide and similar gases on vegetation. J. Air Pollut. Control Assoc.
+//   - CALPUFF modeling system documentation (deposition algorithms)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_puff_deposition(
+    Puff& puff,
+    amrex::Real dt,
+    amrex::Real terrain_height,
+    amrex::Real deposition_velocity)
+{
+    if (!puff.active || puff.mass <= amrex::Real(0.0)) {
+        return;
+    }
+    
+    if (deposition_velocity <= amrex::Real(0.0) || dt <= amrex::Real(0.0)) {
+        return;  // No deposition
+    }
+    
+    // Check if puff touches ground: z_center < terrain + 3*σ_z
+    const amrex::Real threshold_height = terrain_height + amrex::Real(3.0) * puff.sigma_z;
+    if (puff.z >= threshold_height) {
+        return;  // Puff is too high above ground for deposition
+    }
+    
+    // Compute ground-level concentration at puff center (x, y) location
+    // Using Gaussian formula: C(x,y,z_ground) where z_ground = terrain_height
+    const amrex::Real dz = terrain_height - puff.z;  // Vertical distance to ground
+    
+    // Avoid division by zero
+    if (puff.sigma_y <= amrex::Real(1.0e-10) || puff.sigma_z <= amrex::Real(1.0e-10)) {
+        return;
+    }
+    
+    // Gaussian concentration at ground level directly below puff center
+    // C_ground = (mass / ((2π)^(3/2) * σx * σy * σz)) * exp(-dz²/(2σz²))
+    const amrex::Real pi = amrex::Real(3.14159265358979323846);
+    const amrex::Real sigma_x = puff.sigma_y;  // Horizontal isotropy
+    const amrex::Real sigma_y = puff.sigma_y;
+    const amrex::Real sigma_z = puff.sigma_z;
+    
+    const amrex::Real exponent_z = -amrex::Real(0.5) * dz * dz / (sigma_z * sigma_z);
+    
+    // Avoid underflow
+    if (exponent_z < amrex::Real(-100.0)) {
+        return;  // Negligible ground concentration
+    }
+    
+    const amrex::Real normalization = amrex::Real(1.0) / (
+        std::pow(amrex::Real(2.0) * pi, amrex::Real(1.5)) * 
+        sigma_x * sigma_y * sigma_z
+    );
+    
+    const amrex::Real C_ground = puff.mass * normalization * std::exp(exponent_z);
+    
+    // Estimate effective surface area of puff footprint
+    // Use conservative estimate: A ≈ π × (2σ_y)² (covers ~95% of horizontal Gaussian)
+    const amrex::Real effective_area = pi * amrex::Real(4.0) * sigma_y * sigma_y;
+    
+    // Compute deposition flux: Φ = v_d × C_ground [units/m²/s]
+    const amrex::Real deposition_flux = deposition_velocity * C_ground;
+    
+    // Mass removed during time step: Δm = Φ × A × Δt
+    const amrex::Real mass_deposited = deposition_flux * effective_area * dt;
+    
+    // Update puff mass (cannot deposit more mass than exists)
+    const amrex::Real mass_deposited_safe = std::min(mass_deposited, puff.mass);
+    puff.mass -= mass_deposited_safe;
+    
+    // Deactivate puff if mass becomes negligible
+    if (puff.mass < amrex::Real(1.0e-12)) {
+        puff.active = false;
+    }
+}
+
+// ============================================================================
 // Check if puff is outside domain and deactivate
 //
 // Modified to check against terrain surface instead of just z=0.
