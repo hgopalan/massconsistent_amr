@@ -107,10 +107,12 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
     # Define common compile options and definitions for all CUDA targets on Windows
     set(_cuda_windows_compile_opts
       $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244,/wd4324,/wd4702>
     )
     set(_cuda_windows_compile_defs
       $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
+      $<$<COMPILE_LANGUAGE:CUDA>:_SILENCE_ALL_MS_EXT_DEPRECATION_WARNINGS>
     )
     
     # Apply to all targets

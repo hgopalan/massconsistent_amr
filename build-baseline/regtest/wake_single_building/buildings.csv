@@ -1,0 +1,6 @@
+# Single rectangular building for wake model test
+# Format: xmin xmax ymin ymax zmin zmax [m]
+# Building: 20m wide (y), 40m long (x), 30m tall (z)
+# Centered at x=100m, y=100m
+# Wind from west (+x), so wake extends downwind (east, +x)
+80.0  120.0  90.0  110.0  0.0  30.0
