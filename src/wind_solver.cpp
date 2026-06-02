@@ -2053,6 +2053,8 @@ int main(int argc, char* argv[])
             const Real z_ref_cap = z_ref;
             const Real ux_h      = ux_hat;
             const Real uy_h      = uy_hat;
+            const Real U_ref_cap = U_ref;
+            const Real V_ref_cap = V_ref;
             const bool use_pos_z0 = use_z0_file;
             
             // Capture stability correction parameters
