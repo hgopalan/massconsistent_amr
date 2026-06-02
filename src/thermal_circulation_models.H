@@ -117,8 +117,9 @@ amrex::Real thermal_wind_speed(
     // Result has units: [dimensionless] * [m/s²] * [m] = [m/s]
     
     // Clamp to reasonable physical limits
-    V_thermal = std::max(-ThermalCirculationConstants::MAX_THERMAL_WIND, 
-                        std::min(V_thermal, ThermalCirculationConstants::MAX_THERMAL_WIND));
+    constexpr amrex::Real max_thermal_wind = amrex::Real(10.0);
+    V_thermal = std::max(-max_thermal_wind,
+                         std::min(V_thermal, max_thermal_wind));
     
     return V_thermal;
 }
