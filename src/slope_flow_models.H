@@ -30,10 +30,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace {
-    using namespace amrex;
-}
-
 // ============================================================================
 // Slope flow parameters structure
 // ============================================================================

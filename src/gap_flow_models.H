@@ -38,10 +38,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace {
-    using namespace amrex;
-}
-
 // ============================================================================
 // Gap flow parameters structure
 // ============================================================================

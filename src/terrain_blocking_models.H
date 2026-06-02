@@ -31,10 +31,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace {
-    using namespace amrex;
-}
-
 // ============================================================================
 // Terrain blocking parameters structure
 // ============================================================================
