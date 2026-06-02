@@ -252,4 +252,150 @@ amrex::Real coriolis_parameter(amrex::Real latitude_deg) noexcept
     return amrex::Real(2.0) * omega * std::sin(latitude_rad);
 }
 
+// ---------------------------------------------------------------------------
+// Pasquill-Gifford Stability Classes
+// Classic atmospheric stability classification system (1960s)
+// Maps wind speed and solar radiation to discrete stability classes A-F
+// ---------------------------------------------------------------------------
+
+// Pasquill-Gifford stability class enumeration
+// A = very unstable (strong convection, daytime)
+// B = moderately unstable
+// C = slightly unstable
+// D = neutral (overcast or moderate wind)
+// E = slightly stable
+// F = moderately stable (strong inversion, nighttime)
+enum class PGStabilityClass : int {
+    A = 0,  // Very unstable
+    B = 1,  // Moderately unstable
+    C = 2,  // Slightly unstable
+    D = 3,  // Neutral
+    E = 4,  // Slightly stable
+    F = 5   // Moderately stable
+};
+
+// Determine Pasquill-Gifford stability class from wind speed and solar radiation
+// Uses the classic Turner (1970) lookup table approach
+//
+// Parameters:
+//   wind_speed         - Wind speed at 10m height [m/s]
+//   solar_radiation    - Solar radiation [W/m²]
+//   is_nighttime       - True for nighttime conditions (use cloud cover instead)
+//   cloud_cover        - Cloud cover fraction [0-1] (for nighttime only)
+//
+// Returns: PGStabilityClass (A-F)
+//
+// Daytime lookup table (based on solar radiation):
+//   - Strong insolation: > 700 W/m²
+//   - Moderate insolation: 350-700 W/m²
+//   - Slight insolation: < 350 W/m²
+//
+// Nighttime lookup table (based on cloud cover):
+//   - Clear: cloud_cover < 0.4
+//   - Partly cloudy: 0.4 <= cloud_cover < 0.8
+//   - Overcast: cloud_cover >= 0.8
+//
+// References:
+//   - Pasquill, F. (1961). The estimation of dispersion of windborne material.
+//     Meteorological Magazine, 90, 33-49.
+//   - Gifford, F.A. (1961). Use of routine meteorological observations for
+//     estimating atmospheric dispersion. Nuclear Safety, 2(4), 47-51.
+//   - Turner, D.B. (1970). Workbook of atmospheric dispersion estimates.
+//     US EPA, AP-26.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+PGStabilityClass pasquill_gifford_class(amrex::Real wind_speed,
+                                        amrex::Real solar_radiation,
+                                        bool is_nighttime = false,
+                                        amrex::Real cloud_cover = 0.5) noexcept
+{
+    // Daytime classification (based on solar radiation)
+    if (!is_nighttime) {
+        // Strong insolation (> 700 W/m²)
+        if (solar_radiation > amrex::Real(700.0)) {
+            if (wind_speed < amrex::Real(2.0)) return PGStabilityClass::A;
+            if (wind_speed < amrex::Real(3.0)) return PGStabilityClass::A;
+            if (wind_speed < amrex::Real(5.0)) return PGStabilityClass::B;
+            if (wind_speed < amrex::Real(6.0)) return PGStabilityClass::C;
+            return PGStabilityClass::D;
+        }
+        // Moderate insolation (350-700 W/m²)
+        else if (solar_radiation > amrex::Real(350.0)) {
+            if (wind_speed < amrex::Real(2.0)) return PGStabilityClass::A;
+            if (wind_speed < amrex::Real(3.0)) return PGStabilityClass::B;
+            if (wind_speed < amrex::Real(5.0)) return PGStabilityClass::B;
+            if (wind_speed < amrex::Real(6.0)) return PGStabilityClass::C;
+            return PGStabilityClass::D;
+        }
+        // Slight insolation (< 350 W/m²)
+        else {
+            if (wind_speed < amrex::Real(2.0)) return PGStabilityClass::B;
+            if (wind_speed < amrex::Real(3.0)) return PGStabilityClass::C;
+            if (wind_speed < amrex::Real(5.0)) return PGStabilityClass::C;
+            if (wind_speed < amrex::Real(6.0)) return PGStabilityClass::D;
+            return PGStabilityClass::D;
+        }
+    }
+    // Nighttime classification (based on cloud cover)
+    else {
+        // Clear sky (cloud_cover < 0.4)
+        if (cloud_cover < amrex::Real(0.4)) {
+            if (wind_speed < amrex::Real(2.0)) return PGStabilityClass::F;
+            if (wind_speed < amrex::Real(3.0)) return PGStabilityClass::F;
+            if (wind_speed < amrex::Real(5.0)) return PGStabilityClass::E;
+            if (wind_speed < amrex::Real(6.0)) return PGStabilityClass::D;
+            return PGStabilityClass::D;
+        }
+        // Partly cloudy (0.4 <= cloud_cover < 0.8)
+        else if (cloud_cover < amrex::Real(0.8)) {
+            if (wind_speed < amrex::Real(2.0)) return PGStabilityClass::E;
+            if (wind_speed < amrex::Real(3.0)) return PGStabilityClass::E;
+            if (wind_speed < amrex::Real(5.0)) return PGStabilityClass::D;
+            if (wind_speed < amrex::Real(6.0)) return PGStabilityClass::D;
+            return PGStabilityClass::D;
+        }
+        // Overcast (cloud_cover >= 0.8)
+        else {
+            return PGStabilityClass::D;  // Neutral for all wind speeds
+        }
+    }
+}
+
+// Map Pasquill-Gifford stability class to Obukhov length
+// Provides a simple conversion from discrete PG classes to continuous L values
+//
+// Parameters:
+//   pg_class           - Pasquill-Gifford stability class (A-F)
+//
+// Returns: Approximate Obukhov length L [m]
+//
+// Typical mapping (approximate):
+//   Class A (very unstable):      L ≈ -50 m
+//   Class B (moderately unstable): L ≈ -100 m
+//   Class C (slightly unstable):   L ≈ -200 m
+//   Class D (neutral):             L ≈ 10000 m (large positive)
+//   Class E (slightly stable):     L ≈ 100 m
+//   Class F (moderately stable):   L ≈ 50 m
+//
+// Note: These are representative values; actual L varies with surface conditions
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real pg_class_to_obukhov_length(PGStabilityClass pg_class) noexcept
+{
+    switch (pg_class) {
+        case PGStabilityClass::A:
+            return amrex::Real(-50.0);    // Very unstable
+        case PGStabilityClass::B:
+            return amrex::Real(-100.0);   // Moderately unstable
+        case PGStabilityClass::C:
+            return amrex::Real(-200.0);   // Slightly unstable
+        case PGStabilityClass::D:
+            return amrex::Real(10000.0);  // Neutral (large positive)
+        case PGStabilityClass::E:
+            return amrex::Real(100.0);    // Slightly stable
+        case PGStabilityClass::F:
+            return amrex::Real(50.0);     // Moderately stable
+        default:
+            return amrex::Real(10000.0);  // Default to neutral
+    }
+}
+
 #endif // STABILITY_MODELS_H

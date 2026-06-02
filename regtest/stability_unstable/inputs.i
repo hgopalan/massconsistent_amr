@@ -1,5 +1,5 @@
 # Stability Correction Test (Unstable Conditions)
-# Tests: Non-neutral log-law with Businger-Dyer stability corrections (Feature 5)
+# Tests: Non-neutral log-law with Businger-Dyer stability corrections 
 # Unstable stratification: L < 0 (convective boundary layer)
 
 # Terrain file (3x3 grid, flat terrain for clarity)
@@ -12,7 +12,7 @@ V_ref = 0.0
 z_ref = 10.0
 z0 = 0.1
 
-# Feature 5: Enable stability correction for unstable conditions
+# Enable stability correction for unstable conditions
 enable_stability_correction = true
 stability_length = -100.0  # Unstable: L < 0 (enhances vertical mixing)
 

@@ -225,7 +225,7 @@ int main(int argc, char* argv[])
         pp.query("sigma_y0", sigma_y0);
         pp.query("sigma_z0", sigma_z0);
         
-        // Feature 2: Height-dependent diffusivity parameters
+        // Height-dependent diffusivity parameters
         bool enable_height_dependent_K = false;
         std::string K_profile = "constant";
         Real K_power_law_exponent = 0.5;
@@ -235,7 +235,7 @@ int main(int argc, char* argv[])
         pp.query("K_power_law_exponent", K_power_law_exponent);
         pp.query("K_reference_height", K_reference_height);
         
-        // Feature 3: First-order decay parameters
+        // First-order decay parameters
         bool enable_decay = false;
         Real decay_constant = 0.0;  // [1/s]
         pp.query("enable_decay", enable_decay);
@@ -467,7 +467,7 @@ int main(int argc, char* argv[])
                 Real K_h_eff = K_h;
                 Real K_v_eff = K_v;
                 
-                // Apply height-dependent diffusivity (Feature 2)
+                // Apply height-dependent diffusivity
                 Real z_agl = puff.z - terrain_height;
                 if (enable_height_dependent_K && z_agl >= 0.0) {
                     // Create temporary PuffParams for height-dependent K function
@@ -517,7 +517,7 @@ int main(int argc, char* argv[])
                 // Update age
                 update_puff_age(puff, dt_puff);
                 
-                // Apply first-order decay (Feature 3)
+                // Apply first-order decay
                 if (enable_decay && decay_constant > 0.0) {
                     apply_puff_decay(puff, dt_puff, decay_constant);
                 }

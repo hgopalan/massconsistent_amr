@@ -1,4 +1,4 @@
-# Feature 3: Land Use-Based Power-Law Exponents Test
+# Land Use-Based Power-Law Exponents Test
 # Tests: Spatially-varying power-law exponent based on land use type
 # Different terrain types have different wind shear profiles
 
@@ -24,7 +24,7 @@ domain_height = 300.0
 alpha_h = 1.0
 alpha_v = 1.0
 
-# Feature 3: Enable land use-based power-law exponents
+# Enable land use-based power-law exponents
 landuse_file = landuse.csv
 
 # MLMG solver settings (silent)

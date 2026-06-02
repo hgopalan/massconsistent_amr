@@ -348,6 +348,109 @@ is used for initial puff emission.
   and Environmental Assessment
 - WindNinja and QUIC-PLUME implementation
 
+Deposition and Sedimentation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Physical Motivation**
+
+Many pollutants don't remain airborne indefinitely. They are removed from the
+atmosphere by:
+
+* **Gravitational settling**: Particles fall at their terminal velocity (diameter-dependent)
+* **Dry deposition**: Gases and particles adhere to surfaces (vegetation, water, soil)
+
+Deposition is essential for accurate long-range transport, dose calculations, and
+environmental impact assessment.
+
+**Implementation**
+
+The puff model includes dry deposition for puffs that touch the ground. When a
+puff center is within 3σ_z of the terrain surface, mass is removed according to:
+
+.. math::
+
+   \Delta m = C_{ground} \cdot v_d \cdot A_{eff} \cdot \Delta t
+
+where:
+
+* :math:`C_{ground}` = ground-level concentration from Gaussian formula [units/m³]
+* :math:`v_d` = deposition velocity [m/s]
+* :math:`A_{eff}` = effective surface area of puff footprint [m²] ≈ π(2σ_y)²
+* :math:`\Delta t` = time step [s]
+
+**Deposition Velocity Values**
+
+Typical deposition velocities for common pollutants:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Species
+     - v_d Range [m/s]
+     - Typical v_d [m/s]
+   * - Particles (1-10 μm)
+     - 0.001-0.1
+     - 0.01
+   * - SO₂ (sulfur dioxide)
+     - 0.005-0.01
+     - 0.007
+   * - NO₂ (nitrogen dioxide)
+     - 0.002-0.006
+     - 0.004
+   * - O₃ (ozone)
+     - 0.003-0.008
+     - 0.005
+   * - Large particles (>50 μm)
+     - 0.05-0.5
+     - 0.1
+
+**Usage**
+
+Enable deposition in your puff model configuration:
+
+.. code-block:: ini
+
+    # Enable deposition/sedimentation
+    enable_puff_deposition = true
+    deposition_velocity = 0.01    # [m/s] - typical for fine particles
+
+**When Deposition Occurs**
+
+Deposition is only active when:
+
+1. Puff center height :math:`z < z_{terrain} + 3\sigma_z` (significant ground contact)
+2. Ground-level concentration :math:`C_{ground} > 0` (puff Gaussian overlaps surface)
+3. Deposition velocity :math:`v_d > 0`
+
+**Mass Budget**
+
+The updated puff mass after deposition is:
+
+.. math::
+
+   m_{new} = m_{old} - \Delta m
+
+Puffs are deactivated when their mass falls below 10⁻¹² (negligible).
+
+**Applications**
+
+* **Radioactive plumes**: I-131, Cs-137 deposition from nuclear accidents
+* **Industrial emissions**: SO₂, particulate matter deposition near sources
+* **Agricultural sprays**: Pesticide drift and deposition
+* **Volcanic ash**: Large particle sedimentation during eruptions
+
+**References**
+
+* Seinfeld, J.H., & Pandis, S.N. (2016). *Atmospheric Chemistry and Physics*, Ch. 19.
+* Wesely, M.L., & Hicks, B.B. (1977). Some factors that affect the deposition rates
+  of sulfur dioxide and similar gases on vegetation. *J. Air Pollut. Control Assoc.*
+* CALPUFF modeling system documentation (deposition algorithms)
+
+**Regression Tests**
+
+* ``regtest/puff_deposition/`` — particle deposition with v_d = 0.01 m/s
+
 Wind Field
 ^^^^^^^^^^
 

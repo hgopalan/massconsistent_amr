@@ -117,6 +117,103 @@ Unstable daytime convective boundary layer::
 * ``regtest/stability_stable/`` — stable atmospheric conditions (*L* = 100 m)
 * ``regtest/stability_unstable/`` — unstable conditions (*L* = −150 m)
 
+Pasquill-Gifford Stability Classes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+The Pasquill-Gifford (PG) stability classification system provides a simple,
+widely-used method for categorizing atmospheric stability based on readily
+available meteorological observations. Developed in the 1960s, it remains
+essential for:
+
+* Regulatory air quality modeling
+* Quick stability assessments without detailed surface flux data
+* Compatibility with legacy dispersion models (AERMOD, CALPUFF)
+* Linking to standard dispersion parameters (σ_y, σ_z)
+
+**Implementation**
+
+The solver implements the classic Turner (1970) lookup table that maps wind
+speed and solar radiation (daytime) or cloud cover (nighttime) to discrete
+stability classes A-F:
+
+* **Class A**: Very unstable (strong daytime heating)
+* **Class B**: Moderately unstable
+* **Class C**: Slightly unstable
+* **Class D**: Neutral (overcast or moderate wind)
+* **Class E**: Slightly stable
+* **Class F**: Moderately stable (strong nighttime cooling)
+
+**Daytime Classification** (based on solar radiation):
+
+* Strong insolation (> 700 W/m²): Classes A-D depending on wind speed
+* Moderate insolation (350-700 W/m²): Classes A-D
+* Slight insolation (< 350 W/m²): Classes B-D
+
+**Nighttime Classification** (based on cloud cover):
+
+* Clear sky (< 40% cover): Classes F (low wind) to D (high wind)
+* Partly cloudy (40-80%): Classes E to D
+* Overcast (> 80%): Class D (neutral)
+
+**Mapping to Obukhov Length**
+
+PG classes are mapped to approximate Obukhov length values:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 40 40
+
+   * - Class
+     - Description
+     - L (m)
+   * - A
+     - Very unstable
+     - −50
+   * - B
+     - Moderately unstable
+     - −100
+   * - C
+     - Slightly unstable
+     - −200
+   * - D
+     - Neutral
+     - 10,000
+   * - E
+     - Slightly stable
+     - 100
+   * - F
+     - Moderately stable
+     - 50
+
+**Usage**
+
+Enable PG stability classification in your input file::
+
+    # Enable Pasquill-Gifford classification
+    enable_pg_stability = true
+    solar_radiation = 500.0    # W/m² (daytime)
+    is_nighttime = false       # Daytime conditions
+    
+    # Alternatively for nighttime:
+    enable_pg_stability = true
+    is_nighttime = true
+    cloud_cover = 0.3          # Clear sky (0-1)
+
+**References**
+
+* Pasquill, F. (1961). The estimation of dispersion of windborne material.
+  *Meteorological Magazine*, 90, 33–49.
+* Gifford, F.A. (1961). Use of routine meteorological observations for
+  estimating atmospheric dispersion. *Nuclear Safety*, 2(4), 47–51.
+* Turner, D.B. (1970). Workbook of atmospheric dispersion estimates.
+  US EPA, AP-26.
+
+**Regression Tests**
+
+* ``regtest/pasquill_gifford/`` — PG classification with moderate insolation
+
 Thermal Stratification and Buoyancy
 ------------------------------------
 
@@ -632,6 +729,97 @@ For terrain-following flow preservation::
 **Regression Tests**
 
 * ``regtest/alphav_height/`` — height-dependent vertical anisotropy
+
+Terrain-Adaptive Alpha Coefficients
+------------------------------------
+
+**Physical Motivation**
+
+Optimal anisotropy coefficients (*α*\ :sub:`h`, *α*\ :sub:`v`) for mass-consistent
+wind adjustment vary with terrain characteristics. Different terrain types require
+different adjustment strategies:
+
+* **Flat terrain**: Isotropic adjustment (*α*\ :sub:`h` ≈ *α*\ :sub:`v`) allows
+  equal horizontal and vertical wind corrections
+* **Steep slopes**: Preserve terrain-following flow with *α*\ :sub:`v` ≪ *α*\ :sub:`h`
+  (minimal vertical adjustment)
+* **Valley bottoms**: Allow more vertical adjustment (larger *α*\ :sub:`v`) to
+  accommodate channeled flow
+* **Ridge tops**: Constrain vertical motion (smaller *α*\ :sub:`v`) to prevent
+  unrealistic flow separation
+
+**Implementation**
+
+The solver computes spatially-varying *α*\ :sub:`v` based on local terrain slope
+and curvature using an exponential decay relationship:
+
+.. math::
+
+   \alpha_v = \alpha_{v,flat} \cdot \exp\left(-\frac{s}{s_{scale}}\right)
+
+where:
+
+* *s* = terrain slope magnitude (dimensionless, rise/run)
+* *s*\ :sub:`scale` = characteristic slope for decay (typically 0.2-0.3)
+* *α*\ :sub:`v,flat` = vertical coefficient for flat terrain (typically 1.0)
+
+**Curvature Modulation**
+
+Terrain curvature (∇²*z*) provides additional refinement:
+
+* **Ridge tops** (positive curvature): Reduce *α*\ :sub:`v` by up to 30% to
+  constrain vertical motion over crests
+* **Valley bottoms** (negative curvature): Increase *α*\ :sub:`v` by up to 50%
+  to allow enhanced vertical adjustment in channeled flow
+
+**Slope Regimes**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 50
+
+   * - Slope Range
+     - Typical α_v
+     - Behavior
+   * - < 0.05 (flat)
+     - 0.9-1.0
+     - Nearly isotropic adjustment
+   * - 0.1-0.2 (moderate)
+     - 0.5-0.7
+     - Balanced terrain-following
+   * - 0.3-0.5 (steep)
+     - 0.2-0.4
+     - Strong terrain-following
+   * - > 0.5 (very steep)
+     - 0.1-0.2
+     - Minimal vertical adjustment
+
+**Usage**
+
+Enable terrain-adaptive alpha coefficients::
+
+    enable_terrain_adaptive_alpha = true
+    alpha_h_base = 1.0              # Horizontal coefficient (constant)
+    alpha_v_flat = 1.0              # Vertical coeff for flat terrain
+    alpha_slope_scale = 0.25        # Slope decay parameter
+
+**Benefits**
+
+* **Automatic tuning**: No manual adjustment of *α* values for each terrain type
+* **Improved mass conservation**: Better preservation of terrain-following flow
+* **Reduced artifacts**: Smoother flow over complex topography
+* **Physical consistency**: Adjustment strategy adapts to local terrain characteristics
+
+**References**
+
+* Ross, D.G., et al. (1988). Diagnostic wind field modeling for complex terrain.
+  *J. Appl. Meteor.*, 27, 785-796.
+* Sherman, C.A. (1978). A mass-consistent model for wind fields over complex terrain.
+  *J. Appl. Meteor.*, 17, 312-319.
+
+**Regression Tests**
+
+* ``regtest/terrain_adaptive_alpha/`` — Gaussian hill with varying slope regimes
 
 Katabatic/Anabatic Slope Flows
 -------------------------------

@@ -1,5 +1,5 @@
 # Elevation-Dependent Wind Speed Scaling Test
-# Tests: Terrain elevation effects on wind speed (Feature 6)
+# Tests: Terrain elevation effects on wind speed 
 # Mountain-valley flow with wind reduction at elevation
 
 # Terrain file (Gaussian hill to create elevation variation)
@@ -12,7 +12,7 @@ V_ref = 0.0
 z_ref = 10.0
 z0 = 0.1
 
-# Feature 6: Enable elevation-dependent wind scaling
+# Enable elevation-dependent wind scaling
 enable_elevation_scaling = true
 elevation_scaling_factor = 0.3    # Positive: wind decreases with elevation
 elevation_height_scale = 1000.0   # Characteristic height scale [m]
