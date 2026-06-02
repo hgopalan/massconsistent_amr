@@ -80,6 +80,10 @@ struct PuffParams {
     bool enable_decay = false;               // Enable exponential decay
     amrex::Real decay_constant = 0.0;        // Decay constant λ [1/s] (e.g., 0.001 = 1e-3/s)
     
+    // Plume rise parameters (Briggs buoyancy formula)
+    bool enable_plume_rise = false;          // Enable plume rise for buoyant sources
+    amrex::Real heat_flux = 0.0;             // Heat flux F [m⁴/s³] (buoyancy flux)
+    
     bool enable_terrain_reflection = false;  // Enable ground reflection
     bool use_image_source = true;            // Use image source method for concentration
     bool enable_building_masking = false;    // Enable building collision detection
@@ -793,6 +797,59 @@ void check_puff_bounds(
         puff.z < zmin || puff.z > zmax) {
         puff.active = false;
     }
+}
+
+// ============================================================================
+// Compute Briggs plume rise for buoyant sources
+//
+// Uses the Briggs (1975) formula for plume rise from buoyant sources.
+// Similar to the approach used in WindNinja and QUIC-PLUME.
+//
+// Formula: Δh = (1.6 × F^1/3 × x^2/3) / u
+//
+// where:
+//   F = buoyancy flux [m⁴/s³] = g × Q_H / (ρ × c_p × T)
+//   x = downwind distance from source [m]
+//   u = wind speed at source height [m/s]
+//   Δh = plume rise height [m]
+//
+// For heat flux Q_H [W]:
+//   F = g × Q_H / (ρ × c_p × T)
+//   where g = 9.81 m/s², ρ ≈ 1.2 kg/m³, c_p ≈ 1005 J/(kg·K), T ≈ 288 K
+//   Typical values: F = Q_H / (3.5 × 10⁵) for ambient conditions
+//
+// Inputs:
+//   buoyancy_flux    - Buoyancy flux F [m⁴/s³]
+//   downwind_dist    - Downwind distance x from source [m]
+//   wind_speed       - Wind speed u at source height [m/s]
+//
+// Returns:
+//   Plume rise height Δh [m]
+//
+// References:
+//   - Briggs, G.A. (1975). Plume rise predictions. 
+//     AMS Workshop on Meteorology and Environmental Assessment
+//   - WindNinja and QUIC-PLUME implementation
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_plume_rise(
+    amrex::Real buoyancy_flux,
+    amrex::Real downwind_dist,
+    amrex::Real wind_speed)
+{
+    // Avoid division by zero or negative values
+    if (buoyancy_flux <= amrex::Real(0.0) || 
+        downwind_dist <= amrex::Real(0.0) || 
+        wind_speed <= amrex::Real(0.1)) {
+        return amrex::Real(0.0);
+    }
+    
+    // Briggs formula: Δh = 1.6 × F^(1/3) × x^(2/3) / u
+    const amrex::Real F_third = std::pow(buoyancy_flux, amrex::Real(1.0) / amrex::Real(3.0));
+    const amrex::Real x_twothirds = std::pow(downwind_dist, amrex::Real(2.0) / amrex::Real(3.0));
+    const amrex::Real plume_rise = amrex::Real(1.6) * F_third * x_twothirds / wind_speed;
+    
+    return plume_rise;
 }
 
 // ============================================================================
