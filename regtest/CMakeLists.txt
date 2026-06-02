@@ -62,6 +62,26 @@ add_regression_test(surface_data_synthetic surface_data_synthetic)
 add_regression_test(uniform_wind uniform_wind)
 
 # ===========================================================================
+# powerlaw_flat/ – Power-law wind profile on flat terrain
+# ===========================================================================
+add_regression_test(powerlaw_flat powerlaw_flat)
+
+# ===========================================================================
+# powerlaw_gaussian/ – Power-law wind profile on Gaussian hill
+# ===========================================================================
+add_regression_test(powerlaw_gaussian powerlaw_gaussian)
+
+# ===========================================================================
+# powerlaw_building_flat/ – Power-law profile with buildings on flat terrain
+# ===========================================================================
+add_regression_test(powerlaw_building_flat powerlaw_building_flat)
+
+# ===========================================================================
+# powerlaw_building_terrain/ – Power-law profile with buildings on terrain
+# ===========================================================================
+add_regression_test(powerlaw_building_terrain powerlaw_building_terrain)
+
+# ===========================================================================
 # buildings_flat/ – Buildings (union of boxes) on flat terrain
 # ===========================================================================
 add_regression_test(buildings_flat buildings_flat)
@@ -95,6 +115,16 @@ add_regression_test(rooftop_vortex rooftop_vortex)
 # building_oriented/ – Arbitrary building orientation effects on wake model
 # ---------------------------------------------------------------------------
 add_regression_test(building_oriented building_oriented)
+
+# ---------------------------------------------------------------------------
+# building_array/ – Building array configurations
+# ---------------------------------------------------------------------------
+add_regression_test(building_array building_array)
+
+# ---------------------------------------------------------------------------
+# porous_buildings/ – Building porosity model for porous structures
+# ---------------------------------------------------------------------------
+add_regression_test(porous_buildings porous_buildings)
 
 # ---------------------------------------------------------------------------
 # multiheight_extraction/ – Multi-height wind field extraction (new feature)
@@ -146,7 +176,16 @@ add_regression_test(combined_thermal_terrain combined_thermal_terrain)
 # ---------------------------------------------------------------------------
 # Canopy model tests
 # ---------------------------------------------------------------------------
-# Note: If canopy tests exist, they should be added here
+
+# ---------------------------------------------------------------------------
+# canopy_forest/ – Forest canopy with MacDonald et al. (2000) parameterization
+# ---------------------------------------------------------------------------
+add_regression_test(canopy_forest canopy_forest)
+
+# ---------------------------------------------------------------------------
+# canopy_exponential/ – Exponential canopy profile model
+# ---------------------------------------------------------------------------
+add_regression_test(canopy_exponential canopy_exponential)
 
 # ---------------------------------------------------------------------------
 # Phase 4: Drag Coefficient Diagnostic
@@ -177,6 +216,62 @@ add_regression_test(stability_unstable stability_unstable)
 add_regression_test(ekman_veer ekman_veer)
 
 # ---------------------------------------------------------------------------
+# Phase 6: Height-Dependent Anisotropy
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# alphav_height/ – Height-dependent vertical anisotropy coefficient
+# ---------------------------------------------------------------------------
+add_regression_test(alphav_height alphav_height)
+
+# ---------------------------------------------------------------------------
+# Phase 7: Elevation-Dependent Wind Scaling
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# elevation_scaling/ – Terrain elevation effects on wind speed
+# ---------------------------------------------------------------------------
+add_regression_test(elevation_scaling elevation_scaling)
+
+# ---------------------------------------------------------------------------
+# Phase 8: Time-Varying Boundary Conditions
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# time_varying/ – Time-varying wind boundary conditions
+# ---------------------------------------------------------------------------
+add_regression_test(time_varying time_varying)
+
+# ===========================================================================
+# Puff Dispersion Tests
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# puff_gaussian/ – Basic Gaussian puff dispersion on uniform wind
+# ---------------------------------------------------------------------------
+add_regression_test(puff_gaussian puff_gaussian)
+
+# ---------------------------------------------------------------------------
+# puff_terrain/ – Puff dispersion on terrain-following wind field
+# ---------------------------------------------------------------------------
+add_regression_test(puff_terrain puff_terrain)
+
+# ---------------------------------------------------------------------------
+# puff_buildings/ – Puff dispersion with building wake effects
+# ---------------------------------------------------------------------------
+add_regression_test(puff_buildings puff_buildings)
+
+# ---------------------------------------------------------------------------
+# puff_canopy/ – Puff dispersion with canopy drag effects
+# ---------------------------------------------------------------------------
+add_regression_test(puff_canopy puff_canopy)
+
+# ---------------------------------------------------------------------------
+# puff_coupled_full/ – Fully coupled puff dispersion with all features
+# ---------------------------------------------------------------------------
+add_regression_test(puff_coupled_full puff_coupled_full)
+
+# ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
 add_custom_target(regtest
@@ -195,12 +290,18 @@ message(STATUS "  gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives
 message(STATUS "  raws_synthetic/        : Gaussian hill with RAWS wind initialization (IDW interpolation)")
 message(STATUS "  surface_data_synthetic/: Gaussian hill with surface_data initialization (HRRR-style)")
 message(STATUS "  uniform_wind/          : Gaussian hill with uniform wind initialization")
+message(STATUS "  powerlaw_flat/         : Power-law wind profile on flat terrain")
+message(STATUS "  powerlaw_gaussian/     : Power-law wind profile on Gaussian hill")
+message(STATUS "  powerlaw_building_flat/: Power-law profile with buildings on flat terrain")
+message(STATUS "  powerlaw_building_terrain/: Power-law profile with buildings on terrain")
 message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
 message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terrain")
 message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
 message(STATUS "  wake_single_building/  : Single building wake model (Röckle formulation)")
 message(STATUS "  rooftop_vortex/        : Rooftop vortex in building cavity zones")
 message(STATUS "  building_oriented/     : Arbitrary building orientation effects")
+message(STATUS "  building_array/        : Building array configurations")
+message(STATUS "  porous_buildings/      : Building porosity model for porous structures")
 message(STATUS "  multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
 message(STATUS "  wall_function_flat/    : Wall function on flat terrain")
 message(STATUS "  wall_function_stable/  : Wall function with stable atmospheric corrections")
@@ -209,9 +310,19 @@ message(STATUS "  wall_function_adaptive/: Wall function with adaptive grid reso
 message(STATUS "  buoyancy_stratification/: Thermal stratification with buoyancy effects")
 message(STATUS "  terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
 message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
-message(STATUS "  drag_diagnostic/       : Phase 4 - Drag coefficient and heat flux diagnostics")
-message(STATUS "  stability_stable/      : Phase 5 - Non-neutral stability (stable conditions, L > 0)")
-message(STATUS "  stability_unstable/    : Phase 5 - Non-neutral stability (unstable conditions, L < 0)")
+message(STATUS "  canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
+message(STATUS "  canopy_exponential/    : Exponential canopy profile model")
+message(STATUS "  drag_diagnostic/       : Drag coefficient and heat flux diagnostics")
+message(STATUS "  stability_stable/      : Non-neutral stability (stable conditions, L > 0)")
+message(STATUS "  stability_unstable/    : Non-neutral stability (unstable conditions, L < 0)")
 message(STATUS "  ekman_veer/            : Ekman spiral wind veer correction (Coriolis effects)")
+message(STATUS "  alphav_height/         : Height-dependent vertical anisotropy coefficient")
+message(STATUS "  elevation_scaling/     : Terrain elevation effects on wind speed")
+message(STATUS "  time_varying/          : Time-varying wind boundary conditions")
+message(STATUS "  puff_gaussian/         : Basic Gaussian puff dispersion on uniform wind")
+message(STATUS "  puff_terrain/          : Puff dispersion on terrain-following wind field")
+message(STATUS "  puff_buildings/        : Puff dispersion with building wake effects")
+message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
+message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
