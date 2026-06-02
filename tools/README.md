@@ -59,7 +59,7 @@ turbine_id,x,y,z_terrain,z_hub,u_ms,v_ms,speed_ms,direction_deg,speedup_ratio
 1,300.0,400.0,60.0,150.0,4.8,1.1,4.93,346.1,0.98
 ```
 
-For full documentation, see `../docs/FLORIS_COUPLING.md`
+For full documentation, see the main [massconsistent_amr documentation](https://hgopalan.github.io/massconsistent_amr/).
 
 ### hrrr_to_surface_data.py
 
@@ -116,8 +116,7 @@ PYTHONPATH=../build/python python3 ../src/python/example_floris_export.py
 
 ## Documentation
 
-- **FLORIS Coupling Guide**: `../docs/FLORIS_COUPLING.md`
-- **Wind Solver API**: `../docs/` (see main documentation)
+- **Wind Solver API**: [massconsistent_amr documentation](https://hgopalan.github.io/massconsistent_amr/)
 
 ## Integration with FLORIS
 
