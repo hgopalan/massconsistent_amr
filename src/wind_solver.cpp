@@ -411,6 +411,76 @@ static void read_temperature_file(const std::string& filename,
                    << " temperature profile points from " << filename << "\n";
 }
 
+// Read X Y ALPHA_H ALPHA_V file (whitespace or comma separated; '#' comments).
+// Format: X Y ALPHA_H ALPHA_V
+// where X, Y = coordinates [m], ALPHA_H, ALPHA_V = Lagrange coefficients (dimensionless)
+static void read_alpha_coefficients_file(const std::string& filename,
+                                        std::vector<Real>& xd,
+                                        std::vector<Real>& yd,
+                                        std::vector<Real>& alpha_h_data,
+                                        std::vector<Real>& alpha_v_data)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open alpha coefficients file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real x, y, ah, av;
+        if (ss >> x >> y >> ah >> av) {
+            xd.push_back(x);
+            yd.push_back(y);
+            alpha_h_data.push_back(ah);
+            alpha_v_data.push_back(av);
+        }
+    }
+    if (xd.empty())
+        amrex::Abort("wind_solver: no data read from alpha coefficients file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << xd.size()
+                   << " alpha coefficient points from " << filename << "\n";
+}
+
+// IDW interpolation: alpha coefficients at query point (xq, yq)
+// Returns pair: (alpha_h, alpha_v)
+static std::pair<Real, Real> idw_alpha_coefficients(
+    Real xq, Real yq,
+    const std::vector<Real>& x,
+    const std::vector<Real>& y,
+    const std::vector<Real>& alpha_h_data,
+    const std::vector<Real>& alpha_v_data,
+    int k = 6)
+{
+    int n = static_cast<int>(x.size());
+    k = std::min(k, n);
+
+    std::vector<std::pair<Real, int>> d2(n);
+    for (int i = 0; i < n; ++i) {
+        Real dx = x[i] - xq;
+        Real dy = y[i] - yq;
+        d2[i] = {dx * dx + dy * dy, i};
+    }
+    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
+
+    Real wsum = 0.0, ah_val = 0.0, av_val = 0.0;
+    for (int i = 0; i < k; ++i) {
+        if (d2[i].first < DISTANCE_EPSILON) {
+            return {alpha_h_data[d2[i].second], alpha_v_data[d2[i].second]}; // exact hit
+        }
+        Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
+        wsum += w;
+        ah_val += w * alpha_h_data[d2[i].second];
+        av_val += w * alpha_v_data[d2[i].second];
+    }
+    return {ah_val / wsum, av_val / wsum};
+}
+
 // Read building file: xmin xmax ymin ymax zmin zmax (whitespace or comma separated; '#' comments).
 static void read_building_file(const std::string& filename,
                                std::vector<Real>& xmin,
@@ -850,6 +920,33 @@ int main(int argc, char* argv[])
         
         // Convert ekman_veer_total from degrees to radians for internal use
         Real ekman_veer_total_rad = ekman_veer_total * MathConstants::pi / Real(180.0);
+
+        // Wind Direction Gradient (linear directional shear with height)
+        // Simpler than Ekman spiral - uniform rate of direction change with height
+        bool enable_wind_direction_gradient = false;
+        Real wind_direction_shear_rate = 0.0;  // Rate of direction change [degrees/100m]
+        pp.query("enable_wind_direction_gradient", enable_wind_direction_gradient);
+        pp.query("wind_direction_shear_rate", wind_direction_shear_rate);
+        
+        // Convert shear rate from degrees/100m to radians/m for internal use
+        Real wind_direction_shear_rate_rad = wind_direction_shear_rate * MathConstants::pi / Real(180.0) / Real(100.0);
+
+        // Spatially-varying Lagrange coefficients
+        // Read alpha_h and alpha_v from file instead of using constant values
+        bool use_spatial_alpha_coefficients = false;
+        std::string alpha_coefficients_file = "";
+        pp.query("use_spatial_alpha_coefficients", use_spatial_alpha_coefficients);
+        pp.query("alpha_coefficients_file", alpha_coefficients_file);
+        if (!alpha_coefficients_file.empty()) {
+            use_spatial_alpha_coefficients = true;
+        }
+
+        // Fetch-dependent roughness transition (internal boundary layer)
+        // When roughness changes abruptly, an internal boundary layer forms
+        bool enable_fetch_roughness_transition = false;
+        Real fetch_transition_blending_height = 100.0;  // Blending height scale [m]
+        pp.query("enable_fetch_roughness_transition", enable_fetch_roughness_transition);
+        pp.query("fetch_transition_blending_height", fetch_transition_blending_height);
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
