@@ -913,7 +913,7 @@ int main(int argc, char* argv[])
         Real powerlaw_exponent = 0.143;  // ~1/7 typical for neutral conditions
         pp.query("powerlaw_exponent", powerlaw_exponent);
         
-        // Feature 3: Different Power-Law Exponents by Land Use Type
+        // Different Power-Law Exponents by Land Use Type
         // Allow spatially varying power-law exponent based on land use
         std::string landuse_file = "";
         bool use_landuse_powerlaw = false;
@@ -938,7 +938,7 @@ int main(int argc, char* argv[])
             use_z0_file = true;
         }
         
-        // Feature 5: Vegetation Attenuation Factor for Roughness
+        // Vegetation Attenuation Factor for Roughness
         // Modify roughness based on vegetation state (LAI, snow, burn severity, etc.)
         bool enable_vegetation_roughness = false;
         Real vegetation_state = 1.0;      // Vegetation state parameter (e.g., LAI)
@@ -978,7 +978,7 @@ int main(int argc, char* argv[])
         pp.query("enable_stability_correction", enable_stability_correction);
         pp.query("stability_length", stability_length);
         
-        // Feature 2: Alternative Stability Functions (Holtslag-De Bruin)
+        // Alternative Stability Functions (Holtslag-De Bruin)
         // Use Holtslag-De Bruin (1988) formulation instead of Businger-Dyer for stable conditions
         bool use_holtslag_stability = false;
         pp.query("use_holtslag_stability", use_holtslag_stability);
@@ -1205,7 +1205,7 @@ int main(int argc, char* argv[])
         pp.query("buoyancy_timescale", buoyancy_timescale);
         pp.query("buoyancy_method", buoyancy_method);
         
-        // Feature 4: Simple Diurnal Temperature Profile
+        // Simple Diurnal Temperature Profile
         // Enable time-varying sinusoidal temperature variation
         bool enable_diurnal_temperature = false;
         Real diurnal_temperature_amplitude = 5.0;  // Temperature amplitude ΔT [K]
@@ -1266,7 +1266,7 @@ int main(int argc, char* argv[])
         pp.query("enable_fetch_roughness_transition", enable_fetch_roughness_transition);
         pp.query("fetch_transition_blending_height", fetch_transition_blending_height);
         
-        // Feature 1: Divergence Source Terms (for convective plumes)
+        // Divergence Source Terms (for convective plumes)
         // Allow non-zero RHS in mass-consistency equation: ∇·u = S
         bool enable_divergence_source = false;
         std::string divergence_source_file = "";
@@ -1467,7 +1467,7 @@ int main(int argc, char* argv[])
         if (enable_buoyancy_stratification) {
             read_temperature_file(temperature_file, z_temp, T_temp);
             
-            // Feature 4: Apply diurnal temperature variation if enabled
+            // Apply diurnal temperature variation if enabled
             if (enable_diurnal_temperature) {
                 amrex::Print() << "wind_solver: diurnal temperature variation enabled\n";
                 amrex::Print() << "  diurnal_temperature_amplitude = " << diurnal_temperature_amplitude << " K\n";
@@ -2092,7 +2092,7 @@ int main(int argc, char* argv[])
             // Capture stability correction parameters
             const bool use_stability = enable_stability_correction;
             const Real L_obukhov = stability_length;
-            const bool use_holtslag = use_holtslag_stability;  // Feature 2
+            const bool use_holtslag = use_holtslag_stability;
             
             // Capture elevation scaling parameters
             const bool use_elev_scaling = enable_elevation_scaling;
@@ -2100,12 +2100,12 @@ int main(int argc, char* argv[])
             const Real elev_height_scale = elevation_height_scale;
             const Real terrain_min = zs_min;
             
-            // Feature 5: Vegetation roughness factor
+            // Vegetation roughness factor
             const bool use_veg_roughness = enable_vegetation_roughness;
             const Real veg_state_val = vegetation_state;
             const int veg_state_type_val = vegetation_state_type;
             
-            // Feature 4: Diurnal temperature (only affects temperature, used later if enabled)
+            // Diurnal temperature (only affects temperature, used later if enabled)
             const bool use_diurnal_temp = enable_diurnal_temperature;
             
             // Wall function parameters
@@ -2168,7 +2168,7 @@ int main(int argc, char* argv[])
                         // Use position-dependent z0 if available
                         Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
                         
-                        // Feature 5: Apply vegetation roughness factor
+                        // Apply vegetation roughness factor
                         if (use_veg_roughness) {
                             Real veg_factor = vegetation_roughness_factor(veg_state_val, veg_state_type_val);
                             z0_local *= veg_factor;
@@ -2200,7 +2200,7 @@ int main(int argc, char* argv[])
                         
                         Real speed;
                         if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
-                            // Feature 2: Use Holtslag-De Bruin or Businger-Dyer stability correction
+                            // Use Holtslag-De Bruin or Businger-Dyer stability correction
                             speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
                                                           kappa_cap, L_obukhov, use_holtslag);
                         } else {
@@ -2231,7 +2231,7 @@ int main(int argc, char* argv[])
                         // Use position-dependent z0 if available, otherwise use constant
                         Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
                         
-                        // Feature 5: Apply vegetation roughness factor
+                        // Apply vegetation roughness factor
                         if (use_veg_roughness) {
                             Real veg_factor = vegetation_roughness_factor(veg_state_val, veg_state_type_val);
                             z0_local *= veg_factor;
@@ -2259,7 +2259,7 @@ int main(int argc, char* argv[])
                         // Apply stability correction to wind profile
                         Real speed;
                         if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
-                            // Feature 2: Use Holtslag-De Bruin or Businger-Dyer stability correction
+                            // Use Holtslag-De Bruin or Businger-Dyer stability correction
                             speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
                                                           kappa_cap, L_obukhov, use_holtslag);
                         } else {
@@ -2794,7 +2794,7 @@ int main(int argc, char* argv[])
             Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
             Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
             
-            // Feature 3: Read land use file for spatially-varying power-law exponents
+            // Read land use file for spatially-varying power-law exponents
             std::vector<Real> exponent_h(static_cast<std::size_t>(nx) * ny, powerlaw_exponent);
             Gpu::DeviceVector<Real> d_exponent_pos;
             const Real* d_exponent_pos_ptr = nullptr;
@@ -2920,7 +2920,7 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 2) = Real(0.0);
                     } else {
                         // Power-law profile: u(z) = U_ref * (z/z_ref)^alpha
-                        // Feature 3: Use land use-based exponent if enabled
+                        // Use land use-based exponent if enabled
                         Real exponent_local = exponent;
                         if (use_landuse_exp) {
                             exponent_local = d_exponent_pos_ptr[j * nx_cap_init + i];
@@ -3160,7 +3160,7 @@ int main(int argc, char* argv[])
         }
 
         // ----------------------------------------------------------------
-        // 9b. Apply building porosity model (if enabled) - Feature 8
+        // 9b. Apply building porosity model (if enabled)
         //     Modifies velocity in porous buildings based on porosity parameter
         // ----------------------------------------------------------------
         if (enable_building_porosity && !porous_building_xmin.empty()) {
@@ -3307,7 +3307,7 @@ int main(int argc, char* argv[])
         const Real buoy_coeff_rhs = buoyancy_coefficient;
         const int n_temp_pts_rhs = n_temp_points;
         
-        // Feature 1: Capture divergence source term parameters
+        // Capture divergence source term parameters
         const bool use_div_source = enable_divergence_source;
         const Real div_source_const = divergence_source_constant;
 
@@ -3403,7 +3403,7 @@ int main(int argc, char* argv[])
 
                 rh(i, j, k) = -(du + dv + dw);   // rhs = -div(u0)
                 
-                // Feature 1: Add divergence source term if enabled
+                // Add divergence source term if enabled
                 // RHS becomes: -(div(u0)) + S, where S is source/sink of mass
                 if (use_div_source) {
                     rh(i, j, k) += div_source_const;
