@@ -612,6 +612,8 @@ void compute_divergence(const WindSolverState& state,
     // Terrain-following coordinates parameters
     const bool use_terrain_following = state.enable_terrain_following;
     const Real decay_height = state.terrain_decay_height;
+    const Real dx_val = state.dx;
+    const Real dy_val = state.dy;
 
     divergence.setVal(0.0);
     for (MFIter mfi(divergence); mfi.isValid(); ++mfi) {
@@ -685,9 +687,9 @@ void compute_divergence(const WindSolverState& state,
                 
                 // Compute terrain slopes
                 const Real dz_terrain_dx = TerrainFollowingCoords::compute_terrain_slope_x(
-                    i, j, terrain_ptr, nx, state.dx, ilo, ihi);
+                    i, j, terrain_ptr, nx, dx_val, ilo, ihi);
                 const Real dz_terrain_dy = TerrainFollowingCoords::compute_terrain_slope_y(
-                    i, j, terrain_ptr, nx, state.dy, jlo, jhi);
+                    i, j, terrain_ptr, nx, dy_val, jlo, jhi);
                 
                 // Add metric correction to divergence
                 const Real w = vel(i, j, k, 2);
@@ -728,6 +730,8 @@ void correct_velocity_field(WindSolverState& state)
     // Terrain-following coordinates parameters
     const bool use_terrain_following = state.enable_terrain_following;
     const Real decay_height = state.terrain_decay_height;
+    const Real dx_val = state.dx;
+    const Real dy_val = state.dy;
 
     state.vel->setVal(0.0);
     for (MFIter mfi(*state.vel); mfi.isValid(); ++mfi) {
@@ -791,9 +795,9 @@ void correct_velocity_field(WindSolverState& state)
                 // metric terms from the coordinate transformation
                 // Additional correction: w' = w - (∂s/∂x * ∂λ/∂x + ∂s/∂y * ∂λ/∂y)
                 const Real dz_terrain_dx = TerrainFollowingCoords::compute_terrain_slope_x(
-                    i, j, terrain_ptr, nx, state.dx, ilo, ihi);
+                    i, j, terrain_ptr, nx, dx_val, ilo, ihi);
                 const Real dz_terrain_dy = TerrainFollowingCoords::compute_terrain_slope_y(
-                    i, j, terrain_ptr, nx, state.dy, jlo, jhi);
+                    i, j, terrain_ptr, nx, dy_val, jlo, jhi);
                 
                 const Real dsdx = TerrainFollowingCoords::metric_dsdx(
                     dz_terrain_dx, z_agl, decay_height);
@@ -975,8 +979,6 @@ bool wind_solver_solve()
             const Real dz_val = state.dz;
             const int nx_val = state.nx;
             const Real decay_height = state.terrain_decay_height;
-            const int klo_val = lo[2];
-            const int khi_val = hi[2];
             
             // Modify vertical B coefficient (bcoef[2]) to include Jacobian
             for (MFIter mfi(bcoef[2]); mfi.isValid(); ++mfi) {
