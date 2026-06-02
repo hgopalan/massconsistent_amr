@@ -19,6 +19,16 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   enable_language(CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+  
+  # Workaround for CUDA 12.6 + Windows SDK header redefinition issues
+  if(WIN32)
+    string(APPEND CMAKE_CUDA_FLAGS " --allow-unsupported-compiler")
+    string(APPEND CMAKE_CUDA_FLAGS " -Xcompiler=/wd4005,/wd4244,/wd2953,/wd4011")
+    # Add defines as compiler flags to ensure they're passed to nvcc
+    string(APPEND CMAKE_CUDA_FLAGS " -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH")
+    string(APPEND CMAKE_CUDA_FLAGS " -D_CRT_SECURE_NO_WARNINGS")
+  endif()
+  
   message(STATUS "GPU backend: CUDA")
 elseif(MASSCONSISTENT_GPU_BACKEND STREQUAL "HIP")
   enable_language(HIP)
@@ -98,19 +108,18 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
     PROPERTIES LANGUAGE CUDA
   )
   
-  # Workaround for CUDA 12.6 + Windows SDK 10.0.26100.0 with C++20
-  # Known issue: nvcc on Windows with MSVC 19.40+ (VS 2022 17.10+) and C++20
-  # causes CRT header redefinition errors. This is a confirmed CUDA/MSVC interaction bug.
-  # Workaround: Use --allow-unsupported-compiler and add defines to suppress specific errors.
-  # Note: This is not ideal but allows builds to proceed until NVIDIA fixes nvcc.
+  # Workaround for CUDA 12.6 + Windows SDK with MSVC compatibility issues
+  # When compiling CUDA code on Windows with MSVC, the STL version may not match CUDA's expectations
+  # This can cause header redefinition errors in vadefs.h and corecrt.h
   if(WIN32)
     # Define common compile options and definitions for all CUDA targets on Windows
     set(_cuda_windows_compile_opts
       $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244,/wd2953,/wd4011>
     )
     set(_cuda_windows_compile_defs
       $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
+      $<$<COMPILE_LANGUAGE:CUDA>:_CRT_SECURE_NO_WARNINGS>
     )
     
     # Apply to all targets

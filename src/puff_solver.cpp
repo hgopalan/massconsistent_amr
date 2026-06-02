@@ -39,7 +39,16 @@
 #include <string>
 #include <algorithm>
 
-using namespace amrex;
+// Selective using declarations from AMReX namespace
+using amrex::Real;
+using amrex::Box;
+using amrex::MultiFab;
+using amrex::Geometry;
+using amrex::ParmParse;
+using amrex::MFIter;
+using amrex::ParallelFor;
+using amrex::Array;
+using amrex::Vector;
 
 // ============================================================================
 // Read terrain data from CSV file (similar to wind_solver.cpp)
