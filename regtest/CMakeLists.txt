@@ -248,6 +248,35 @@ add_regression_test(elevation_scaling elevation_scaling)
 add_regression_test(time_varying time_varying)
 
 # ===========================================================================
+# New Features (Very Easy 1-5)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# divergence_source/ – Feature 1: Divergence source terms for convective plumes
+# ---------------------------------------------------------------------------
+add_regression_test(divergence_source divergence_source)
+
+# ---------------------------------------------------------------------------
+# holtslag_stability/ – Feature 2: Holtslag-De Bruin stability functions
+# ---------------------------------------------------------------------------
+add_regression_test(holtslag_stability holtslag_stability)
+
+# ---------------------------------------------------------------------------
+# landuse_powerlaw/ – Feature 3: Land use-based power-law exponents
+# ---------------------------------------------------------------------------
+add_regression_test(landuse_powerlaw landuse_powerlaw)
+
+# ---------------------------------------------------------------------------
+# diurnal_temperature/ – Feature 4: Diurnal temperature profile
+# ---------------------------------------------------------------------------
+add_regression_test(diurnal_temperature diurnal_temperature)
+
+# ---------------------------------------------------------------------------
+# vegetation_roughness/ – Feature 5: Vegetation attenuation factor for roughness
+# ---------------------------------------------------------------------------
+add_regression_test(vegetation_roughness vegetation_roughness)
+
+# ===========================================================================
 # Puff Dispersion Tests
 # ===========================================================================
 
@@ -325,6 +354,11 @@ message(STATUS "  ekman_veer/            : Ekman spiral wind veer correction (Co
 message(STATUS "  alphav_height/         : Height-dependent vertical anisotropy coefficient")
 message(STATUS "  elevation_scaling/     : Terrain elevation effects on wind speed")
 message(STATUS "  time_varying/          : Time-varying wind boundary conditions")
+message(STATUS "  divergence_source/     : Divergence source terms for convective plumes (Feature 1)")
+message(STATUS "  holtslag_stability/    : Holtslag-De Bruin stability functions (Feature 2)")
+message(STATUS "  landuse_powerlaw/      : Land use-based power-law exponents (Feature 3)")
+message(STATUS "  diurnal_temperature/   : Diurnal temperature profile (Feature 4)")
+message(STATUS "  vegetation_roughness/  : Vegetation attenuation factor for roughness (Feature 5)")
 message(STATUS "  puff_gaussian/         : Basic Gaussian puff dispersion on uniform wind")
 message(STATUS "  puff_terrain/          : Puff dispersion on terrain-following wind field")
 message(STATUS "  puff_buildings/        : Puff dispersion with building wake effects")
