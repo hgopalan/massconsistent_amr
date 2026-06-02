@@ -1691,6 +1691,8 @@ int main(int argc, char* argv[])
         // Common capture variables for wind field initialization and correction
         const Real dz_cap_init    = dz;
         const Real z_lo_cap_init  = z_lo;   // physical z at bottom of domain
+        const Real x_lo_cap_init  = x_lo;   // physical x at domain left edge
+        const Real y_lo_cap_init  = y_lo;   // physical y at domain bottom edge
         const int  nx_cap_init    = nx;
         const int  ny_cap_init    = ny;
         const Real dx_cap_init    = dx;
