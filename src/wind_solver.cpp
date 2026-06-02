@@ -91,6 +91,7 @@
 #include "porosity_models.H"
 #include "wall_functions.H"
 #include "buoyancy_models.H"
+#include "orographic_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -749,6 +750,19 @@ int main(int argc, char* argv[])
         pp.query("elevation_scaling_factor", elevation_scaling_factor);
         pp.query("elevation_height_scale", elevation_height_scale);
 
+        // Orographic Speed-up and Flow Separation
+        // Jackson & Hunt (1975) model for hill speed-up effects
+        bool enable_orographic_speedup = false;
+        Real orographic_hill_length_scale = 100.0;      // Characteristic hill half-length [m]
+        Real orographic_speedup_factor_max = 2.0;       // Maximum speedup factor on ridges
+        Real orographic_separation_factor = 0.3;        // Flow separation strength factor
+        Real orographic_smoothing_factor = 0.5;         // Terrain feature smoothing (0-1)
+        pp.query("enable_orographic_speedup", enable_orographic_speedup);
+        pp.query("orographic_hill_length_scale", orographic_hill_length_scale);
+        pp.query("orographic_speedup_factor_max", orographic_speedup_factor_max);
+        pp.query("orographic_separation_factor", orographic_separation_factor);
+        pp.query("orographic_smoothing_factor", orographic_smoothing_factor);
+
         // Time-Varying Wind Boundary Conditions
         // Allow time-dependent inflow conditions for transient simulations
         bool enable_time_varying = false;
@@ -1389,6 +1403,14 @@ int main(int argc, char* argv[])
             Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
             Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
 
+            // Capture orographic speedup parameters
+            OrographicParams orog_params;
+            orog_params.enabled = enable_orographic_speedup;
+            orog_params.hill_length_scale = orographic_hill_length_scale;
+            orog_params.speedup_factor_max = orographic_speedup_factor_max;
+            orog_params.separation_factor = orographic_separation_factor;
+            orog_params.smoothing_factor = orographic_smoothing_factor;
+
             // Setup canopy parameters
             CanopyParams canopy_params;
             canopy_params.enabled = enable_canopy;
@@ -1420,6 +1442,15 @@ int main(int argc, char* argv[])
                 amrex::Print() << "  latitude = " << latitude << " degrees\n";
                 amrex::Print() << "  total_veer = " << ekman_veer_total << " degrees\n";
                 amrex::Print() << "  veer_height = " << ekman_veer_height << " m\n";
+            }
+
+            // Print orographic speedup status
+            if (enable_orographic_speedup) {
+                amrex::Print() << "wind_solver: orographic speedup (Jackson & Hunt 1975) enabled\n";
+                amrex::Print() << "  hill_length_scale = " << orographic_hill_length_scale << " m\n";
+                amrex::Print() << "  speedup_factor_max = " << orographic_speedup_factor_max << "\n";
+                amrex::Print() << "  separation_factor = " << orographic_separation_factor << "\n";
+                amrex::Print() << "  smoothing_factor = " << orographic_smoothing_factor << "\n";
             }
 
             // Capture parameters for GPU lambda
@@ -1645,6 +1676,36 @@ int main(int argc, char* argv[])
                                 Real dh_dy = d_terr_grad_y_ptr[idx_2d];
                                 w_vel = terrain_kinematic_w(u_vel, v_vel, dh_dx, dh_dy, bc_relax);
                             }
+                        }
+                        
+                        // Apply orographic speedup (Jackson & Hunt 1975 model)
+                        if (orog_params.enabled) {
+                            // Compute terrain slope and curvature from neighbors
+                            // Need neighboring terrain elevations for finite differences
+                            int im = std::max(i - 1, 0);
+                            int ip = std::min(i + 1, nx_cap_init - 1);
+                            int jm = std::max(j - 1, 0);
+                            int jp = std::min(j + 1, ny_cap_init - 1);
+                            
+                            Real z_xm = d_terr_ptr[j * nx_cap_init + im];
+                            Real z_xp = d_terr_ptr[j * nx_cap_init + ip];
+                            Real z_ym = d_terr_ptr[jm * nx_cap_init + i];
+                            Real z_yp = d_terr_ptr[jp * nx_cap_init + i];
+                            
+                            Real slope = compute_terrain_slope(
+                                terrain_elev, z_xm, z_xp, z_ym, z_yp, 
+                                dx_cap_init, dy_cap_init);
+                            
+                            Real curvature = compute_terrain_curvature(
+                                terrain_elev, z_xm, z_xp, z_ym, z_yp,
+                                dx_cap_init, dy_cap_init);
+                            
+                            // Compute speedup factor based on slope, curvature, and height
+                            Real speedup_factor = jackson_hunt_speedup_factor(
+                                slope, curvature, z_agl, orog_params);
+                            
+                            // Apply speedup to horizontal wind components
+                            apply_orographic_speedup(u_vel, v_vel, speedup_factor);
                         }
                         
                         vel(i, j, k, 0) = u_vel;
