@@ -1,4 +1,4 @@
-# Feature 1: Divergence Source Terms Test
+# Divergence Source Terms Test
 # Tests: Non-zero RHS in mass-consistency equation (convective plume)
 # Applies constant source term to simulate mass injection
 
@@ -24,7 +24,7 @@ domain_height = 300.0
 alpha_h = 1.0
 alpha_v = 1.0
 
-# Feature 1: Enable divergence source terms
+# Enable divergence source terms
 # Positive source creates expansion (convective plume)
 enable_divergence_source = true
 divergence_source_constant = 0.01  # Source term [1/s]

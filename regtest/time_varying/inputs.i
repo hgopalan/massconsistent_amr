@@ -1,5 +1,5 @@
 # Time-Varying Wind Boundary Conditions Test
-# Tests: Time-dependent inflow conditions (Feature 7)
+# Tests: Time-dependent inflow conditions 
 # Note: Current implementation uses first time point
 
 # Terrain file (flat terrain for clarity)
@@ -10,7 +10,7 @@ init_mode = loglaw
 z_ref = 10.0
 z0 = 0.1
 
-# Feature 7: Enable time-varying boundary conditions
+# Enable time-varying boundary conditions
 enable_time_varying = true
 time_series_file = time_series.csv
 

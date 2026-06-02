@@ -1,4 +1,4 @@
-# Feature 5: Vegetation Attenuation Factor for Roughness Test
+# Vegetation Attenuation Factor for Roughness Test
 # Tests: Roughness modification based on vegetation state
 # Simulates seasonal variation (e.g., LAI-based adjustment)
 
@@ -24,7 +24,7 @@ domain_height = 300.0
 alpha_h = 1.0
 alpha_v = 1.0
 
-# Feature 5: Enable vegetation roughness factor
+# Enable vegetation roughness factor
 enable_vegetation_roughness = true
 vegetation_state = 4.0        # LAI value (Leaf Area Index)
 vegetation_state_type = 0     # Type 0 = LAI-based

@@ -1,5 +1,5 @@
 # Drag Coefficient Diagnostic Test
-# Tests: Surface drag coefficient C_d and heat flux diagnostics (Feature 4)
+# Tests: Surface drag coefficient C_d and heat flux diagnostics 
 # Tests with spatially-varying roughness to verify drag coefficient computation
 
 # Terrain file (3x3 grid, flat terrain)

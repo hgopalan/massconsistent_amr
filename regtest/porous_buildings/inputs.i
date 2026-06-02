@@ -1,5 +1,5 @@
 # Building Porosity Model Test
-# Tests: Porous flow through structures (Feature 8)
+# Tests: Porous flow through structures 
 # Tree stand simulation with partial flow-through
 
 # Terrain file (flat terrain)
@@ -12,7 +12,7 @@ V_ref = 0.0
 z_ref = 10.0
 z0 = 0.1
 
-# Feature 8: Enable building porosity model
+# Enable building porosity model
 enable_building_porosity = true
 building_porosity_file = porous_buildings.csv
 porosity_drag_coefficient = 0.3

@@ -1,4 +1,4 @@
-# Terrain-Adaptive Alpha Coefficients Test (Feature 12)
+# Terrain-Adaptive Alpha Coefficients Test 
 # Tests: Spatially-varying α_h and α_v based on terrain slope and curvature
 # Domain: Gaussian hill with varying slopes
 # Expected behavior:
@@ -25,7 +25,7 @@ dz = 25.0
 # Domain height [m] above maximum terrain elevation
 domain_height = 200.0
 
-# Feature 12: Enable terrain-adaptive alpha coefficients
+# Enable terrain-adaptive alpha coefficients
 # Compute α_v based on local terrain slope and curvature
 enable_terrain_adaptive_alpha = true
 alpha_h_base = 1.0          # Base horizontal coefficient

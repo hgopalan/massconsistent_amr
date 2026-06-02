@@ -1,4 +1,4 @@
-# Puff Deposition/Sedimentation Test Case (Feature 11)
+# Puff Deposition/Sedimentation Test Case 
 # Tests: Dry deposition of pollutants to ground surface
 # Particles settle due to gravity, gases deposit on surfaces
 # Domain: 300m x 300m x 100m
@@ -23,7 +23,7 @@ K_v = 0.8              # Vertical diffusivity [m²/s]
 sigma_y0 = 1.5         # Initial lateral width [m]
 sigma_z0 = 1.5         # Initial vertical height [m]
 
-# Feature 11: Enable deposition/sedimentation
+# Enable deposition/sedimentation
 enable_puff_deposition = true
 deposition_velocity = 0.01  # Dry deposition velocity [m/s]
                             # Typical for particles: 0.001-0.1 m/s

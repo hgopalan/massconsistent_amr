@@ -1,4 +1,4 @@
-# Pasquill-Gifford Stability Classification Test (Feature 10)
+# Pasquill-Gifford Stability Classification Test 
 # Tests: Classic atmospheric stability classes (A-F) based on wind speed and solar radiation
 # Domain: Simple flat terrain
 # Condition: Daytime, moderate insolation, light wind → Class B (moderately unstable)
@@ -13,7 +13,7 @@ V_ref = 0.0
 z_ref = 10.0
 z0 = 0.1
 
-# Feature 10: Pasquill-Gifford stability classification
+# Pasquill-Gifford stability classification
 # Input: wind_speed = 3 m/s, solar_radiation = 500 W/m² (moderate insolation)
 # Expected output: Class B (moderately unstable)
 # Mapped to: L ≈ -100 m (unstable conditions)

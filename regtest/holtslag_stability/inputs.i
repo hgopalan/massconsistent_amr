@@ -1,4 +1,4 @@
-# Feature 2: Holtslag-De Bruin Stability Functions Test
+# Holtslag-De Bruin Stability Functions Test
 # Tests: Alternative stability correction for very stable conditions
 # Uses Holtslag-De Bruin (1988) instead of Businger-Dyer formulation
 
@@ -28,7 +28,7 @@ alpha_v = 1.0
 enable_stability_correction = true
 stability_length = 50.0  # Stable conditions (L > 0)
 
-# Feature 2: Use Holtslag-De Bruin stability functions
+# Use Holtslag-De Bruin stability functions
 use_holtslag_stability = true
 
 # MLMG solver settings (silent)

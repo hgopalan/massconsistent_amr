@@ -1,4 +1,4 @@
-# Feature 4: Diurnal Temperature Profile Test
+# Diurnal Temperature Profile Test
 # Tests: Time-varying sinusoidal temperature variation
 # Simulates daily solar heating cycle
 
@@ -32,7 +32,7 @@ buoyancy_coefficient = 1.0
 buoyancy_timescale = 10.0
 buoyancy_method = velocity
 
-# Feature 4: Enable diurnal temperature variation
+# Enable diurnal temperature variation
 enable_diurnal_temperature = true
 diurnal_temperature_amplitude = 5.0  # +/- 5K variation
 diurnal_time_of_day = 14.0           # Current time: 14:00 (peak heating)
