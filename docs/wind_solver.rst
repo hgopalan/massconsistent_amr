@@ -640,3 +640,161 @@ demonstrating speedup over a Gaussian hill.
   management. Part I. Model formulation and comparison against measurements.
   *International Journal of Wildland Fire*, 23(7), 969-981.
 
+Gap Flow Parameterization
+-------------------------
+
+The solver includes a gap flow parameterization model for mountain passes and
+valleys where pressure-driven channeling creates enhanced wind speeds. Gap flows
+are important for wind energy assessment, aviation, and regional wind patterns,
+with typical speed-up factors of 2-4× synoptic wind speeds.
+
+**Physical Background**
+
+Mountain gaps and passes create natural wind corridors:
+
+1. **Pressure gradient**: Temperature and pressure differences across the gap
+   drive flow through the constriction
+2. **Channeling**: Flow is forced through the narrow gap, accelerating due to
+   mass continuity
+3. **Speed-up**: Gap winds can reach 2-4× synoptic wind speeds (e.g., Columbia
+   River Gorge can exceed 40 m/s)
+4. **Directional alignment**: Flow aligns with gap axis, potentially reversing
+   synoptic flow direction
+
+Classic examples include the Columbia River Gorge (Washington/Oregon), Strait of
+Gibraltar, and numerous Alpine passes.
+
+**Implementation**
+
+The gap flow parameterization consists of three components:
+
+1. **Gap geometry detection** — identifies points within or near the gap based on
+   distance from gap center and alignment with gap axis
+
+2. **Pressure difference calculation** — computes pressure gradient across the gap
+   from synoptic wind speed and orientation:
+
+   .. math::
+
+      \\Delta p = C \\cdot \\frac{1}{2}\\rho U_{syn}^2 \\cdot \\cos(\\theta_{align}) \\cdot \\left(1 + \\frac{H}{W}\\right)
+
+   where:
+
+   * :math:`C` is the pressure coefficient
+   * :math:`\\rho` = 1.225 kg/m³ (air density)
+   * :math:`U_{syn}` is synoptic wind speed
+   * :math:`\\theta_{align}` is angle between wind and gap axis
+   * :math:`H` is gap depth (elevation range)
+   * :math:`W` is gap width
+
+3. **Gap flow velocity** — enhanced wind speed from Bernoulli equation:
+
+   .. math::
+
+      U_{gap} = \\sqrt{\\frac{2\\Delta p}{\\rho}}
+
+   The gap flow is aligned with the gap axis and blended with base wind based on
+   distance from gap center and height above ground.
+
+**Vertical and Horizontal Structure**
+
+* **Vertical decay**: Gap flow influence decreases exponentially with height
+  above ground:
+
+  .. math::
+
+     f(z) = \\exp(-z / H_{gap})
+
+  where :math:`H_{gap}` is the vertical extent parameter (typically 500-1500 m)
+
+* **Horizontal transition**: Smooth transition from full gap flow (inside gap) to
+  ambient flow (outside gap) using cosine taper over transition width
+
+**Usage Example**
+
+To enable gap flow parameterization in an input file::
+
+    enable_gap_flow = true
+    gap_flow_orientation = 90.0        # Gap axis orientation [degrees, 0=east, 90=north]
+    gap_flow_width = 1000.0            # Gap width [m]
+    gap_flow_depth = 500.0             # Gap depth (elevation range) [m]
+    gap_flow_pressure_coefficient = 1.0  # Pressure-driven flow coefficient
+    gap_flow_speedup_max = 3.0         # Maximum gap flow speedup (typically 2-4)
+    gap_flow_center_x = 5000.0         # Gap center X coordinate [m]
+    gap_flow_center_y = 5000.0         # Gap center Y coordinate [m]
+    gap_flow_transition_width = 500.0  # Transition zone width [m]
+    gap_flow_vertical_extent = 1000.0  # Vertical extent of gap flow influence [m]
+
+**Parameter Guidelines**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Parameter
+     - Typical Value
+     - Notes
+   * - ``gap_flow_orientation``
+     - 0-360°
+     - Direction of gap axis (0=east, 90=north, 180=west, 270=south)
+   * - ``gap_flow_width``
+     - 500-5000 m
+     - Width of gap (smaller = stronger channeling)
+   * - ``gap_flow_depth``
+     - 200-1000 m
+     - Vertical elevation range of gap
+   * - ``gap_flow_pressure_coefficient``
+     - 0.5-1.5
+     - Tuning parameter for pressure-driven flow strength
+   * - ``gap_flow_speedup_max``
+     - 2.0-4.0
+     - Maximum wind speed enhancement (Columbia Gorge: 3-4×)
+   * - ``gap_flow_transition_width``
+     - 200-1000 m
+     - Width of transition zone at gap edges
+
+**Applications**
+
+* **Wind energy**: Gap winds create concentrated high-speed zones ideal for wind
+  farms
+* **Aviation**: Strong gap flows can create hazardous conditions for aircraft
+* **Fire behavior**: Rapid fire spread in gap wind corridors
+* **Regional climate**: Gap winds affect temperature and precipitation patterns
+
+**Compatibility**
+
+Gap flow works with all wind initialization modes:
+
+* **loglaw**: Applied after log-law profile computation
+* **powerlaw**: Applied after power-law profile computation
+* **uniform**: Applied to uniform wind field
+* **raws/surface_data**: Applied after interpolation
+
+The gap flow is applied to the initial wind field before the mass-consistency
+correction, so the final field enforces :math:`\\nabla \\cdot \\mathbf{u} = 0`
+while retaining gap-induced speed variations.
+
+**Validation and Testing**
+
+See regression test ``regtest/gap_flow_mountain/`` for a complete example
+demonstrating gap flow through a mountain pass.
+
+**Limitations**
+
+* Assumes steady-state gap flow (transient ramp-up not modeled)
+* Simplified gap geometry (rectangular cross-section)
+* Does not resolve turbulence or vortex shedding at gap edges
+* Pressure gradient simplified from full 3-D pressure field
+
+**References**
+
+* Mass, C.F., & Albright, M.D. (1987). Coastal southerlies and alongshore surges
+  of the west coast of North America: Evidence of mesoscale topographically
+  trapped response to synoptic forcing. *Monthly Weather Review*, 115(8),
+  1707-1738.
+* Sharp, J., & Mass, C.F. (2004). Columbia Gorge gap winds: Their climatological
+  influence and synoptic evolution. *Weather and Forecasting*, 19(6), 970-992.
+* Jackson, P.L., Mayr, G., & Vosper, S. (2013). Dynamically-driven winds.
+  *Mountain Weather Research and Forecasting*, Springer, 121-218.
+
+
