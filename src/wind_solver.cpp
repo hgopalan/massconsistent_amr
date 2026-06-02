@@ -905,6 +905,15 @@ int main(int argc, char* argv[])
         // Power-law mode parameters
         Real powerlaw_exponent = 0.143;  // ~1/7 typical for neutral conditions
         pp.query("powerlaw_exponent", powerlaw_exponent);
+        
+        // Feature 3: Different Power-Law Exponents by Land Use Type
+        // Allow spatially varying power-law exponent based on land use
+        std::string landuse_file = "";
+        bool use_landuse_powerlaw = false;
+        pp.query("landuse_file", landuse_file);
+        if (!landuse_file.empty()) {
+            use_landuse_powerlaw = true;
+        }
 
         // RAWS mode parameters
         std::string velocity_file = "velocity.csv";
@@ -921,6 +930,15 @@ int main(int argc, char* argv[])
         if (!z0_file.empty()) {
             use_z0_file = true;
         }
+        
+        // Feature 5: Vegetation Attenuation Factor for Roughness
+        // Modify roughness based on vegetation state (LAI, snow, burn severity, etc.)
+        bool enable_vegetation_roughness = false;
+        Real vegetation_state = 1.0;      // Vegetation state parameter (e.g., LAI)
+        int vegetation_state_type = 0;    // State type: 0=LAI, 1=snow, 2=burn, 3=crop
+        pp.query("enable_vegetation_roughness", enable_vegetation_roughness);
+        pp.query("vegetation_state", vegetation_state);
+        pp.query("vegetation_state_type", vegetation_state_type);
 
         Real dx_req = 30.0;
         Real dy_req = 30.0;
@@ -952,6 +970,11 @@ int main(int argc, char* argv[])
         Real stability_length = 1000.0;  // Obukhov length L [m] (>0 stable, <0 unstable, very large for neutral)
         pp.query("enable_stability_correction", enable_stability_correction);
         pp.query("stability_length", stability_length);
+        
+        // Feature 2: Alternative Stability Functions (Holtslag-De Bruin)
+        // Use Holtslag-De Bruin (1988) formulation instead of Businger-Dyer for stable conditions
+        bool use_holtslag_stability = false;
+        pp.query("use_holtslag_stability", use_holtslag_stability);
 
         // Elevation-Dependent Wind Speed Scaling
         // Scale reference wind based on terrain elevation for mountain-valley effects
@@ -1057,6 +1080,19 @@ int main(int argc, char* argv[])
         pp.query("buoyancy_coefficient", buoyancy_coefficient);
         pp.query("buoyancy_timescale", buoyancy_timescale);
         pp.query("buoyancy_method", buoyancy_method);
+        
+        // Feature 4: Simple Diurnal Temperature Profile
+        // Enable time-varying sinusoidal temperature variation
+        bool enable_diurnal_temperature = false;
+        Real diurnal_temperature_amplitude = 5.0;  // Temperature amplitude ΔT [K]
+        Real diurnal_time_of_day = 12.0;          // Current time [hours, 0-24]
+        Real diurnal_phase_hour = 14.0;           // Time of maximum temperature [hours]
+        Real diurnal_period = 24.0;               // Diurnal period [hours]
+        pp.query("enable_diurnal_temperature", enable_diurnal_temperature);
+        pp.query("diurnal_temperature_amplitude", diurnal_temperature_amplitude);
+        pp.query("diurnal_time_of_day", diurnal_time_of_day);
+        pp.query("diurnal_phase_hour", diurnal_phase_hour);
+        pp.query("diurnal_period", diurnal_period);
 
         // Kinematic Terrain-Following Boundary Condition
         // Enforce w = u·∇h at terrain surface instead of simply zeroing
@@ -1105,6 +1141,18 @@ int main(int argc, char* argv[])
         Real fetch_transition_blending_height = 100.0;  // Blending height scale [m]
         pp.query("enable_fetch_roughness_transition", enable_fetch_roughness_transition);
         pp.query("fetch_transition_blending_height", fetch_transition_blending_height);
+        
+        // Feature 1: Divergence Source Terms (for convective plumes)
+        // Allow non-zero RHS in mass-consistency equation: ∇·u = S
+        bool enable_divergence_source = false;
+        std::string divergence_source_file = "";
+        Real divergence_source_constant = 0.0;  // Constant source term [1/s] (uniform over domain)
+        pp.query("enable_divergence_source", enable_divergence_source);
+        pp.query("divergence_source_file", divergence_source_file);
+        pp.query("divergence_source_constant", divergence_source_constant);
+        if (!divergence_source_file.empty()) {
+            enable_divergence_source = true;
+        }
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
