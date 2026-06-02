@@ -29,7 +29,7 @@ enable_buoyancy_stratification = true
 temperature_file = temperature.csv
 temperature_reference = 300.0       # Reference temperature [K]
 buoyancy_coefficient = 1.0          # Tuning parameter
-buoyancy_method = rhs               # Add buoyancy to RHS instead of velocity
+buoyancy_method = "rhs"             # Add buoyancy to RHS instead of velocity
 
 # MLMG solver settings (silent)
 mlmg_verbose  = 0
