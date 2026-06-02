@@ -64,6 +64,9 @@ cmake --build build --parallel
   - **Vegetation roughness factor** — Seasonal/state modifiers for roughness (LAI, snow, burn severity)
   - **EPA AERMOD PRIME wake model** — Industry-standard regulatory wake model with PBA method for stack emissions
   - **Valley channeling factor** — Automatic valley detection and wind alignment for mountain meteorology
+  - **Pasquill-Gifford stability classes** — Classic atmospheric stability classification (A-F) from wind speed and solar radiation for dispersion modeling
+  - **Puff deposition/sedimentation** — Dry deposition and gravitational settling for particles and reactive gases with surface uptake
+  - **Terrain-adaptive alpha coefficients** — Spatially-varying anisotropy (α_h, α_v) based on terrain slope and curvature for improved mass conservation
 
 ## Documentation
 
