@@ -33,10 +33,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace {
-    using namespace amrex;
-}
-
 // ============================================================================
 // Orographic parameters structure
 // ============================================================================

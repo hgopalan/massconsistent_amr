@@ -27,10 +27,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace {
-    using namespace amrex;
-}
-
 // ============================================================================
 // Canopy parameters structure
 // ============================================================================

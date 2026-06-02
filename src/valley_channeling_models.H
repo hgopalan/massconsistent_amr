@@ -35,10 +35,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace {
-    using namespace amrex;
-}
-
 // ============================================================================
 // Valley channeling parameters structure
 // ============================================================================
