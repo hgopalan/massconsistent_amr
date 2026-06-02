@@ -95,6 +95,7 @@
 #include "thermal_circulation_models.H"
 #include "terrain_blocking_models.H"
 #include "slope_flow_models.H"
+#include "valley_channeling_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1076,6 +1077,25 @@ int main(int argc, char* argv[])
         pp.query("slope_flow_vertical_decay_height", slope_flow_vertical_decay_height);
         pp.query("slope_flow_min_slope", slope_flow_min_slope);
 
+        // ====================================================================
+        // Valley channeling parameters
+        // ====================================================================
+        bool enable_valley_channeling = false;
+        Real valley_axis_angle_deg = 0.0;            // Valley axis angle [degrees] (CCW from x-axis)
+        Real valley_width = 1000.0;                  // Valley width [m]
+        Real valley_depth = 300.0;                   // Valley depth [m]
+        Real valley_channeling_strength_max = 0.8;   // Maximum channeling strength (0-1)
+        Real valley_speedup_factor_narrow = 1.3;     // Speed-up for narrow valleys
+        Real valley_slowdown_factor_wide = 0.85;     // Slowdown for wide valleys
+        
+        pp.query("enable_valley_channeling", enable_valley_channeling);
+        pp.query("valley_axis_angle_deg", valley_axis_angle_deg);
+        pp.query("valley_width", valley_width);
+        pp.query("valley_depth", valley_depth);
+        pp.query("valley_channeling_strength_max", valley_channeling_strength_max);
+        pp.query("valley_speedup_factor_narrow", valley_speedup_factor_narrow);
+        pp.query("valley_slowdown_factor_wide", valley_slowdown_factor_wide);
+
         // Time-Varying Wind Boundary Conditions
         // Allow time-dependent inflow conditions for transient simulations
         bool enable_time_varying = false;
@@ -1904,6 +1924,16 @@ int main(int argc, char* argv[])
             slope_flow_params.vertical_decay_height = slope_flow_vertical_decay_height;
             slope_flow_params.min_slope = slope_flow_min_slope;
 
+            // Setup valley channeling parameters
+            ValleyChannelingParams valley_params;
+            valley_params.enabled = enable_valley_channeling;
+            valley_params.valley_axis_angle = valley_axis_angle_deg * (M_PI / 180.0);  // Convert to radians
+            valley_params.valley_width = valley_width;
+            valley_params.valley_depth = valley_depth;
+            valley_params.channeling_strength_max = valley_channeling_strength_max;
+            valley_params.speedup_factor_narrow = valley_speedup_factor_narrow;
+            valley_params.slowdown_factor_wide = valley_slowdown_factor_wide;
+
             // Setup canopy parameters
             CanopyParams canopy_params;
             canopy_params.enabled = enable_canopy;
@@ -2361,6 +2391,27 @@ int main(int argc, char* argv[])
                             apply_slope_flow(
                                 u_vel, v_vel, z_xm, z_xp, z_ym, z_yp,
                                 dx_cap_init, dy_cap_init, z_agl, slope_flow_params);
+                        }
+                        
+                        // Apply valley channeling
+                        if (valley_params.enabled) {
+                            // Use same neighbor terrain elevations as slope flow
+                            int im = std::max(i - 1, 0);
+                            int ip = std::min(i + 1, nx_cap_init - 1);
+                            int jm = std::max(j - 1, 0);
+                            int jp = std::min(j + 1, ny_cap_init - 1);
+                            
+                            Real z_center = terrain_elev;
+                            Real z_xm = d_terr_ptr[j * nx_cap_init + im];
+                            Real z_xp = d_terr_ptr[j * nx_cap_init + ip];
+                            Real z_ym = d_terr_ptr[jm * nx_cap_init + i];
+                            Real z_yp = d_terr_ptr[jp * nx_cap_init + i];
+                            
+                            // Apply valley channeling to wind components
+                            compute_valley_channeling(
+                                u_vel, v_vel,
+                                z_center, z_xm, z_xp, z_ym, z_yp,
+                                dx_cap_init, dy_cap_init, valley_params);
                         }
                         
                         vel(i, j, k, 0) = u_vel;
@@ -2901,7 +2952,12 @@ int main(int argc, char* argv[])
             wake_params.separation_length = wake_separation_length;
             
             // Set wake model type based on user input
-            if (wake_model_type == "huber_snyder" || wake_model_type == "huber-snyder" || 
+            if (wake_model_type == "aermod_prime" || wake_model_type == "aermod-prime" ||
+                wake_model_type == "AERMOD_PRIME" || wake_model_type == "AERMOD-PRIME" ||
+                wake_model_type == "prime" || wake_model_type == "PRIME") {
+                wake_params.model_type = WakeModelType::AERMOD_PRIME;
+                amrex::Print() << "  using EPA AERMOD PRIME wake model\n";
+            } else if (wake_model_type == "huber_snyder" || wake_model_type == "huber-snyder" || 
                 wake_model_type == "HUBER_SNYDER" || wake_model_type == "HUBER-SNYDER") {
                 wake_params.model_type = WakeModelType::HUBER_SNYDER;
                 amrex::Print() << "  using Huber-Snyder (EPA) wake model\n";
