@@ -51,6 +51,12 @@ cmake --build build --parallel
 - **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields
 - **Python API** — Coupling with fire and atmospheric models
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
+- **New features:**
+  - **Divergence source terms** — Non-zero RHS (∇·u = S) for convective plumes and mass sources
+  - **Holtslag-De Bruin stability functions** — Alternative formulation for very stable conditions
+  - **Land use-based power-law exponents** — Spatially-varying wind shear by terrain type
+  - **Diurnal temperature profile** — Time-varying sinusoidal temperature for daily cycles
+  - **Vegetation roughness factor** — Seasonal/state modifiers for roughness (LAI, snow, burn severity)
 
 ## Documentation
 

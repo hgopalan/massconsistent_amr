@@ -28,6 +28,23 @@ amrex::Real psi_m_stable(amrex::Real zeta) noexcept
     return -beta * zeta;
 }
 
+// Holtslag-De Bruin (1988) momentum stability function for stable conditions
+// Alternative formulation widely used in European models
+// Better performance in very stable conditions (nighttime, polar regions)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real psi_m_holtslag_stable(amrex::Real zeta) noexcept
+{
+    // Holtslag-De Bruin (1988) formulation for stable conditions
+    // psi_m = -(a*zeta + b*(zeta - c/d)*exp(-d*zeta) + b*c/d)
+    // where a=1.0, b=0.667, c=5.0, d=0.35 are standard coefficients
+    const amrex::Real a = amrex::Real(1.0);
+    const amrex::Real b = amrex::Real(0.667);
+    const amrex::Real c = amrex::Real(5.0);
+    const amrex::Real d = amrex::Real(0.35);
+    
+    return -(a * zeta + b * (zeta - c / d) * std::exp(-d * zeta) + b * c / d);
+}
+
 // Momentum stability function psi_m(zeta) for unstable conditions (zeta < 0)
 // Based on Paulson (1970) and Businger et al. (1971)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -46,8 +63,9 @@ amrex::Real psi_m_unstable(amrex::Real zeta) noexcept
 
 // Combined stability function psi_m(zeta)
 // Handles both stable and unstable conditions
+// use_holtslag: if true, use Holtslag-De Bruin for stable; if false, use Businger-Dyer
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real psi_m(amrex::Real zeta) noexcept
+amrex::Real psi_m(amrex::Real zeta, bool use_holtslag = false) noexcept
 {
     // Limit zeta to prevent numerical issues
     const amrex::Real zeta_max = amrex::Real(2.0);   // stable limit
@@ -56,8 +74,8 @@ amrex::Real psi_m(amrex::Real zeta) noexcept
     zeta = (zeta < zeta_min) ? zeta_min : zeta;
     
     if (zeta > amrex::Real(0.0)) {
-        // Stable conditions
-        return psi_m_stable(zeta);
+        // Stable conditions - choose formulation
+        return use_holtslag ? psi_m_holtslag_stable(zeta) : psi_m_stable(zeta);
     } else if (zeta < amrex::Real(0.0)) {
         // Unstable conditions
         return psi_m_unstable(zeta);
@@ -70,12 +88,14 @@ amrex::Real psi_m(amrex::Real zeta) noexcept
 // Non-neutral log-law wind speed profile with stability correction
 // u(z) = (u*/kappa) * [ln((z+z0)/z0) - psi_m(z/L) + psi_m(z0/L)]
 // For most applications, psi_m(z0/L) ≈ 0 since z0 << z
+// use_holtslag: if true, use Holtslag-De Bruin for stable; if false, use Businger-Dyer
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real wind_profile_stability(amrex::Real z_agl,
                                     amrex::Real z0,
                                     amrex::Real ustar,
                                     amrex::Real kappa,
-                                    amrex::Real L_obukhov) noexcept
+                                    amrex::Real L_obukhov,
+                                    bool use_holtslag = false) noexcept
 {
     // Neutral log-law component
     amrex::Real speed = (ustar / kappa) * std::log((z_agl + z0) / z0);
@@ -87,7 +107,7 @@ amrex::Real wind_profile_stability(amrex::Real z_agl,
         
         // Stability correction: subtract psi_m(z/L) and add psi_m(z0/L)
         // For z0 << L, psi_m(z0/L) ≈ 0, but we include it for completeness
-        speed = (ustar / kappa) * (std::log((z_agl + z0) / z0) - psi_m(zeta) + psi_m(zeta0));
+        speed = (ustar / kappa) * (std::log((z_agl + z0) / z0) - psi_m(zeta, use_holtslag) + psi_m(zeta0, use_holtslag));
     }
     
     return speed;
