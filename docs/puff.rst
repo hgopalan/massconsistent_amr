@@ -277,6 +277,77 @@ where λ is the decay constant. The half-life is T_{1/2} = ln(2)/λ.
 Puffs are automatically deactivated when their mass drops below 10⁻¹² of
 the initial value.
 
+Plume Rise (Buoyancy Effects)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Gaussian puff model includes plume rise for buoyant sources using the
+Briggs (1975) formula, consistent with WindNinja and QUIC-PLUME implementations.
+
+.. code-block:: ini
+
+    # Enable plume rise for buoyant sources
+    enable_plume_rise = true
+    heat_flux = 50.0              # Buoyancy flux F [m⁴/s³]
+
+**Briggs Plume Rise Formula:**
+
+.. math::
+
+    \Delta h = \frac{1.6 \cdot F^{1/3} \cdot x^{2/3}}{u}
+
+where:
+
+- :math:`\Delta h` is the plume rise height [m]
+- :math:`F` is the buoyancy flux [m⁴/s³]
+- :math:`x` is the downwind distance from source [m]
+- :math:`u` is the wind speed at source height [m/s]
+
+**Buoyancy Flux from Heat Flux:**
+
+For a heat source with heat flux :math:`Q_H` [W]:
+
+.. math::
+
+    F = \frac{g \cdot Q_H}{\rho \cdot c_p \cdot T}
+
+where:
+
+- :math:`g = 9.81` m/s² (gravitational acceleration)
+- :math:`\rho \approx 1.2` kg/m³ (air density)
+- :math:`c_p \approx 1005` J/(kg·K) (specific heat of air)
+- :math:`T \approx 288` K (ambient temperature)
+
+For typical ambient conditions: :math:`F \approx Q_H \text{ [W]} / (3.5 \times 10^5)`
+
+**Example Applications:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Source Type
+     - Heat Flux :math:`Q_H` [MW]
+     - Buoyancy Flux :math:`F` [m⁴/s³]
+   * - Small fire
+     - 1
+     - ~2.9
+   * - Industrial stack
+     - 10
+     - ~29
+   * - Large fire
+     - 100
+     - ~286
+
+The effective source height is computed as :math:`z_{eff} = z_{source} + \Delta h`
+where a representative downwind distance (typically 10× source height or 100 m)
+is used for initial puff emission.
+
+**References:**
+
+- Briggs, G.A. (1975). Plume rise predictions. AMS Workshop on Meteorology 
+  and Environmental Assessment
+- WindNinja and QUIC-PLUME implementation
+
 Wind Field
 ^^^^^^^^^^
 
@@ -571,9 +642,7 @@ Known Limitations
 ^^^^^^^^^^^^^^^^^
 
 1. **Nearest-neighbor velocity interpolation**: Should use trilinear interpolation for spatially-varying wind fields
-2. **No chemical decay**: No radioactive or chemical decay modeled
-3. **No plume rise**: No buoyancy effects for heated sources
-4. **Constant canopy properties**: Canopy parameters are spatially uniform
+2. **Constant canopy properties**: Canopy parameters are spatially uniform
 
 Future Extensions
 ^^^^^^^^^^^^^^^^^
@@ -588,18 +657,9 @@ Future Extensions
    * - Particle settling
      - Easy
      - Aerosol/dust modeling
-   * - Chemical decay (1st-order)
-     - Easy
-     - Reactive dispersion
    * - Trilinear velocity interpolation
      - Moderate
      - Accurate advection
-   * - Height-dependent diffusivity
-     - Moderate
-     - Stability-aware dispersion
-   * - Plume rise (buoyancy)
-     - Moderate
-     - Heated/buoyant sources
    * - Couple with wind plotfile
      - Moderate
      - Use real wind fields

@@ -241,6 +241,12 @@ int main(int argc, char* argv[])
         pp.query("enable_decay", enable_decay);
         pp.query("decay_constant", decay_constant);
         
+        // Plume rise parameters (Briggs buoyancy formula)
+        bool enable_plume_rise = false;
+        Real heat_flux = 0.0;  // Buoyancy flux F [m⁴/s³]
+        pp.query("enable_plume_rise", enable_plume_rise);
+        pp.query("heat_flux", heat_flux);
+        
         // Time stepping
         Real dt_puff = 1.0;
         int n_steps_puff = 100;
@@ -359,6 +365,10 @@ int main(int argc, char* argv[])
             amrex::Print() << "    Decay constant: " << decay_constant << " 1/s\n";
             amrex::Print() << "    Half-life: " << (0.693147 / std::max(decay_constant, 1.0e-10)) << " s\n";
         }
+        if (enable_plume_rise) {
+            amrex::Print() << "  Plume rise enabled (Briggs formula)\n";
+            amrex::Print() << "    Buoyancy flux: " << heat_flux << " m⁴/s³\n";
+        }
         amrex::Print() << "  Initial puff size: σy₀ = " << sigma_y0 
                        << " m, σz₀ = " << sigma_z0 << " m\n";
         amrex::Print() << "  Wind: U = " << U_wind << ", V = " << V_wind 
@@ -408,8 +418,20 @@ int main(int argc, char* argv[])
             // Emit new puff if still within emission duration
             if (time < emission_duration) {
                 Real puff_mass = emission_rate * dt_puff;
+                
+                // Compute effective source height with plume rise
+                Real effective_source_z = source_z;
+                if (enable_plume_rise && heat_flux > 0.0) {
+                    // Use a representative downwind distance for initial plume rise
+                    // Typical choice: use 100 m minimum, or 10× source height if larger
+                    Real representative_distance = std::max(100.0, 10.0 * source_z);
+                    Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                    effective_source_z = source_z + plume_rise;
+                }
+                
                 Puff new_puff = create_puff(
-                    source_x, source_y, source_z,
+                    source_x, source_y, effective_source_z,
                     puff_mass, sigma_y0, sigma_z0, time);
                 puffs.push_back(new_puff);
             }

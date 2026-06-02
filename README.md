@@ -46,6 +46,7 @@ cmake --build build --parallel
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
   - **Height-dependent diffusivity** — K(z) profiles for realistic atmospheric mixing
   - **First-order decay** — Exponential decay for radioactive/chemical species
+  - **Plume rise** — Briggs buoyancy formula for heated sources (WindNinja/QUIC-PLUME compatible)
 - **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields
 - **Python API** — Coupling with fire and atmospheric models
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
