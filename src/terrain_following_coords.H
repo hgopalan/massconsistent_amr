@@ -215,7 +215,7 @@ Real compute_terrain_slope_y(int i, int j, const Real* terrain, int nx, Real dy,
 // added to the standard Cartesian divergence
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real divergence_metric_correction(
-    Real dudz, Real dvdz, Real w, Real dwdz,
+    Real dudz, Real dvdz, [[maybe_unused]] Real w, Real dwdz,
     Real dz_terrain_dx, Real dz_terrain_dy,
     Real z_terrain, Real z_agl, Real decay_height) noexcept
 {

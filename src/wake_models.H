@@ -506,6 +506,62 @@ bool huber_snyder_wake_deficit(
 // ============================================================================
 
 // ============================================================================
+// Compute Wind-Aligned Building Dimensions
+//
+// For rotated buildings, we need to project the building's dimensions onto the
+// wind direction to get the effective streamwise (length) and crosswind
+// (width) dimensions.
+//
+// Inputs:
+//   bldg_x_extent  - Building extent in x-direction [m]
+//   bldg_y_extent  - Building extent in y-direction [m]
+//   rotation       - Building rotation angle (radians, CCW from x-axis)
+//   wind_dir_x     - Wind direction x-component (unit vector)
+//   wind_dir_y     - Wind direction y-component (unit vector)
+//
+// Returns:
+//   length_wind    - Effective building length in wind direction [m]
+//   width_wind     - Effective building width perpendicular to wind [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_wind_aligned_dimensions(
+    amrex::Real bldg_x_extent,
+    amrex::Real bldg_y_extent,
+    amrex::Real rotation,
+    amrex::Real wind_dir_x,
+    amrex::Real wind_dir_y,
+    amrex::Real& length_wind,
+    amrex::Real& width_wind)
+{
+    // Building corner vectors in grid-aligned frame
+    // Assuming building is rectangular with sides parallel to rotated axes
+    amrex::Real cos_rot = std::cos(rotation);
+    amrex::Real sin_rot = std::sin(rotation);
+    
+    // Building edges in grid frame:
+    // Edge 1: along original x-direction, rotated by angle
+    // Edge 2: along original y-direction, rotated by angle
+    const amrex::Real edge1_x = cos_rot * bldg_x_extent;
+    const amrex::Real edge1_y = sin_rot * bldg_x_extent;
+    const amrex::Real edge2_x = -sin_rot * bldg_y_extent;
+    const amrex::Real edge2_y = cos_rot * bldg_y_extent;
+    
+    // Project edges onto wind direction to get streamwise component
+    const amrex::Real proj1_wind = std::abs(edge1_x * wind_dir_x + edge1_y * wind_dir_y);
+    const amrex::Real proj2_wind = std::abs(edge2_x * wind_dir_x + edge2_y * wind_dir_y);
+    
+    // Project edges perpendicular to wind to get crosswind component
+    const amrex::Real perp_wind_x = -wind_dir_y;
+    const amrex::Real perp_wind_y = wind_dir_x;
+    const amrex::Real proj1_perp = std::abs(edge1_x * perp_wind_x + edge1_y * perp_wind_y);
+    const amrex::Real proj2_perp = std::abs(edge2_x * perp_wind_x + edge2_y * perp_wind_y);
+    
+    // Total projections give wind-aligned dimensions
+    length_wind = proj1_wind + proj2_wind;
+    width_wind = proj1_perp + proj2_perp;
+}
+
+// ============================================================================
 // Compute Projected Building Area (PBA) and effective dimensions
 //
 // The PBA method computes the effective building cross-sectional area
@@ -837,66 +893,6 @@ Building compute_building_dimensions(
     bldg.rotation = amrex::Real(0.0);  // No rotation for grid-aligned building
     
     return bldg;
-}
-
-// ============================================================================
-// Compute wind-aligned building dimensions
-//
-// Phase 3 Enhancement: Computes effective building width and length in the
-// wind coordinate system, accounting for arbitrary building orientation.
-//
-// For a building with arbitrary rotation angle and dimensions in the
-// grid-aligned frame, this function projects those dimensions onto the
-// wind direction to get the effective streamwise (length) and crosswind
-// (width) dimensions.
-//
-// Inputs:
-//   bldg_x_extent  - Building extent in x-direction [m]
-//   bldg_y_extent  - Building extent in y-direction [m]
-//   rotation       - Building rotation angle (radians, CCW from x-axis)
-//   wind_dir_x     - Wind direction x-component (unit vector)
-//   wind_dir_y     - Wind direction y-component (unit vector)
-//
-// Returns:
-//   length_wind    - Effective building length in wind direction [m]
-//   width_wind     - Effective building width perpendicular to wind [m]
-// ============================================================================
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
-void compute_wind_aligned_dimensions(
-    amrex::Real bldg_x_extent,
-    amrex::Real bldg_y_extent,
-    amrex::Real rotation,
-    amrex::Real wind_dir_x,
-    amrex::Real wind_dir_y,
-    amrex::Real& length_wind,
-    amrex::Real& width_wind)
-{
-    // Building corner vectors in grid-aligned frame
-    // Assuming building is rectangular with sides parallel to rotated axes
-    amrex::Real cos_rot = std::cos(rotation);
-    amrex::Real sin_rot = std::sin(rotation);
-    
-    // Building edges in grid frame:
-    // Edge 1: along original x-direction, rotated by angle
-    // Edge 2: along original y-direction, rotated by angle
-    const amrex::Real edge1_x = cos_rot * bldg_x_extent;
-    const amrex::Real edge1_y = sin_rot * bldg_x_extent;
-    const amrex::Real edge2_x = -sin_rot * bldg_y_extent;
-    const amrex::Real edge2_y = cos_rot * bldg_y_extent;
-    
-    // Project edges onto wind direction to get streamwise component
-    const amrex::Real proj1_wind = std::abs(edge1_x * wind_dir_x + edge1_y * wind_dir_y);
-    const amrex::Real proj2_wind = std::abs(edge2_x * wind_dir_x + edge2_y * wind_dir_y);
-    
-    // Project edges perpendicular to wind to get crosswind component
-    const amrex::Real perp_wind_x = -wind_dir_y;
-    const amrex::Real perp_wind_y = wind_dir_x;
-    const amrex::Real proj1_perp = std::abs(edge1_x * perp_wind_x + edge1_y * perp_wind_y);
-    const amrex::Real proj2_perp = std::abs(edge2_x * perp_wind_x + edge2_y * perp_wind_y);
-    
-    // Total projections give wind-aligned dimensions
-    length_wind = proj1_wind + proj2_wind;
-    width_wind = proj1_perp + proj2_perp;
 }
 
 // ============================================================================

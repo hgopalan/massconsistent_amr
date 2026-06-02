@@ -1953,7 +1953,7 @@ int main(int argc, char* argv[])
             // Setup valley channeling parameters
             ValleyChannelingParams valley_params;
             valley_params.enabled = enable_valley_channeling;
-            valley_params.valley_axis_angle = valley_axis_angle_deg * (M_PI / 180.0);  // Convert to radians
+            valley_params.valley_axis_angle = valley_axis_angle_deg * (MathConstants::pi / 180.0);  // Convert to radians
             valley_params.valley_width = valley_width;
             valley_params.valley_depth = valley_depth;
             valley_params.channeling_strength_max = valley_channeling_strength_max;

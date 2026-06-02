@@ -230,7 +230,8 @@ amrex::Real jackson_hunt_speedup_factor(
         
         // Clamp to reasonable range [MIN_SEPARATION_SPEEDUP, 1.0]
         // Prevent complete flow reversal - maintain minimum 30% of base speed
-        speedup_mult = std::max(OrographicConstants::MIN_SEPARATION_SPEEDUP, 
+        constexpr amrex::Real min_separation_speedup = amrex::Real(0.3);
+        speedup_mult = std::max(min_separation_speedup,
                                 std::min(speedup_mult, amrex::Real(1.0)));
     }
     // else: near-zero curvature (flat or uniform slope) → no speedup/slowdown

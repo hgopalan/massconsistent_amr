@@ -31,6 +31,7 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include "math_constants.H"
 #include <algorithm>
 #include <cmath>
 
@@ -101,13 +102,13 @@ amrex::Real detect_valley_axis(
     
     // Valley axis is perpendicular to cross-valley gradient
     // Rotate by π/2 to get along-valley direction
-    amrex::Real valley_axis_angle = cross_valley_angle + amrex::Real(M_PI / 2.0);
+    amrex::Real valley_axis_angle = cross_valley_angle + amrex::Real(MathConstants::pi / 2.0);
     
     // Normalize to [0, 2π)
     if (valley_axis_angle < amrex::Real(0.0)) {
-        valley_axis_angle += amrex::Real(2.0 * M_PI);
-    } else if (valley_axis_angle >= amrex::Real(2.0 * M_PI)) {
-        valley_axis_angle -= amrex::Real(2.0 * M_PI);
+        valley_axis_angle += amrex::Real(2.0 * MathConstants::pi);
+    } else if (valley_axis_angle >= amrex::Real(2.0 * MathConstants::pi)) {
+        valley_axis_angle -= amrex::Real(2.0 * MathConstants::pi);
     }
     
     return valley_axis_angle;
@@ -246,10 +247,10 @@ amrex::Real compute_channeling_strength(
     amrex::Real angle_diff = synoptic_angle - valley_axis_angle;
     
     // Normalize angle difference to [-π, π]
-    if (angle_diff > amrex::Real(M_PI)) {
-        angle_diff -= amrex::Real(2.0 * M_PI);
-    } else if (angle_diff < amrex::Real(-M_PI)) {
-        angle_diff += amrex::Real(2.0 * M_PI);
+    if (angle_diff > amrex::Real(MathConstants::pi)) {
+        angle_diff -= amrex::Real(2.0 * MathConstants::pi);
+    } else if (angle_diff < amrex::Real(-MathConstants::pi)) {
+        angle_diff += amrex::Real(2.0 * MathConstants::pi);
     }
     
     // Angle factor: wind aligned with valley → stronger channeling
@@ -308,10 +309,10 @@ void apply_valley_channeling(
     
     // Handle angle wrapping
     amrex::Real angle_correction = angle_diff;
-    if (angle_correction > amrex::Real(M_PI)) {
-        angle_correction -= amrex::Real(2.0 * M_PI);
-    } else if (angle_correction < amrex::Real(-M_PI)) {
-        angle_correction += amrex::Real(2.0 * M_PI);
+    if (angle_correction > amrex::Real(MathConstants::pi)) {
+        angle_correction -= amrex::Real(2.0 * MathConstants::pi);
+    } else if (angle_correction < amrex::Real(-MathConstants::pi)) {
+        angle_correction += amrex::Real(2.0 * MathConstants::pi);
     }
     
     const amrex::Real new_angle = wind_angle + channeling_strength * angle_correction;

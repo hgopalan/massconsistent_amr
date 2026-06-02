@@ -134,8 +134,9 @@ amrex::Real slope_flow_speed(
     // Result has units: [m/s]
     
     // Clamp to reasonable physical limits
-    V_slope = std::max(-SlopeFlowConstants::MAX_SLOPE_FLOW_VELOCITY, 
-                      std::min(V_slope, SlopeFlowConstants::MAX_SLOPE_FLOW_VELOCITY));
+    constexpr amrex::Real max_slope_flow_velocity = amrex::Real(10.0);
+    V_slope = std::max(-max_slope_flow_velocity,
+                       std::min(V_slope, max_slope_flow_velocity));
     
     return V_slope;
 }

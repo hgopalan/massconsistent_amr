@@ -136,11 +136,13 @@ amrex::Real compute_froude_number(
     const TerrainBlockingParams& params)
 {
     // Ensure positive values and avoid division by zero
-    wind_speed = std::max(wind_speed, TerrainBlockingConstants::MIN_WIND_SPEED);
+    constexpr amrex::Real min_wind_speed = amrex::Real(0.1);
+    wind_speed = std::max(wind_speed, min_wind_speed);
     obstacle_height = std::max(obstacle_height, amrex::Real(1.0));
     
-    const amrex::Real N = std::max(params.brunt_vaisala_frequency, 
-                                   TerrainBlockingConstants::MIN_FROUDE);
+    constexpr amrex::Real min_brunt_vaisala_frequency = amrex::Real(0.01);
+    const amrex::Real N = std::max(params.brunt_vaisala_frequency,
+                                   min_brunt_vaisala_frequency);
     
     // Fr = U / (N * H)
     const amrex::Real Fr = wind_speed / (N * obstacle_height);

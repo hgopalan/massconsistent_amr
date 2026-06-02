@@ -262,7 +262,8 @@ void compute_gap_flow_velocity(
     // Limit gap flow speed
     const amrex::Real base_speed = std::sqrt(U_base * U_base + V_base * V_base);
     const amrex::Real max_enhancement = params.speedup_factor_max * base_speed;
-    const amrex::Real max_gap_speed = std::min(max_enhancement, GapFlowConstants::MAX_GAP_WIND);
+    constexpr amrex::Real max_gap_wind = amrex::Real(40.0);
+    const amrex::Real max_gap_speed = std::min(max_enhancement, max_gap_wind);
     U_gap_pressure = std::max(-max_gap_speed, std::min(U_gap_pressure, max_gap_speed));
     
     // Gap axis direction
