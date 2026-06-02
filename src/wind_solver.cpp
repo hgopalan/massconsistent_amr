@@ -94,6 +94,7 @@
 #include "orographic_models.H"
 #include "thermal_circulation_models.H"
 #include "terrain_blocking_models.H"
+#include "slope_flow_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -882,11 +883,13 @@ int main(int argc, char* argv[])
 
         // Wake model parameters
         bool enable_wake = false;
-        Real wake_c1 = 0.9;  // Cavity length coefficient
+        std::string wake_model_type = "rockle";  // Wake model: "rockle" or "huber_snyder"
+        Real wake_c1 = 0.9;  // Cavity length coefficient (Röckle only)
         Real wake_c2 = 0.3;  // Wake deficit coefficient
         Real wake_separation_length = 3.0;  // Wake separation length factor
         bool wake_superposition = true;  // Use wake superposition for multiple buildings
         pp.query("enable_wake", enable_wake);
+        pp.query("wake_model_type", wake_model_type);
         pp.query("wake_c1", wake_c1);
         pp.query("wake_c2", wake_c2);
         pp.query("wake_separation_length", wake_separation_length);
@@ -1055,6 +1058,23 @@ int main(int argc, char* argv[])
             terrain_blocking_brunt_vaisala_frequency = brunt_vaisala_frequency(
                 terrain_blocking_reference_temperature, terrain_blocking_lapse_rate);
         }
+
+        // Katabatic/Anabatic Slope Flows Parameterization
+        // Thermally-driven up-slope (anabatic, daytime) and down-slope (katabatic, nighttime) flows
+        bool enable_slope_flows = false;
+        Real slope_flow_temperature_diff = 0.0;          // Surface-air temperature difference ΔT [K]
+                                                         // Positive = upslope (anabatic)
+                                                         // Negative = downslope (katabatic)
+        Real slope_flow_reference_temperature = 300.0;   // Reference temperature T [K]
+        Real slope_flow_empirical_coefficient = 2.5;     // Empirical constant C [m/s] (typically 1-5)
+        Real slope_flow_vertical_decay_height = 50.0;    // Vertical decay height scale [m]
+        Real slope_flow_min_slope = 0.05;                // Minimum slope for flow (dimensionless, ~3 degrees)
+        pp.query("enable_slope_flows", enable_slope_flows);
+        pp.query("slope_flow_temperature_diff", slope_flow_temperature_diff);
+        pp.query("slope_flow_reference_temperature", slope_flow_reference_temperature);
+        pp.query("slope_flow_empirical_coefficient", slope_flow_empirical_coefficient);
+        pp.query("slope_flow_vertical_decay_height", slope_flow_vertical_decay_height);
+        pp.query("slope_flow_min_slope", slope_flow_min_slope);
 
         // Time-Varying Wind Boundary Conditions
         // Allow time-dependent inflow conditions for transient simulations
@@ -1875,6 +1895,15 @@ int main(int argc, char* argv[])
             blocking_params.transition_froude = terrain_blocking_transition_froude;
             blocking_params.flank_enhancement_factor = terrain_blocking_flank_enhancement;
 
+            // Setup slope flow parameters
+            SlopeFlowParams slope_flow_params;
+            slope_flow_params.enabled = enable_slope_flows;
+            slope_flow_params.temperature_diff = slope_flow_temperature_diff;
+            slope_flow_params.reference_temperature = slope_flow_reference_temperature;
+            slope_flow_params.empirical_coefficient = slope_flow_empirical_coefficient;
+            slope_flow_params.vertical_decay_height = slope_flow_vertical_decay_height;
+            slope_flow_params.min_slope = slope_flow_min_slope;
+
             // Setup canopy parameters
             CanopyParams canopy_params;
             canopy_params.enabled = enable_canopy;
@@ -1950,6 +1979,21 @@ int main(int argc, char* argv[])
                 amrex::Print() << "  transition_froude = " << terrain_blocking_transition_froude << "\n";
                 amrex::Print() << "  flank_enhancement = " << terrain_blocking_flank_enhancement << "\n";
                 amrex::Print() << "  reference_temperature = " << terrain_blocking_reference_temperature << " K\n";
+            }
+            
+            // Print slope flow status
+            if (enable_slope_flows) {
+                amrex::Print() << "wind_solver: katabatic/anabatic slope flows enabled\n";
+                amrex::Print() << "  temperature_diff = " << slope_flow_temperature_diff << " K\n";
+                if (slope_flow_temperature_diff > 0.0) {
+                    amrex::Print() << "  (anabatic: upslope flow, daytime heating)\n";
+                } else if (slope_flow_temperature_diff < 0.0) {
+                    amrex::Print() << "  (katabatic: downslope flow, nighttime cooling)\n";
+                }
+                amrex::Print() << "  reference_temperature = " << slope_flow_reference_temperature << " K\n";
+                amrex::Print() << "  empirical_coefficient = " << slope_flow_empirical_coefficient << " m/s\n";
+                amrex::Print() << "  vertical_decay_height = " << slope_flow_vertical_decay_height << " m\n";
+                amrex::Print() << "  min_slope = " << slope_flow_min_slope << "\n";
             }
 
             // Capture parameters for GPU lambda
@@ -2298,6 +2342,25 @@ int main(int argc, char* argv[])
                             apply_terrain_blocking(
                                 u_vel, v_vel, wind_speed, obstacle_height,
                                 slope_x, slope_y, curvature, blocking_params);
+                        }
+                        
+                        // Apply slope flows (katabatic/anabatic)
+                        if (slope_flow_params.enabled) {
+                            // Compute terrain slope from neighbors
+                            int im = std::max(i - 1, 0);
+                            int ip = std::min(i + 1, nx_cap_init - 1);
+                            int jm = std::max(j - 1, 0);
+                            int jp = std::min(j + 1, ny_cap_init - 1);
+                            
+                            Real z_xm = d_terr_ptr[j * nx_cap_init + im];
+                            Real z_xp = d_terr_ptr[j * nx_cap_init + ip];
+                            Real z_ym = d_terr_ptr[jm * nx_cap_init + i];
+                            Real z_yp = d_terr_ptr[jp * nx_cap_init + i];
+                            
+                            // Apply slope flow to wind components
+                            apply_slope_flow(
+                                u_vel, v_vel, z_xm, z_xp, z_ym, z_yp,
+                                dx_cap_init, dy_cap_init, z_agl, slope_flow_params);
                         }
                         
                         vel(i, j, k, 0) = u_vel;
@@ -2836,6 +2899,16 @@ int main(int argc, char* argv[])
             wake_params.c1 = wake_c1;
             wake_params.c2 = wake_c2;
             wake_params.separation_length = wake_separation_length;
+            
+            // Set wake model type based on user input
+            if (wake_model_type == "huber_snyder" || wake_model_type == "huber-snyder" || 
+                wake_model_type == "HUBER_SNYDER" || wake_model_type == "HUBER-SNYDER") {
+                wake_params.model_type = WakeModelType::HUBER_SNYDER;
+                amrex::Print() << "  using Huber-Snyder (EPA) wake model\n";
+            } else {
+                wake_params.model_type = WakeModelType::ROCKLE;
+                amrex::Print() << "  using Röckle (1990) wake model\n";
+            }
             
             // Copy building data to device
             int n_buildings = static_cast<int>(building_xmin.size());
