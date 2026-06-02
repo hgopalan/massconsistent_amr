@@ -91,6 +91,31 @@ amrex::Real reduced_gravity(amrex::Real T, amrex::Real T0) noexcept
     return BuoyancyConstants::g * (T - T0) / T0;
 }
 
+// Compute buoyancy source term for RHS of lambda equation
+// Source term: g(T-T₀)/T₀
+// This represents the divergence contribution from buoyancy effects
+//
+// T: local temperature [K]
+// T0: reference temperature [K]
+// coefficient: tuning parameter (default=1.0)
+// Returns: buoyancy source term [1/s] for RHS
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real buoyancy_rhs_term(amrex::Real T,
+                              amrex::Real T0,
+                              amrex::Real coefficient = amrex::Real(1.0)) noexcept
+{
+    // Buoyancy source for RHS: g * (T - T0) / T0 * coefficient
+    // Positive when T > T0 (unstable, upward motion)
+    // Negative when T < T0 (stable, downward motion)
+    
+    if (T0 < amrex::Real(1.0)) {
+        // Invalid reference temperature, return zero
+        return amrex::Real(0.0);
+    }
+    
+    return BuoyancyConstants::g * (T - T0) / T0 * coefficient;
+}
+
 // ---------------------------------------------------------------------------
 // Stability assessment from temperature gradient
 // ---------------------------------------------------------------------------
