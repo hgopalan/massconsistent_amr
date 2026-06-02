@@ -720,6 +720,109 @@ Upslope winds from surface heating::
 * Zardi, D., & Whiteman, C.D. (2013). Diurnal mountain wind systems. *Mountain
   Weather Research and Forecasting*, 35-119.
 
+Valley Channeling Factor
+--------------------------
+
+**Physical Motivation**
+
+Valleys strongly channel airflow regardless of the synoptic wind direction.
+Observed effects include:
+
+* Wind alignment within ±30° of valley axis
+* Speed-up in narrow valleys (venturi effect)
+* Speed reduction in wide valleys (increased friction)
+
+The valley channeling model rotates wind vectors toward the valley axis and
+adjusts wind speed based on valley geometry.
+
+**Implementation**
+
+The solver implements valley channeling with automatic valley detection:
+
+1. **Valley axis detection**: Ridge-line detection from terrain gradients
+2. **Channeling strength**: Based on valley depth, width, and wind angle
+3. **Wind rotation**: Blends synoptic and valley-aligned directions
+4. **Speed adjustment**: Venturi effect (narrow) or friction (wide valleys)
+
+The channeling strength *C* depends on valley geometry:
+
+.. math::
+
+   C = C_{max} \cdot \tanh\left(\frac{H_v}{200}\right) \cdot 
+       \exp\left(-\frac{W_v}{2000}\right) \cdot \cos^2(\theta_{diff})
+
+where:
+
+* *H*\ :sub:`v` = valley depth [m]
+* *W*\ :sub:`v` = valley width [m]
+* θ\ :sub:`diff` = angle between synoptic wind and valley axis
+* *C*\ :sub:`max` = maximum channeling strength (typically 0.8)
+
+**Wind Direction Rotation**
+
+The wind direction is rotated toward the valley axis:
+
+.. math::
+
+   \theta_{new} = (1 - C) \cdot \theta_{synoptic} + C \cdot \theta_{valley}
+
+**Speed Adjustment**
+
+* **Narrow valleys** (*W*\ :sub:`v` < 500 m): Speed-up factor ~1.3 (venturi)
+* **Wide valleys** (*W*\ :sub:`v` > 2000 m): Slowdown factor ~0.85 (friction)
+* **Medium valleys**: No speed adjustment
+
+**Usage**
+
+Enable valley channeling in your input file::
+
+    # Enable valley channeling
+    enable_valley_channeling = true
+    valley_axis_angle_deg = 90.0         # Valley axis direction [degrees]
+                                         # (counter-clockwise from x-axis)
+    valley_width = 1000.0                # Valley width [m]
+    valley_depth = 300.0                 # Valley depth [m]
+    valley_channeling_strength_max = 0.8 # Maximum channeling strength (0-1)
+    valley_speedup_factor_narrow = 1.3   # Speed-up for narrow valleys
+    valley_slowdown_factor_wide = 0.85   # Slowdown for wide valleys
+
+**Automatic Valley Detection**
+
+The solver can automatically detect valley orientation from terrain if the
+parameters are not explicitly set. The detection algorithm:
+
+1. Analyzes terrain gradients in the neighborhood
+2. Identifies ridge directions (positive curvature)
+3. Sets valley axis perpendicular to ridge lines
+4. Estimates valley width and depth from terrain cross-section
+
+**Examples**
+
+North-south oriented valley with strong channeling::
+
+    enable_valley_channeling = true
+    valley_axis_angle_deg = 90.0    # N-S valley
+    valley_width = 800.0            # Narrow valley
+    valley_depth = 250.0            # Moderately deep
+    valley_channeling_strength_max = 0.8
+
+**Applications**
+
+* Mountain wind forecasting
+* Hydroelectric facility siting
+* Aviation in mountainous terrain
+* Wind resource assessment in valleys
+* Pollutant dispersion in valley environments
+
+**References**
+
+* Whiteman, C.D. (2000). *Mountain Meteorology: Fundamentals and Applications*.
+  Oxford University Press.
+* Zardi, D., & Whiteman, C.D. (2013). Diurnal mountain wind systems. In
+  *Mountain Weather Research and Forecasting* (pp. 35-119). Springer.
+* Rampanelli, G., Zardi, D., & Rotunno, R. (2004). Mechanisms of up-valley
+  winds. *Journal of the Atmospheric Sciences*, 61(24), 3097-3111.
+
 Summary of Physics Models
 --------------------------
 
@@ -755,11 +858,14 @@ Summary of Physics Models
      - Forest canopy parameterization
      - ``canopy_models.H``
    * - Building wakes
-     - Röckle and Huber-Snyder wake models
+     - Röckle, Huber-Snyder, and AERMOD PRIME wake models
      - ``wake_models.H``
    * - Slope flows
      - Katabatic/anabatic thermally-driven flows
      - ``slope_flow_models.H``
+   * - Valley channeling
+     - Wind alignment and speed adjustment in valleys
+     - ``valley_channeling_models.H``
 
 All physics models are:
 

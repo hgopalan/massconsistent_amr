@@ -3,12 +3,13 @@
 Wake Models
 ===========
 
-The solver supports two building wake parameterizations:
+The solver supports three building wake parameterizations:
 
 1. **Röckle (1990)** — Default cavity + far-wake formulation
 2. **Huber-Snyder (EPA)** — Alternative aspect-ratio dependent model
+3. **AERMOD PRIME (EPA)** — Regulatory model with Projected Building Area method
 
-Both models parameterize velocity deficits in the cavity and far-wake zones
+All models parameterize velocity deficits in the cavity and far-wake zones
 behind rectangular buildings.
 
 .. note::
@@ -106,6 +107,69 @@ further downwind.
 * Regulatory dispersion modeling (EPA model compatibility)
 * Longer wake extent needed (5H vs 3H)
 
+AERMOD PRIME (EPA) Wake Model
+------------------------------
+
+The AERMOD PRIME (Plume Rise Model Enhancements) is the wake model used in EPA's
+AERMOD regulatory dispersion model. It is the industry standard for regulatory
+compliance and well-validated against EPA wind tunnel data.
+
+Key Features
+^^^^^^^^^^^^
+
+* **Projected Building Area (PBA) method**: Computes effective building cross-section
+  perpendicular to wind direction
+* **Streamline deflection**: Models flow over and around buildings with enhanced
+  vertical velocity components
+* **Enhanced turbulence**: Higher mixing in wake zones for realistic dispersion
+* **Regulatory standard**: Used in EPA air quality modeling and permit applications
+
+The PRIME algorithm is more complex than Röckle or Huber-Snyder, providing
+improved accuracy for:
+
+* Stack emissions and building downwash
+* Regulatory air quality modeling
+* Industrial facility design and permitting
+
+Cavity Zone
+^^^^^^^^^^^
+
+The PRIME cavity zone dimensions depend on building aspect ratio (W/H):
+
+* **Wide buildings** (W/H > 1): ``Lc = 0.9 × sqrt(PBA)``
+* **Tall buildings** (W/H < 1): ``Lc = 0.5 × sqrt(PBA)``
+* **Peak cavity height**: ``Hc_peak = 0.22 × sqrt(PBA)``
+* **Cavity height limit**: ``Hc = min(1.5 × Hc_peak, H)``
+* **Velocity deficit**: 50% of reference wind speed (higher than Röckle/Huber-Snyder)
+
+The cavity zone includes enhanced turbulence and streamline deflection effects,
+providing more realistic vertical velocity components.
+
+Far-Wake Zone
+^^^^^^^^^^^^^
+
+* **Extends to**: ``10H`` downwind (longest of all three models)
+* **Lateral spreading**: Enhanced lateral mixing with factor ``1 + 2x_norm``
+* **Velocity deficit decay**: Exponential decay ``exp(-1.5 × x_norm)``
+* **Vertical growth**: Wake height grows from ``Hc`` to ``H`` based on position
+
+The PRIME far-wake uses exponential decay with enhanced mixing, creating a more
+gradual recovery than the power-law (Huber-Snyder) or linear (Röckle) approaches.
+
+.. math::
+
+   u_{deficit}(x) = 0.3 \cdot U_H \cdot \exp\left(-1.5 \cdot \frac{x - L_c}{L_w - L_c}\right)
+
+where ``Lw = 10H`` is the wake extent.
+
+**When to use AERMOD PRIME**:
+
+* Regulatory air quality modeling (EPA compliance)
+* Stack emissions and building downwash analysis
+* Industrial facility design and permitting
+* Well-validated against wind tunnel data
+* Need for enhanced turbulence and mixing
+
 Enabling the Wake Model
 ------------------------
 
@@ -116,12 +180,13 @@ specify building geometry via ``building_file``:
 
    # Enable wake model
    enable_wake = true
-   wake_model_type = rockle              # or "huber_snyder"
+   wake_model_type = rockle              # or "huber_snyder" or "aermod_prime"
    
    # Wake model parameters (optional, these are defaults)
    wake_c1 = 0.9                    # Cavity length coefficient (Röckle only)
    wake_c2 = 0.3                    # Wake deficit coefficient  
-   wake_separation_length = 3.0     # Far-wake extent (× building height, Röckle only)
+   wake_separation_length = 3.0     # Far-wake extent (× building height)
+                                    # Röckle: 3H, Huber-Snyder: 5H, AERMOD: 10H
    
    # Building geometry
    building_file = buildings.csv
@@ -132,6 +197,7 @@ Use ``wake_model_type`` to choose between models::
 
    wake_model_type = rockle         # Default: Röckle (1990)
    wake_model_type = huber_snyder   # Alternative: Huber-Snyder (EPA)
+   wake_model_type = aermod_prime   # EPA AERMOD PRIME (regulatory)
 
 The buildings CSV file should contain one building per line with optional rotation angle:
 
@@ -154,10 +220,10 @@ Input Parameters
      - Description
    * - ``enable_wake``
      - ``false``
-     - Enable wake model (Röckle or Huber-Snyder)
+     - Enable wake model (Röckle, Huber-Snyder, or AERMOD PRIME)
    * - ``wake_model_type``
      - ``rockle``
-     - Wake model selection: "rockle" or "huber_snyder"
+     - Wake model selection: "rockle", "huber_snyder", or "aermod_prime"
    * - ``wake_c1``
      - ``0.9``
      - Cavity length coefficient (Lr = c1 × H, Röckle only)
@@ -280,6 +346,13 @@ References
 * Kaplan, H., & Dinar, N. (1996). A Lagrangian dispersion model for calculating
   concentration distribution within a built-up domain. *Atmospheric Environment*,
   30(24), 4197-4207.
+
+* Schulman, L.L., Strimaitis, D.G., & Scire, J.S. (2000). Development and
+  Evaluation of the PRIME Plume Rise and Building Downwash Model. *Journal of
+  the Air & Waste Management Association*, 50(3), 378-390.
+
+* EPA (2004). *User's Guide for the AMS/EPA Regulatory Model - AERMOD*.
+  EPA-454/B-03-001. U.S. Environmental Protection Agency.
 
 * Oke, T.R. (1988). Street design and urban canopy layer climate. *Energy and
   Buildings*, 11(1-3), 103-113.
