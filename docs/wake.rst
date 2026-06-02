@@ -3,8 +3,12 @@
 Wake Models
 ===========
 
-The solver supports building wake parameterization using the **Röckle (1990)**
-formulation, which models velocity deficits in the cavity and far-wake zones
+The solver supports two building wake parameterizations:
+
+1. **Röckle (1990)** — Default cavity + far-wake formulation
+2. **Huber-Snyder (EPA)** — Alternative aspect-ratio dependent model
+
+Both models parameterize velocity deficits in the cavity and far-wake zones
 behind rectangular buildings.
 
 .. note::
@@ -18,7 +22,7 @@ Overview
 --------
 
 Building wakes create recirculation zones (cavity) and velocity deficits (far-wake)
-downwind of obstacles. The Röckle model divides the wake into two zones:
+downwind of obstacles. Both wake models divide the wake into two zones:
 
 1. **Cavity zone**: Immediate recirculation region with negative velocity
 2. **Far-wake zone**: Downstream displacement region with reduced velocity
@@ -61,6 +65,47 @@ The far-wake velocity deficit is:
 where ``x`` is the downwind distance from the building back face, and ``U_H``
 is the reference velocity magnitude at building height.
 
+Huber-Snyder (EPA) Wake Model
+------------------------------
+
+The Huber-Snyder model is an alternative wake parameterization from EPA wind tunnel
+studies, used in EPA dispersion models (ISC, AERMOD precursors). Key differences from
+Röckle:
+
+Cavity Zone
+^^^^^^^^^^^
+
+* **Length**: ``Lc = 0.5 × H × sqrt(W/H)`` (aspect ratio dependent)
+* **Height**: ``Hc = 0.67 × H`` (same as Röckle)
+* **Width**: ``Wc = W``
+* **Velocity deficit**: ``u_deficit = c2 × U_H`` (same coefficient)
+
+The cavity length depends on building aspect ratio, making it more suitable for certain
+building geometries.
+
+Far-Wake Zone
+^^^^^^^^^^^^^
+
+* **Starts at**: ``x = x_building + Lc``
+* **Extends to**: ``Lw = 5 × H`` (longer than Röckle's typical 3H)
+* **Lateral spreading**: Wake width increases linearly
+* **Velocity deficit**: Decreases with power-law decay
+
+The far-wake velocity deficit uses power-law decay:
+
+.. math::
+
+   u_{deficit}(x) = c_2 \cdot U_H \cdot \min\left(1, \frac{1}{\sqrt{x/L_c}}\right)
+
+This creates a slower recovery than Röckle's linear decay, extending the wake influence
+further downwind.
+
+**When to use Huber-Snyder**:
+
+* Buildings with non-square cross-sections (aspect ratio ≠ 1)
+* Regulatory dispersion modeling (EPA model compatibility)
+* Longer wake extent needed (5H vs 3H)
+
 Enabling the Wake Model
 ------------------------
 
@@ -71,14 +116,22 @@ specify building geometry via ``building_file``:
 
    # Enable wake model
    enable_wake = true
+   wake_model_type = rockle              # or "huber_snyder"
    
    # Wake model parameters (optional, these are defaults)
-   wake_c1 = 0.9                    # Cavity length coefficient
+   wake_c1 = 0.9                    # Cavity length coefficient (Röckle only)
    wake_c2 = 0.3                    # Wake deficit coefficient  
-   wake_separation_length = 3.0     # Far-wake extent (× building height)
+   wake_separation_length = 3.0     # Far-wake extent (× building height, Röckle only)
    
    # Building geometry
    building_file = buildings.csv
+
+**Selecting Wake Model Type**
+
+Use ``wake_model_type`` to choose between models::
+
+   wake_model_type = rockle         # Default: Röckle (1990)
+   wake_model_type = huber_snyder   # Alternative: Huber-Snyder (EPA)
 
 The buildings CSV file should contain one building per line with optional rotation angle:
 
@@ -101,10 +154,13 @@ Input Parameters
      - Description
    * - ``enable_wake``
      - ``false``
-     - Enable Röckle wake model
+     - Enable wake model (Röckle or Huber-Snyder)
+   * - ``wake_model_type``
+     - ``rockle``
+     - Wake model selection: "rockle" or "huber_snyder"
    * - ``wake_c1``
      - ``0.9``
-     - Cavity length coefficient (Lr = c1 × H)
+     - Cavity length coefficient (Lr = c1 × H, Röckle only)
    * - ``wake_c2``
      - ``0.3``
      - Wake deficit coefficient (velocity reduction factor)

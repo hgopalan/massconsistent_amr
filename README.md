@@ -32,7 +32,7 @@ cmake --build build --parallel
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
 - **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file
-- **Building support** — Wake modeling with Röckle (1990) parameterization
+- **Building support** — Wake modeling with Röckle (1990) and Huber-Snyder (EPA) parameterizations
 - **Canopy modeling** — Forest canopy drag effects
 - **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height
 - **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions
@@ -40,6 +40,7 @@ cmake --build build --parallel
 - **Orographic speed-up** — Jackson & Hunt (1975) model for hill/ridge acceleration and lee-side flow separation
 - **Sea breeze parameterization** — Thermal circulation from land-sea temperature contrast driving onshore/offshore winds
 - **Froude number terrain blocking** — Flow blocking and channeling around steep terrain in stable stratification
+- **Katabatic/Anabatic slope flows** — Thermally-driven up-slope (daytime) and down-slope (nighttime) flows on inclined terrain
 - **Time-varying boundary conditions** — Support for transient wind simulations with time series input
 - **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
 - **Thermal stratification with buoyancy** — Temperature-driven buoyancy effects on vertical velocity using Boussinesq approximation

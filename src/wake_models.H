@@ -30,11 +30,20 @@ namespace {
 }
 
 // ============================================================================
+// Wake model type enumeration
+// ============================================================================
+enum class WakeModelType {
+    ROCKLE,         // Röckle (1990) - default, cavity + far-wake zones
+    HUBER_SNYDER    // Huber-Snyder (EPA) - alternative aspect-ratio dependent model
+};
+
+// ============================================================================
 // Wake model parameters structure
 // ============================================================================
 struct WakeParams {
     bool enabled = false;                    // Enable wake model
-    amrex::Real c1 = 0.9;                    // Cavity length coefficient
+    WakeModelType model_type = WakeModelType::ROCKLE;  // Wake model selection
+    amrex::Real c1 = 0.9;                    // Cavity length coefficient (Röckle only)
     amrex::Real c2 = 0.3;                    // Wake deficit coefficient
     amrex::Real separation_length = 3.0;     // Wake separation length factor (× building height)
 };
@@ -298,10 +307,179 @@ bool rockle_wake_deficit(
 }
 
 // ============================================================================
+// Huber-Snyder (EPA) building wake model
+//
+// Alternative empirical wake parameterization from EPA wind tunnel studies.
+// This model uses different cavity and wake geometry assumptions compared
+// to Röckle, and may perform better for certain building aspect ratios.
+//
+// Key differences from Röckle (1990):
+//   - Cavity length: L_c = 0.5*H*sqrt(W/H)  (aspect ratio dependent)
+//   - Wake length: L_w = 5*H  (longer wake extent)
+//   - Different velocity deficit functions
+//
+// Used in EPA dispersion models (ISC, AERMOD precursors) for regulatory
+// applications in urban air quality modeling.
+//
+// References:
+// - Huber, A.H., & Snyder, W.H. (1982). Wind tunnel investigation of the
+//   effects of a rectangular-shaped building on dispersion of effluent
+//   from short adjacent stacks. EPA-600/4-82-049.
+// - Schulman, L.L., Strimaitis, D.G., & Scire, J.S. (2000). Development
+//   and evaluation of the PRIME plume rise and building downwash model.
+//   Journal of the Air & Waste Management Association, 50(3), 378-390.
+//
+// Inputs:
+//   x, y, z        - Point coordinates [m]
+//   bldg           - Building structure
+//   U_ref          - Reference wind speed magnitude [m/s]
+//   wd_x, wd_y     - Wind direction components (unit vector)
+//   params         - Wake model parameters (uses c2 for deficit coefficient)
+//
+// Outputs:
+//   du, dv, dw     - Velocity deficit components [m/s]
+//
+// Returns:
+//   true if point is inside wake zone, false otherwise
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool huber_snyder_wake_deficit(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const Building& bldg,
+    amrex::Real U_ref,
+    amrex::Real wd_x, amrex::Real wd_y,
+    const WakeParams& params,
+    amrex::Real& du, amrex::Real& dv, amrex::Real& dw)
+{
+    // Initialize output
+    du = amrex::Real(0.0);
+    dv = amrex::Real(0.0);
+    dw = amrex::Real(0.0);
+    
+    // Building dimensions
+    const amrex::Real H = bldg.height;
+    const amrex::Real W = bldg.width;   // Crosswind dimension
+    
+    if (H <= amrex::Real(0.0) || W <= amrex::Real(0.0)) {
+        return false;  // Invalid building
+    }
+    
+    // Building center
+    const amrex::Real bldg_center_x = (bldg.xmin + bldg.xmax) / amrex::Real(2.0);
+    const amrex::Real bldg_center_y = (bldg.ymin + bldg.ymax) / amrex::Real(2.0);
+    
+    // Transform coordinates to building-relative coordinate system
+    const amrex::Real dx = x - bldg_center_x;
+    const amrex::Real dy = y - bldg_center_y;
+    
+    // Rotate to wind-aligned coordinates
+    const amrex::Real x_wind =  dx * wd_x + dy * wd_y;
+    const amrex::Real y_wind = -dx * wd_y + dy * wd_x;
+    
+    // Building extends from -L/2 to L/2 in downwind direction
+    const amrex::Real half_length_wind = bldg.length / amrex::Real(2.0);
+    
+    // Wake starts at downwind face of building
+    const amrex::Real wake_start = half_length_wind;
+    
+    // Check if point is downwind of building
+    if (x_wind < wake_start) {
+        return false;  // Upstream or inside building
+    }
+    
+    // Distance downwind from building back face
+    const amrex::Real x_wake = x_wind - wake_start;
+    
+    // Huber-Snyder cavity parameters
+    // Aspect ratio dependent cavity length
+    const amrex::Real aspect_ratio = W / H;
+    const amrex::Real Lc = amrex::Real(0.5) * H * std::sqrt(aspect_ratio);  // Cavity length
+    const amrex::Real Hc = amrex::Real(0.67) * H;  // Cavity height (similar to Röckle)
+    const amrex::Real Wc = W;                       // Cavity width
+    
+    // Height above ground (relative to building base)
+    const amrex::Real z_local = z - bldg.zmin;
+    
+    // ========================================================================
+    // 1. Cavity zone (recirculation zone)
+    // ========================================================================
+    if (x_wake <= Lc) {
+        // Check lateral bounds (crosswind)
+        if (std::abs(y_wind) > Wc / amrex::Real(2.0)) {
+            return false;  // Outside cavity width
+        }
+        
+        // Check vertical bounds
+        if (z_local < amrex::Real(0.0) || z_local > Hc) {
+            return false;  // Below ground or above cavity height
+        }
+        
+        // Inside cavity zone: recirculation with negative velocity
+        // Huber-Snyder uses similar deficit magnitude as Röckle
+        const amrex::Real deficit_magnitude = params.c2 * U_ref;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        
+        // Add rooftop vortex (reuse existing parameterization)
+        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
+        
+        return true;
+    }
+    
+    // ========================================================================
+    // 2. Far-wake zone (displacement zone)
+    // ========================================================================
+    // Huber-Snyder wake extends to 5*H (longer than Röckle's typical 3*H)
+    const amrex::Real Lw = amrex::Real(5.0) * H;  // Wake extent
+    
+    if (x_wake <= Lw) {
+        // Huber-Snyder velocity deficit decay function
+        // Uses power law decay: deficit ∝ (x/Lc)^(-0.5)
+        // This creates a slower recovery than Röckle's linear decay
+        const amrex::Real x_ratio = x_wake / Lc;
+        const amrex::Real decay_factor = std::min(
+            amrex::Real(1.0) / std::sqrt(x_ratio),
+            amrex::Real(1.0)
+        );
+        
+        // Wake width spreading: linear increase
+        const amrex::Real spread_factor = amrex::Real(1.0) + 
+            (x_wake - Lc) / (Lw - Lc);
+        const amrex::Real Ww = Wc * spread_factor;
+        
+        // Check lateral bounds
+        if (std::abs(y_wind) > Ww / amrex::Real(2.0)) {
+            return false;  // Outside wake width
+        }
+        
+        // Wake height spreading
+        const amrex::Real Hw = Hc * spread_factor;
+        
+        // Check vertical bounds
+        if (z_local < amrex::Real(0.0) || z_local > Hw) {
+            return false;  // Below ground or above wake height
+        }
+        
+        // Inside far-wake zone: reduced velocity deficit with power-law decay
+        const amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        dw = amrex::Real(0.0);
+        
+        return true;
+    }
+    
+    // Point is beyond wake influence
+    return false;
+}
+
+// ============================================================================
 // Apply wake model to velocity field for a single building
 //
 // This function computes the wake deficit at a given point and returns
-// the corrected velocity components.
+// the corrected velocity components. Supports multiple wake models:
+//   - Röckle (1990): Default cavity + far-wake zones
+//   - Huber-Snyder (EPA): Aspect-ratio dependent model
 //
 // Inputs:
 //   x, y, z        - Point coordinates [m]
@@ -331,10 +509,17 @@ void apply_single_building_wake(
     const amrex::Real wind_dir_x = u / U_ref;
     const amrex::Real wind_dir_y = v / U_ref;
     
-    // Compute wake deficit
+    // Compute wake deficit using selected model
     amrex::Real du, dv, dw;
-    bool in_wake = rockle_wake_deficit(
-        x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params, du, dv, dw);
+    bool in_wake = false;
+    
+    if (params.model_type == WakeModelType::HUBER_SNYDER) {
+        in_wake = huber_snyder_wake_deficit(
+            x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params, du, dv, dw);
+    } else {  // Default to Röckle
+        in_wake = rockle_wake_deficit(
+            x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params, du, dv, dw);
+    }
     
     if (in_wake) {
         // Apply deficit (reduce velocity in wake region)
