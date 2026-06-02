@@ -1,0 +1,4 @@
+# Building geometry for AERMOD PRIME wake test
+# Format: xmin xmax ymin ymax zmin zmax [rotation_degrees]
+# 40m x 20m x 30m building centered at (100, 100)
+80.0  120.0  90.0  110.0  0.0  30.0

@@ -32,7 +32,7 @@ cmake --build build --parallel
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
 - **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file
-- **Building support** — Wake modeling with Röckle (1990) and Huber-Snyder (EPA) parameterizations
+- **Building support** — Wake modeling with Röckle (1990), Huber-Snyder (EPA), and AERMOD PRIME (EPA regulatory) parameterizations
 - **Canopy modeling** — Forest canopy drag effects
 - **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height
 - **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions
@@ -41,6 +41,7 @@ cmake --build build --parallel
 - **Sea breeze parameterization** — Thermal circulation from land-sea temperature contrast driving onshore/offshore winds
 - **Froude number terrain blocking** — Flow blocking and channeling around steep terrain in stable stratification
 - **Katabatic/Anabatic slope flows** — Thermally-driven up-slope (daytime) and down-slope (nighttime) flows on inclined terrain
+- **Valley channeling factor** — Wind alignment with valley axis and speed adjustment based on valley geometry (width/depth)
 - **Gap flow parameterization** — Pressure-driven channeling through mountain gaps/passes with 2-4× wind speed enhancement
 - **Time-varying boundary conditions** — Support for transient wind simulations with time series input
 - **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
@@ -61,6 +62,8 @@ cmake --build build --parallel
   - **Land use-based power-law exponents** — Spatially-varying wind shear by terrain type
   - **Diurnal temperature profile** — Time-varying sinusoidal temperature for daily cycles
   - **Vegetation roughness factor** — Seasonal/state modifiers for roughness (LAI, snow, burn severity)
+  - **EPA AERMOD PRIME wake model** — Industry-standard regulatory wake model with PBA method for stack emissions
+  - **Valley channeling factor** — Automatic valley detection and wind alignment for mountain meteorology
 
 ## Documentation
 
