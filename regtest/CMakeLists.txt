@@ -276,6 +276,16 @@ add_regression_test(diurnal_temperature diurnal_temperature)
 # ---------------------------------------------------------------------------
 add_regression_test(vegetation_roughness vegetation_roughness)
 
+# ---------------------------------------------------------------------------
+# katabatic_flow/ – Feature 6: Katabatic/anabatic slope flows parameterization
+# ---------------------------------------------------------------------------
+add_regression_test(katabatic_flow katabatic_flow)
+
+# ---------------------------------------------------------------------------
+# wake_huber_snyder/ – Feature 7: Huber-Snyder wake model (alternative to Röckle)
+# ---------------------------------------------------------------------------
+add_regression_test(wake_huber_snyder wake_huber_snyder)
+
 # ===========================================================================
 # Puff Dispersion Tests
 # ===========================================================================
