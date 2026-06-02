@@ -37,6 +37,7 @@ cmake --build build --parallel
 - **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height
 - **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions
 - **Elevation-dependent wind scaling** — Terrain elevation effects on reference wind speed for mountain-valley flows
+- **Orographic speed-up** — Jackson & Hunt (1975) model for hill/ridge acceleration and lee-side flow separation
 - **Time-varying boundary conditions** — Support for transient wind simulations with time series input
 - **Building porosity model** — Porous flow through structures (trees, fences) with drag parameterization
 - **Thermal stratification with buoyancy** — Temperature-driven buoyancy effects on vertical velocity using Boussinesq approximation
