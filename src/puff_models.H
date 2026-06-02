@@ -40,7 +40,7 @@
 
 // Minimum wind speed for plume rise computation [m/s]
 // Below this threshold, plume rise is not computed to avoid division by near-zero
-constexpr amrex::Real MIN_WIND_SPEED_FOR_PLUME_RISE = 0.1;
+static constexpr amrex::Real MIN_WIND_SPEED_FOR_PLUME_RISE = 0.1;
 
 // ============================================================================
 // Terrain Grid Structure
