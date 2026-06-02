@@ -111,6 +111,24 @@ versus vertical adjustments:
   is similar to the QUIC-URB default and tends to preserve the log-law profile
   shape over rolling terrain.
 
+Advanced Physics Models
+-----------------------
+
+The solver includes optional advanced physics parameterizations:
+
+* **Atmospheric stability** — Monin-Obukhov similarity theory with Businger-Dyer
+  stability functions for non-neutral boundary layers
+* **Thermal buoyancy** — Boussinesq approximation for temperature-driven vertical motion
+* **Kinematic terrain BC** — No-flow-through boundary condition at terrain surface
+* **Ekman spiral** — Wind direction veer with height due to Coriolis effects
+* **Elevation scaling** — Wind speed variation with terrain elevation
+* **Building porosity** — Porous flow through structures (trees, fences)
+* **Wall functions** — Log-law boundary conditions for coarse-grid simulations
+* **Canopy drag** — Forest canopy parameterization (MacDonald et al. 2000)
+* **Building wakes** — Röckle (1990) wake model for urban flows
+
+See :ref:`physics` for detailed physics documentation.
+
 AMReX Integration
 -----------------
 

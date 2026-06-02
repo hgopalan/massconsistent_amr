@@ -1,0 +1,679 @@
+.. _physics:
+
+Advanced Physics Models
+========================
+
+This page documents the advanced physics parameterizations available in
+``massconsistent_amr`` for realistic atmospheric boundary layer simulations.
+
+.. contents:: Topics
+   :local:
+   :depth: 2
+
+Atmospheric Stability
+---------------------
+
+Non-Neutral Boundary Layer (Monin-Obukhov Similarity Theory)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+The neutral log-law wind profile is only accurate when buoyancy effects are
+negligible (near-neutral conditions). In reality, atmospheric boundary layers
+exhibit different wind profiles depending on thermal stratification:
+
+* **Stable conditions** (nighttime cooling): Suppressed turbulent mixing,
+  steeper velocity gradients
+* **Unstable conditions** (daytime heating): Enhanced turbulent mixing,
+  gentler velocity gradients
+
+**Implementation**
+
+The solver implements Businger-Dyer (1971) stability corrections to the
+log-law profile via Monin-Obukhov similarity theory.
+
+The non-neutral wind profile is:
+
+.. math::
+
+   u(z) = \frac{u_*}{\kappa}\left[\ln\left(\frac{z+z_0}{z_0}\right) - \psi_m\left(\frac{z}{L}\right) + \psi_m\left(\frac{z_0}{L}\right)\right]
+
+where:
+
+* *u*\ :sub:`*` = friction velocity [m/s]
+* κ = 0.41 (von Kármán constant)
+* *z* = height above ground level [m]
+* *z*\ :sub:`0` = aerodynamic roughness length [m]
+* *L* = Obukhov length [m] (stability parameter)
+* ψ\ :sub:`m` = dimensionless stability function
+
+**Obukhov Length** *L*
+
+The Obukhov length characterizes atmospheric stability:
+
+* **L > 0**: Stable (surface cooling)
+* **L < 0**: Unstable (surface heating)
+* **|L| → ∞**: Neutral (standard log-law)
+
+Typical values:
+
+* Stable nocturnal boundary layer: *L* = 50–200 m
+* Unstable daytime boundary layer: *L* = −50 to −300 m
+* Neutral conditions: *L* > 10,000 m (effectively infinite)
+
+**Stability Functions**
+
+For **stable conditions** (*ζ* = *z*/*L* > 0):
+
+.. math::
+
+   \psi_m(\zeta) = -5\zeta
+
+For **unstable conditions** (*ζ* < 0):
+
+.. math::
+
+   \psi_m(\zeta) = 2\ln\left(\frac{1+x}{2}\right) + \ln\left(\frac{1+x^2}{2}\right) - 2\arctan(x) + \frac{\pi}{2}
+
+where:
+
+.. math::
+
+   x = (1 - 16\zeta)^{1/4}
+
+**Usage**
+
+Enable stability corrections in your input file::
+
+    # Enable non-neutral stability corrections
+    enable_stability_correction = true
+    stability_length = 100.0    # Obukhov length L [m]
+                                # Positive = stable, negative = unstable
+
+**Examples**
+
+Stable nocturnal boundary layer::
+
+    enable_stability_correction = true
+    stability_length = 100.0    # L = 100 m (stable)
+
+Unstable daytime convective boundary layer::
+
+    enable_stability_correction = true
+    stability_length = -150.0   # L = -150 m (unstable)
+
+**References**
+
+* Businger, J.A., et al. (1971). Flux-profile relationships in the atmospheric
+  surface layer. *Journal of Atmospheric Sciences*, 28(2), 181–189.
+* Dyer, A.J. (1974). A review of flux-profile relationships. *Boundary-Layer
+  Meteorology*, 7(3), 363–372.
+* Paulson, C.A. (1970). The mathematical representation of wind speed and
+  temperature profiles in the unstable atmospheric surface layer. *Journal of
+  Applied Meteorology*, 9(6), 857–861.
+
+**Regression Tests**
+
+* ``regtest/stability_stable/`` — stable atmospheric conditions (*L* = 100 m)
+* ``regtest/stability_unstable/`` — unstable conditions (*L* = −150 m)
+
+Thermal Stratification and Buoyancy
+------------------------------------
+
+Boussinesq Approximation for Buoyancy-Driven Flow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+Temperature variations in the atmosphere create buoyancy forces that drive
+vertical motion. Warm air rises (positive buoyancy), cold air sinks (negative
+buoyancy). This is critical for:
+
+* Daytime convective boundary layer development
+* Nighttime drainage flows and inversions
+* Slope flows in mountainous terrain
+* Fire plume dynamics
+
+**Implementation**
+
+The solver implements the **Boussinesq approximation** for buoyancy effects on
+vertical velocity. The buoyancy-induced vertical velocity is:
+
+.. math::
+
+   w_{buoyancy} = \frac{g(T - T_0)}{T_0} \Delta t
+
+where:
+
+* *g* = 9.81 m/s² (gravitational acceleration)
+* *T* = local temperature [K]
+* *T*\ :sub:`0` = reference temperature [K]
+* Δ*t* = characteristic time scale [s]
+
+**Reduced Gravity**
+
+The buoyancy force can be expressed as reduced gravity:
+
+.. math::
+
+   g' = g\frac{T - T_0}{T_0}
+
+* *g'* > 0: Warm air, upward buoyancy force
+* *g'* < 0: Cold air, downward buoyancy force
+* *g'* = 0: Neutral buoyancy
+
+**Brunt-Väisälä Frequency**
+
+Atmospheric stability from temperature stratification is quantified by the
+Brunt-Väisälä frequency squared:
+
+.. math::
+
+   N^2 = \frac{g}{T_0}\left(\frac{dT}{dz} + \Gamma_d\right)
+
+where Γ\ :sub:`d` = 0.0098 K/m is the dry adiabatic lapse rate.
+
+* *N*\ :sup:`2` > 0: **Stable** (oscillatory motion, gravity waves)
+* *N*\ :sup:`2` < 0: **Unstable** (convective overturning)
+* *N*\ :sup:`2` ≈ 0: **Neutral** (adiabatic)
+
+**Usage**
+
+Specify temperature profile for buoyancy::
+
+    # Enable buoyancy effects
+    enable_buoyancy = true
+    temperature_file = temperature_profile.csv
+    reference_temperature = 288.0  # T0 [K]
+    buoyancy_coefficient = 1.0     # Tuning parameter
+
+**Temperature Profile Format**
+
+CSV or whitespace-separated file with columns ``z [m]  T [K]``::
+
+    # Height [m]  Temperature [K]
+    0.0           285.0
+    100.0         287.0
+    500.0         290.0
+    1000.0        295.0
+
+**Regression Tests**
+
+* ``regtest/buoyancy_stratification/`` — thermal stratification with buoyancy
+* ``regtest/combined_thermal_terrain/`` — combined buoyancy and kinematic BC
+
+Kinematic Terrain-Following Boundary Condition
+-----------------------------------------------
+
+**Physical Motivation**
+
+At the terrain surface, the flow must satisfy a **no-penetration condition**:
+the normal component of velocity at the surface must equal zero. For sloping
+terrain, this requires the vertical velocity to match the terrain slope.
+
+**Mathematical Formulation**
+
+The kinematic boundary condition at the terrain surface is:
+
+.. math::
+
+   w = \mathbf{u} \cdot \nabla h = u\frac{\partial h}{\partial x} + v\frac{\partial h}{\partial y}
+
+where:
+
+* *w* = vertical velocity [m/s]
+* *u*, *v* = horizontal velocity components [m/s]
+* *h*\ (*x*, *y*) = terrain elevation function [m]
+* ∇*h* = terrain gradient vector
+
+This ensures that flow follows the terrain contours without passing through
+the surface.
+
+**Implementation**
+
+The solver computes terrain gradients using central differences (or WENO
+schemes) and applies the kinematic condition at cells adjacent to the terrain
+surface:
+
+.. code-block:: c++
+
+   w_surface = u * dh_dx + v * dh_dy
+
+where:
+
+* ``dh_dx`` = ∂\ *h*/∂\ *x* (terrain slope in x-direction)
+* ``dh_dy`` = ∂\ *h*/∂\ *y* (terrain slope in y-direction)
+
+**Relaxation Parameter**
+
+A relaxation factor (0 < *α* ≤ 1) can be applied for numerical stability:
+
+.. math::
+
+   w = \alpha\left(u\frac{\partial h}{\partial x} + v\frac{\partial h}{\partial y}\right)
+
+* *α* = 1.0: Strict kinematic condition (recommended)
+* *α* < 1.0: Relaxed condition (for steep terrain)
+
+**Usage**
+
+Enable kinematic terrain BC::
+
+    # Enable kinematic terrain-following boundary condition
+    enable_kinematic_bc = true
+    kinematic_bc_relaxation = 1.0  # Relaxation factor (default: 1.0)
+
+**Benefits**
+
+* Improved representation of terrain-following flow
+* Reduces spurious vertical velocities near steep slopes
+* More accurate flow separation and recirculation zones
+
+**Regression Tests**
+
+* ``regtest/terrain_kinematic_bc/`` — kinematic BC on Gaussian hill
+* ``regtest/combined_thermal_terrain/`` — combined with buoyancy effects
+
+Ekman Spiral and Wind Veer
+---------------------------
+
+**Physical Motivation**
+
+In the atmospheric boundary layer, the balance between Coriolis force, pressure
+gradient, and surface friction causes wind direction to **veer** (rotate) with
+height. This is known as the Ekman spiral.
+
+* **Northern Hemisphere**: Wind veers clockwise with height
+* **Southern Hemisphere**: Wind veers counter-clockwise with height
+
+Typical veer: 10–30° from surface to boundary layer top.
+
+**Implementation**
+
+The solver applies an exponential veer profile:
+
+.. math::
+
+   \theta(z) = \theta_{total}\left[1 - \exp\left(-\frac{z}{h_{veer}}\right)\right]
+
+where:
+
+* θ(*z*) = wind direction change at height *z* [degrees or radians]
+* θ\ :sub:`total` = total veer from surface to top [degrees]
+* *h*\ :sub:`veer` = characteristic veer height scale [m]
+
+**Wind Rotation**
+
+The horizontal wind components are rotated:
+
+.. math::
+
+   \begin{aligned}
+   u_{veer} &= u\cos\theta - v\sin\theta \\
+   v_{veer} &= u\sin\theta + v\cos\theta
+   \end{aligned}
+
+**Coriolis Parameter**
+
+The Coriolis parameter is:
+
+.. math::
+
+   f = 2\Omega\sin(\phi)
+
+where:
+
+* Ω = 7.2921 × 10⁻⁵ rad/s (Earth's rotation rate)
+* φ = latitude [radians]
+
+**Usage**
+
+Enable Ekman veer correction::
+
+    # Enable Ekman spiral wind veer
+    enable_ekman_veer = true
+    latitude = 45.0              # Latitude [degrees], positive=North
+    ekman_veer_total = 20.0      # Total veer [degrees] from surface to top
+    ekman_veer_height = 200.0    # Veer height scale [m]
+
+**Typical Values**
+
+* Mid-latitudes (30–60°): Total veer = 15–30°
+* Polar regions (> 60°): Total veer = 30–40°
+* Tropics (< 30°): Total veer = 5–15°
+* Veer height scale: 100–200 m (boundary layer depth scale)
+
+**Regression Tests**
+
+* ``regtest/ekman_veer/`` — Ekman spiral veer correction
+
+Elevation-Dependent Wind Scaling
+---------------------------------
+
+**Physical Motivation**
+
+In complex mountainous terrain, wind speed often varies with terrain elevation
+due to:
+
+* **Valley channeling**: Wind speed decreases at higher elevations (sheltering)
+* **Ridge acceleration**: Wind speed increases on exposed ridges
+* **Mountain-valley circulation**: Thermally-driven flows
+
+**Implementation**
+
+The reference wind speed is scaled based on terrain elevation:
+
+.. math::
+
+   U_{scaled} = U_{ref}\exp\left(-\alpha\frac{\Delta z}{H_{scale}}\right)
+
+where:
+
+* *U*\ :sub:`ref` = reference wind speed [m/s]
+* Δ*z* = elevation above minimum terrain [m]
+* *α* = elevation scaling factor (dimensionless)
+* *H*\ :sub:`scale` = characteristic height scale [m]
+
+**Scaling Factor Interpretation**
+
+* **α > 0**: Wind decreases with elevation (valley effect)
+* **α < 0**: Wind increases with elevation (ridge effect)
+* **α = 0**: No elevation dependence
+
+**Usage**
+
+Enable elevation-dependent wind scaling::
+
+    # Enable elevation-dependent wind speed scaling
+    enable_elevation_scaling = true
+    elevation_scaling_factor = 0.3     # Scaling strength
+    elevation_height_scale = 1000.0    # Characteristic height [m]
+
+**Example**
+
+For a mountain valley with *α* = 0.3 and *H*\ :sub:`scale` = 1000 m:
+
+* At Δ*z* = 0 m (valley floor): *U* = *U*\ :sub:`ref`
+* At Δ*z* = 500 m: *U* = 0.86 *U*\ :sub:`ref` (14% reduction)
+* At Δ*z* = 1000 m: *U* = 0.74 *U*\ :sub:`ref` (26% reduction)
+
+**Regression Tests**
+
+* ``regtest/elevation_scaling/`` — elevation-dependent wind scaling
+
+Building Porosity Model
+------------------------
+
+**Physical Motivation**
+
+Not all structures are solid obstacles. Many features allow partial flow:
+
+* Forest canopies and tree stands
+* Fences and barriers
+* Lattice structures and screens
+* Vegetated noise barriers
+* Porous windbreaks
+
+**Implementation**
+
+The porosity model applies drag to velocity based on a porosity parameter:
+
+.. math::
+
+   \frac{du}{dt} = -\frac{1}{2}(1-\beta)\frac{C_d}{\Delta x}|u|u
+
+where:
+
+* β = porosity (0 = solid, 1 = fully open)
+* *C*\ :sub:`d` = drag coefficient (typical: 0.2)
+* Δ*x* = cell size (frontal area characteristic length)
+
+**Porosity Parameter**
+
+* **β = 0.0**: Solid building (zero velocity)
+* **β = 0.3**: Moderately porous (dense trees, hedges)
+* **β = 0.7**: Highly porous (fences, lattices)
+* **β = 1.0**: Fully open (no obstruction)
+
+**Drag Application**
+
+For steady-state simulations, drag is applied as velocity reduction:
+
+.. math::
+
+   u_{new} = u_{old}\exp(-\alpha\Delta t)
+
+where *α* is the drag factor based on porosity and drag coefficient.
+
+**Porous Building File Format**
+
+CSV or whitespace-separated file with columns:
+
+``xmin xmax ymin ymax zmin zmax porosity [rotation_degrees]``
+
+Example::
+
+    # xmin xmax ymin ymax zmin zmax porosity [rotation]
+    100 120 100 120 0 10 0.3 0     # 30% porous tree stand
+    200 220 200 220 0 15 0.7 45    # 70% porous fence (rotated 45°)
+
+**Usage**
+
+Enable building porosity model::
+
+    # Enable building porosity
+    enable_building_porosity = true
+    building_porosity_file = porous_buildings.csv
+    porosity_drag_coefficient = 0.2
+
+**References**
+
+* Santiago, J.L., et al. (2007). CFD simulation of airflow over a regular
+  array of cubes. Part I: Three-dimensional simulation of the flow and
+  validation with wind-tunnel measurements. *Boundary-Layer Meteorology*,
+  122(3), 609–634.
+* Kanda, M., et al. (2013). A new aerodynamic parametrization for real urban
+  surfaces. *Boundary-Layer Meteorology*, 148(2), 357–377.
+
+**Regression Tests**
+
+* ``regtest/porous_buildings/`` — building porosity model
+
+Wall Functions
+--------------
+
+**Physical Motivation**
+
+Traditional no-slip boundary conditions (zero velocity at walls) require very
+fine near-wall grid resolution to resolve the viscous sublayer. Wall functions
+provide an alternative by using empirical wall laws (log-law) to bridge between
+the wall and the first grid cell.
+
+Benefits:
+
+* Coarser grids near boundaries
+* Reduced computational cost
+* Improved accuracy for boundary layer flows
+
+**Log-Law Wall Function**
+
+For horizontal surfaces, the log-law wall function is:
+
+.. math::
+
+   u_{parallel} = \frac{u_*}{\kappa}\ln\left(\frac{z + z_0}{z_0}\right)
+
+where:
+
+* *u*\ :sub:`parallel` = velocity parallel to wall [m/s]
+* *u*\ :sub:`*` = friction velocity (computed iteratively) [m/s]
+* κ = 0.41 (von Kármán constant)
+* *z* = distance from wall [m]
+* *z*\ :sub:`0` = wall roughness length [m]
+
+**Friction Velocity Calculation**
+
+The friction velocity *u*\ :sub:`*` is computed by iteratively solving:
+
+.. math::
+
+   u_{parallel} = \frac{u_*}{\kappa}\ln\left(\frac{z + z_0}{z_0}\right)
+
+given *u*\ :sub:`parallel` at the first cell center.
+
+**Blending Function**
+
+Near the wall, the wall function is blended with the computed velocity:
+
+.. math::
+
+   u_{final} = \lambda u_{wall} + (1-\lambda)u_{computed}
+
+where *λ*(*z*) is a blending function (0 at wall, 1 at blend height).
+
+**Stability Corrections**
+
+Wall functions can include Monin-Obukhov stability corrections:
+
+.. math::
+
+   u = \frac{u_*}{\kappa}\left[\ln\left(\frac{z+z_0}{z_0}\right) - \psi_m\left(\frac{z}{L}\right)\right]
+
+**Adaptive Activation**
+
+Wall functions are automatically activated/deactivated based on grid resolution:
+
+* Activate when: *z*\ :sub:`0` < Δ*z* < 30*z*\ :sub:`0` (in logarithmic layer)
+* Deactivate when: Δ*z* too small (viscous sublayer) or too large (outer layer)
+
+**Usage**
+
+Enable wall functions::
+
+    # Enable wall functions
+    enable_wall_functions = true
+    enable_terrain_wall_function = true
+    enable_flat_surface_wall_function = false
+    enable_building_wall_function = false
+    
+    # Wall function parameters
+    wall_function_z0_building = 0.001       # Building wall roughness [m]
+    wall_function_z0_flat = 0.01            # Flat surface roughness [m]
+    wall_function_blend_height = 2.0        # Blending height [cells]
+    
+    # Optional: stability corrections
+    wall_function_enable_stability = true
+    wall_function_stability_length = 100.0  # Obukhov length [m]
+    
+    # Optional: adaptive activation
+    wall_function_enable_adaptive = true
+    wall_function_adaptive_threshold = 30.0      # Max dz/z0 ratio
+    wall_function_adaptive_min_cells = 3.0       # Min cells in log layer
+
+**Regression Tests**
+
+* ``regtest/wall_function_flat/`` — basic wall function on flat terrain
+* ``regtest/wall_function_stable/`` — wall function with stable stability
+* ``regtest/wall_function_unstable/`` — wall function with unstable stability
+* ``regtest/wall_function_adaptive/`` — adaptive activation based on grid
+
+**References**
+
+* Blocken, B., et al. (2007). CFD simulation of the atmospheric boundary layer:
+  wall function problems. *Atmospheric Environment*, 41(2), 238–252.
+* Richards, P.J., & Hoxey, R.P. (1993). Appropriate boundary conditions for
+  computational wind engineering models using the k-ε turbulence model.
+  *Journal of Wind Engineering and Industrial Aerodynamics*, 46, 145–153.
+
+Height-Dependent Anisotropy
+----------------------------
+
+**Physical Motivation**
+
+In the mass-consistency formulation, anisotropy coefficients (*α*\ :sub:`h`,
+*α*\ :sub:`v`) control the relative weight of horizontal versus vertical wind
+adjustments. Near the surface, it's often desirable to:
+
+* Preserve horizontal wind profiles (small *α*\ :sub:`v` → strong vertical
+  adjustment penalty)
+* Allow more horizontal adjustment aloft (larger *α*\ :sub:`v` → weaker vertical
+  penalty)
+
+**Implementation**
+
+The vertical anisotropy coefficient varies linearly with height:
+
+.. math::
+
+   \alpha_v(z) = \alpha_{v,surface} + \left(\alpha_{v,top} - \alpha_{v,surface}\right)\frac{z - z_{min}}{z_{max} - z_{min}}
+
+where:
+
+* *α*\ :sub:`v,surface` = coefficient at domain bottom
+* *α*\ :sub:`v,top` = coefficient at domain top
+* *z*\ :sub:`min`, *z*\ :sub:`max` = vertical domain bounds
+
+**Typical Configuration**
+
+For terrain-following flow preservation::
+
+    use_height_dependent_alpha_v = true
+    alpha_h = 1.0
+    alpha_v_surface = 0.5    # Strong vertical adjustment near surface
+    alpha_v_top = 2.0        # Weaker vertical adjustment aloft
+
+**Effect**
+
+* **Near surface**: Small *α*\ :sub:`v` → horizontal winds preferentially
+  adjusted → preserves log-law profile shape
+* **Aloft**: Large *α*\ :sub:`v` → vertical winds preferentially adjusted →
+  allows horizontal flow around obstacles
+
+**Regression Tests**
+
+* ``regtest/alphav_height/`` — height-dependent vertical anisotropy
+
+Summary of Physics Models
+--------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 50 20
+
+   * - Feature
+     - Description
+     - Header File
+   * - Atmospheric stability
+     - Monin-Obukhov similarity theory (Businger-Dyer)
+     - ``stability_models.H``
+   * - Thermal buoyancy
+     - Boussinesq approximation for temperature-driven flow
+     - ``buoyancy_models.H``
+   * - Kinematic terrain BC
+     - No-flow-through condition at terrain surface
+     - ``buoyancy_models.H``
+   * - Ekman veer
+     - Wind direction rotation with height (Coriolis)
+     - ``stability_models.H``
+   * - Elevation scaling
+     - Wind speed variation with terrain elevation
+     - ``stability_models.H``
+   * - Building porosity
+     - Partial flow through porous structures
+     - ``porosity_models.H``
+   * - Wall functions
+     - Log-law boundary conditions for coarse grids
+     - ``wall_functions.H``
+   * - Canopy drag
+     - Forest canopy parameterization
+     - ``canopy_models.H``
+   * - Building wakes
+     - Röckle wake parameterization
+     - ``wake_models.H``
+
+All physics models are:
+
+* **GPU-portable** via AMReX GPU kernels
+* **Optional** (disabled by default for backward compatibility)
+* **Combinable** (e.g., stability + buoyancy + canopy)
+* **Validated** via regression tests

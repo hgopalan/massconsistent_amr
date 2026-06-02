@@ -194,6 +194,25 @@ void apply_ekman_veer(amrex::Real u_in,
     v_out = u_in * sin_theta + v_in * cos_theta;
 }
 
+// Compute wind direction gradient angle (linear directional shear with height)
+// Simpler than Ekman spiral - uniform rate of direction change with height
+//
+// Parameters:
+//   z_agl          - Height above ground level [m]
+//   shear_rate     - Rate of direction change [rad/m]
+//
+// Returns: Direction change angle [rad]
+//
+// Unlike Ekman veer which uses exponential profile, this implements a simple
+// linear directional shear: angle = shear_rate × z
+// Useful for idealized wind direction gradients or observational studies
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real wind_direction_gradient_angle(amrex::Real z_agl,
+                                          amrex::Real shear_rate) noexcept
+{
+    return shear_rate * z_agl;
+}
+
 // Compute Coriolis parameter f = 2 × Ω × sin(latitude)
 // where Ω = 7.2921e-5 rad/s is Earth's angular velocity
 //
