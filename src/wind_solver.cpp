@@ -1321,6 +1321,9 @@ int main(int argc, char* argv[])
         const Real dz_cap_init    = dz;
         const Real z_lo_cap_init  = z_lo;   // physical z at bottom of domain
         const int  nx_cap_init    = nx;
+        const int  ny_cap_init    = ny;
+        const Real dx_cap_init    = dx;
+        const Real dy_cap_init    = dy;
         const Real z0_cap         = z0;      // surface roughness for diagnostics
         const bool use_pos_z0     = use_z0_file;  // position-dependent z0 flag
 
@@ -1693,7 +1696,7 @@ int main(int argc, char* argv[])
                             Real z_yp = d_terr_ptr[jp * nx_cap_init + i];
                             
                             Real slope = compute_terrain_slope(
-                                terrain_elev, z_xm, z_xp, z_ym, z_yp, 
+                                z_xm, z_xp, z_ym, z_yp, 
                                 dx_cap_init, dy_cap_init);
                             
                             Real curvature = compute_terrain_curvature(

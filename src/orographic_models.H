@@ -55,7 +55,6 @@ struct OrographicParams {
 // combines to get total slope magnitude.
 //
 // Inputs:
-//   z_center       - Terrain elevation at center point [m]
 //   z_xm, z_xp     - Terrain elevations at x-minus and x-plus neighbors [m]
 //   z_ym, z_yp     - Terrain elevations at y-minus and y-plus neighbors [m]
 //   dx, dy         - Grid spacings [m]
@@ -65,7 +64,6 @@ struct OrographicParams {
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 amrex::Real compute_terrain_slope(
-    amrex::Real z_center,
     amrex::Real z_xm, amrex::Real z_xp,
     amrex::Real z_ym, amrex::Real z_yp,
     amrex::Real dx, amrex::Real dy)
