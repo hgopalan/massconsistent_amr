@@ -724,6 +724,10 @@ void correct_velocity_field(WindSolverState& state)
     const Real z_lo = state.zmin;
     const Real dz = state.dz;
     const int nx = state.nx;
+    
+    // Terrain-following coordinates parameters
+    const bool use_terrain_following = state.enable_terrain_following;
+    const Real decay_height = state.terrain_decay_height;
 
     state.vel->setVal(0.0);
     for (MFIter mfi(*state.vel); mfi.isValid(); ++mfi) {
@@ -733,7 +737,8 @@ void correct_velocity_field(WindSolverState& state)
         auto vel = state.vel->array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real z_phys = z_lo + (k + Real(0.5)) * dz;
-            const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+            const Real z_terrain = terrain_ptr[j * nx + i];
+            const Real z_agl = z_phys - z_terrain;
             if (z_agl <= Real(0.0)) {
                 vel(i, j, k, 0) = Real(0.0);
                 vel(i, j, k, 1) = Real(0.0);
@@ -775,9 +780,34 @@ void correct_velocity_field(WindSolverState& state)
                 }
             }
 
+            // Standard velocity correction
             vel(i, j, k, 0) = v0(i, j, k, 0) - bh * dlx;
             vel(i, j, k, 1) = v0(i, j, k, 1) - bh * dly;
             vel(i, j, k, 2) = v0(i, j, k, 2) - bv * dlz;
+            
+            // Apply terrain-following coordinate corrections
+            if (use_terrain_following) {
+                // In terrain-following coords, the velocity correction includes
+                // metric terms from the coordinate transformation
+                // Additional correction: w' = w - (∂s/∂x * ∂λ/∂x + ∂s/∂y * ∂λ/∂y)
+                const Real dz_terrain_dx = TerrainFollowingCoords::compute_terrain_slope_x(
+                    i, j, terrain_ptr, nx, state.dx, ilo, ihi);
+                const Real dz_terrain_dy = TerrainFollowingCoords::compute_terrain_slope_y(
+                    i, j, terrain_ptr, nx, state.dy, jlo, jhi);
+                
+                const Real dsdx = TerrainFollowingCoords::metric_dsdx(
+                    dz_terrain_dx, z_agl, decay_height);
+                const Real dsdy = TerrainFollowingCoords::metric_dsdy(
+                    dz_terrain_dy, z_agl, decay_height);
+                
+                // Modify vertical velocity with horizontal metric terms
+                vel(i, j, k, 2) -= bh * (dsdx * dlx + dsdy * dly);
+                
+                // Scale vertical correction by Jacobian
+                const Real J = TerrainFollowingCoords::jacobian(
+                    z_terrain, z_agl, decay_height);
+                vel(i, j, k, 2) = v0(i, j, k, 2) + (vel(i, j, k, 2) - v0(i, j, k, 2)) * J;
+            }
         });
     }
     state.vel->FillBoundary(state.geom->periodicity());

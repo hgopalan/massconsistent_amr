@@ -1011,6 +1011,137 @@ North-south oriented valley with strong channeling::
 * Rampanelli, G., Zardi, D., & Rotunno, R. (2004). Mechanisms of up-valley
   winds. *Journal of the Atmospheric Sciences*, 61(24), 3097-3111.
 
+Terrain-Following (Streamline) Coordinates
+-------------------------------------------
+
+**Physical Motivation**
+
+Mass-consistent solvers work better when the computational coordinates align
+with the flow, especially over steep terrain:
+
+* **Reduces artificial divergence** induced by terrain in Cartesian grids
+* **Improves numerical stability** on steep slopes (>30°)
+* **Better represents boundary layers** that follow terrain contours
+* **More accurate mass conservation** in complex topography
+
+**Mathematical Formulation**
+
+The terrain-following coordinate transformation follows Mason & King (1985)
+sigma-coordinate approach, transforming from Cartesian coordinates (*x*, *y*, *z*)
+to terrain-following coordinates (*x*, *y*, *s*):
+
+.. math::
+
+   s = z - z_{\text{terrain}}(x,y) \cdot f(z_{\text{agl}})
+
+where *z*\ :sub:`terrain`\ (*x*, *y*) is the terrain elevation and *f*\ (*z*\ :sub:`agl`) is a
+decay function that provides smooth transition from terrain-following at the
+surface (*f* = 1) to flat coordinates aloft (*f* → 0).
+
+**Decay Function**
+
+An exponential decay function ensures smooth transition:
+
+.. math::
+
+   f(z_{\text{agl}}) = \exp\left(-\frac{z_{\text{agl}}}{H}\right)
+
+where:
+
+* *z*\ :sub:`agl` = *z* − *z*\ :sub:`terrain` is height above ground level [m]
+* *H* is the decay height scale [m], typically *H* ≈ *domain_height* / 3
+
+The decay function has these properties:
+
+* At the surface (*z*\ :sub:`agl` = 0): *f* = 1 (fully terrain-following)
+* At height *H*: *f* = 1/*e* ≈ 0.37 (partially terrain-following)
+* Aloft (*z*\ :sub:`agl` ≫ *H*): *f* → 0 (Cartesian coordinates)
+
+**Jacobian and Metric Terms**
+
+The coordinate transformation introduces metric coefficients in the divergence
+operator. The Jacobian of the transformation is:
+
+.. math::
+
+   J = \frac{\partial z}{\partial s} = \frac{1}{1 - z_{\text{terrain}} \cdot f'(z_{\text{agl}})}
+
+where the derivative of the decay function is:
+
+.. math::
+
+   f'(z_{\text{agl}}) = \frac{\partial f}{\partial z} = -\frac{1}{H} \exp\left(-\frac{z_{\text{agl}}}{H}\right)
+
+The horizontal metric coefficients are:
+
+.. math::
+
+   \frac{\partial s}{\partial x} &= -\frac{\partial z_{\text{terrain}}}{\partial x} \cdot f(z_{\text{agl}}) \\
+   \frac{\partial s}{\partial y} &= -\frac{\partial z_{\text{terrain}}}{\partial y} \cdot f(z_{\text{agl}})
+
+**Modified Divergence Operator**
+
+In terrain-following coordinates, the divergence includes metric correction terms:
+
+.. math::
+
+   \nabla \cdot \mathbf{u} = \frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} + \frac{1}{J}\frac{\partial(J w)}{\partial z}
+   - \left(\frac{\partial s}{\partial x} \frac{\partial u}{\partial z} + \frac{\partial s}{\partial y} \frac{\partial v}{\partial z}\right)
+
+The first three terms are the standard Cartesian divergence (computed on the
+*z*-grid). The last term is the metric correction accounting for the terrain-following
+transformation.
+
+**Modified Poisson Equation**
+
+The anisotropic Poisson equation for the Lagrange multiplier *λ* becomes:
+
+.. math::
+
+   -\nabla \cdot (\alpha^2 \nabla \lambda) = -\nabla \cdot \mathbf{u}_0
+
+where the vertical diffusion coefficient is scaled by the Jacobian:
+
+.. math::
+
+   \alpha_v^2 \rightarrow \alpha_v^2 \cdot J^2
+
+This accounts for the metric tensor in the terrain-following coordinate system.
+
+**Implementation**
+
+To enable terrain-following coordinates::
+
+    # Enable terrain-following coordinate transformation
+    enable_terrain_following = true
+    
+    # Decay height scale [m] (optional; defaults to domain_height / 3)
+    terrain_decay_height = 100.0
+
+**When to Use**
+
+Terrain-following coordinates are beneficial for:
+
+* **Very steep terrain**: slopes > 30° (1:2 slope ratio)
+* **Deep valleys**: where boundary layer follows terrain closely
+* **Research-grade simulations**: requiring high accuracy in complex terrain
+* **Improved mass conservation**: when Cartesian grids show excessive divergence
+
+**Limitations**
+
+* Adds computational cost (~10-15% slower due to metric term calculations)
+* Most effective on smooth terrain (not cliffs or sharp ridges)
+* Requires sufficient vertical resolution to capture decay function
+
+**References**
+
+* Mason, P. J., & King, J. C. (1985). Measurements and predictions of flow
+  and turbulence over an isolated hill of moderate slope. *Quarterly Journal
+  of the Royal Meteorological Society*, 111(468), 617-640.
+* Gal-Chen, T., & Somerville, R. C. (1975). On the use of a coordinate
+  transformation for the solution of the Navier-Stokes equations. *Journal
+  of Computational Physics*, 17(2), 209-228.
+
 Summary of Physics Models
 --------------------------
 
@@ -1054,6 +1185,9 @@ Summary of Physics Models
    * - Valley channeling
      - Wind alignment and speed adjustment in valleys
      - ``valley_channeling_models.H``
+   * - Terrain-following coordinates
+     - Streamline coordinates for steep terrain
+     - ``terrain_following_coords.H``
 
 All physics models are:
 

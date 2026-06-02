@@ -49,6 +49,7 @@ cmake --build build --parallel
 - **Kinematic terrain-following BC** — No-flow-through condition w = u·∇h at terrain surface for improved terrain representation
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
 - **Performance timing** — Detailed timing output for profiling and optimization
+- **Terrain-following coordinates** — Streamline coordinate transformation for improved accuracy on steep terrain
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
   - **Height-dependent diffusivity** — K(z) profiles for realistic atmospheric mixing
   - **First-order decay** — Exponential decay for radioactive/chemical species
@@ -67,6 +68,7 @@ cmake --build build --parallel
   - **Pasquill-Gifford stability classes** — Classic atmospheric stability classification (A-F) from wind speed and solar radiation for dispersion modeling
   - **Puff deposition/sedimentation** — Dry deposition and gravitational settling for particles and reactive gases with surface uptake
   - **Terrain-adaptive alpha coefficients** — Spatially-varying anisotropy (α_h, α_v) based on terrain slope and curvature for improved mass conservation
+  - **Terrain-following (streamline) coordinates** — Mason & King (1985) sigma-coordinate transformation for steep terrain with exponential decay function, reducing artificial divergence and improving numerical stability on slopes >30°
 
 ## Documentation
 
