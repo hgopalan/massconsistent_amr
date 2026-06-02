@@ -503,3 +503,140 @@ the veer profile.
 * IEC 61400-1 Ed. 4 (2019). Wind energy generation systems — Part 1: Design requirements.
   Section 6.3.1.3: Wind veer for turbine load analysis.
 
+Orographic Speed-up and Flow Separation
+----------------------------------------
+
+The solver includes an orographic speed-up model based on the Jackson & Hunt (1975)
+theory for flow over low hills and ridges. This feature accounts for wind acceleration
+over convex terrain features (ridges, hill crests) and flow separation/deceleration
+in concave regions (valleys, lee slopes).
+
+**Physical Background**
+
+When wind flows over terrain, it experiences:
+
+1. **Speed-up on windward slopes and crests**: Wind accelerates as it flows up and
+   over ridges and hills due to streamline compression
+2. **Flow separation on lee slopes**: Wind decelerates and can separate from steep
+   lee slopes, creating recirculation zones
+3. **Vertical decay**: Speed-up effects are strongest near the surface and decay
+   with height above the terrain
+
+The Jackson & Hunt (1975) linear theory provides a framework for predicting these
+effects for hills with shallow slopes (H/L << 1) where H is hill height and L is
+the characteristic horizontal length scale.
+
+**Implementation**
+
+The orographic speed-up is computed based on local terrain slope and curvature:
+
+.. math::
+
+   \\Delta S(z) = S_{\\text{max}} \\times s \\times C \\times \\exp(-z / L_z)
+
+where:
+
+* :math:`\\Delta S` is the fractional speed change (speedup or slowdown)
+* :math:`S_{\\text{max}}` is the maximum speedup factor (typically 1.5-2.0)
+* :math:`s` is the local terrain slope magnitude
+* :math:`C` is a curvature strength indicator (0-1)
+* :math:`z` is height above ground level
+* :math:`L_z` is the vertical decay length scale (typically L/2)
+
+**Curvature-based classification:**
+
+* **Positive curvature** (convex features like ridges, hill tops): Apply speedup
+  
+  .. math::
+  
+     u_{\\text{new}} = u_{\\text{base}} \\times (1 + \\Delta S)
+
+* **Negative curvature** (concave features like valleys, lee slopes): Apply slowdown
+  
+  .. math::
+  
+     u_{\\text{new}} = u_{\\text{base}} \\times (1 - \\Delta S_{\\text{sep}})
+
+  where :math:`\\Delta S_{\\text{sep}}` accounts for flow separation strength
+
+**Usage Example**
+
+To enable orographic speed-up in an input file::
+
+    enable_orographic_speedup = true
+    orographic_hill_length_scale = 100.0      # Characteristic hill half-length [m]
+    orographic_speedup_factor_max = 2.0       # Maximum speedup on ridges
+    orographic_separation_factor = 0.3        # Flow separation strength
+    orographic_smoothing_factor = 0.5         # Terrain smoothing (0-1)
+
+**Parameter Guidelines**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Parameter
+     - Typical Value
+     - Notes
+   * - ``hill_length_scale``
+     - 50-200 m
+     - Half-width of dominant terrain features
+   * - ``speedup_factor_max``
+     - 1.5-2.5
+     - Maximum wind acceleration on ridges (2.0 is typical)
+   * - ``separation_factor``
+     - 0.2-0.5
+     - Strength of lee-side deceleration (0.3 is typical)
+   * - ``smoothing_factor``
+     - 0.3-0.7
+     - Controls transition smoothness (higher = smoother)
+
+**Terrain Analysis**
+
+The model computes local terrain characteristics using finite differences:
+
+* **Slope magnitude**: :math:`|\\nabla h| = \\sqrt{(\\partial h/\\partial x)^2 + (\\partial h/\\partial y)^2}`
+* **Curvature**: :math:`\\nabla^2 h = \\partial^2 h/\\partial x^2 + \\partial^2 h/\\partial y^2`
+
+These are computed from neighboring terrain elevations using central differences,
+providing second-order accuracy on uniform grids.
+
+**Compatibility**
+
+Orographic speed-up works with all wind initialization modes:
+
+* **loglaw**: Applied after log-law profile computation
+* **powerlaw**: Applied after power-law profile computation
+* **uniform**: Applied to uniform wind field
+* **raws/surface_data**: Applied after interpolation
+
+The speedup is applied to the initial wind field before the mass-consistency
+correction, so the final field enforces :math:`\\nabla \\cdot \\mathbf{u} = 0`
+while retaining terrain-induced speed variations.
+
+**Validation and Testing**
+
+See regression test ``regtest/orographic_speedup/`` for a complete example
+demonstrating speedup over a Gaussian hill.
+
+**Limitations**
+
+* Assumes shallow slopes (H/L < 0.3 for linearity)
+* Neutral atmospheric stability (extension to stable/unstable conditions requires
+  combining with ``enable_stability_correction``)
+* Does not model fine-scale turbulence or three-dimensional vortex shedding
+* Vertical component (w) is adjusted by mass-consistency solver, not directly
+  by the speedup model
+
+**References**
+
+* Jackson, P.S., & Hunt, J.C.R. (1975). Turbulent wind flow over a low hill.
+  *Quarterly Journal of the Royal Meteorological Society*, 101(430), 929-955.
+* Winstral, A., Marks, D., & Gurney, R. (2013). Simulating wind fields and snow
+  redistribution using terrain-based parameters to model snow accumulation and melt
+  over a semi-arid mountain catchment. *Hydrological Processes*, 27(26), 3973-3998.
+* Forthofer, J.M., Butler, B.W., & Wagenbrenner, N.S. (2014). A comparison of three
+  approaches for simulating fine-scale surface winds in support of wildland fire
+  management. Part I. Model formulation and comparison against measurements.
+  *International Journal of Wildland Fire*, 23(7), 969-981.
+
