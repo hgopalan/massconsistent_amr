@@ -40,6 +40,10 @@
 
 namespace {
     using namespace amrex;
+    
+    // Minimum wind speed for plume rise computation [m/s]
+    // Below this threshold, plume rise is not computed to avoid division by near-zero
+    constexpr amrex::Real MIN_WIND_SPEED_FOR_PLUME_RISE = 0.1;
 }
 
 // ============================================================================
@@ -840,7 +844,7 @@ amrex::Real compute_plume_rise(
     // Avoid division by zero or negative values
     if (buoyancy_flux <= amrex::Real(0.0) || 
         downwind_dist <= amrex::Real(0.0) || 
-        wind_speed <= amrex::Real(0.1)) {
+        wind_speed <= MIN_WIND_SPEED_FOR_PLUME_RISE) {
         return amrex::Real(0.0);
     }
     

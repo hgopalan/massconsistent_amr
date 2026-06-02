@@ -423,10 +423,10 @@ int main(int argc, char* argv[])
                 Real effective_source_z = source_z;
                 if (enable_plume_rise && heat_flux > 0.0) {
                     // Use a representative downwind distance for initial plume rise
-                    // Typical choice: use 10× source height or 100 m as reference
-                    Real representative_distance = std::max(10.0 * source_z, 100.0);
+                    // Typical choice: use 100 m minimum, or 10× source height if larger
+                    Real representative_distance = std::max(100.0, 10.0 * source_z);
                     Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                         std::max(wind_speed, 0.1));
+                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
                     effective_source_z = source_z + plume_rise;
                 }
                 

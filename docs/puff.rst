@@ -317,7 +317,7 @@ where:
 - :math:`c_p \approx 1005` J/(kg·K) (specific heat of air)
 - :math:`T \approx 288` K (ambient temperature)
 
-For typical ambient conditions: :math:`F \approx Q_H / (3.5 \times 10^5)`
+For typical ambient conditions: :math:`F \approx Q_H \text{ [W]} / (3.5 \times 10^5)`
 
 **Example Applications:**
 
