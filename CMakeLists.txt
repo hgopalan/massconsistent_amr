@@ -136,18 +136,27 @@ endif()
 
 # Recommended warnings
 if(MSVC)
-  target_compile_options(wind_solver PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
-    $<$<COMPILE_LANGUAGE:CXX>:/W4>
-  )
-  target_compile_options(puff_solver PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
-    $<$<COMPILE_LANGUAGE:CXX>:/W4>
-  )
-  target_compile_options(wind_solver_api PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
-    $<$<COMPILE_LANGUAGE:CXX>:/W4>
-  )
+  if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA" AND WIN32)
+    # For CUDA builds on Windows, apply /W4 only to CXX to avoid conflicts with NVCC workaround
+    # (NVCC with MSVC has known issues with /W4 enabling warnings that cause errors from CRT headers)
+    target_compile_options(wind_solver PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4>)
+    target_compile_options(puff_solver PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4>)
+    target_compile_options(wind_solver_api PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4>)
+  else()
+    # Apply /W4 to all languages when not using CUDA on Windows
+    target_compile_options(wind_solver PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
+      $<$<COMPILE_LANGUAGE:CXX>:/W4>
+    )
+    target_compile_options(puff_solver PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
+      $<$<COMPILE_LANGUAGE:CXX>:/W4>
+    )
+    target_compile_options(wind_solver_api PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
+      $<$<COMPILE_LANGUAGE:CXX>:/W4>
+    )
+  endif()
 else()
   target_compile_options(wind_solver PRIVATE -Wall -Wextra -Wno-pedantic)
   target_compile_options(puff_solver PRIVATE -Wall -Wextra -Wno-pedantic)
