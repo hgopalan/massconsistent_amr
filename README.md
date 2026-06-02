@@ -57,18 +57,6 @@ cmake --build build --parallel
 - **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields
 - **Python API** — Coupling with fire and atmospheric models
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
-- **New features:**
-  - **Divergence source terms** — Non-zero RHS (∇·u = S) for convective plumes and mass sources
-  - **Holtslag-De Bruin stability functions** — Alternative formulation for very stable conditions
-  - **Land use-based power-law exponents** — Spatially-varying wind shear by terrain type
-  - **Diurnal temperature profile** — Time-varying sinusoidal temperature for daily cycles
-  - **Vegetation roughness factor** — Seasonal/state modifiers for roughness (LAI, snow, burn severity)
-  - **EPA AERMOD PRIME wake model** — Industry-standard regulatory wake model with PBA method for stack emissions
-  - **Valley channeling factor** — Automatic valley detection and wind alignment for mountain meteorology
-  - **Pasquill-Gifford stability classes** — Classic atmospheric stability classification (A-F) from wind speed and solar radiation for dispersion modeling
-  - **Puff deposition/sedimentation** — Dry deposition and gravitational settling for particles and reactive gases with surface uptake
-  - **Terrain-adaptive alpha coefficients** — Spatially-varying anisotropy (α_h, α_v) based on terrain slope and curvature for improved mass conservation
-  - **Terrain-following (streamline) coordinates** — Mason & King (1985) sigma-coordinate transformation for steep terrain with exponential decay function, reducing artificial divergence and improving numerical stability on slopes >30°
 
 ## Documentation
 
