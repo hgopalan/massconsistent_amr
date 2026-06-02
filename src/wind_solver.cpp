@@ -1342,6 +1342,24 @@ int main(int argc, char* argv[])
         std::vector<Real> z_temp, T_temp;  // Temperature profile data
         if (enable_buoyancy_stratification) {
             read_temperature_file(temperature_file, z_temp, T_temp);
+            
+            // Feature 4: Apply diurnal temperature variation if enabled
+            if (enable_diurnal_temperature) {
+                amrex::Print() << "wind_solver: diurnal temperature variation enabled\n";
+                amrex::Print() << "  diurnal_temperature_amplitude = " << diurnal_temperature_amplitude << " K\n";
+                amrex::Print() << "  diurnal_time_of_day = " << diurnal_time_of_day << " hours\n";
+                amrex::Print() << "  diurnal_phase_hour = " << diurnal_phase_hour << " hours\n";
+                amrex::Print() << "  diurnal_period = " << diurnal_period << " hours\n";
+                
+                // Modify temperature profile with diurnal variation
+                for (std::size_t m = 0; m < T_temp.size(); ++m) {
+                    Real T_mean = T_temp[m];
+                    T_temp[m] = diurnal_temperature(T_mean, diurnal_temperature_amplitude,
+                                                   diurnal_time_of_day, diurnal_phase_hour, 
+                                                   diurnal_period);
+                }
+            }
+            
             amrex::Print() << "wind_solver: buoyancy stratification enabled\n";
             amrex::Print() << "  temperature_reference = " << temperature_reference << " K\n";
             amrex::Print() << "  buoyancy_coefficient = " << buoyancy_coefficient << "\n";
@@ -1842,12 +1860,21 @@ int main(int argc, char* argv[])
             // Capture stability correction parameters
             const bool use_stability = enable_stability_correction;
             const Real L_obukhov = stability_length;
+            const bool use_holtslag = use_holtslag_stability;  // Feature 2
             
             // Capture elevation scaling parameters
             const bool use_elev_scaling = enable_elevation_scaling;
             const Real elev_scale_factor = elevation_scaling_factor;
             const Real elev_height_scale = elevation_height_scale;
             const Real terrain_min = zs_min;
+            
+            // Feature 5: Vegetation roughness factor
+            const bool use_veg_roughness = enable_vegetation_roughness;
+            const Real veg_state_val = vegetation_state;
+            const int veg_state_type_val = vegetation_state_type;
+            
+            // Feature 4: Diurnal temperature (only affects temperature, used later if enabled)
+            const bool use_diurnal_temp = enable_diurnal_temperature;
             
             // Wall function parameters
             const bool use_wall_func = enable_wall_functions;
@@ -1909,6 +1936,12 @@ int main(int argc, char* argv[])
                         // Use position-dependent z0 if available
                         Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
                         
+                        // Feature 5: Apply vegetation roughness factor
+                        if (use_veg_roughness) {
+                            Real veg_factor = vegetation_roughness_factor(veg_state_val, veg_state_type_val);
+                            z0_local *= veg_factor;
+                        }
+                        
                         // Apply flat surface wall function with blending
                         // (For now, simplified version for flat terrain assumption)
                         Real u_outer = vel(i, j, k, 0);
@@ -1935,8 +1968,9 @@ int main(int argc, char* argv[])
                         
                         Real speed;
                         if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
+                            // Feature 2: Use Holtslag-De Bruin or Businger-Dyer stability correction
                             speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
-                                                          kappa_cap, L_obukhov);
+                                                          kappa_cap, L_obukhov, use_holtslag);
                         } else {
                             speed = canopy_wind_profile(
                                 z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
@@ -1965,6 +1999,12 @@ int main(int argc, char* argv[])
                         // Use position-dependent z0 if available, otherwise use constant
                         Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap_init + i] : z0_cap;
                         
+                        // Feature 5: Apply vegetation roughness factor
+                        if (use_veg_roughness) {
+                            Real veg_factor = vegetation_roughness_factor(veg_state_val, veg_state_type_val);
+                            z0_local *= veg_factor;
+                        }
+                        
                         // Recompute ustar with local z0 if using position-dependent roughness
                         Real ustar_local = ustar_cap;
                         if (use_pos_z0 && z0_local > Real(1.0e-10)) {
@@ -1987,9 +2027,9 @@ int main(int argc, char* argv[])
                         // Apply stability correction to wind profile
                         Real speed;
                         if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
-                            // Use non-neutral log-law with Businger-Dyer corrections
+                            // Feature 2: Use Holtslag-De Bruin or Businger-Dyer stability correction
                             speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
-                                                          kappa_cap, L_obukhov);
+                                                          kappa_cap, L_obukhov, use_holtslag);
                         } else {
                             // Use standard canopy wind profile (includes neutral log-law)
                             speed = canopy_wind_profile(
@@ -2409,16 +2449,89 @@ int main(int argc, char* argv[])
             Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
             Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
             
+            // Feature 3: Read land use file for spatially-varying power-law exponents
+            std::vector<Real> exponent_h(static_cast<std::size_t>(nx) * ny, powerlaw_exponent);
+            Gpu::DeviceVector<Real> d_exponent_pos;
+            const Real* d_exponent_pos_ptr = nullptr;
+            
+            if (use_landuse_powerlaw) {
+                amrex::Print() << "wind_solver: reading land use classification from " << landuse_file << "\n";
+                std::vector<Real> x_lu, y_lu, landuse_data;
+                read_roughness_file(landuse_file, x_lu, y_lu, landuse_data);  // Reuse roughness file reader
+                
+                // Interpolate land use type to grid and map to power-law exponent
+                for (int j = 0; j < ny; ++j) {
+                    for (int i = 0; i < nx; ++i) {
+                        Real xc = x_lo + (i + Real(0.5)) * dx;
+                        Real yc = y_lo + (j + Real(0.5)) * dy;
+                        
+                        // IDW interpolation
+                        Real landuse_interp = 0.0;  // Default to water/smooth
+                        Real wsum = 0.0;
+                        Real lu_sum = 0.0;
+                        std::vector<std::pair<Real, int>> d2(x_lu.size());
+                        for (std::size_t m = 0; m < x_lu.size(); ++m) {
+                            Real dx_pt = xc - x_lu[m];
+                            Real dy_pt = yc - y_lu[m];
+                            d2[m] = {dx_pt * dx_pt + dy_pt * dy_pt, static_cast<int>(m)};
+                        }
+                        std::sort(d2.begin(), d2.end());
+                        
+                        const int n_pts = std::min(6, static_cast<int>(d2.size()));
+                        for (int m = 0; m < n_pts; ++m) {
+                            Real dist = std::sqrt(d2[m].first);
+                            if (dist < Real(1.0e-12)) {
+                                landuse_interp = landuse_data[d2[m].second];
+                                wsum = 1.0;
+                                break;
+                            }
+                            Real w = Real(1.0) / (dist * dist);
+                            wsum += w;
+                            lu_sum += w * landuse_data[d2[m].second];
+                        }
+                        if (wsum > Real(0.0)) {
+                            landuse_interp = lu_sum / wsum;
+                        }
+                        
+                        // Map land use type to power-law exponent
+                        // Land use codes (approximate):
+                        //   0-1: Water/snow       -> alpha = 0.10 (weak shear)
+                        //   2-3: Grassland/crops  -> alpha = 0.14 (moderate)
+                        //   4-5: Forest/urban     -> alpha = 0.30-0.40 (strong shear)
+                        Real alpha_local = powerlaw_exponent;  // Default
+                        int lu_type = static_cast<int>(std::round(landuse_interp));
+                        if (lu_type <= 1) {
+                            alpha_local = Real(0.10);  // Water/snow
+                        } else if (lu_type <= 3) {
+                            alpha_local = Real(0.14);  // Grassland/crops
+                        } else {
+                            alpha_local = Real(0.35);  // Forest/urban
+                        }
+                        
+                        exponent_h[static_cast<std::size_t>(j) * nx + i] = alpha_local;
+                    }
+                }
+                
+                // Copy to device
+                d_exponent_pos.resize(exponent_h.size());
+                amrex::Gpu::copy(amrex::Gpu::hostToDevice, exponent_h.begin(), exponent_h.end(), d_exponent_pos.begin());
+                d_exponent_pos_ptr = d_exponent_pos.data();
+            }
+            
             const Real exponent = powerlaw_exponent;
             const Real z_ref_cap = z_ref;
             const Real speed_ref_cap = speed_ref;
             const Real ux_h = ux_hat;
             const Real uy_h = uy_hat;
+            const bool use_landuse_exp = use_landuse_powerlaw;
 
             amrex::Print() << "wind_solver: power-law profile initialization\n";
             amrex::Print() << "  U_ref = " << U_ref << " m/s, V_ref = " << V_ref << " m/s\n";
             amrex::Print() << "  z_ref = " << z_ref << " m\n";
             amrex::Print() << "  powerlaw_exponent = " << powerlaw_exponent << "\n";
+            if (use_landuse_powerlaw) {
+                amrex::Print() << "  using land use-based spatially-varying exponents\n";
+            }
 
             // Capture buoyancy parameters
             const bool use_buoyancy = enable_buoyancy_stratification;
@@ -2462,10 +2575,16 @@ int main(int argc, char* argv[])
                         vel(i, j, k, 2) = Real(0.0);
                     } else {
                         // Power-law profile: u(z) = U_ref * (z/z_ref)^alpha
+                        // Feature 3: Use land use-based exponent if enabled
+                        Real exponent_local = exponent;
+                        if (use_landuse_exp) {
+                            exponent_local = d_exponent_pos_ptr[j * nx_cap_init + i];
+                        }
+                        
                         Real z_ratio = z_agl / z_ref_cap;
                         // Clamp z_ratio to avoid extrapolation below reference height
                         z_ratio = (z_ratio < Real(0.01)) ? Real(0.01) : z_ratio;
-                        Real speed = speed_ref_cap * std::pow(z_ratio, exponent);
+                        Real speed = speed_ref_cap * std::pow(z_ratio, exponent_local);
                         
                         // Apply Ekman veer rotation
                         Real u_vel, v_vel;
@@ -2827,6 +2946,10 @@ int main(int argc, char* argv[])
         const Real T_ref_rhs = temperature_reference;
         const Real buoy_coeff_rhs = buoyancy_coefficient;
         const int n_temp_pts_rhs = n_temp_points;
+        
+        // Feature 1: Capture divergence source term parameters
+        const bool use_div_source = enable_divergence_source;
+        const Real div_source_const = divergence_source_constant;
 
         for (MFIter mfi(rhs); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -2919,6 +3042,12 @@ int main(int argc, char* argv[])
                 }
 
                 rh(i, j, k) = -(du + dv + dw);   // rhs = -div(u0)
+                
+                // Feature 1: Add divergence source term if enabled
+                // RHS becomes: -(div(u0)) + S, where S is source/sink of mass
+                if (use_div_source) {
+                    rh(i, j, k) += div_source_const;
+                }
                 
                 // Add buoyancy source term to RHS if using RHS method
                 if (use_buoyancy_rhs && n_temp_pts_rhs > 0) {
