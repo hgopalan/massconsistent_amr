@@ -154,6 +154,14 @@ else()
   target_compile_options(wind_solver_api PRIVATE -Wall -Wextra -Wno-pedantic)
 endif()
 
+# HIP-specific compiler flags to handle namespace ambiguity between hiprand and amrex
+if(MASSCONSISTENT_GPU_BACKEND STREQUAL "HIP")
+  # Suppress ambiguous namespace errors that arise from hiprand and amrex both defining 'detail'
+  target_compile_options(wind_solver PRIVATE $<$<COMPILE_LANGUAGE:HIP>:-Wno-ambiguous-member-template>)
+  target_compile_options(puff_solver PRIVATE $<$<COMPILE_LANGUAGE:HIP>:-Wno-ambiguous-member-template>)
+  target_compile_options(wind_solver_api PRIVATE $<$<COMPILE_LANGUAGE:HIP>:-Wno-ambiguous-member-template>)
+endif()
+
 # Add Python bindings subdirectory
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
   add_subdirectory(src/python)
