@@ -1685,6 +1685,11 @@ int main(int argc, char* argv[])
                         if (orog_params.enabled) {
                             // Compute terrain slope and curvature from neighbors
                             // Need neighboring terrain elevations for finite differences
+                            // Note: At domain boundaries, we clamp indices which creates
+                            // one-sided differences. This may reduce accuracy at edges,
+                            // but prevents out-of-bounds access. For production runs with
+                            // orographic speedup, terrain should extend beyond the region
+                            // of interest to avoid boundary artifacts.
                             int im = std::max(i - 1, 0);
                             int ip = std::min(i + 1, nx_cap_init - 1);
                             int jm = std::max(j - 1, 0);

@@ -48,6 +48,17 @@ struct OrographicParams {
     amrex::Real smoothing_factor = 0.5;          // Terrain feature smoothing factor (0-1)
 };
 
+// Physical constants for orographic model
+namespace OrographicConstants {
+    // Flow separation typically occurs for slopes > 0.3 (approximately 17 degrees)
+    // Based on Jackson & Hunt (1975) and empirical observations of lee-side separation
+    constexpr amrex::Real FLOW_SEPARATION_SLOPE_THRESHOLD = amrex::Real(0.3);
+    
+    // Minimum speedup multiplier to prevent complete flow reversal
+    // Wind speed is clamped to 30% of base value in strong separation zones
+    constexpr amrex::Real MIN_SEPARATION_SPEEDUP = amrex::Real(0.3);
+}
+
 // ============================================================================
 // Compute terrain slope magnitude from neighboring elevations
 //
@@ -171,8 +182,10 @@ amrex::Real jackson_hunt_speedup_factor(
         // Apply speedup proportional to slope and curvature
         
         // Curvature strength indicator (dimensionless)
+        // Normalize curvature (units: 1/m) by L² to create dimensionless measure
+        // This makes the strength independent of the choice of length scale units
         const amrex::Real curv_strength = std::min(
-            std::abs(curvature) * L * L,  // Normalize by length scale
+            std::abs(curvature) * L * L,  // Normalize: curvature × L² is dimensionless
             amrex::Real(1.0)
         );
         
@@ -194,17 +207,18 @@ amrex::Real jackson_hunt_speedup_factor(
         // Negative curvature = concave feature (valley, lee slope)
         // Apply flow separation / deceleration
         
-        // Curvature strength indicator
+        // Curvature strength indicator (dimensionless, normalized by L²)
         const amrex::Real curv_strength = std::min(
             std::abs(curvature) * L * L,
             amrex::Real(1.0)
         );
         
         // Separation factor: reduces wind speed on lee slopes
-        // Flow separation typically occurs for slopes > 0.3 (17 degrees)
-        const amrex::Real separation_strength = (slope > amrex::Real(0.3)) 
+        // Flow separation typically occurs for slopes > FLOW_SEPARATION_SLOPE_THRESHOLD
+        const amrex::Real separation_strength = 
+            (slope > OrographicConstants::FLOW_SEPARATION_SLOPE_THRESHOLD) 
             ? params.separation_factor 
-            : params.separation_factor * slope / amrex::Real(0.3);
+            : params.separation_factor * slope / OrographicConstants::FLOW_SEPARATION_SLOPE_THRESHOLD;
         
         // Slowdown factor: 1 - ΔS (but keep positive)
         const amrex::Real delta_S = separation_strength 
@@ -214,8 +228,9 @@ amrex::Real jackson_hunt_speedup_factor(
         
         speedup_mult = amrex::Real(1.0) - delta_S;
         
-        // Clamp to reasonable range [0.3, 1.0] (don't allow reversal)
-        speedup_mult = std::max(amrex::Real(0.3), 
+        // Clamp to reasonable range [MIN_SEPARATION_SPEEDUP, 1.0]
+        // Prevent complete flow reversal - maintain minimum 30% of base speed
+        speedup_mult = std::max(OrographicConstants::MIN_SEPARATION_SPEEDUP, 
                                 std::min(speedup_mult, amrex::Real(1.0)));
     }
     // else: near-zero curvature (flat or uniform slope) → no speedup/slowdown
