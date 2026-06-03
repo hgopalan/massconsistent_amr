@@ -249,17 +249,22 @@ amrex::Real intensity_powerlaw(
     amrex::Real exponent             // Power-law exponent (alpha)
 ) noexcept
 {
+    // Device-accessible constants
+    constexpr amrex::Real z_min = amrex::Real(1.0);
+    constexpr amrex::Real intensity_max = amrex::Real(0.30);
+    constexpr amrex::Real intensity_min = amrex::Real(0.01);
+    
     // Guard against non-physical inputs
-    z_agl = std::max(z_agl, Constants::z_min);
-    z_ref = std::max(z_ref, Constants::z_min);
+    z_agl = std::max(z_agl, z_min);
+    z_ref = std::max(z_ref, z_min);
     
     // Compute power-law profile
     const amrex::Real ratio = z_agl / z_ref;
     const amrex::Real intensity = intensity_ref * std::pow(ratio, exponent);
     
     // Clamp to physical bounds
-    return std::max(std::min(intensity, Constants::intensity_max), 
-                    Constants::intensity_min);
+    return std::max(std::min(intensity, intensity_max), 
+                    intensity_min);
 }
 
 // Logarithmic intensity profile (alternative formulation)
@@ -273,9 +278,14 @@ amrex::Real intensity_logarithmic(
     amrex::Real z0                   // Aerodynamic roughness length [m]
 ) noexcept
 {
+    // Device-accessible constants
+    constexpr amrex::Real z_min = amrex::Real(1.0);
+    constexpr amrex::Real intensity_max = amrex::Real(0.30);
+    constexpr amrex::Real intensity_min = amrex::Real(0.01);
+    
     // Guard against non-physical inputs
-    z_agl = std::max(z_agl, Constants::z_min);
-    z_ref = std::max(z_ref, Constants::z_min);
+    z_agl = std::max(z_agl, z_min);
+    z_ref = std::max(z_ref, z_min);
     z0 = std::max(z0, amrex::Real(1e-5));
     
     // Logarithmic profile
@@ -285,17 +295,21 @@ amrex::Real intensity_logarithmic(
     const amrex::Real intensity = intensity_ref * log_ratio_z / log_ratio_ref;
     
     // Clamp to physical bounds
-    return std::max(std::min(intensity, Constants::intensity_max), 
-                    Constants::intensity_min);
+    return std::max(std::min(intensity, intensity_max), 
+                    intensity_min);
 }
 
 // Constant intensity profile (simplest case, uniform across height)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real intensity_constant(amrex::Real intensity_ref) noexcept
 {
+    // Device-accessible constants
+    constexpr amrex::Real intensity_max = amrex::Real(0.30);
+    constexpr amrex::Real intensity_min = amrex::Real(0.01);
+    
     // Clamp to physical bounds
-    return std::max(std::min(intensity_ref, Constants::intensity_max), 
-                    Constants::intensity_min);
+    return std::max(std::min(intensity_ref, intensity_max), 
+                    intensity_min);
 }
 
 // ============================================================================
