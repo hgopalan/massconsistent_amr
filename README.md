@@ -71,19 +71,17 @@ cmake --build build --parallel
 **Synthetic Turbulence Framework** — Complete three-phase system for terrain-aware wind field generation:
 - **Phase 1**: Turbulence parameters (Von Kármán/Kaimal spectra, intensity profiles, coherence functions)
 - **Phase 2**: Random field synthesis (FFT-based with energy conservation, spatial correlations)
-- **Phase 3**: Time-series generation and OpenFAST export (BTS format for wind turbine simulations)
-- **Phase 4**: Comprehensive validation framework (12 regression tests, all passing)
+- **Phase 3**: Time-series generation (temporal synthesis for realistic wind fluctuations)
 
-## Phase 5: Output & Integration
+**Phase 4**: Comprehensive validation framework (12 regression tests, all passing)
 
-**Phase 5 consolidates all features with comprehensive output and validation tools:**
+**OpenFAST Export & Documentation**
+- **OpenFAST Export Tool (openfast_export.py)** — Standalone Python tool for exporting wind fields to TurbSim binary format (.bts) compatible with NREL OpenFAST wind turbine simulations
+- **BTS Format Writer** — Full TurbSim binary format support with header, metadata, and 3D velocity field export
+- **Turbulence Metadata** — Configurable Von Kármán spectrum, intensity profiles, integral length scales, and surface roughness
+- **Regression Tests** — Validation with Gaussian hill test case and comprehensive format compliance tests
 
-- **Unified Field Output (FieldOutput.H)** — Standardized 21-component diagnostic output including wind components, surface fluxes (SHF, drag coefficient, momentum flux), boundary layer diagnostics, and terrain analysis fields
-- **Parameter Sensitivity Tool (parameter_sensitivity.py)** — Batch sweep utility for systematic parameter variation studies; supports single and multi-parameter sweeps with logarithmic spacing for wide-range parameters (z₀, etc.)
-- **Comprehensive Regression Tests** — Field output validation and sensitivity analysis tests ensure consistency across solver updates
-- **Documentation & Tutorials** — Complete API documentation, usage examples, and best-practice guides for new features
-
-See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html) for synthetic turbulence framework, and [Tools README](tools/README.md) for parameter sweep examples.
+See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html) for synthetic turbulence framework, and [Tools README](tools/README.md) for tool usage examples.
 
 ## Advanced Solver Capabilities
 
