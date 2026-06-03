@@ -180,20 +180,35 @@ cmake --build build --parallel
 
 ## Recent Updates (Phase 4-5)
 
-**Synthetic Turbulence Framework** — Complete three-phase system for terrain-aware wind field generation:
+**Synthetic Turbulence Framework** — Complete five-phase system for terrain-aware wind field generation:
 - **Phase 1**: Turbulence parameters (Von Kármán/Kaimal spectra, intensity profiles, coherence functions)
   - ✅ **Parameter Parsing Integrated**: All 13 configuration parameters now parsed from inputs files
   - Spectral models: Von Kármán, Kaimal
   - Intensity profiles: Power-law, Logarithmic, Constant
   - Coherence models: Gaussian, Exponential
 - **Phase 2**: Random field synthesis (FFT-based with energy conservation, spatial correlations)
+  - ✅ **Implemented**: Full FFT-based spectral synthesis with Cholesky decomposition
+  - GPU-accelerated (CUDA, HIP, SYCL) with CPU fallback
 - **Phase 3**: Time-series generation (temporal synthesis for realistic wind fluctuations)
+  - ✅ **Implemented**: Temporal autocorrelation with integral timescale computation
+  - Exponential and Gaussian decay models
+  - Cross-component temporal correlations
+- **Phase 4**: Comprehensive validation framework
+  - ✅ **Implemented**: Spectral properties validation (energy conservation, integral scales)
+  - ✅ **Implemented**: Mass continuity checks (∇·u' ≈ 0)
+  - ✅ **Implemented**: Anisotropy ratio validation
+  - ✅ **Implemented**: Coherence decay validation
+  - ✅ **Implemented**: OpenFAST format compliance checks
+- **Phase 5**: Documentation & Examples
+  - ✅ **NEW**: Comprehensive tutorial (From Mean Wind to OpenFAST)
+  - ✅ **NEW**: Physics reference documentation with equations and parameter ranges
+  - ✅ **NEW**: BTS to VTK converter for ParaView visualization
+  - ✅ **NEW**: Complete example input files in tutorials/
 
-**Phase 4**: Comprehensive validation framework (12 regression tests, all passing)
-
-**OpenFAST Export & Documentation**
+**OpenFAST Export & Visualization**
 - **OpenFAST Export Tool (openfast_export.py)** — Standalone Python tool for exporting wind fields to TurbSim binary format (.bts) compatible with NREL OpenFAST wind turbine simulations
 - **BTS Format Writer** — Full TurbSim binary format support with header, metadata, and 3D velocity field export
+- **BTS to VTK Converter (bts_to_vtk.py)** — Convert binary TurbSim files to VTK format for ParaView visualization
 - **Turbulence Metadata** — Configurable Von Kármán spectrum, intensity profiles, integral length scales, and surface roughness
 - **Regression Tests** — Validation with Gaussian hill test case and comprehensive format compliance tests
 
@@ -232,9 +247,17 @@ Then run:
 ```bash
 ./build/wind_solver your_inputs.i
 # Output will include: turbulence.bts + optional turbulence.bts.meta
+
+# Validate generated fields (Phase 4)
+cd build
+ctest -L synthetic_turbulence_full -V
+
+# Convert to VTK for visualization (Phase 5)
+python3 tools/bts_to_vtk.py turbulence.bts turbulence.vtk
+# Open turbulence.vtk in ParaView to visualize the velocity field
 ```
 
-See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html) for synthetic turbulence framework, and [Tools README](tools/README.md) for tool usage examples.
+See [Synthetic Turbulence Tutorial](tutorials/PHASE5_TUTORIAL_SYNTHETIC_TURBULENCE.md) for detailed step-by-step guide, [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html) for synthetic turbulence framework, and [Tools README](tools/README.md) for tool usage examples.
 
 ## Advanced Solver Capabilities
 
