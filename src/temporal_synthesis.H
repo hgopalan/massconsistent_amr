@@ -329,9 +329,9 @@ public:
         output.nz = nz;
         
         // Compute integral timescales
-        amrex::Real L_u = turbgen.length_scale_u;
-        amrex::Real L_v = turbgen.length_scale_v;
-        amrex::Real L_w = turbgen.length_scale_w;
+        amrex::Real L_u = turbgen.GetParams().length_scale_u;
+        amrex::Real L_v = turbgen.GetParams().length_scale_v;
+        amrex::Real L_w = turbgen.GetParams().length_scale_w;
         
         output.metadata.integral_timescale_u = ComputeIntegralTimescale(L_u, mean_wind_speed);
         output.metadata.integral_timescale_v = ComputeIntegralTimescale(L_v, mean_wind_speed);

@@ -406,6 +406,19 @@ add_regression_test(ri_b_stability_selection ri_b_stability_selection)
 add_regression_test(orographic_activation_thresholds orographic_activation_thresholds)
 
 # ===========================================================================
+# synthetic_turbulence_full/ – Phase 1-3: Complete synthetic turbulence pipeline
+# ===========================================================================
+# Tests the full synthetic turbulence framework:
+# - Phase 1: Turbulence parameter parsing and spectral model selection
+# - Phase 2: Random field synthesis from spectral parameters
+# - Phase 3: Time-series generation with temporal correlations
+# - BTS Export: OpenFAST-compatible binary format output
+# ============================================================================= 
+add_regression_test(synthetic_turbulence_full synthetic_turbulence_full)
+add_python_regression_test(synthetic_turbulence_full_validation synthetic_turbulence_full
+                          test_synthetic_turbulence.py)
+
+# ===========================================================================
 # field_output_test/ – Phase 5: Unified field output (21 diagnostic fields)
 # ===========================================================================
 add_regression_test(field_output_test field_output_test)
@@ -494,6 +507,7 @@ message(STATUS "  ri_b_stability_selection/       : Conditional stability model 
 message(STATUS "  orographic_activation_thresholds/ : Orographic model activation thresholds")
 message(STATUS "")
 message(STATUS "Phase 5: Output & Integration Features")
+message(STATUS "  synthetic_turbulence_full/      : Phase 1-3 synthetic turbulence pipeline (spectral synthesis + BTS export)")
 message(STATUS "  field_output_test/              : Unified field output with 21 diagnostic fields")
 message(STATUS "  parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
 message(STATUS "")
