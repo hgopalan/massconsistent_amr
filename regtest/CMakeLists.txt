@@ -320,6 +320,25 @@ add_regression_test(puff_coupled_full puff_coupled_full)
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_following_steep terrain_following_steep)
 
+# ===========================================================================
+# Phase 1: Surface Flux Diagnostics and Refinement Features
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# flux_diagnostics_feature/ – Phase 1: Surface flux diagnostics (SHF, LHF, momentum flux, drag coefficient)
+# ---------------------------------------------------------------------------
+add_regression_test(flux_diagnostics_feature flux_diagnostics_feature)
+
+# ---------------------------------------------------------------------------
+# landuse_classification/ – Phase 1: NLCD-compatible land-use classification and z0 lookup
+# ---------------------------------------------------------------------------
+add_regression_test(landuse_classification landuse_classification)
+
+# ---------------------------------------------------------------------------
+# directional_bias_correction/ – Phase 1: Directional and speed bias correction for NWP models
+# ---------------------------------------------------------------------------
+add_regression_test(directional_bias_correction directional_bias_correction)
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
@@ -380,5 +399,10 @@ message(STATUS "  puff_buildings/        : Puff dispersion with building wake ef
 message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
 message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
 message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain (Feature 17)")
+message(STATUS "")
+message(STATUS "Phase 1 Features (Surface Flux Diagnostics and Refinement):")
+message(STATUS "  flux_diagnostics_feature/       : Surface flux diagnostics (SHF, LHF, momentum flux, Cd)")
+message(STATUS "  landuse_classification/         : NLCD land-use classification and z0 lookup")
+message(STATUS "  directional_bias_correction/    : Wind direction and speed bias correction")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

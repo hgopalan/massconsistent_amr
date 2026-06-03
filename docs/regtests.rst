@@ -257,6 +257,132 @@ model output.
     dz                 = 25.0
     extract_agl        = 15.0
 
+Phase 1: Surface Flux Diagnostics and Refinement Features
+----------------------------------------------------------
+
+flux_diagnostics_feature
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/flux_diagnostics_feature/``
+
+**Purpose:** Verifies that surface flux diagnostic fields are computed correctly,
+including sensible heat flux (SHF), latent heat flux (LHF), momentum flux (τ), and
+drag coefficient (C_d). These diagnostics are critical for fire-atmosphere coupling,
+dust emission parameterization, and surface energy balance calculations.
+
+**Terrain:** Flat 3 × 3 grid, simplified geometry to isolate flux computations
+(domain 0–100 m in x, y; all z = 0).
+
+**Grid:** 2 × 2 × 2 cells (dx = dy = 50 m, dz = 25 m, domain_height = 100 m).
+
+**Wind:** U_ref = 10 m/s (westerly), z_ref = 10 m, z₀ = 0.1 m.
+
+**Expected behaviour:** On flat terrain with uniform roughness, surface fluxes should be
+spatially uniform. The solver computes friction velocity (u*), heat fluxes, and drag
+coefficients using the logarithmic profile at the surface layer.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_flux_diagnostics = true
+    surface_temperature = 300.0
+    heat_flux_scale = 1.0
+    relative_humidity = 0.5
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    dx = 50.0
+    dy = 50.0
+    dz = 25.0
+    domain_height = 100.0
+    extract_agl = 10.0
+
+landuse_classification
+^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/landuse_classification/``
+
+**Purpose:** Verifies that NLCD (National Land Cover Database)-compatible land-use
+classification correctly maps land-use categories to aerodynamic roughness lengths (z₀).
+This feature enables spatially-varying surface properties based on land-use type, critical
+for realistic wind modelling over heterogeneous terrain.
+
+**Terrain:** Gaussian hill with mixed land-use categories (11 × 11 point cloud over
+300 × 300 m domain, peak 50 m).
+
+**Land-use categories:** Grassland (code 71, z₀ = 0.05 m), Deciduous forest (code 41,
+z₀ = 0.8 m), Developed open space (code 21, z₀ = 0.3 m).
+
+**Grid:** 10 × 10 × 5 cells (dx = dy = 30 m, dz = 25 m).
+
+**Wind:** U_ref = 10 m/s (westerly), z_ref = 10 m, spatially-varying z₀ from classification.
+
+**Expected behaviour:** The vertical log-law profile varies horizontally based on local
+land-use category. Forested regions show more wind shear (larger z₀), while grassland
+shows weaker shear. IDW interpolation of land-use derived z₀ produces smooth transitions
+between categories.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    landuse_file = landuse.csv
+    enable_landuse_classification = true
+    landuse_interp_method = idw
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    dx = 30.0
+    dy = 30.0
+    dz = 25.0
+    domain_height = 100.0
+    extract_agl = 15.0
+
+directional_bias_correction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/directional_bias_correction/``
+
+**Purpose:** Verifies that systematic directional and speed biases from NWP model output
+are correctly applied to the initial wind field. This feature corrects common model errors
+such as constant directional offset or speed-dependent biases before mass-consistent adjustment.
+
+**Terrain:** Gaussian hill (11 × 11 point cloud, 300 × 300 m domain, peak 50 m).
+
+**Grid:** 10 × 10 × 6 cells (dx = dy = 30 m, dz = 25 m, domain_height = 100 m).
+
+**Wind:** U_ref = 10 m/s reference, with applied corrections:
+
+* Constant direction bias: 30° (model wind rotated 30° counterclockwise)
+* Speed bias factor: 1.05 (model wind speed multiplied by 5%)
+
+**Expected behaviour:** The initial wind field is rotated and scaled before the
+mass-consistent solver enforces divergence-free flow. The corrected wind should show
+the specified rotation and speed adjustment relative to an uncorrected case.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_directional_bias_correction = true
+    direction_bias_constant = 30.0
+    speed_bias_factor = 1.05
+    enable_periodic_bias = false
+    direction_bias_amplitude = 15.0
+    direction_bias_phase = 0.0
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.03
+    dx = 30.0
+    dy = 30.0
+    dz = 25.0
+    domain_height = 100.0
+    extract_agl = 15.0
+
 Adding New Tests
 ----------------
 
