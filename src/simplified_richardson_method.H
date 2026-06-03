@@ -17,10 +17,16 @@ namespace {
         // Class E (slightly stable): 0.5 to 1.0  => L ≈ 200 m
         // Class F (moderately stable):  > 1.0  => L ≈ 50 m
         
+        // Ri_b bin boundaries [dimensionless]
+        // Values: {very_unstable, mod_unstable, slight_unstable, neutral, slight_stable, mod_stable, very_stable}
         static constexpr amrex::Real Ri_b_bins[7] = {-1.0, -0.5, -0.1, 0.0, 0.5, 1.0, 2.0};
+        
+        // Obukhov length values [m] corresponding to each Ri_b bin
+        // Negative values indicate unstable stratification, positive stable
         static constexpr amrex::Real L_values[7]   = {-20.0, -50.0, -300.0, 1e6, 200.0, 50.0, 20.0};
         
         // Stability function (stability class ID: A=1, B=2, C=3, D=4, E=5, F=6)
+        // Maps Ri_b range to Pasquill-Gifford classification
         static constexpr amrex::Real stability_class[7] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 6.0};
     };
 }

@@ -40,7 +40,7 @@ struct BoundaryLayerDecayParams {
     amrex::Real bl_depth = 1000.0;                 // Boundary layer depth z_BL [m]
     amrex::Real decay_height_scale = 1000.0;       // Decay height scale H_decay [m]
     amrex::Real transition_zone_height = 200.0;    // Smooth transition zone above z_BL [m]
-    std::string decay_profile_type = "exponential"; // "exponential" or "power_law"
+    bool use_power_law_profile = false;            // true = power-law; false = exponential decay
     amrex::Real power_law_exponent = 0.15;         // Power-law exponent α [typically 0.1-0.2]
 };
 
