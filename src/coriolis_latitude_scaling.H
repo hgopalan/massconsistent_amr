@@ -87,7 +87,7 @@ amrex::Real compute_inertial_period(amrex::Real coriolis_f)
     // Typical values:
     //   At 45° N: T ≈ 14 hours
     //   At 60° N: T ≈ 12 hours
-    //   At 90° (pole): T ≈ 12 hours (actually 24 hours for sidereal day)
+    //   At 90° (pole): T ≈ 12 hours (half a sidereal day)
     
     if (std::abs(coriolis_f) < 1e-8) {
         return 1e10;  // Very large period at equator
