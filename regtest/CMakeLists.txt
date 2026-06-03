@@ -374,6 +374,19 @@ add_regression_test(landuse_classification landuse_classification)
 add_regression_test(directional_bias_correction directional_bias_correction)
 
 # ---------------------------------------------------------------------------
+# Phase 4: Model Parameter Adaptive Systems
+# ---------------------------------------------------------------------------
+
+# phase4_wake_blending/ – Feature 25: Wake deficit superposition refinement
+add_regression_test(phase4_wake_blending phase4_wake_blending)
+
+# phase4_ri_b_stability/ – Feature 26: Conditional stability model selection
+add_regression_test(phase4_ri_b_stability phase4_ri_b_stability)
+
+# phase4_orographic_thresholds/ – Feature 27: Orographic model activation thresholds
+add_regression_test(phase4_orographic_thresholds phase4_orographic_thresholds)
+
+# ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
 add_custom_target(regtest
@@ -444,5 +457,10 @@ message(STATUS "Core Surface and Wind Profile Features (Surface Flux Diagnostics
 message(STATUS "  flux_diagnostics_feature/       : Surface flux diagnostics (SHF, LHF, momentum flux, Cd)")
 message(STATUS "  landuse_classification/         : NLCD land-use classification and z0 lookup")
 message(STATUS "  directional_bias_correction/    : Wind direction and speed bias correction")
+message(STATUS "")
+message(STATUS "Phase 4: Model Parameter Adaptive Systems")
+message(STATUS "  phase4_wake_blending/           : Feature 25 - Wake deficit superposition refinement")
+message(STATUS "  phase4_ri_b_stability/          : Feature 26 - Conditional stability model selection")
+message(STATUS "  phase4_orographic_thresholds/   : Feature 27 - Orographic model activation thresholds")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
