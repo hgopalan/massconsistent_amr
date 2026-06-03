@@ -348,7 +348,7 @@ cd regtest/ageostrophic_richardson  # To be added
 
 ## GPU Compatibility
 
-All Phase 2 features use AMREX_GPU_HOST_DEVICE kernels and are fully compatible with:
+All advanced features use AMREX_GPU_HOST_DEVICE kernels and are fully compatible with:
 - NVIDIA CUDA (12.0+)
 - AMD HIP (6.0+)
 - Intel SYCL/oneAPI (2024.0+)
