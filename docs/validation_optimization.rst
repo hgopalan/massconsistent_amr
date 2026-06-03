@@ -90,50 +90,113 @@ For proper mass-consistent solver: ∇·u should be near machine precision.
 Parameter Sensitivity Analysis
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Systematic parameter variation to identify which parameters significantly affect output:
+Systematic parameter variation to identify which parameters significantly affect output.
+
+**Batch Parameter Sweep Tool (Phase 5)**
+
+The ``tools/parameter_sensitivity.py`` utility provides command-line access to systematic
+sensitivity studies:
+
+**Single Parameter Sweep:**
+
+.. code-block:: bash
+
+    python3 tools/parameter_sensitivity.py --inputs regtest/gaussian_hill/inputs.i \
+        --param z0 --range 0.001 0.1 --steps 10 \
+        --output sensitivity_z0.csv
+
+This varies roughness length z₀ logarithmically from 0.001 m to 0.1 m in 10 steps,
+running the solver for each value and recording convergence metrics.
+
+**Output:**
+
+CSV file with columns:
+- ``step``: Sequential step number
+- ``parameter``: Parameter name
+- ``value``: Parameter value tested
+- ``success``: Solver convergence (true/false)
+- ``elapsed_s``: Wall-clock time [s]
+- ``max_div``: Maximum divergence of final field [1/s]
+- ``mean_div``: Mean divergence [1/s]
+
+**Multi-Parameter Sweep:**
+
+For factorial parameter combinations:
+
+.. code-block:: bash
+
+    python3 tools/parameter_sensitivity.py --inputs regtest/gaussian_hill/inputs.i \
+        --multi-param z0 alpha_v \
+        --ranges 0.001 0.1 0.5 2.0 \
+        --steps 5 5 \
+        --output sensitivity_multi.csv
+
+This creates 5×5 = 25 solver runs exploring the (z₀, α_v) parameter space.
+
+**Available Parameters:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 30 50
+
+   * - Parameter
+     - Typical Range
+     - Physical Interpretation
+   * - ``z0``
+     - [0.001, 1.0] m
+     - Aerodynamic roughness length; higher values increase surface drag
+   * - ``alpha_h``
+     - [0.5, 2.0]
+     - Horizontal mass-consistent correction weight; affects horizontal divergence damping
+   * - ``alpha_v``
+     - [0.5, 2.0]
+     - Vertical mass-consistent correction weight; affects vertical velocity magnitude
+   * - ``z_ref``
+     - [5, 50] m
+     - Reference height for log-law initialization
+   * - ``domain_height``
+     - [50, 500] m
+     - Vertical domain extent above terrain
+   * - ``U_ref``, ``V_ref``
+     - Various m/s
+     - Reference wind components
+
+**Physical Insight:**
+
+- **z₀ sensitivity:** Low z₀ (0.001 m, smooth water) produces weak surface drag and rapid
+  vertical wind increase. High z₀ (1.0 m, forest) produces strong surface drag. Typical
+  applications use logarithmic spacing to explore this range.
+
+- **α_h, α_v sensitivity:** These penalty coefficients control the stiffness of the
+  mass-consistent correction. Higher values force stronger correction to divergence-free
+  constraint but may increase computational cost. Default α_h = α_v = 1.0 is optimal for
+  most applications.
+
+- **Nonlinear effects:** Wind field often exhibits nonlinear sensitivity to z₀ and
+  terrain-related parameters; factorial sweeps help identify interaction effects.
 
 **Sensitivity Computation**
 
-Analyzes output variation as a function of parameter changes::
+The framework also supports programmatic sensitivity analysis::
 
-    ParameterSensitivity sensitivity = 
+    std::vector<ParameterSensitivity> sensitivities;
+    
+    sensitivities.push_back(
         SensitivityAnalyzer::AnalyzeParameterSensitivity(
-            "parameter_name",     // Parameter to analyze
-            nominal_value,        // Current value
-            variation_percent);   // Variation range (default ±10%)
-
-Returns::
-
-    struct ParameterSensitivity {
-        std::string parameter_name;    // Name of parameter
-        double      nominal_value;     // Nominal value
-        double      min_value;         // Minimum tested
-        double      max_value;         // Maximum tested
-        double      sensitivity_index; // Index 0-1 (0=insensitive, 1=very sensitive)
-        bool        is_sensitive;      // True if significantly affects output
-        double      output_variation;  // Output change (%) per parameter change (%)
-    };
+            "z0", 0.1, 20.0));  // ±20% variation
+    
+    sensitivities.push_back(
+        SensitivityAnalyzer::AnalyzeParameterSensitivity(
+            "alpha_v", 1.0, 50.0));  // ±50% variation
+    
+    SensitivityAnalyzer::GenerateSensitivityReport(
+        sensitivities, "sensitivity_report.txt");
 
 **Interpretation**
 
 - **sensitivity_index > 0.5**: Parameter is significant; document well
 - **sensitivity_index < 0.2**: Parameter has minimal effect; may be hard-coded
 - **output_variation > 1.0**: Parameter has nonlinear effects
-
-Example analysis workflow::
-
-    std::vector<ParameterSensitivity> sensitivities;
-    
-    sensitivities.push_back(
-        SensitivityAnalyzer::AnalyzeParameterSensitivity(
-            "damping_coefficient", 0.1, 20.0));  // ±20% variation
-    
-    sensitivities.push_back(
-        SensitivityAnalyzer::AnalyzeParameterSensitivity(
-            "transition_height_scale", 100.0, 50.0));  // ±50% variation
-    
-    SensitivityAnalyzer::GenerateSensitivityReport(
-        sensitivities, "sensitivity_report.txt");
 
 Optimization Suggestions
 ~~~~~~~~~~~~~~~~~~~~~~~~

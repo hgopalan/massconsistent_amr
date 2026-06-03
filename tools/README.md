@@ -81,6 +81,54 @@ python3 hrrr_to_surface_data.py --grib hrrr.grib2 \
 
 Read FARSITE weather station data and prepare for wind coupling.
 
+### parameter_sensitivity.py
+
+Batch parameter sweep utility for systematic sensitivity analysis of the wind solver.
+
+**Features:**
+- Single and multi-parameter sweeps
+- Logarithmic parameter spacing for wide-range parameters (z₀, etc.)
+- Convergence diagnostics and timing analysis
+- CSV output for post-processing
+- Support for factorial parameter combinations
+
+**Usage:**
+
+```bash
+# Single parameter sweep: roughness length z₀
+python3 parameter_sensitivity.py --inputs regtest/gaussian_hill/inputs.i \
+    --param z0 --range 0.001 0.1 --steps 10 --output sensitivity_z0.csv
+
+# Multi-parameter sweep: z₀ and α_v
+python3 parameter_sensitivity.py --inputs regtest/gaussian_hill/inputs.i \
+    --multi-param z0 alpha_v \
+    --ranges 0.001 0.1 0.5 2.0 \
+    --steps 5 5 \
+    --output sensitivity_multi.csv
+
+# List available parameters
+python3 parameter_sensitivity.py --list-parameters
+```
+
+**Available Parameters:**
+- `z0` — Aerodynamic roughness length [m]
+- `alpha_h` — Horizontal anisotropy coefficient [dimensionless]
+- `alpha_v` — Vertical anisotropy coefficient [dimensionless]
+- `z_ref` — Reference height for log-law [m]
+- `domain_height` — Vertical domain extent [m]
+- `U_ref`, `V_ref` — Reference wind components [m/s]
+
+**Physical Insight:**
+- z₀ controls near-surface wind shear; typical range: 0.001 m (smooth) to 1.0 m (forest)
+- α_h, α_v control mass-consistent correction strength; typical range: 0.5 to 2.0
+- Higher α_v values reduce vertical velocity corrections (stiffer vertical constraint)
+- z₀ logarithmic spacing recommended for sensitivity studies
+
+**Output:**
+CSV file with columns:
+- step, parameter, value, success, elapsed_s, max_div, mean_div (single sweep)
+- step, param1, param2, ..., success, elapsed_s, max_div, mean_div (multi-parameter)
+
 ## Setting Up Python Environment
 
 ### With Conda

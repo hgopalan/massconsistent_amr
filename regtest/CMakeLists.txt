@@ -31,6 +31,25 @@ function(add_regression_test TEST_NAME TEST_DIR)
                          LABELS  "regtest")
 endfunction()
 
+# ---------------------------------------------------------------------------
+# Helper: add a Python-based regression test
+# ---------------------------------------------------------------------------
+function(add_python_regression_test TEST_NAME TEST_DIR TEST_SCRIPT)
+    set(TEST_INPUT    "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/inputs.i")
+    set(TEST_WORK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}")
+    
+    # Copy terrain/data CSV files to the test directory if needed
+    file(GLOB _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.csv")
+    
+    add_test(NAME ${TEST_NAME}
+             COMMAND ${Python_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/${TEST_SCRIPT}" 
+                     ${TEST_INPUT} ${TEST_WORK_DIR}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR})
+    set_tests_properties(${TEST_NAME} PROPERTIES
+                         TIMEOUT 600
+                         LABELS  "regtest")
+endfunction()
+
 # ===========================================================================
 # flat_terrain/ – flat domain (all z = 0), trivial mass-consistency check
 # ===========================================================================
@@ -386,6 +405,17 @@ add_regression_test(ri_b_stability_selection ri_b_stability_selection)
 # orographic_activation_thresholds/ – Orographic model activation thresholds
 add_regression_test(orographic_activation_thresholds orographic_activation_thresholds)
 
+# ===========================================================================
+# field_output_test/ – Phase 5: Unified field output (21 diagnostic fields)
+# ===========================================================================
+add_regression_test(field_output_test field_output_test)
+
+# ===========================================================================
+# parameter_sensitivity_test/ – Phase 5: Parameter sensitivity sweep tool
+# ===========================================================================
+add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test 
+                          test_parameter_sensitivity.py)
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
@@ -462,5 +492,9 @@ message(STATUS "Adaptive Parameterization Features")
 message(STATUS "  wake_blending_adaptive/         : Wake deficit superposition refinement")
 message(STATUS "  ri_b_stability_selection/       : Conditional stability model selection")
 message(STATUS "  orographic_activation_thresholds/ : Orographic model activation thresholds")
+message(STATUS "")
+message(STATUS "Phase 5: Output & Integration Features")
+message(STATUS "  field_output_test/              : Unified field output with 21 diagnostic fields")
+message(STATUS "  parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
