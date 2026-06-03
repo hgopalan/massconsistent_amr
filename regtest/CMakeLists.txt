@@ -103,7 +103,7 @@ add_regression_test(wake_single_building wake_single_building)
 
 # ===========================================================================
 # Advanced features
-# Phase 3 Enhancements
+# Building Wake and Enhanced Features
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
@@ -193,7 +193,7 @@ add_regression_test(canopy_forest canopy_forest)
 add_regression_test(canopy_exponential canopy_exponential)
 
 # ---------------------------------------------------------------------------
-# Phase 4: Drag Coefficient Diagnostic
+# Surface Flux Diagnostics: Drag Coefficient Diagnostic
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -202,7 +202,7 @@ add_regression_test(canopy_exponential canopy_exponential)
 add_regression_test(drag_diagnostic drag_diagnostic)
 
 # ---------------------------------------------------------------------------
-# Phase 5: Non-Neutral Stability Corrections (Businger-Dyer)
+# Stability Corrections: Non-Neutral Stability Corrections (Businger-Dyer)
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -221,7 +221,7 @@ add_regression_test(stability_unstable stability_unstable)
 add_regression_test(ekman_veer ekman_veer)
 
 # ---------------------------------------------------------------------------
-# Phase 6: Height-Dependent Anisotropy
+# Anisotropy and Refinement: Height-Dependent Anisotropy
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -230,7 +230,7 @@ add_regression_test(ekman_veer ekman_veer)
 add_regression_test(alphav_height alphav_height)
 
 # ---------------------------------------------------------------------------
-# Phase 7: Elevation-Dependent Wind Scaling
+# Elevation and Scaling: Elevation-Dependent Wind Scaling
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -239,7 +239,7 @@ add_regression_test(alphav_height alphav_height)
 add_regression_test(elevation_scaling elevation_scaling)
 
 # ---------------------------------------------------------------------------
-# Phase 8: Time-Varying Boundary Conditions
+# Transient Effects: Time-Varying Boundary Conditions
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -440,7 +440,7 @@ message(STATUS "  richardson_diagnostic/ : Richardson number boundary layer dept
 message(STATUS "  froude_scaling/        : Froude number height scaling with terrain blocking")
 message(STATUS "  ageostrophic_balance/  : Ageostrophic wind balance boundary conditions")
 message(STATUS "")
-message(STATUS "Phase 1 Features (Surface Flux Diagnostics and Refinement):")
+message(STATUS "Core Surface and Wind Profile Features (Surface Flux Diagnostics and Refinement):")
 message(STATUS "  flux_diagnostics_feature/       : Surface flux diagnostics (SHF, LHF, momentum flux, Cd)")
 message(STATUS "  landuse_classification/         : NLCD land-use classification and z0 lookup")
 message(STATUS "  directional_bias_correction/    : Wind direction and speed bias correction")

@@ -1,4 +1,4 @@
-# Building Array Test - Phase 2
+# Building Array Test - Advanced Boundary Layer
 # Format: xmin xmax ymin ymax zmin zmax [m]
 # Regular 3x3 array of buildings to test wake superposition and street canyon effects
 # Building height: 30m, size: 20m x 20m

@@ -177,7 +177,7 @@ feature comparisons (excluding wildfire/visualization features specific to those
      - ✓ (file based)
      - ✓ (landuse classification)
    * - **Directional bias correction**
-     - ✓ (Phase 1 feature)
+     - ✓ (Core feature)
      - ✗
      - Limited
    * - **Surface flux diagnostics**

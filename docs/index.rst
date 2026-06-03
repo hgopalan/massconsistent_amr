@@ -15,6 +15,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    building
    usage
    physics
+   advanced_solver_features
    wind_solver
    canopy
    wake
@@ -23,6 +24,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    floris
    regtests
    implementation_status
+   validation_optimization
 
 Overview
 ========

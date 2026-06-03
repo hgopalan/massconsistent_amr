@@ -1,4 +1,4 @@
-# Phase 3 Regression Test: Rooftop Vortex Verification
+# Solver Enhancement Regression Test: Rooftop Vortex Verification
 #
 # This test validates the rooftop vortex parameterization in the cavity zone
 # of a single building. The vertical velocity component should show characteristic
