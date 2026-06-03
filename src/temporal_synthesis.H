@@ -55,6 +55,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include "synthetic_turbulence.H"
+#include "math_constants.H"
 #include <cmath>
 #include <algorithm>
 #include <vector>
@@ -169,7 +170,7 @@ amrex::Real GenerateGaussianRandom(unsigned int& seed)
     // Avoid log(0)
     u1 = std::max(u1, 1.0e-10);
     
-    return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
+    return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * MathConstants::pi * u2);
 }
 
 // ============================================================================
