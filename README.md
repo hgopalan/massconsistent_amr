@@ -59,8 +59,7 @@ cmake --build build --parallel
   - **First-order decay** — Exponential decay for radioactive/chemical species
   - **Plume rise** — Briggs buoyancy formula for heated sources (WindNinja/QUIC-PLUME compatible)
 - **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields, momentum flux, boundary layer depth
-- **Advanced boundary conditions** — Diurnal roughness cycles, Froude number height scaling, ageostrophic wind balance, thermal circulation forcing
-- **Advanced wind profiles** — Exponential boundary layer decay, Richardson number diagnostics for boundary layer depth estimation
+- **Advanced physics features** — Simplified Richardson number stability classification, roughness blocking from buildings, latitude-dependent Coriolis parameter, power-law wind profile option above boundary layer, enhanced heat flux diagnostics
 - **Python API** — Coupling with fire and atmospheric models
 - **FLORIS integration** — Export wind data to FLORIS wind farm simulation format
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX

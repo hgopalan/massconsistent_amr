@@ -104,6 +104,9 @@
 #include "flux_diagnostics.H"
 #include "landuse_roughness.H"
 #include "directional_bias_correction.H"
+#include "simplified_richardson_method.H"
+#include "roughness_blocking_method.H"
+#include "coriolis_latitude_scaling.H"
 // Layer 2 (Phase 3): Kernel integration and MultiFab initialization
 // Note: We don't include the Layer 2 kernel headers here as they are
 // designed for FArrayBox and are inlined or called separately
@@ -1398,6 +1401,41 @@ int main(int argc, char* argv[])
         pp.query("bias_speed_factor", bias_speed_factor);
         pp.query("bias_periodic_enabled", bias_periodic_enabled);
         pp.query("bias_periodic_amplitude", bias_periodic_amplitude);
+
+        // ===== ENHANCED PHYSICS FEATURES =====
+        
+        // Feature: Simplified Richardson Number Method
+        // Fast stability classification without full Pasquill-Gifford lookup
+        bool enable_simplified_richardson = false;
+        pp.query("enable_simplified_richardson", enable_simplified_richardson);
+        
+        // Feature: Roughness Blocking from Buildings
+        // Building-induced roughness contribution z₀ modification
+        bool enable_roughness_blocking = false;
+        Real building_roughness_factor = 0.04;  // Typical morphometric coefficient
+        pp.query("enable_roughness_blocking", enable_roughness_blocking);
+        pp.query("building_roughness_factor", building_roughness_factor);
+        
+        // Feature: Coriolis Latitude Scaling
+        // Latitude-dependent Coriolis parameter f = 2Ω sin(φ)
+        bool enable_coriolis_latitude = false;
+        Real domain_latitude = 45.0;             // Domain latitude [degrees]
+        pp.query("enable_coriolis_latitude", enable_coriolis_latitude);
+        pp.query("domain_latitude", domain_latitude);
+        
+        // Feature: Power-Law Wind Profile Above Boundary Layer
+        // Alternative to exponential decay; u(z) = u_BL × (z/z_BL)^α
+        bool enable_power_law_profile = false;
+        Real power_law_exponent = 0.15;          // Typical: 0.1-0.2
+        pp.query("enable_power_law_profile", enable_power_law_profile);
+        pp.query("power_law_exponent", power_law_exponent);
+        
+        // Feature: Heat Flux Diagnostic Enhancement
+        // Extended surface heat flux diagnostics (SHF, LHF, radiative, latent)
+        bool enable_heat_flux_diagnostics = false;
+        Real heat_flux_theta_star = 0.1;         // Temperature scale [K]
+        pp.query("enable_heat_flux_diagnostics", enable_heat_flux_diagnostics);
+        pp.query("heat_flux_theta_star", heat_flux_theta_star);
 
         // ===== PHASE 3 SOLVER ENHANCEMENT PARAMETERS =====
         
