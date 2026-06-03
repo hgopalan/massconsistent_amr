@@ -9,8 +9,9 @@ namespace {
     // f = 2 * Omega * sin(latitude)
     // where Omega = 7.27e-5 rad/s (Earth's angular velocity)
     
+    static constexpr amrex::Real PI = 3.14159265358979323846;
     static constexpr amrex::Real EARTH_ANGULAR_VELOCITY = 7.27e-5;  // rad/s
-    static constexpr amrex::Real DEG_TO_RAD = 3.14159265358979323846 / 180.0;
+    static constexpr amrex::Real DEG_TO_RAD = PI / 180.0;
 }
 
 // Compute Coriolis parameter from latitude
@@ -91,7 +92,7 @@ amrex::Real compute_inertial_period(amrex::Real coriolis_f)
     if (std::abs(coriolis_f) < 1e-8) {
         return 1e10;  // Very large period at equator
     }
-    return 2.0 * 3.14159265358979323846 / std::abs(coriolis_f);
+    return 2.0 * PI / std::abs(coriolis_f);
 }
 
 #endif
