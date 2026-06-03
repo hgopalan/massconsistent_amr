@@ -101,6 +101,9 @@
 #include "diurnal_roughness_models.H"
 #include "boundary_layer_decay_models.H"
 #include "ageostrophic_models.H"
+#include "flux_diagnostics.H"
+#include "landuse_roughness.H"
+#include "directional_bias_correction.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1357,6 +1360,37 @@ int main(int argc, char* argv[])
         pp.query("mlmg_bottom_solver", mlmg_bottom_solver);
         pp.query("max_grid_size", max_grid_size);
         pp.query("plot_file",     plot_file);
+        
+        // ===== PHASE 1 FEATURE PARAMETERS =====
+        // Flux Diagnostics (SHF, LHF, τ, Cd)
+        bool enable_flux_diagnostics = false;
+        bool flux_compute_sensible_heat = false;
+        bool flux_compute_latent_heat = false;
+        Real flux_theta_star = 1.0;      // Temperature scale [K]
+        Real flux_q_star = 1.0e-3;       // Moisture scale [kg/kg]
+        pp.query("enable_flux_diagnostics", enable_flux_diagnostics);
+        pp.query("flux_compute_sensible_heat", flux_compute_sensible_heat);
+        pp.query("flux_compute_latent_heat", flux_compute_latent_heat);
+        pp.query("flux_theta_star", flux_theta_star);
+        pp.query("flux_q_star", flux_q_star);
+        
+        // Land-use Roughness Classification
+        bool enable_landuse_roughness = false;
+        std::string landuse_file_class = "";
+        pp.query("enable_landuse_roughness", enable_landuse_roughness);
+        pp.query("landuse_file", landuse_file_class);
+        
+        // Directional Bias Correction
+        bool enable_directional_bias = false;
+        Real bias_direction_offset = 0.0;       // [degrees]
+        Real bias_speed_factor = 1.0;           // [dimensionless]
+        bool bias_periodic_enabled = false;
+        Real bias_periodic_amplitude = 0.0;     // [degrees]
+        pp.query("enable_directional_bias", enable_directional_bias);
+        pp.query("bias_direction_offset", bias_direction_offset);
+        pp.query("bias_speed_factor", bias_speed_factor);
+        pp.query("bias_periodic_enabled", bias_periodic_enabled);
+        pp.query("bias_periodic_amplitude", bias_periodic_amplitude);
 
          // Terrain-aligned extraction parameters
         // extract_agl  : sample at this height above local terrain [m]; snapped to

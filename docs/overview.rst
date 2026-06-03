@@ -129,6 +129,96 @@ The solver includes optional advanced physics parameterizations:
 
 See :ref:`physics` for detailed physics documentation.
 
+Comparison with Related Tools
+------------------------------
+
+``massconsistent_amr`` is positioned alongside other mass-consistent wind solvers like
+QUIC-URB (Pardyjak & Brown 2001) and WindNinja. The following table summarizes key
+feature comparisons (excluding wildfire/visualization features specific to those codes):
+
+.. list-table::
+   :widths: 25 25 25 25
+   :header-rows: 1
+
+   * - Feature
+     - massconsistent_amr
+     - QUIC-URB
+     - WindNinja
+   * - **Mass-consistent solver**
+     - ✓ (Lagrange multiplier)
+     - ✓ (Lagrange multiplier)
+     - ✓ (Lagrange multiplier)
+   * - **GPU acceleration**
+     - ✓ (CUDA/HIP/SYCL via AMReX)
+     - ✗ (CPU only)
+     - Limited (OpenMP)
+   * - **Terrain-following grid**
+     - ✓ (terrain-following coords)
+     - ✓ (terrain-following coords)
+     - ✓ (terrain-following coords)
+   * - **Building wake models**
+     - ✓ (Röckle, Huber-Snyder, AERMOD PRIME)
+     - ✓ (Röckle parameterization)
+     - ✓ (Basic wake effects)
+   * - **Canopy drag**
+     - ✓ (MacDonald et al. 2000, exponential)
+     - ✓ (MacDonald et al. 2000)
+     - ✓ (Vegetation drag)
+   * - **Non-neutral stability**
+     - ✓ (Businger-Dyer, Holtslag-De Bruin)
+     - ✓ (Businger-Dyer)
+     - ✓ (Monin-Obukhov)
+   * - **Thermal buoyancy**
+     - ✓ (Boussinesq approximation)
+     - Limited
+     - ✓ (Temperature-driven)
+   * - **Position-dependent roughness**
+     - ✓ (file or NLCD classification)
+     - ✓ (file based)
+     - ✓ (landuse classification)
+   * - **Directional bias correction**
+     - ✓ (Phase 1 feature)
+     - ✗
+     - Limited
+   * - **Surface flux diagnostics**
+     - ✓ (SHF, LHF, τ, C_d)
+     - Limited diagnostics
+     - Basic flux output
+   * - **Gap flow parameterization**
+     - ✓ (pressure-driven channeling)
+     - ✗
+     - Limited
+   * - **Valley channeling**
+     - ✓ (geometry-based model)
+     - Basic
+     - Basic
+   * - **Froude number terrain blocking**
+     - ✓ (stable stratification)
+     - Basic
+     - Basic
+   * - **Multiple initialization modes**
+     - ✓ (log-law, uniform, RAWS, surface_data)
+     - Limited
+     - Limited (NWP data)
+   * - **Python API**
+     - ✓ (Model coupling interface)
+     - ✗
+     - Limited
+   * - **MPI parallelism**
+     - ✓ (via AMReX)
+     - Limited
+     - Limited
+   * - **Open source**
+     - ✓ (GitHub)
+     - ✗ (Proprietary)
+     - ✓ (OpenWind model)
+
+.. note::
+
+   This comparison focuses on the core mass-consistent wind solver capabilities.
+   Wildfire-specific features and GUI elements are excluded. For current information,
+   consult the respective project documentation.
+
 AMReX Integration
 -----------------
 

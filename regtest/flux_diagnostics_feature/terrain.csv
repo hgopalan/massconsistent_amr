@@ -1,0 +1,12 @@
+# Simple terrain for Phase 1 flux diagnostics test
+# 3x3 flat terrain (z=0), testing SHF, LHF, momentum flux computation
+# Domain: 0-100 x 0-100 m, flat
+0.0 0.0 0.0
+50.0 0.0 0.0
+100.0 0.0 0.0
+0.0 50.0 0.0
+50.0 50.0 0.0
+100.0 50.0 0.0
+0.0 100.0 0.0
+50.0 100.0 0.0
+100.0 100.0 0.0

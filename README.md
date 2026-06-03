@@ -31,7 +31,7 @@ cmake --build build --parallel
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
-- **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file
+- **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file or land-use classification
 - **Building support** — Wake modeling with Röckle (1990), Huber-Snyder (EPA), and AERMOD PRIME (EPA regulatory) parameterizations
 - **Canopy modeling** — Forest canopy drag effects
 - **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height
@@ -48,6 +48,9 @@ cmake --build build --parallel
 - **Thermal stratification with buoyancy** — Temperature-driven buoyancy effects on vertical velocity using Boussinesq approximation
 - **Kinematic terrain-following BC** — No-flow-through condition w = u·∇h at terrain surface for improved terrain representation
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
+- **Phase 1: Surface Flux Diagnostics** — Computes friction velocity, momentum flux, drag coefficient, sensible/latent heat flux
+- **Phase 1: Land-use Roughness Classification** — Categorical z₀ mapping from NLCD/IGBP land-use categories
+- **Phase 1: Directional Bias Correction** — Corrects systematic wind direction and speed biases from NWP models
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Terrain-following coordinates** — Streamline coordinate transformation for improved accuracy on steep terrain
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:

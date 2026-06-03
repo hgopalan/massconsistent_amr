@@ -354,6 +354,25 @@ add_regression_test(froude_scaling froude_scaling)
 # ---------------------------------------------------------------------------
 add_regression_test(ageostrophic_balance ageostrophic_balance)
 
+# ===========================================================================
+# Surface Flux Diagnostics and Refinement Features
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# flux_diagnostics_feature/ – Surface flux diagnostics (SHF, LHF, momentum flux, drag coefficient)
+# ---------------------------------------------------------------------------
+add_regression_test(flux_diagnostics_feature flux_diagnostics_feature)
+
+# ---------------------------------------------------------------------------
+# landuse_classification/ – NLCD-compatible land-use classification and z0 lookup
+# ---------------------------------------------------------------------------
+add_regression_test(landuse_classification landuse_classification)
+
+# ---------------------------------------------------------------------------
+# directional_bias_correction/ – Directional and speed bias correction for NWP models
+# ---------------------------------------------------------------------------
+add_regression_test(directional_bias_correction directional_bias_correction)
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
@@ -420,5 +439,10 @@ message(STATUS "  momentum_flux/         : Momentum flux output fields (τ_x, τ
 message(STATUS "  richardson_diagnostic/ : Richardson number boundary layer depth diagnostic")
 message(STATUS "  froude_scaling/        : Froude number height scaling with terrain blocking")
 message(STATUS "  ageostrophic_balance/  : Ageostrophic wind balance boundary conditions")
+message(STATUS "")
+message(STATUS "Phase 1 Features (Surface Flux Diagnostics and Refinement):")
+message(STATUS "  flux_diagnostics_feature/       : Surface flux diagnostics (SHF, LHF, momentum flux, Cd)")
+message(STATUS "  landuse_classification/         : NLCD land-use classification and z0 lookup")
+message(STATUS "  directional_bias_correction/    : Wind direction and speed bias correction")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

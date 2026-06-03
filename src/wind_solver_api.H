@@ -47,6 +47,13 @@ struct WindSolverState {
     std::unique_ptr<amrex::MultiFab> div0;     // Initial divergence
     std::unique_ptr<amrex::MultiFab> terrain;  // Terrain elevation
     
+    // Phase 1 diagnostic fields (flux diagnostics)
+    std::unique_ptr<amrex::MultiFab> u_star;   // Friction velocity [m/s]
+    std::unique_ptr<amrex::MultiFab> tau_flux; // Momentum flux [Pa]
+    std::unique_ptr<amrex::MultiFab> cd;       // Drag coefficient [dimensionless]
+    std::unique_ptr<amrex::MultiFab> shf;      // Sensible heat flux [W/m²]
+    std::unique_ptr<amrex::MultiFab> lhf;      // Latent heat flux [W/m²]
+    
     // Grid parameters
     int nx, ny, nz;
     double dx, dy, dz;
@@ -94,6 +101,29 @@ struct WindSolverState {
     // Terrain-following (streamline) coordinates parameters
     bool enable_terrain_following;     // Enable terrain-following coordinates
     amrex::Real terrain_decay_height;  // Decay height scale for terrain-following transition [m]
+    
+    // Phase 1 Feature Parameters: Elevation scaling
+    bool enable_elevation_scaling;     // Enable elevation-dependent wind speed scaling
+    amrex::Real elevation_scaling_factor;  // Wind speed change with elevation [1/m]
+    amrex::Real elevation_height_scale;    // Characteristic height scale [m]
+    
+    // Phase 1 Feature Parameters: Land-use classification
+    bool enable_landuse_roughness;     // Enable land-use z0 classification
+    std::string landuse_file;          // Path to land-use map file
+    
+    // Phase 1 Feature Parameters: Flux diagnostics
+    bool enable_flux_diagnostics;      // Compute SHF, LHF, τ, Cd fields
+    bool flux_compute_sensible_heat;   // Compute sensible heat flux
+    bool flux_compute_latent_heat;     // Compute latent heat flux
+    amrex::Real flux_theta_star;       // Temperature scale for SHF [K]
+    amrex::Real flux_q_star;           // Moisture scale for LHF [kg/kg]
+    
+    // Phase 1 Feature Parameters: Directional bias correction
+    bool enable_directional_bias;      // Enable directional bias correction
+    amrex::Real bias_direction_offset; // Constant directional bias [degrees]
+    amrex::Real bias_speed_factor;     // Constant speed bias factor [dimensionless]
+    bool bias_periodic_enabled;        // Enable periodic directional bias
+    amrex::Real bias_periodic_amplitude; // Periodic bias amplitude [degrees]
     
     // MLMG solver parameters
     int mlmg_verbose;
