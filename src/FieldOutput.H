@@ -7,7 +7,7 @@
 // CSV formats. It provides:
 //
 // - Standardized field naming and organization
-// - Multi-format output support (AMReEx plotfile, terrain-aligned CSV)
+// - Multi-format output support (AMReX plotfile, terrain-aligned CSV)
 // - Diagnostic computation helpers
 // - Field metadata and documentation
 //

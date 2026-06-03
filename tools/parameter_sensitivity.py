@@ -482,8 +482,8 @@ Physical Constants:
         '''
     )
     
-    parser.add_argument('--inputs', type=str, required=True,
-                        help='Path to base inputs.i file')
+    parser.add_argument('--inputs', type=str, required=False,
+                        help='Path to base inputs.i file (required unless using --list-parameters)')
     parser.add_argument('--solver', type=str, default='wind_solver',
                         help='Path to wind_solver executable (default: wind_solver)')
     parser.add_argument('--param', type=str, default=None,
@@ -516,6 +516,12 @@ Physical Constants:
             print(f"{param:<15} [{vmin}, {vmax}]          {desc:<45}")
         print()
         return
+    
+    # Validate that --inputs is provided for sweep operations
+    if not args.inputs:
+        print("ERROR: --inputs required for sweep operations")
+        parser.print_help()
+        sys.exit(1)
     
     # Validate input file
     if not os.path.isfile(args.inputs):

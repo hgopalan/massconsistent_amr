@@ -180,7 +180,7 @@ def test_single_parameter_sweep(inputs_file, terrain_dir):
                 return False, errors
             
             # For logarithmic spacing, ratios should be equal
-            if z0_values[0] > 0:
+            if z0_values[0] > 0 and z0_values[1] > 0 and z0_values[2] > 0:
                 ratio1 = z0_values[1] / z0_values[0]
                 ratio2 = z0_values[2] / z0_values[1]
                 
@@ -188,6 +188,16 @@ def test_single_parameter_sweep(inputs_file, terrain_dir):
                 print(f"  z0[0] = {z0_values[0]:.6e}")
                 print(f"  z0[1] = {z0_values[1]:.6e} (ratio: {ratio1:.3f})")
                 print(f"  z0[2] = {z0_values[2]:.6e} (ratio: {ratio2:.3f})")
+                
+                # Validate that ratios are approximately equal (logarithmic spacing)
+                # For logarithmic spacing: log(z0[1]/z0[0]) should equal log(z0[2]/z0[1])
+                # which means ratio1 should be approximately equal to ratio2
+                ratio_tolerance = 0.01  # 1% tolerance
+                if abs(ratio1 - ratio2) / max(ratio1, ratio2) > ratio_tolerance:
+                    print(f"⚠ Warning: Ratios differ by {abs(ratio1-ratio2)/max(ratio1, ratio2)*100:.1f}% "
+                          f"(expected <1% for logarithmic spacing)")
+                else:
+                    print(f"  ✓ Ratios consistent (logarithmic spacing verified)")
             
             print(f"\n✓ CSV data validation PASSED")
             
