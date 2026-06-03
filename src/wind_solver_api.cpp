@@ -1297,7 +1297,9 @@ bool wind_solver_write_plotfile(const std::string& plotfile_name)
             "u0", "v0", "w0",
             "lambda", "div0", "div", "terrain_z"
         };
-        WriteSingleLevelPlotfile(plotfile_name, output, names, *state.geom, 0.0, 0);
+        // Use indexed plot file name: plotfile_name_00000, plotfile_name_00001, etc.
+        std::string indexed_plotfile = amrex::Concatenate(plotfile_name, 0);
+        WriteSingleLevelPlotfile(indexed_plotfile, output, names, *state.geom, 0.0, 0);
         return true;
     } catch (const std::exception& e) {
         amrex::Print() << "Error writing plotfile: " << e.what() << "\n";

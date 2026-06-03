@@ -4747,8 +4747,10 @@ int main(int argc, char* argv[])
                        << (amrex::second() - t_phase) << " s\n";
 
         t_phase = amrex::second();
-        WriteSingleLevelPlotfile(plot_file, output, var_names, geom, 0.0, 0);
-        amrex::Print() << "wind_solver: plotfile written to " << plot_file << "\n";
+        // Use indexed plot file name: plot_file_00000, plot_file_00001, etc.
+        std::string indexed_plot_file = amrex::Concatenate(plot_file, 0);
+        WriteSingleLevelPlotfile(indexed_plot_file, output, var_names, geom, 0.0, 0);
+        amrex::Print() << "wind_solver: plotfile written to " << indexed_plot_file << "\n";
         amrex::Print() << "wind_solver: output writing time = " 
                        << (amrex::second() - t_phase) << " s\n";
 
