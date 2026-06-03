@@ -65,6 +65,17 @@ cmake --build build --parallel
 - **FLORIS integration** — Export wind data to FLORIS wind farm simulation format
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 
+## Phase 5: Output & Integration
+
+**Phase 5 consolidates all features with comprehensive output and validation tools:**
+
+- **Unified Field Output (FieldOutput.H)** — Standardized 21-component diagnostic output including wind components, surface fluxes (SHF, drag coefficient, momentum flux), boundary layer diagnostics, and terrain analysis fields
+- **Parameter Sensitivity Tool (parameter_sensitivity.py)** — Batch sweep utility for systematic parameter variation studies; supports single and multi-parameter sweeps with logarithmic spacing for wide-range parameters (z₀, etc.)
+- **Comprehensive Regression Tests** — Field output validation and sensitivity analysis tests ensure consistency across solver updates
+- **Documentation & Tutorials** — Complete API documentation, usage examples, and best-practice guides for new features
+
+See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Tools README](tools/README.md) for parameter sweep examples.
+
 ## Advanced Solver Capabilities
 
 The solver includes three implementation layers for advanced features:

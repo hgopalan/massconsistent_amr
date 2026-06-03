@@ -129,6 +129,62 @@ diagnostics, and terrain elevation are written to an AMReX plotfile via
 If ``extract_agl`` or ``extract_k`` is set, a terrain-aligned 2-D CSV slice
 is also written.
 
+Unified Field Output (Phase 5)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The solver consolidates all diagnostic fields into a unified 21-component output structure
+via the ``FieldOutput.H`` module. The output MultiFab contains:
+
+**Wind Components (4 fields):**
+- ``u``, ``v``, ``w`` — Corrected wind components [m/s]
+- ``vel_magnitude`` — Horizontal wind speed |U| [m/s]
+
+**Initial Wind Field (3 fields):**
+- ``u0``, ``v0``, ``w0`` — Log-law initial field [m/s]
+
+**Mass Consistency (3 fields):**
+- ``lambda`` — Lagrange multiplier (normalized pressure variable)
+- ``div_before`` — Divergence of initial field ∇·u₀ [1/s]
+- ``div_after`` — Divergence of corrected field ∇·u [1/s]
+
+**Terrain & Geometry (1 field):**
+- ``terrain_z`` — Terrain elevation [m MSL]
+
+**Surface Flux Diagnostics (5 fields):**
+- ``heat_flux`` — Sensible heat flux SHF = ρ Cp u* θ* [W/m²]
+- ``drag_coeff`` — Drag coefficient Cd = (κ/ln(z/z₀))² [dimensionless]
+- ``tau_x``, ``tau_y`` — Shear stress components [Pa]
+- ``u_star`` — Friction velocity [m/s]
+
+**Boundary Layer & Stability (2 fields):**
+- ``richardson_no`` — Richardson number Ri_b (bulk) [dimensionless]
+- ``bl_depth`` — Boundary layer depth [m]
+
+**Terrain Analysis (3 fields):**
+- ``terrain_type`` — Classification of terrain (0=smooth, 1=rough, etc.)
+- ``terrain_slope`` — Local terrain slope magnitude [dimensionless]
+- ``adaptive_z0`` — Adaptive aerodynamic roughness [m]
+
+The module provides standardized field naming, automatic field enumeration, and
+helper functions for computing friction velocity, drag coefficient, and momentum flux
+diagnostics on GPU-portable kernels.
+
+**Usage in C++:**
+
+.. code-block:: cpp
+
+    #include "FieldOutput.H"
+    
+    // Compute friction velocity
+    Real ustar = FieldOutput::ComputeFrictionVelocity(u_mag, z_agl, z0);
+    
+    // Get standardized field name
+    std::string name = FieldOutput::GetFieldName(FieldOutput::FieldIndex::HEAT_FLUX);
+    
+    // Get all field names
+    auto var_names = FieldOutput::GetStandardVarNames();
+    WriteSingleLevelPlotfile(plot_file, output, var_names, geom, 0.0, 0);
+
 Key Data Structures
 -------------------
 
