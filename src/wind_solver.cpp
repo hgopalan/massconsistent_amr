@@ -1665,6 +1665,63 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: input parsing time = " 
                        << (amrex::second() - t_phase) << " s\n";
         
+        // ================================================================
+        // Print Solver Configuration Information
+        // ================================================================
+        
+        // Print AMReX and compiler information
+        amrex::Print() << "wind_solver: ========================================\n"
+                       << "wind_solver: Solver Configuration\n"
+                       << "wind_solver: ========================================\n";
+        
+        // Print parallelization info
+        #ifdef AMREX_USE_MPI
+        amrex::Print() << "wind_solver: Parallelization: MPI enabled\n"
+                       << "wind_solver:   nprocs = " << amrex::ParallelDescriptor::NProcs() << "\n";
+        #else
+        amrex::Print() << "wind_solver: Parallelization: Serial (MPI disabled)\n";
+        #endif
+        
+        // Print GPU backend info
+        #ifdef AMREX_USE_CUDA
+        amrex::Print() << "wind_solver: GPU Backend: NVIDIA CUDA\n";
+        #elif AMREX_USE_HIP
+        amrex::Print() << "wind_solver: GPU Backend: AMD HIP/ROCm\n";
+        #elif AMREX_USE_SYCL
+        amrex::Print() << "wind_solver: GPU Backend: Intel SYCL/oneAPI\n";
+        #else
+        amrex::Print() << "wind_solver: GPU Backend: None (CPU-only)\n";
+        #endif
+        
+        // Print FFT solver configuration
+        #ifdef AMREX_USE_FFT
+        #ifdef AMREX_USE_CUDA
+        amrex::Print() << "wind_solver: FFT Backend: cuFFT (NVIDIA CUDA)\n";
+        #elif AMREX_USE_HIP
+        amrex::Print() << "wind_solver: FFT Backend: rocFFT (AMD HIP/ROCm)\n";
+        #elif AMREX_USE_SYCL
+        amrex::Print() << "wind_solver: FFT Backend: oneMKL (Intel SYCL/oneAPI)\n";
+        #else
+        amrex::Print() << "wind_solver: FFT Backend: FFTPACK (CPU)\n";
+        #endif
+        #else
+        amrex::Print() << "wind_solver: FFT Backend: Not available (AMREX_USE_FFT disabled)\n";
+        #endif
+        
+        // Print AMReX version information
+        amrex::Print() << "wind_solver: AMReX version: " << amrex::Version() << "\n";
+        
+        amrex::Print() << "wind_solver: Derivative method: " << deriv_method << "\n";
+        
+        if (enable_synthetic_turbulence) {
+            amrex::Print() << "wind_solver: Synthetic turbulence: ENABLED (Phase 1 parameter parsing)\n";
+        } else {
+            amrex::Print() << "wind_solver: Synthetic turbulence: disabled\n";
+        }
+        
+        amrex::Print() << "wind_solver: ========================================\n\n";
+        
+        
         // Convert deriv_method string to integer for GPU capture
         // 0 = central, 1 = weno3, 2 = weno5
         int deriv_method_int = 0;
