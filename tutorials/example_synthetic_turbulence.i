@@ -1,12 +1,9 @@
 # Complete Synthetic Turbulence Example
 # Full workflow from mean wind to OpenFAST turbulent field
 # 
-# This example demonstrates all five phases of the synthetic turbulence framework:
-# Phase 1: Turbulence parameter configuration
-# Phase 2: Random field synthesis (automatic)
-# Phase 3: Time-series generation (automatic)
-# Phase 4: Validation and testing (automatic)
-# Phase 5: Documentation and visualization (post-processing)
+# This example demonstrates the complete synthetic turbulence workflow:
+# parameter specification, random-field synthesis, temporal synthesis,
+# statistical validation, and post-processing.
 #
 # Usage:
 #   ./build/wind_solver tutorials/example_synthetic_turbulence.i
@@ -232,4 +229,4 @@ turbulence_output_file = turbulence_example.bts
 #   python3 tools/bts_to_vtk.py turbulence_example.bts output --time-series
 #
 # Then open output.pvd in ParaView to animate the time series
-# See tutorials/PHASE5_TUTORIAL_SYNTHETIC_TURBULENCE.md for detailed instructions
+# See docs/usage.rst and docs/advanced_solver_features.rst for detailed instructions

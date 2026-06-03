@@ -1,6 +1,6 @@
 // ============================================================================
-// phase3_validation.H
-// Comprehensive validation framework for Phase 3 outputs (Phase 3)
+// turbulence_validation.H
+// Comprehensive validation framework for synthetic turbulence time-series
 //
 // This header provides validation tools to verify that exported time-series
 // data meets physics requirements and format specifications. Includes:
@@ -38,8 +38,8 @@
 //
 // ============================================================================
 
-#ifndef PHASE3_VALIDATION_H
-#define PHASE3_VALIDATION_H
+#ifndef TURBULENCE_VALIDATION_H
+#define TURBULENCE_VALIDATION_H
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
@@ -525,4 +525,4 @@ public:
 
 } // namespace Phase3Validation
 
-#endif // PHASE3_VALIDATION_H
+#endif // TURBULENCE_VALIDATION_H

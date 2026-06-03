@@ -1,7 +1,6 @@
-# Synthetic Turbulence Full Pipeline Regression Test (Phase 1-3)
-# Tests the complete synthetic turbulence framework: parameter parsing,
-# random field synthesis (Phase 2), time-series generation (Phase 3),
-# and BTS export for OpenFAST compatibility
+# Synthetic Turbulence Full Pipeline Regression Test
+# Exercises parameter parsing, spatial synthesis, temporal synthesis,
+# and BTS export compatibility checks.
 
 # ============================================================================
 # Wind Solver Configuration
@@ -42,13 +41,13 @@ extract_file = wind_extract.csv
 plot_file = plt_turbulence_full
 
 # ============================================================================
-# Synthetic Turbulence Configuration (Phase 1-3)
+# Synthetic Turbulence Configuration
 # ============================================================================
 
-# Master enable flag for synthetic turbulence generation (Phase 1-3)
+# Master enable flag for synthetic turbulence generation
 enable_synthetic_turbulence = true
 
-# Phase 1: Turbulence Parameters
+# Turbulence model parameters
 # ================================
 
 # Spectral model: VonKarman or Kaimal
@@ -95,14 +94,14 @@ turbulence_anisotropy_ratio_v = 0.80
 # w-velocity RMS to u-velocity RMS ratio (typical: 0.45-0.55)
 turbulence_anisotropy_ratio_w = 0.50
 
-# Phase 2: Random Field Generation
+# Random field generation
 # ==================================
 
 # Random seed for reproducible field generation
 # Use any unsigned integer; same seed produces identical fields
 turbulence_random_seed = 42
 
-# Phase 3: Time-Series & Export
+# Time-series generation and export
 # ==============================
 
 # Export format: currently only 'bts' (TurbSim binary format) is supported

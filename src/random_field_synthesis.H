@@ -62,6 +62,7 @@
 #include <random>
 #include <vector>
 #include <complex>
+#include <limits>
 
 // ============================================================================
 // Namespace: RandomFieldSynthesis
@@ -99,10 +100,10 @@ amrex::Real generate_uniform_random(unsigned int& seed)
     // Parameters from Numerical Recipes
     static constexpr unsigned int a = 1664525u;
     static constexpr unsigned int c = 1013904223u;
-    static constexpr unsigned int m = 4294967296u;  // 2^32
-    
-    seed = (a * seed + c) % m;
-    return static_cast<amrex::Real>(seed) / static_cast<amrex::Real>(m);
+
+    seed = a * seed + c;  // implicit 32-bit wraparound
+    return static_cast<amrex::Real>(seed)
+         / static_cast<amrex::Real>(std::numeric_limits<unsigned int>::max());
 }
 
 /// Generate Gaussian random number from uniform via Box-Muller

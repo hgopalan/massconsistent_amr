@@ -52,6 +52,53 @@ Example ``inputs.i``::
     extract_agl   = 15.0          # extract CSV at 15 m AGL
     extract_file  = wind_extract.csv
 
+Synthetic Turbulence Workflow
+-----------------------------
+
+Synthetic turbulence is configured in the same input deck as the mean-flow
+solve.  A minimal configuration looks like::
+
+    enable_synthetic_turbulence    = true
+    turbulence_spectrum_model      = VonKarman
+    turbulence_intensity_model     = PowerLaw
+    turbulence_coherence_model     = Gaussian
+    turbulence_intensity_ref       = 0.12
+    turbulence_length_scale_u      = 300.0
+    turbulence_length_scale_v      = 200.0
+    turbulence_length_scale_w      = 120.0
+    turbulence_random_seed         = 12345
+    turbulence_export_format       = bts
+    turbulence_output_file         = turbulence_example.bts
+
+Run the solver as usual::
+
+    ./build/wind_solver tutorials/example_synthetic_turbulence.i
+
+On successful completion the run directory contains:
+
+* ``turbulence_example.bts`` — binary turbulence time series
+* ``turbulence_example.meta`` — ASCII export metadata
+* standard AMReX plotfiles and optional extraction CSV outputs
+
+Post-processing Utilities
+-------------------------
+
+The repository ships several utility scripts that are documented through the
+main Sphinx manual instead of standalone Markdown files:
+
+* ``tools/bts_to_vtk.py`` converts BTS output to VTK for ParaView/VisIt.
+* ``tools/parameter_sensitivity.py`` runs batch parameter sweeps for solver and
+  turbulence studies.
+* ``tools/floris_export.py`` exports wind data for FLORIS workflows.
+* ``tools/hrrr_to_surface_data.py`` prepares ``surface_data`` inputs from HRRR
+  GRIB products.
+* ``tools/farsite_weather_reader.py`` reads FARSITE weather inputs for coupled
+  workflows.
+
+Example BTS to VTK conversion::
+
+    python3 tools/bts_to_vtk.py turbulence_example.bts turbulence_example.vtk
+
 Parameter Reference
 -------------------
 

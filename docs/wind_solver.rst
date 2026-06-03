@@ -129,7 +129,7 @@ diagnostics, and terrain elevation are written to an AMReX plotfile via
 If ``extract_agl`` or ``extract_k`` is set, a terrain-aligned 2-D CSV slice
 is also written.
 
-Unified Field Output (Phase 5)
+Unified Field Output
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The solver consolidates all diagnostic fields into a unified 21-component output structure
@@ -852,5 +852,4 @@ demonstrating gap flow through a mountain pass.
   influence and synoptic evolution. *Weather and Forecasting*, 19(6), 970-992.
 * Jackson, P.L., Mayr, G., & Vosper, S. (2013). Dynamically-driven winds.
   *Mountain Weather Research and Forecasting*, Springer, 121-218.
-
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 4: Comprehensive Validation & Testing
+Comprehensive validation and testing for synthetic turbulence output.
 
 Validates synthetic turbulence against physical properties:
 1. Spectral properties (Von Kármán, Kaimal, energy conservation)

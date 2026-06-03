@@ -598,118 +598,80 @@ References
 Synthetic Turbulence Generation
 ================================
 
-**Overview**
+The synthetic turbulence implementation is organized as a parameterized spectral
+pipeline:
 
-The solver includes a complete framework for generating terrain-aware synthetic turbulence fields compatible with OpenFAST wind turbine simulations. This three-phase system combines atmospheric turbulence modeling with FFT-based random field synthesis and time-series generation.
+* ``src/synthetic_turbulence.H`` computes component RMS targets, integral length
+  scales, and coherence decay coefficients from the configured atmospheric model.
+* ``src/random_field_synthesis.H`` converts spectral densities to amplitudes and
+  synthesizes reproducible three-dimensional fluctuation fields.
+* ``src/temporal_synthesis.H`` expands the spatial realization into a
+  temporally correlated sequence using component-specific integral timescales.
+* ``src/turbsim_bts_export.H`` writes the resulting sequence in TurbSim binary
+  format with auxiliary metadata.
+* ``src/turbulence_validation.H``, ``src/spectral_validation.H``, and
+  ``src/continuity_validation.H`` provide statistical and physics-oriented
+  validation utilities.
 
-**Phase 1: Turbulence Parameters** (``src/synthetic_turbulence.H``)
+Model Components
+----------------
 
-Generates turbulence statistics from atmospheric science models:
+The turbulence model supports:
 
-- **Spectral Models**: Von Kármán (isotropic turbulence) or Kaimal (empirical, wind energy)
-- **Intensity Profiles**: Power-law (default), logarithmic (rough terrain), or constant
-- **Coherence Functions**: Gaussian or exponential spatial correlation decay
-- **Anisotropy Ratios**: Configurable ratios for v_rms/u_rms (≈0.80) and w_rms/u_rms (≈0.50)
+* Von Kármán and Kaimal spectra
+* Power-law, logarithmic, and constant intensity profiles
+* Gaussian and exponential coherence decay
+* Independent longitudinal, lateral, and vertical integral length scales
+* Configurable anisotropy ratios for ``v_\mathrm{rms}/u_\mathrm{rms}`` and
+  ``w_\mathrm{rms}/u_\mathrm{rms}``
 
-Configuration example::
+Representative configuration::
 
-   TurbulenceParams params;
-   params.enabled = true;
-   params.spectrum_model = TurbulenceModel::VonKarman;
-   params.intensity_model = IntensityModel::PowerLaw;
-   params.intensity_ref = 0.12;           // 12% at z_ref
-   params.z_intensity_ref = 10.0;         // [m AGL]
-   params.length_scale_u = 300.0;         // [m]
-
-**Phase 2: Random Field Synthesis** (``src/random_field_synthesis.H``)
-
-Generates 3D fluctuation fields using FFT synthesis:
-
-- **Spectral Amplitude Engine**: Converts Phase 1 densities to amplitude spectra with energy conservation
-- **Coherence Matrix Engine**: Builds spatial correlations via Cholesky decomposition
-- **Random Field Generator**: Synthesizes 3D fluctuations with proper anisotropy
-
-Example usage::
-
-   RandomFieldGenerator field_gen(seed=12345);
-   auto field = field_gen.Generate3DField(
-       spectrum, nx, ny, nz, dx, dy, dz, true, gen);
-
-Key features:
-
-- Energy conservation: ±5% tolerance on Parseval's theorem
-- Spatial correlations: Gaussian or exponential coherence decay
-- Reproducibility: Deterministic seeding for validation
-- GPU-ready: All functions marked ``AMREX_GPU_HOST_DEVICE``
-
-**Phase 3: Time-Series & Export** (``src/temporal_synthesis.H``)
-
-Extends spatial fields to time-series and exports for OpenFAST:
-
-- **Temporal Synthesis**: Generates time-dependent fluctuations with temporal coherence
-- **OpenFAST BTS Export**: Writes NREL standard binary turbulence format
-- **Format Validation**: Ensures compatibility with OpenFAST 3.x
-
-Example::
-
-   TemporalSynthesis::TimeSeriesGenerator ts_gen;
-   auto ts = ts_gen.GenerateTimeSeries(
-       spatial_field.u_prime, spatial_field.v_prime, spatial_field.w_prime,
-       nx, ny, nz, u_mean, gen, duration=600.0, dt=0.1, seed=12345);
-    
-   ExportToOpenFAST("output.bts", ts, metadata);
-
-**Configuration Parameters**
-
-Add to inputs file::
-
-   # Synthetic Turbulence Configuration
    enable_synthetic_turbulence    = true
-    
-   # Phase 1: Turbulence Parameters
-   turbulence_spectrum_model      = VonKarman    # or Kaimal
-   turbulence_intensity_model     = PowerLaw     # or Logarithmic, Constant
-   turbulence_coherence_model     = Gaussian     # or Exponential
-   turbulence_intensity_ref       = 0.12         # [-]
-   turbulence_z_intensity_ref     = 10.0         # [m AGL]
-   turbulence_intensity_exponent  = 0.14         # Power-law exponent
-   turbulence_length_scale_u      = 300.0        # [m]
-   turbulence_length_scale_v      = 200.0        # [m]
-   turbulence_length_scale_w      = 120.0        # [m]
-    
-   # Phase 2: Random Field Generation
-   turbulence_random_seed         = 12345        # Reproducibility
-    
-   # Phase 3: Time-Series & Export
-   turbulence_export_format       = bts          # OpenFAST format
+   turbulence_spectrum_model      = VonKarman
+   turbulence_intensity_model     = PowerLaw
+   turbulence_coherence_model     = Gaussian
+   turbulence_intensity_ref       = 0.12
+   turbulence_z_intensity_ref     = 10.0
+   turbulence_intensity_exponent  = 0.14
+   turbulence_length_scale_u      = 300.0
+   turbulence_length_scale_v      = 200.0
+   turbulence_length_scale_w      = 120.0
+   turbulence_coherence_decay_vertical = 0.008
+   turbulence_coherence_decay_lateral  = 0.006
+   turbulence_anisotropy_ratio_v  = 0.80
+   turbulence_anisotropy_ratio_w  = 0.50
+   turbulence_random_seed         = 12345
+   turbulence_export_format       = bts
    turbulence_output_file         = turbulence.bts
 
-**Standards Compliance**
+Solver Integration
+------------------
 
-- **IEC 61400-1:2019**: Wind turbine design standard for coherence and intensity profiles
-- **NREL TurbSim**: Compatible spectral models and frequency discretization
-- **Atmospheric Science**: Based on peer-reviewed models (Von Kármán 1948, Kaimal et al. 1972)
+The turbulence pipeline executes after the mass-consistent velocity correction.
+The solver uses the corrected grid geometry and reference wind to:
 
-**Validation Framework**
+#. build amplitude spectra at the reference height,
+#. synthesize spatial fluctuations over the AMReX domain,
+#. generate a time-resolved realization with temporal coherence,
+#. export the result to BTS, and
+#. evaluate energy, anisotropy, and temporal-correlation checks.
 
-Phase 4 includes comprehensive validation:
+The BTS export path provides a compact interface for downstream aeroelastic
+workflows, including OpenFAST, but the primary interface is still the native
+solver configuration and diagnostics.
 
-- ✅ Spectral property validation (Von Kármán, Kaimal, Kaimal peak frequency)
-- ✅ Energy conservation verification (Parseval's theorem)
-- ✅ Integral length scale recovery
-- ✅ Anisotropy ratio validation (v/u, w/u)
-- ✅ Coherence decay with distance
-- ✅ Cross-correlation validation
-- ✅ Turbulence intensity profile check
-- ✅ OpenFAST format validation
-- ✅ Mass continuity check (∇·u ≈ 0)
-- ✅ Reproducibility verification
+Validation and Diagnostics
+--------------------------
 
-See ``regtest/phase4_comprehensive_validation/test_phase4_validation.py`` for 12 regression tests.
+The validation layer checks:
 
-**Performance**
+* component and total RMS energy against the configured targets,
+* lag-1 temporal autocorrelation against the expected integral timescale,
+* component anisotropy ratios,
+* spectral consistency and continuity diagnostics in the standalone validation
+  utilities, and
+* BTS header/metadata integrity in regression coverage.
 
-- Per-grid-point synthesis: ~1 µs
-- 100×100×50 domain: ~10 ms
-- Memory (240×240×120 grid): ~240 MB
-- GPU acceleration: All kernels GPU-compatible via AMReX
+See :ref:`regtests` and :ref:`validation_optimization` for executable examples
+and parameter-sweep tooling.

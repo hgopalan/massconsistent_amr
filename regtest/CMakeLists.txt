@@ -5,6 +5,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 enable_testing()
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(MASSCONSISTENT_EXE "${CMAKE_BINARY_DIR}/wind_solver"
     CACHE FILEPATH "Path to wind_solver executable")
@@ -36,18 +37,22 @@ endfunction()
 # ---------------------------------------------------------------------------
 function(add_python_regression_test TEST_NAME TEST_DIR TEST_SCRIPT)
     set(TEST_INPUT    "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/inputs.i")
-    set(TEST_WORK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}")
-    
-    # Copy terrain/data CSV files to the test directory if needed
+    set(TEST_WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${TEST_DIR}")
+    file(MAKE_DIRECTORY ${TEST_WORK_DIR})
+
+    # Copy terrain/data CSV files to the test working directory
     file(GLOB _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.csv")
+    foreach(_df ${_DATA_FILES})
+        file(COPY "${_df}" DESTINATION ${TEST_WORK_DIR})
+    endforeach()
     
     add_test(NAME ${TEST_NAME}
-             COMMAND ${Python_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/${TEST_SCRIPT}" 
+             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/${TEST_SCRIPT}" 
                      ${TEST_INPUT} ${TEST_WORK_DIR}
-             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR})
+             WORKING_DIRECTORY ${TEST_WORK_DIR})
     set_tests_properties(${TEST_NAME} PROPERTIES
-                         TIMEOUT 600
-                         LABELS  "regtest")
+                        TIMEOUT 600
+                        LABELS  "regtest")
 endfunction()
 
 # ===========================================================================
@@ -406,12 +411,12 @@ add_regression_test(ri_b_stability_selection ri_b_stability_selection)
 add_regression_test(orographic_activation_thresholds orographic_activation_thresholds)
 
 # ===========================================================================
-# synthetic_turbulence_full/ – Phase 1-3: Complete synthetic turbulence pipeline
+# synthetic_turbulence_full/ – Complete synthetic turbulence pipeline
 # ===========================================================================
 # Tests the full synthetic turbulence framework:
-# - Phase 1: Turbulence parameter parsing and spectral model selection
-# - Phase 2: Random field synthesis from spectral parameters
-# - Phase 3: Time-series generation with temporal correlations
+# - Turbulence parameter parsing and spectral model selection
+# - Random field synthesis from spectral parameters
+# - Time-series generation with temporal correlations
 # - BTS Export: OpenFAST-compatible binary format output
 # ============================================================================= 
 add_regression_test(synthetic_turbulence_full synthetic_turbulence_full)
@@ -506,8 +511,8 @@ message(STATUS "  wake_blending_adaptive/         : Wake deficit superposition r
 message(STATUS "  ri_b_stability_selection/       : Conditional stability model selection")
 message(STATUS "  orographic_activation_thresholds/ : Orographic model activation thresholds")
 message(STATUS "")
-message(STATUS "Phase 5: Output & Integration Features")
-message(STATUS "  synthetic_turbulence_full/      : Phase 1-3 synthetic turbulence pipeline (spectral synthesis + BTS export)")
+message(STATUS "Output & Integration Features")
+message(STATUS "  synthetic_turbulence_full/      : synthetic turbulence pipeline (spectral synthesis + BTS export)")
 message(STATUS "  field_output_test/              : Unified field output with 21 diagnostic fields")
 message(STATUS "  parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
 message(STATUS "")
