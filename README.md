@@ -66,6 +66,14 @@ cmake --build build --parallel
 - **FLORIS integration** — Export wind data to FLORIS wind farm simulation format
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 
+## Recent Updates (Phase 4-5)
+
+**Synthetic Turbulence Framework** — Complete three-phase system for terrain-aware wind field generation:
+- **Phase 1**: Turbulence parameters (Von Kármán/Kaimal spectra, intensity profiles, coherence functions)
+- **Phase 2**: Random field synthesis (FFT-based with energy conservation, spatial correlations)
+- **Phase 3**: Time-series generation and OpenFAST export (BTS format for wind turbine simulations)
+- **Phase 4**: Comprehensive validation framework (12 regression tests, all passing)
+
 ## Phase 5: Output & Integration
 
 **Phase 5 consolidates all features with comprehensive output and validation tools:**
@@ -75,7 +83,7 @@ cmake --build build --parallel
 - **Comprehensive Regression Tests** — Field output validation and sensitivity analysis tests ensure consistency across solver updates
 - **Documentation & Tutorials** — Complete API documentation, usage examples, and best-practice guides for new features
 
-See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Tools README](tools/README.md) for parameter sweep examples.
+See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html) for synthetic turbulence framework, and [Tools README](tools/README.md) for parameter sweep examples.
 
 ## Advanced Solver Capabilities
 
