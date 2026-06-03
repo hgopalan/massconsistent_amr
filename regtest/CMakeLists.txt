@@ -321,21 +321,55 @@ add_regression_test(puff_coupled_full puff_coupled_full)
 add_regression_test(terrain_following_steep terrain_following_steep)
 
 # ===========================================================================
-# Phase 1: Surface Flux Diagnostics and Refinement Features
+# Advanced Boundary Conditions & Wind Profile Features
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# flux_diagnostics_feature/ – Phase 1: Surface flux diagnostics (SHF, LHF, momentum flux, drag coefficient)
+# diurnal_roughness/ – Diurnal roughness length variations z₀(t)
+# ---------------------------------------------------------------------------
+add_regression_test(diurnal_roughness diurnal_roughness)
+
+# ---------------------------------------------------------------------------
+# bl_decay/ – Exponential boundary layer wind decay
+# ---------------------------------------------------------------------------
+add_regression_test(bl_decay bl_decay)
+
+# ---------------------------------------------------------------------------
+# momentum_flux/ – Momentum flux output fields (τ_x, τ_y, u*)
+# ---------------------------------------------------------------------------
+add_regression_test(momentum_flux momentum_flux)
+
+# ---------------------------------------------------------------------------
+# richardson_diagnostic/ – Richardson number boundary layer depth diagnostic
+# ---------------------------------------------------------------------------
+add_regression_test(richardson_diagnostic richardson_diagnostic)
+
+# ---------------------------------------------------------------------------
+# froude_scaling/ – Froude number height scaling with terrain blocking
+# ---------------------------------------------------------------------------
+add_regression_test(froude_scaling froude_scaling)
+
+# ---------------------------------------------------------------------------
+# ageostrophic_balance/ – Ageostrophic wind balance boundary conditions
+# ---------------------------------------------------------------------------
+add_regression_test(ageostrophic_balance ageostrophic_balance)
+
+# ===========================================================================
+# Surface Flux Diagnostics and Refinement Features
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# flux_diagnostics_feature/ – Surface flux diagnostics (SHF, LHF, momentum flux, drag coefficient)
 # ---------------------------------------------------------------------------
 add_regression_test(flux_diagnostics_feature flux_diagnostics_feature)
 
 # ---------------------------------------------------------------------------
-# landuse_classification/ – Phase 1: NLCD-compatible land-use classification and z0 lookup
+# landuse_classification/ – NLCD-compatible land-use classification and z0 lookup
 # ---------------------------------------------------------------------------
 add_regression_test(landuse_classification landuse_classification)
 
 # ---------------------------------------------------------------------------
-# directional_bias_correction/ – Phase 1: Directional and speed bias correction for NWP models
+# directional_bias_correction/ – Directional and speed bias correction for NWP models
 # ---------------------------------------------------------------------------
 add_regression_test(directional_bias_correction directional_bias_correction)
 
@@ -399,6 +433,12 @@ message(STATUS "  puff_buildings/        : Puff dispersion with building wake ef
 message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
 message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
 message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain (Feature 17)")
+message(STATUS "  diurnal_roughness/     : Diurnal roughness length variations z₀(t)")
+message(STATUS "  bl_decay/              : Exponential boundary layer wind decay above BL depth")
+message(STATUS "  momentum_flux/         : Momentum flux output fields (τ_x, τ_y, u*)")
+message(STATUS "  richardson_diagnostic/ : Richardson number boundary layer depth diagnostic")
+message(STATUS "  froude_scaling/        : Froude number height scaling with terrain blocking")
+message(STATUS "  ageostrophic_balance/  : Ageostrophic wind balance boundary conditions")
 message(STATUS "")
 message(STATUS "Phase 1 Features (Surface Flux Diagnostics and Refinement):")
 message(STATUS "  flux_diagnostics_feature/       : Surface flux diagnostics (SHF, LHF, momentum flux, Cd)")
