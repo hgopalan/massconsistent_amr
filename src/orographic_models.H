@@ -114,6 +114,136 @@ amrex::Real compute_terrain_curvature(
 }
 
 // ============================================================================
+// Phase 4: Orographic Model Activation Thresholds
+//
+// Jackson-Hunt model is only activated when both conditions are met:
+// 1. Froude number Fr > 0.1 (sufficient wind to overcome terrain blocking)
+// 2. Terrain slope > 5% (0.05) (steep enough to generate significant speedup)
+//
+// These thresholds prevent model application in regimes where it's inappropriate:
+// - Low Fr (Fr < 0.1): Strong stratification blocks flow over terrain
+// - Low slope: Minimal terrain effects, speedup negligible
+//
+// The Froude number is defined as: Fr = U / (N * H)
+// where: U = wind speed, N = Brunt-Väisälä frequency, H = terrain obstacle height
+//
+// References:
+// - Jackson, P.S., & Hunt, J.C.R. (1975). Turbulent wind flow over a low hill.
+//   Quarterly Journal of the Royal Meteorological Society, 101(430), 929-955.
+// - Grubisic, V. (2004). The Morning Glory of the Gulf of Carpentaria.
+//   Monthly Weather Review, 132(12), 2830-2841.
+// ============================================================================
+
+// Compute Froude number for orographic flow regime determination
+//
+// The Froude number characterizes the ratio of inertial forces (wind speed)
+// to gravitational/buoyancy forces (stratification):
+//   Fr = U / (N * H)
+//
+// where:
+//   U = wind speed [m/s]
+//   N = Brunt-Väisälä (buoyancy) frequency [1/s]
+//   H = characteristic terrain height or obstacle height [m]
+//
+// Interpretation:
+//   Fr >> 1 (high):  Wind dominates, flow overtops terrain
+//   Fr ≈ 1 (moderate): Mixed flow, partial blocking with deflection
+//   Fr << 1 (low):    Stratification dominates, strong flow blocking
+//
+// Inputs:
+//   wind_speed         - Wind speed magnitude [m/s]
+//   brunt_vaisala_freq - Brunt-Väisälä frequency (often 0.01 rad/s) [1/s]
+//   terrain_height     - Obstacle/hill height [m]
+//
+// Returns:
+//   Froude number (dimensionless)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_orographic_froude_number(
+    amrex::Real wind_speed,
+    amrex::Real brunt_vaisala_freq,
+    amrex::Real terrain_height) noexcept
+{
+    // Ensure valid inputs
+    const amrex::Real min_wind_speed = amrex::Real(0.1);
+    const amrex::Real min_height = amrex::Real(1.0);
+    const amrex::Real min_frequency = amrex::Real(0.001);
+    
+    wind_speed = std::max(wind_speed, min_wind_speed);
+    terrain_height = std::max(terrain_height, min_height);
+    brunt_vaisala_freq = std::max(brunt_vaisala_freq, min_frequency);
+    
+    // Fr = U / (N * H)
+    return wind_speed / (brunt_vaisala_freq * terrain_height);
+}
+
+// Check if Jackson-Hunt orographic model should be activated
+//
+// Model is only applied when BOTH conditions are satisfied:
+// 1. Fr > Fr_min (typically 0.1): Sufficient wind relative to stratification
+// 2. slope > slope_min (typically 0.05 = 5%): Steep enough terrain
+//
+// Inputs:
+//   froude_number      - Froude number (dimensionless)
+//   slope              - Terrain slope magnitude (dimensionless, rise/run)
+//   froude_threshold   - Minimum Froude number (default 0.1)
+//   slope_threshold    - Minimum slope as fraction (default 0.05 = 5%)
+//
+// Returns:
+//   true if model should be activated, false otherwise
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool is_orographic_model_active(
+    amrex::Real froude_number,
+    amrex::Real slope,
+    amrex::Real froude_threshold = amrex::Real(0.1),
+    amrex::Real slope_threshold = amrex::Real(0.05)) noexcept
+{
+    // Both conditions must be satisfied for model activation
+    const bool fr_condition = (froude_number > froude_threshold);
+    const bool slope_condition = (slope > slope_threshold);
+    
+    return (fr_condition && slope_condition);
+}
+
+// ============================================================================
+// Jackson-Hunt speedup factor with adaptive activation thresholds
+//
+// Phase 4 Enhancement: Now checks Froude number and slope thresholds before
+// applying the orographic speedup model. This prevents inappropriate application
+// in low-wind or low-slope regimes where the model is not valid.
+//
+// Inputs:
+//   slope              - Terrain slope magnitude (dimensionless)
+//   curvature          - Terrain curvature [1/m]
+//   z_agl              - Height above ground level [m]
+//   froude_number      - Froude number (dimensionless, computed externally)
+//   params             - Orographic parameters structure
+//
+// Returns:
+//   Speed multiplier (dimensionless, 0.3-2.0 range)
+//   Returns 1.0 (no speedup) if activation thresholds are not met
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real jackson_hunt_speedup_factor_adaptive(
+    amrex::Real slope,
+    amrex::Real curvature,
+    amrex::Real z_agl,
+    amrex::Real froude_number,
+    const OrographicParams& params)
+{
+    // Check activation thresholds
+    // Model only active if Fr > 0.1 AND slope > 5%
+    constexpr amrex::Real froude_threshold = amrex::Real(0.1);
+    constexpr amrex::Real slope_threshold = amrex::Real(0.05);  // 5%
+    
+    if (!is_orographic_model_active(froude_number, slope, froude_threshold, slope_threshold)) {
+        return amrex::Real(1.0);  // Model inactive, no speedup
+    }
+    
+    // If thresholds are satisfied, apply standard Jackson-Hunt model
+    return jackson_hunt_speedup_factor(slope, curvature, z_agl, params);
+}
+
+// ============================================================================
 // Jackson & Hunt (1975) hill speed-up factor
 //
 // Computes the fractional speedup (ΔS) of wind over a hill or ridge based on
