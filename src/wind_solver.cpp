@@ -1798,24 +1798,33 @@ int main(int argc, char* argv[])
         std::vector<Real> time_series_V_refs;
         
         if (enable_time_varying) {
-            read_time_series_file(time_series_file,
-                                 time_series_times,
-                                 time_series_U_refs,
-                                 time_series_V_refs);
-            
-            // Override U_ref and V_ref with first time point
-            // Note: Full time-stepping implementation would require restructuring the solver loop.
-            // This implementation uses the first time point as a proof-of-concept.
-            // Future enhancement: wrap solver in time loop for transient simulations.
-            if (!time_series_times.empty()) {
-                U_ref = time_series_U_refs[0];
-                V_ref = time_series_V_refs[0];
-                amrex::Print() << "wind_solver: time-varying mode enabled, using t=" 
-                              << time_series_times[0] << " s with U_ref=" << U_ref 
-                              << " m/s, V_ref=" << V_ref << " m/s\n";
-                amrex::Print() << "wind_solver: note - full time-stepping requires solver loop restructuring\n";
-                amrex::Print() << "wind_solver: for now, using first time point from series with " 
-                              << time_series_times.size() << " total time points\n";
+            // Check if time_series_file exists before trying to read it
+            std::ifstream check_file(time_series_file);
+            if (check_file.good()) {
+                read_time_series_file(time_series_file,
+                                     time_series_times,
+                                     time_series_U_refs,
+                                     time_series_V_refs);
+                
+                // Override U_ref and V_ref with first time point
+                // Note: Full time-stepping implementation would require restructuring the solver loop.
+                // This implementation uses the first time point as a proof-of-concept.
+                // Future enhancement: wrap solver in time loop for transient simulations.
+                if (!time_series_times.empty()) {
+                    U_ref = time_series_U_refs[0];
+                    V_ref = time_series_V_refs[0];
+                    amrex::Print() << "wind_solver: time-varying mode enabled, using t=" 
+                                  << time_series_times[0] << " s with U_ref=" << U_ref 
+                                  << " m/s, V_ref=" << V_ref << " m/s\n";
+                    amrex::Print() << "wind_solver: note - full time-stepping requires solver loop restructuring\n";
+                    amrex::Print() << "wind_solver: for now, using first time point from series with " 
+                                  << time_series_times.size() << " total time points\n";
+                }
+            } else {
+                amrex::Print() << "wind_solver: WARNING - time-varying mode requested but file not found: "
+                              << time_series_file << "\n";
+                amrex::Print() << "wind_solver: disabling time-varying flow field and using default U_ref, V_ref\n";
+                enable_time_varying = false;
             }
         }
 
