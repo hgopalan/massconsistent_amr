@@ -7,7 +7,7 @@ dy            = 30.0
 dz            = 25.0
 domain_height = 100.0
 
-init_mode     = log_law
+init_mode     = loglaw
 U_ref         = 10.0
 V_ref         = 0.0
 z_ref         = 10.0
