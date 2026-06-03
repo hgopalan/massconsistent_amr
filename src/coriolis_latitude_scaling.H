@@ -18,7 +18,7 @@ namespace {
 // Physical basis: f = 2Ω sin(φ) where Ω = 7.27e-5 rad/s, φ = latitude
 // For northern hemisphere: f > 0; for southern: f < 0
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real compute_coriolis_parameter(amrex::Real latitude_deg)
+amrex::Real compute_latitude_coriolis_parameter(amrex::Real latitude_deg)
 {
     // latitude_deg: positive for N, negative for S
     // Returns: f [rad/s]
@@ -43,22 +43,22 @@ amrex::Real get_coriolis_parameter_reference(amrex::Real latitude_deg)
     
     if (lat_abs < 10.0) {
         // Near equator: f ≈ 0 (compute)
-        return compute_coriolis_parameter(latitude_deg);
+        return compute_latitude_coriolis_parameter(latitude_deg);
     } else if (lat_abs < 20.0) {
         // Tropics: f ≈ 2.6e-5 to 5.2e-5
-        return compute_coriolis_parameter(latitude_deg);
+        return compute_latitude_coriolis_parameter(latitude_deg);
     } else if (lat_abs < 30.0) {
         // Mid-tropics: f ≈ 7.6e-5
-        return compute_coriolis_parameter(latitude_deg);
+        return compute_latitude_coriolis_parameter(latitude_deg);
     } else if (lat_abs < 45.0) {
         // Mid-latitudes: f ≈ 7.6e-5 to 1.03e-4
-        return compute_coriolis_parameter(latitude_deg);
+        return compute_latitude_coriolis_parameter(latitude_deg);
     } else if (lat_abs < 60.0) {
         // High mid-latitudes: f ≈ 1.03e-4 to 1.26e-4
-        return compute_coriolis_parameter(latitude_deg);
+        return compute_latitude_coriolis_parameter(latitude_deg);
     } else {
         // Polar regions: f ≈ 1.26e-4 to 1.45e-4
-        return compute_coriolis_parameter(latitude_deg);
+        return compute_latitude_coriolis_parameter(latitude_deg);
     }
 }
 
