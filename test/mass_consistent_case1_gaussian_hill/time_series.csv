@@ -1,0 +1,13 @@
+# Time-varying wind boundary conditions
+# Format: Time(s) U(m/s) V(m/s) Direction(deg) Speed(m/s)
+# 10 time steps with varying wind speed and direction
+0.0 12.0 0.0 270.0 12.0
+10.0 12.5 0.5 275.0 12.51
+20.0 13.0 1.0 280.0 13.04
+30.0 13.5 1.2 285.0 13.53
+40.0 13.2 1.0 282.0 13.24
+50.0 12.8 0.8 278.0 12.83
+60.0 12.3 0.5 274.0 12.30
+70.0 12.1 0.3 272.0 12.10
+80.0 12.0 0.0 270.0 12.00
+90.0 12.4 0.6 276.0 12.41
