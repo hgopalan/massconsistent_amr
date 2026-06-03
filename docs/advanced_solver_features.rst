@@ -440,6 +440,96 @@ Index  Name                     Units      Description
 25-27  transition_weight, etc.  —, m/s    Transition smoothing (Feature 24)
 ====== ======================== ========== ===========
 
+Phase 4: Model Parameter Adaptive Systems
+------------------------------------------
+
+Phase 4 introduces intelligent parameterization selection based on local atmospheric
+and terrain conditions. This ensures models are applied only in regimes where they
+are physically valid, preventing inappropriate application in weak-forcing scenarios.
+
+**Feature 25: Wake Deficit Superposition Refinement**
+
+The building wake model now uses distance-weighted blending instead of exclusive
+zone assignment. This creates smooth velocity transitions at wake boundaries and
+realistically blends overlapping wake zones from multiple buildings.
+
+Key improvements:
+
+- Smooth velocity field at wake boundaries (no discontinuities)
+- Physically realistic blending at wake intersections
+- Prevents artificial effects from exclusive zone assignment
+
+The blending weight is computed as:
+
+.. math::
+
+   w_i = \exp\left(-\frac{d_i}{L_{\text{blend}}}\right)
+
+where:
+  * d_i = distance to building i's wake boundary [m]
+  * L_blend ≈ 0.5 × building height [m] (characteristic blending scale)
+
+**Feature 26: Conditional Stability Model Selection**
+
+The solver now automatically selects between Businger-Dyer and Holtslag-De Bruin
+stability models based on the bulk Richardson number (Ri_b):
+
+.. math::
+
+   Ri_b = \frac{g}{\theta_{\text{ref}}} \frac{\Delta\theta \cdot h}{U^2}
+
+where:
+  * Δθ = potential temperature difference [K]
+  * h = height above ground [m]
+  * U = wind speed [m/s]
+
+**Selection logic:**
+  * Ri_b < 0.1 (weak stability): Use Businger-Dyer (flexible)
+  * Ri_b ≥ 0.1 (very stable): Use Holtslag-De Bruin (stronger damping)
+
+This improves wind profile accuracy in very stable conditions (nighttime, polar
+regions, katabatic flows) without sacrificing performance in weakly stable regimes.
+
+**Feature 27: Orographic Model Activation Thresholds**
+
+The Jackson-Hunt orographic speedup model is now activated only when both conditions
+are met:
+
+1. **Froude number threshold**: Fr > 0.1
+   
+   .. math::
+      
+      Fr = \frac{U}{N \cdot H}
+   
+   where N = Brunt-Väisälä frequency, H = terrain obstacle height
+
+2. **Slope threshold**: slope > 5% (0.05)
+
+This prevents model application in inappropriate regimes:
+  * Low Fr (Fr < 0.1): Strong stratification blocks flow, model invalid
+  * Gentle slopes: Minimal terrain effects, speedup negligible
+
+Configuration::
+
+    # Enable Phase 4 adaptive features
+    enable_adaptive_wakes = true                # Feature 25
+    enable_ri_b_stability_selection = true      # Feature 26
+    enable_froude_slope_thresholds = true       # Feature 27
+
+    # Bulk Richardson number threshold for model selection
+    ri_b_threshold = 0.1
+
+    # Froude number and slope thresholds for orographic model
+    froude_threshold = 0.1
+    slope_threshold = 0.05
+
+**Expected Improvements**
+
+- Smoother velocity fields in urban areas with multiple buildings
+- Better wind profile representation in very stable conditions
+- Improved accuracy on gentle vs. steep terrain
+- Reduced spurious wind accelerations in low-wind regimes
+
 Performance Considerations
 --------------------------
 
@@ -451,13 +541,16 @@ Feature overhead as percentage of base solver:
 - Feature 15 (Perturbation pressure): 30-50% (if enabled)
 - Feature 22 (Terrain analysis): 2-3%
 - Feature 24 (Transition smoothing): <1% (profile interpolation only)
+- Feature 25 (Adaptive wakes): 5-10% (wake blending weighting)
+- Feature 26 (Ri_b stability): <1% (model selection logic)
+- Feature 27 (Fr/slope thresholds): <1% (threshold checks)
 
 **Recommended Combinations**
 
 For production simulations:
 
-- **Accuracy-focused**: Enable 11, 22, 24; optionally 15
-- **Speed-focused**: Enable 11, 22 only
+- **Accuracy-focused**: Enable 11, 22, 24, 25, 26, 27; optionally 15
+- **Speed-focused**: Enable 11, 22, 26, 27 only (minimal overhead)
 - **Experimental**: Enable all features with restricted pressure iterations
 
 **GPU Compatibility**
@@ -493,3 +586,14 @@ References
 4. Jackson, P. S., & Hunt, J. C. R. (1975). Turbulent wind flow over a
    low hill. *Quarterly Journal of the Royal Meteorological Society*,
    101, 929-955.
+
+**Phase 4 References:**
+
+5. Holtslag, A. A. M., & De Bruin, H. A. R. (1988). Applied modeling of the
+   nighttime surface energy balance over land. *Journal of Applied Meteorology*,
+   27, 689-704.
+6. Ochieng, R., Bartha, D., Sinn, F., Greschow, B., & Emeis, S. (2005).
+   Near-wake effects on wind farm performance - impact of multiple buildings.
+   *Wind Energy*, 8(1), 47-60.
+7. Grubisic, V. (2004). The Morning Glory of the Gulf of Carpentaria.
+   *Monthly Weather Review*, 132(12), 2830-2841.

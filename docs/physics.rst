@@ -1153,7 +1153,7 @@ Summary of Physics Models
      - Description
      - Header File
    * - Atmospheric stability
-     - Monin-Obukhov similarity theory (Businger-Dyer)
+     - Monin-Obukhov similarity theory (Businger-Dyer); **Phase 4: Adaptive model selection using bulk Richardson number (Ri_b)**
      - ``stability_models.H``
    * - Thermal buoyancy
      - Boussinesq approximation for temperature-driven flow
@@ -1177,7 +1177,7 @@ Summary of Physics Models
      - Forest canopy parameterization
      - ``canopy_models.H``
    * - Building wakes
-     - Röckle, Huber-Snyder, and AERMOD PRIME wake models
+     - Röckle, Huber-Snyder, and AERMOD PRIME wake models; **Phase 4: Adaptive superposition with weighted blending**
      - ``wake_models.H``
    * - Slope flows
      - Katabatic/anabatic thermally-driven flows
