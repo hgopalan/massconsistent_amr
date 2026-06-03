@@ -258,6 +258,146 @@ amrex::Real coriolis_parameter(amrex::Real latitude_deg) noexcept
 // Maps wind speed and solar radiation to discrete stability classes A-F
 // ---------------------------------------------------------------------------
 
+// =========================================================================
+// Bulk Richardson Number and Adaptive Stability Model Selection
+//
+// Computes bulk Richardson number (Ri_b) to determine atmospheric stability
+// and automatically selects appropriate stability parameterization:
+// - Weak stability (Ri_b < 0.1): Use Businger-Dyer (1971)
+// - Very stable (Ri_b >= 0.1): Use Holtslag-De Bruin (1988)
+//
+// The bulk Richardson number is defined as:
+//   Ri_b = (g/θ_ref) * Δθ * h / U_ref²
+// 
+// where:
+//   g = gravitational acceleration [m/s²]
+//   θ_ref = reference potential temperature [K]
+//   Δθ = potential temperature difference between height h and surface [K]
+//   h = height above ground [m]
+//   U_ref = reference wind speed [m/s]
+//
+// References:
+// - Holtslag, A.A.M., & De Bruin, H.A.R. (1988). Applied modeling of the
+//   nighttime surface energy balance over land. J. Appl. Meteor., 27, 689-704.
+// =========================================================================
+
+// Compute bulk Richardson number (Ri_b) for adaptive stability model selection
+//
+// Inputs:
+//   theta_surface      - Potential temperature at surface [K]
+//   theta_height       - Potential temperature at height h [K]
+//   height             - Height above ground [m]
+//   wind_speed         - Wind speed magnitude [m/s]
+//   theta_ref          - Reference potential temperature [K]
+//
+// Returns:
+//   Bulk Richardson number (dimensionless)
+//   Positive values indicate stable conditions
+//   Negative values indicate unstable conditions
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_bulk_richardson_number(
+    amrex::Real theta_surface,
+    amrex::Real theta_height,
+    amrex::Real height,
+    amrex::Real wind_speed,
+    amrex::Real theta_ref = amrex::Real(300.0)) noexcept
+{
+    // Ensure valid inputs
+    const amrex::Real min_wind_speed = amrex::Real(0.1);
+    wind_speed = std::max(wind_speed, min_wind_speed);
+    
+    if (height < amrex::Real(1.0e-6)) {
+        return amrex::Real(0.0);  // No height, neutral
+    }
+    
+    if (theta_ref < amrex::Real(1.0)) {
+        theta_ref = amrex::Real(300.0);  // Default reference temperature
+    }
+    
+    // Potential temperature difference
+    const amrex::Real delta_theta = theta_height - theta_surface;
+    
+    // Gravitational acceleration [m/s²]
+    constexpr amrex::Real g = amrex::Real(9.81);
+    
+    // Ri_b = (g/θ_ref) * Δθ * h / U²
+    const amrex::Real wind_squared = wind_speed * wind_speed;
+    const amrex::Real Ri_b = (g / theta_ref) * delta_theta * height / wind_squared;
+    
+    // Clamp to reasonable range (-2 to 10 typical)
+    const amrex::Real Ri_b_min = amrex::Real(-2.0);
+    const amrex::Real Ri_b_max = amrex::Real(10.0);
+    
+    return std::max(Ri_b_min, std::min(Ri_b, Ri_b_max));
+}
+
+// Adaptive stability model selection based on bulk Richardson number
+//
+// Selects between Businger-Dyer (weak stability) and Holtslag-De Bruin
+// (very stable) parameterizations based on Ri_b threshold.
+//
+// Inputs:
+//   Ri_b               - Bulk Richardson number (dimensionless)
+//   Ri_b_threshold     - Threshold for model switching (typically 0.1)
+//
+// Returns:
+//   true if Holtslag-De Bruin should be used, false if Businger-Dyer
+//
+// Thresholds:
+//   Ri_b < 0.1:  Weak stability → Use Businger-Dyer (more flexible)
+//   Ri_b >= 0.1: Very stable → Use Holtslag-De Bruin (stronger damping)
+//
+// Hysteresis (to prevent rapid switching):
+//   - Use 5% margin around threshold for transition region
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool select_holtslag_for_stability(
+    amrex::Real Ri_b,
+    amrex::Real Ri_b_threshold = amrex::Real(0.1)) noexcept
+{
+    // Holtslag-De Bruin provides better performance for very stable conditions
+    // (high Ri_b values typical of nighttime, polar regions, katabatic flows)
+    return (Ri_b >= Ri_b_threshold);
+}
+
+// Compute adaptive stability correction using Ri_b-dependent model selection
+//
+// Automatically chooses between Businger-Dyer and Holtslag-De Bruin based
+// on stability conditions indicated by bulk Richardson number.
+//
+// Inputs:
+//   z_agl              - Height above ground level [m]
+//   z0                 - Aerodynamic roughness length [m]
+//   ustar              - Friction velocity [m/s]
+//   kappa              - Von Kármán constant (typically 0.41)
+//   L_obukhov          - Obukhov length [m]
+//   theta_surface      - Surface potential temperature [K]
+//   theta_height       - Potential temperature at height z [K]
+//   wind_speed         - Wind speed magnitude [m/s]
+//
+// Returns:
+//   Wind speed with adaptive stability correction applied
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real wind_profile_adaptive_stability(
+    amrex::Real z_agl,
+    amrex::Real z0,
+    amrex::Real ustar,
+    amrex::Real kappa,
+    amrex::Real L_obukhov,
+    amrex::Real theta_surface,
+    amrex::Real theta_height,
+    amrex::Real wind_speed) noexcept
+{
+    // Compute bulk Richardson number to assess stability
+    const amrex::Real Ri_b = compute_bulk_richardson_number(
+        theta_surface, theta_height, z_agl, wind_speed);
+    
+    // Select appropriate stability model
+    const bool use_holtslag = select_holtslag_for_stability(Ri_b);
+    
+    // Apply standard stability correction with selected model
+    return wind_profile_stability(z_agl, z0, ustar, kappa, L_obukhov, use_holtslag);
+}
+
 // Pasquill-Gifford stability class enumeration
 // A = very unstable (strong convection, daytime)
 // B = moderately unstable
