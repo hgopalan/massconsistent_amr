@@ -678,7 +678,7 @@ Add to inputs file::
    turbulence_length_scale_w      = 120.0        # [m]
     
    # Phase 2: Random Field Generation
-   turbulence_random_seed         = 12345u       # Reproducibility
+   turbulence_random_seed         = 12345        # Reproducibility
     
    # Phase 3: Time-Series & Export
    turbulence_export_format       = bts          # OpenFAST format
