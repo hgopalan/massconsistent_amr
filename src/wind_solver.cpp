@@ -53,6 +53,20 @@
 //   The output CSV (extract_file) has columns:
 //       x, y, z_terrain, z_physical, z_agl, u, v, w, speed
 //
+// Time-stepping (transient simulations):
+//   When enable_time_varying = true and a time_series.csv file is provided,
+//   the solver performs a full transient simulation with one Poisson solve
+//   per time point.  The wind field is re-initialized at each time step with
+//   updated U_ref and V_ref from the time series, and separate output files
+//   are generated for each time step (indexed by time_step 00000, 00001, ...).
+//   Time series file format:
+//       time [s]  U_ref [m/s]  V_ref [m/s]
+//       0.0       10.0         0.0
+//       60.0      12.0         2.0
+//       ...
+//   When disabled or no time series file, solver operates in steady-state
+//   mode (single time point).
+//
 // Usage:  wind_solver inputs.i   (or  wind_solver key=value ...)
 //
 // Key parameters (with defaults):
@@ -79,6 +93,8 @@
 //   extract_agl   = -1.0          # terrain-aligned extraction AGL [m] (<0 = off)
 //   extract_k     = -1            # explicit k-index extraction (<0 = off)
 //   extract_file  = wind_extract.csv  # terrain-aligned CSV output filename
+//   enable_time_varying = false   # enable transient time-stepping simulation
+//   time_series_file = time_series.csv # time series input (t, U_ref, V_ref)
 //   building_file = buildings.csv # optional CSV file with building boxes
 //                                 # format: xmin xmax ymin ymax zmin zmax (one per line)
 //                                 # buildings mask cells where z_phys < building_zmax
