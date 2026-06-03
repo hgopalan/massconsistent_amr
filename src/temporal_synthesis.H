@@ -131,6 +131,10 @@ amrex::Real ComputeIntegralTimescale(
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real ComputeOptimalTimeStep(amrex::Real integral_timescale)
 {
+    // Device-accessible constants
+    constexpr amrex::Real MIN_TIME_STEP = 0.01;            // [s] Minimum dt for stability
+    constexpr amrex::Real MAX_TIME_STEP = 10.0;            // [s] Maximum dt for coherence
+    
     amrex::Real dt = integral_timescale * 0.1;
     dt = std::max(dt, MIN_TIME_STEP);
     dt = std::min(dt, MAX_TIME_STEP);
