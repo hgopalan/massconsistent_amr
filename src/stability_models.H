@@ -259,7 +259,7 @@ amrex::Real coriolis_parameter(amrex::Real latitude_deg) noexcept
 // ---------------------------------------------------------------------------
 
 // =========================================================================
-// Phase 4: Bulk Richardson Number and Adaptive Stability Model Selection
+// Bulk Richardson Number and Adaptive Stability Model Selection
 //
 // Computes bulk Richardson number (Ri_b) to determine atmospheric stability
 // and automatically selects appropriate stability parameterization:

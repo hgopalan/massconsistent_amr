@@ -892,7 +892,7 @@ Building compute_building_dimensions(
 }
 
 // ============================================================================
-// Phase 4: Wake Deficit Superposition Refinement
+// Wake Deficit Superposition Refinement
 //
 // Enhanced wake superposition with weighted blending of overlapping wake zones.
 // Instead of exclusive assignment (point belongs to only one building's wake),

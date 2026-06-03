@@ -374,17 +374,17 @@ add_regression_test(landuse_classification landuse_classification)
 add_regression_test(directional_bias_correction directional_bias_correction)
 
 # ---------------------------------------------------------------------------
-# Phase 4: Model Parameter Adaptive Systems
+# Adaptive parameterization features
 # ---------------------------------------------------------------------------
 
-# phase4_wake_blending/ – Feature 25: Wake deficit superposition refinement
-add_regression_test(phase4_wake_blending phase4_wake_blending)
+# wake_blending_adaptive/ – Wake deficit superposition refinement
+add_regression_test(wake_blending_adaptive wake_blending_adaptive)
 
-# phase4_ri_b_stability/ – Feature 26: Conditional stability model selection
-add_regression_test(phase4_ri_b_stability phase4_ri_b_stability)
+# ri_b_stability_selection/ – Conditional stability model selection
+add_regression_test(ri_b_stability_selection ri_b_stability_selection)
 
-# phase4_orographic_thresholds/ – Feature 27: Orographic model activation thresholds
-add_regression_test(phase4_orographic_thresholds phase4_orographic_thresholds)
+# orographic_activation_thresholds/ – Orographic model activation thresholds
+add_regression_test(orographic_activation_thresholds orographic_activation_thresholds)
 
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
@@ -458,9 +458,9 @@ message(STATUS "  flux_diagnostics_feature/       : Surface flux diagnostics (SH
 message(STATUS "  landuse_classification/         : NLCD land-use classification and z0 lookup")
 message(STATUS "  directional_bias_correction/    : Wind direction and speed bias correction")
 message(STATUS "")
-message(STATUS "Phase 4: Model Parameter Adaptive Systems")
-message(STATUS "  phase4_wake_blending/           : Feature 25 - Wake deficit superposition refinement")
-message(STATUS "  phase4_ri_b_stability/          : Feature 26 - Conditional stability model selection")
-message(STATUS "  phase4_orographic_thresholds/   : Feature 27 - Orographic model activation thresholds")
+message(STATUS "Adaptive Parameterization Features")
+message(STATUS "  wake_blending_adaptive/         : Wake deficit superposition refinement")
+message(STATUS "  ri_b_stability_selection/       : Conditional stability model selection")
+message(STATUS "  orographic_activation_thresholds/ : Orographic model activation thresholds")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

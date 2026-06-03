@@ -440,14 +440,14 @@ Index  Name                     Units      Description
 25-27  transition_weight, etc.  —, m/s    Transition smoothing (Feature 24)
 ====== ======================== ========== ===========
 
-Phase 4: Model Parameter Adaptive Systems
-------------------------------------------
+Model Parameter Adaptive Systems
+---------------------------------
 
-Phase 4 introduces intelligent parameterization selection based on local atmospheric
+The solver includes intelligent parameterization selection based on local atmospheric
 and terrain conditions. This ensures models are applied only in regimes where they
 are physically valid, preventing inappropriate application in weak-forcing scenarios.
 
-**Feature 25: Wake Deficit Superposition Refinement**
+**Wake Deficit Superposition Refinement**
 
 The building wake model now uses distance-weighted blending instead of exclusive
 zone assignment. This creates smooth velocity transitions at wake boundaries and
@@ -469,7 +469,7 @@ where:
   * d_i = distance to building i's wake boundary [m]
   * L_blend ≈ 0.5 × building height [m] (characteristic blending scale)
 
-**Feature 26: Conditional Stability Model Selection**
+**Conditional Stability Model Selection**
 
 The solver now automatically selects between Businger-Dyer and Holtslag-De Bruin
 stability models based on the bulk Richardson number (Ri_b):
@@ -490,7 +490,7 @@ where:
 This improves wind profile accuracy in very stable conditions (nighttime, polar
 regions, katabatic flows) without sacrificing performance in weakly stable regimes.
 
-**Feature 27: Orographic Model Activation Thresholds**
+**Orographic Model Activation Thresholds**
 
 The Jackson-Hunt orographic speedup model is now activated only when both conditions
 are met:
@@ -511,10 +511,10 @@ This prevents model application in inappropriate regimes:
 
 Configuration::
 
-    # Enable Phase 4 adaptive features
-    enable_adaptive_wakes = true                # Feature 25
-    enable_ri_b_stability_selection = true      # Feature 26
-    enable_froude_slope_thresholds = true       # Feature 27
+    # Enable adaptive parameterization features
+    enable_adaptive_wakes = true
+    enable_ri_b_stability_selection = true
+    enable_froude_slope_thresholds = true
 
     # Bulk Richardson number threshold for model selection
     ri_b_threshold = 0.1
@@ -541,16 +541,16 @@ Feature overhead as percentage of base solver:
 - Feature 15 (Perturbation pressure): 30-50% (if enabled)
 - Feature 22 (Terrain analysis): 2-3%
 - Feature 24 (Transition smoothing): <1% (profile interpolation only)
-- Feature 25 (Adaptive wakes): 5-10% (wake blending weighting)
-- Feature 26 (Ri_b stability): <1% (model selection logic)
-- Feature 27 (Fr/slope thresholds): <1% (threshold checks)
+- Wake blending (adaptive wakes): 5-10% (wake blending weighting)
+- Stability selection (Ri_b based): <1% (model selection logic)
+- Orographic thresholds (Fr/slope): <1% (threshold checks)
 
 **Recommended Combinations**
 
 For production simulations:
 
-- **Accuracy-focused**: Enable 11, 22, 24, 25, 26, 27; optionally 15
-- **Speed-focused**: Enable 11, 22, 26, 27 only (minimal overhead)
+- **Accuracy-focused**: Enable 11, 22, 24, adaptive wakes, Ri_b selection, Fr/slope thresholds; optionally 15
+- **Speed-focused**: Enable 11, 22, Ri_b selection, Fr/slope thresholds only (minimal overhead)
 - **Experimental**: Enable all features with restricted pressure iterations
 
 **GPU Compatibility**
@@ -586,9 +586,6 @@ References
 4. Jackson, P. S., & Hunt, J. C. R. (1975). Turbulent wind flow over a
    low hill. *Quarterly Journal of the Royal Meteorological Society*,
    101, 929-955.
-
-**Phase 4 References:**
-
 5. Holtslag, A. A. M., & De Bruin, H. A. R. (1988). Applied modeling of the
    nighttime surface energy balance over land. *Journal of Applied Meteorology*,
    27, 689-704.

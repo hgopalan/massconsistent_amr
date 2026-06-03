@@ -32,12 +32,12 @@ cmake --build build --parallel
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
 - **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file or land-use classification
-- **Building support** — Wake modeling with Röckle (1990), Huber-Snyder (EPA), and AERMOD PRIME (EPA regulatory) parameterizations; **Phase 4: Adaptive wake superposition with distance-weighted blending**
+- **Building support** — Wake modeling with Röckle (1990), Huber-Snyder (EPA), and AERMOD PRIME (EPA regulatory) parameterizations; adaptive wake superposition with distance-weighted blending
 - **Canopy modeling** — Forest canopy drag effects
 - **Height-dependent anisotropy** — Vertical adjustment coefficient α_v can vary with height
-- **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions; **Phase 4: Adaptive stability model selection based on bulk Richardson number (Ri_b)**
+- **Non-neutral stability corrections** — Businger-Dyer Monin-Obukhov profiles for stable/unstable conditions; adaptive stability model selection based on bulk Richardson number (Ri_b)
 - **Elevation-dependent wind scaling** — Terrain elevation effects on reference wind speed for mountain-valley flows
-- **Orographic speed-up** — Jackson & Hunt (1975) model for hill/ridge acceleration and lee-side flow separation; **Phase 4: Adaptive activation with Froude number and slope thresholds**
+- **Orographic speed-up** — Jackson & Hunt (1975) model for hill/ridge acceleration and lee-side flow separation; adaptive activation with Froude number and slope thresholds
 - **Sea breeze parameterization** — Thermal circulation from land-sea temperature contrast driving onshore/offshore winds
 - **Froude number terrain blocking** — Flow blocking and channeling around steep terrain in stable stratification
 - **Katabatic/Anabatic slope flows** — Thermally-driven up-slope (daytime) and down-slope (nighttime) flows on inclined terrain
