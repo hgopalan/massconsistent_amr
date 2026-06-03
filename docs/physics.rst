@@ -1214,58 +1214,250 @@ All physics models are:
 * **Combinable** (e.g., stability + buoyancy + canopy)
 * **Validated** via regression tests
 
-Advanced Boundary Conditions & Wind Profile Features
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Simplified Richardson Number Method
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In addition to the fundamental physics models listed above, the solver includes
-advanced boundary condition and wind profile refinement features for enhanced
-realism in complex atmospheric scenarios:
+**Physical Motivation**
 
-**Diurnal Roughness (Feature 7)**
+The Richardson number (Ri_b) is a dimensionless measure of atmospheric stability
+that compares buoyancy frequency to wind shear. Rather than computing full
+Pasquill-Gifford stability classifications through complex lookup tables, this
+method provides a direct, fast mapping from bulk Richardson number to Obukhov
+length and stability class.
 
-Aerodynamic roughness length z₀ varies sinusoidally with time of day to represent
-diurnal cycles in canopy structure and surface properties.
+**Implementation**
 
-Configuration: ``enable_diurnal_roughness = true``
+The method uses linear interpolation within empirical bins of Ri_b to compute
+Obukhov length values, avoiding iterative procedures. Stability classes follow
+the Turner (1970) Pasquill-Gifford system (classes A–F).
 
-**Boundary Layer Wind Decay (Feature 9)**
+**Physics**
 
-Wind speed decays exponentially above the boundary layer depth to represent the
-transition from well-mixed PBL to stratified free atmosphere.
+Bulk Richardson number:
 
-Configuration: ``enable_bl_decay = true``
+.. math::
 
-**Momentum Flux Diagnostics (Feature 8)**
+   \text{Ri}_b = \frac{g \Delta\theta}{T_0} \frac{\Delta z}{(\Delta u)^2}
 
-Computes and outputs surface momentum flux components (τ_x, τ_y) and friction
-velocity u* for drag parameterization and land-atmosphere coupling analysis.
+where:
 
-Output fields: indices 13-15 in plotfile
+* *g* = 9.81 m/s² (gravitational acceleration)
+* Δ*θ* = potential temperature difference [K]
+* *T*₀ = reference temperature [K]
+* Δ*z* = layer thickness [m]
+* Δ*u* = wind speed difference [m/s]
 
-**Richardson Number Boundary Layer Depth (Feature 23)**
+For each Ri_b value, the method returns:
 
-Diagnoses boundary layer depth automatically by finding where the Richardson
-number exceeds a critical threshold (typically 0.25).
+* Obukhov length *L* [m] (characterizes stability)
+* Pasquill-Gifford stability class (A–F)
 
-Configuration: ``enable_bl_depth_diagnostic = true``
+**Usage**
 
-Output fields: indices 16-17 in plotfile
+Enable in your input file::
 
-**Froude Number Height Scaling (Feature 21)**
+    enable_simplified_richardson = true
 
-Terrain blocking intensity varies with height through a height-dependent Froude
-number (Fr = U(z)/(N·h)), enabling realistic flow blocking at lower levels and
-overtopping at upper levels in stably stratified conditions.
+**References**
 
-Configuration: ``enable_froude_height_scaling = true`` (requires terrain blocking)
+* Turner, J.S. (1970). Buoyancy effects in fluids. Cambridge University Press.
+* Holtslag, A.A.M. and De Bruin, H.A.R. (1988). Applied modeling of the
+  nighttime surface energy balance over land. J. Appl. Meteorol., 27, 689–704.
 
-**Ageostrophic Wind Balance (Feature 10)**
 
-Applies lateral boundary conditions with geostrophic wind balance, computing the
-wind components from pressure gradients and Coriolis parameter based on latitude.
+Roughness Blocking from Buildings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Configuration: ``enable_ageostrophic_balance = true``
+**Physical Motivation**
 
-Detailed documentation on these features, including physics formulations,
-configuration parameters, and validation tests, is available in the
-:ref:`implementation_status` section.
+Urban buildings increase surface roughness beyond what aerodynamic surface
+properties alone would suggest. Morphometric approaches account for building
+geometry (height, density, arrangement) by adding a contribution Δz₀ to the
+background roughness.
+
+**Implementation**
+
+The method computes building-induced roughness using the Grimmond & Oke (1999)
+parameterization:
+
+.. math::
+
+   \Delta z_0 = f_{\text{factor}} \times h_{\text{building}}
+
+where:
+
+* *f*\ :sub:`factor` = morphometric coefficient (typically 0.04–0.06)
+* *h*\ :sub:`building` = mean building height [m]
+
+The contribution is applied only below the building height to preserve
+free-atmosphere profiles above the urban canopy.
+
+**Usage**
+
+Enable in your input file::
+
+    enable_roughness_blocking = true
+    building_roughness_factor = 0.04    # Morphometric coefficient
+
+**References**
+
+* Grimmond, C.S.B. and Oke, T.R. (1999). Aerodynamic properties of urban areas
+  derived from analysis of surface form. J. Appl. Meteorol., 38, 1262–1292.
+* Roth, M. (2000). Review of atmospheric turbulence over cities. Q. J. R.
+  Meteorol. Soc., 126, 941–990.
+
+
+Coriolis Latitude Scaling
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+The Coriolis parameter *f* varies with latitude and influences wind profile
+curvature (Ekman spiral) and geostrophic wind balance. Traditional solvers often
+use a fixed *f* at domain center; latitude-dependent scaling captures regional
+variations in rotational effects.
+
+**Implementation**
+
+The Coriolis parameter is computed as:
+
+.. math::
+
+   f = 2\Omega \sin(\phi)
+
+where:
+
+* Ω = 7.27 × 10⁻⁵ rad/s (Earth's angular velocity)
+* φ = latitude [radians]
+
+Typical values:
+
+* Equator (φ = 0°): *f* = 0 m/s⁻¹ (no Coriolis effect)
+* 45°N/S: *f* = 1.03 × 10⁻⁴ m/s⁻¹
+* Poles (φ = ±90°): *f* = 1.45 × 10⁻⁴ m/s⁻¹
+
+**Derived Diagnostics**
+
+The module also computes:
+
+* **Rossby number**: Ro = U/(f·L) — ratio of inertial to Coriolis effects
+* **Inertial period**: T_i = 2π/f — period of inertial oscillations
+
+**Usage**
+
+Enable in your input file::
+
+    enable_coriolis_latitude = true
+    domain_latitude = 45.0      # Domain latitude [degrees]
+
+**References**
+
+* Holton, J.R. (2004). An introduction to dynamic meteorology (4th ed.).
+  Elsevier.
+
+
+Power-Law Wind Profile Above Boundary Layer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+Above the atmospheric boundary layer, wind speed transitions toward the
+geostrophic wind. Two common models exist:
+
+* **Exponential decay**: u(z) = u_BL·exp(−(z−z_BL)/H)
+* **Power-law**: u(z) = u_BL·(z/z_BL)^α
+
+The power-law profile is physically motivated by tropospheric stability and may
+be more accurate in weakly stratified or neutral free atmospheres.
+
+**Implementation**
+
+The power-law wind profile is:
+
+.. math::
+
+   u(z) = u_{\text{BL}} \left(\frac{z}{z_{\text{BL}}}\right)^{\alpha} \quad \text{for } z > z_{\text{BL}}
+
+where:
+
+* *u*\ :sub:`BL` = wind speed at boundary layer top [m/s]
+* *z*\ :sub:`BL` = boundary layer depth [m]
+* α = power-law exponent (typically 0.1–0.2)
+
+**Comparison to Exponential Decay**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 35 40
+
+   * - Aspect
+     - Exponential
+     - Power-law
+   * - Asymptotic behavior
+     - Decays to zero
+     - Remains finite
+   * - Physical basis
+     - Stress decay
+     - Tropospheric stability
+   * - Best for
+     - Rapidly stable layers
+     - Weak/neutral stratification
+
+**Usage**
+
+Enable in your input file::
+
+    enable_power_law_profile = true
+    power_law_exponent = 0.15       # α (typically 0.1–0.2)
+
+**References**
+
+* Stull, R.B. (1988). An introduction to boundary layer meteorology.
+  Kluwer Academic Publishers.
+
+
+Heat Flux Diagnostics
+~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+Surface heat fluxes drive boundary layer development and are critical for
+air-quality and fire-weather simulations. Extended diagnostics enable
+investigation of sensible heat flux (SHF), latent heat flux (LHF), and
+radiative components.
+
+**Implementation**
+
+The module computes surface fluxes using similarity theory:
+
+.. math::
+
+   \text{SHF} = \rho c_p u_* \theta_*
+
+where:
+
+* ρ = air density [kg/m³]
+* c_p = specific heat at constant pressure [J/(kg·K)]
+* *u*\ :sub:`*` = friction velocity [m/s]
+* θ\ :sub:`*` = temperature scale [K]
+
+Additional fields include drag coefficient C_d and momentum flux components.
+
+**Configuration**
+
+Enable in your input file::
+
+    enable_heat_flux_diagnostics = true
+    heat_flux_theta_star = 0.1      # Temperature scale θ* [K]
+
+**Output Fields**
+
+* Sensible heat flux [W/m²]
+* Latent heat flux [W/m²] (when moisture available)
+* Drag coefficient (dimensionless)
+* Momentum flux components (Pa)
+
+**References**
+
+* Foken, T. (2006). 50 years of the Monin-Obukhov similarity theory.
+  Boundary-Layer Meteorol., 119, 431–447.

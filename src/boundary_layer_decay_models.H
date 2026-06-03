@@ -40,6 +40,8 @@ struct BoundaryLayerDecayParams {
     amrex::Real bl_depth = 1000.0;                 // Boundary layer depth z_BL [m]
     amrex::Real decay_height_scale = 1000.0;       // Decay height scale H_decay [m]
     amrex::Real transition_zone_height = 200.0;    // Smooth transition zone above z_BL [m]
+    bool use_power_law_profile = false;            // true = power-law; false = exponential decay
+    amrex::Real power_law_exponent = 0.15;         // Power-law exponent α [typically 0.1-0.2]
 };
 
 // Physical constants for boundary layer decay
@@ -103,6 +105,51 @@ amrex::Real apply_bl_exponential_decay(
     const amrex::Real u_decayed = u_log * decay_factor;
     
     return u_decayed;
+}
+
+// ============================================================================
+// Compute wind speed reduction above boundary layer using power-law profile
+//
+// Alternative to exponential decay: Power-law wind profile above the boundary layer
+// u(z) = u_BL · (z / z_BL)^α    for z > z_BL
+//
+// where:
+//   u_BL = wind speed at z_BL [m/s]
+//   α = power-law exponent [typically 0.1-0.2 for stable/neutral]
+//
+// Inputs:
+//   u_log              - Wind speed from log-law profile [m/s]
+//   z_agl              - Height above ground level [m]
+//   params             - BoundaryLayerDecayParams structure
+//
+// Returns:
+//   Wind speed with power-law decay applied [m/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real apply_bl_power_law_decay(
+    amrex::Real u_log,
+    amrex::Real z_agl,
+    const BoundaryLayerDecayParams& params)
+{
+    if (!params.enabled) {
+        return u_log;  // No decay applied
+    }
+    
+    // Below BL depth: use log-law profile as-is
+    if (z_agl < params.bl_depth || params.bl_depth < 1.0) {
+        return u_log;
+    }
+    
+    // Above BL depth: apply power-law decay
+    // u(z) = u_BL · (z / z_BL)^α
+    const amrex::Real alpha = params.power_law_exponent;
+    const amrex::Real z_ratio = z_agl / params.bl_depth;
+    
+    // Power-law with exponent
+    const amrex::Real power_factor = std::pow(z_ratio, alpha);
+    const amrex::Real u_power_law = u_log * power_factor;
+    
+    return u_power_law;
 }
 
 // ============================================================================
@@ -247,6 +294,35 @@ amrex::Real estimate_decay_height_scale(amrex::Real bl_depth)
     
     // Return middle estimate
     return (min_decay + max_decay) / amrex::Real(2.0);
+}
+
+// ============================================================================
+// Compute boundary layer wind speed with configurable profile type
+//
+// Dispatcher function that selects between exponential and power-law profiles
+// based on the decay_profile_type parameter.
+//
+// Inputs:
+//   u_log              - Wind speed from log-law profile [m/s]
+//   z_agl              - Height above ground level [m]
+//   use_power_law      - If true, use power-law; otherwise exponential
+//   params             - BoundaryLayerDecayParams structure
+//
+// Returns:
+//   Wind speed with selected decay profile [m/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real apply_bl_decay_with_profile_selection(
+    amrex::Real u_log,
+    amrex::Real z_agl,
+    bool use_power_law,
+    const BoundaryLayerDecayParams& params)
+{
+    if (use_power_law) {
+        return apply_bl_power_law_decay(u_log, z_agl, params);
+    } else {
+        return apply_bl_exponential_decay(u_log, z_agl, params);
+    }
 }
 
 #endif // BOUNDARY_LAYER_DECAY_MODELS_H
