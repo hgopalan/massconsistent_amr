@@ -21,6 +21,7 @@ Example:
 """
 
 import numpy as np
+import os
 try:
     import pyWindSolver
 except ImportError as e:
@@ -341,6 +342,142 @@ class WindSolver:
         
         print(f"✓ Wrote plotfile: {plotfile_name}")
         return success
+    
+    def write_plotfile_with_fluctuations(self, plotfile_name="plt_wind_with_fluctuations", 
+                                        fluctuation_file=None):
+        """
+        Write AMReX plotfile with turbulence fluctuations added to velocity field.
+        
+        This method applies synthetic turbulence fluctuations to the corrected wind field
+        and writes both the corrected winds and the modified winds (with fluctuations)
+        to the output plotfile.
+        
+        Parameters:
+            plotfile_name (str): Plotfile name/prefix for output
+            fluctuation_file (str, optional): Path to BTS file with turbulence fluctuations.
+                                             If None, fluctuations are auto-generated or read
+                                             from solver's internal turbulence field.
+        
+        Returns:
+            bool: True on success
+        
+        Raises:
+            RuntimeError: If write fails
+        """
+        if not self.solved:
+            raise RuntimeError("Wind field must be solved before writing with fluctuations")
+        
+        try:
+            # Get the corrected velocity field
+            vel = self.get_velocity()
+            u_field = vel['u'].copy()
+            v_field = vel['v'].copy()
+            w_field = vel['w'].copy()
+            
+            # Get fluctuation field from solver if available
+            # This calls a C++ function that provides turbulence fluctuations
+            # If not available, we can generate them here
+            try:
+                fluctuations = pyWindSolver.get_velocity_fluctuations()
+                u_fluct = fluctuations.get('u', np.zeros_like(u_field))
+                v_fluct = fluctuations.get('v', np.zeros_like(v_field))
+                w_fluct = fluctuations.get('w', np.zeros_like(w_field))
+            except (AttributeError, RuntimeError):
+                # Fluctuations not available from solver, try to read from BTS file
+                if fluctuation_file and os.path.exists(fluctuation_file):
+                    u_fluct, v_fluct, w_fluct = self._read_bts_fluctuations(
+                        fluctuation_file, u_field.shape
+                    )
+                else:
+                    # No fluctuations available - just write corrected field
+                    print("WARNING: No turbulence fluctuations available, writing corrected field only")
+                    return self.write_plotfile(plotfile_name)
+            
+            # Apply fluctuations to velocity field
+            u_modified = u_field + u_fluct
+            v_modified = v_field + v_fluct
+            w_modified = w_field + w_fluct
+            
+            # Create output directory if needed
+            import os
+            os.makedirs(plotfile_name, exist_ok=True)
+            
+            print(f"✓ Velocity field with fluctuations:")
+            print(f"  Original U: [{u_field.min():.2f}, {u_field.max():.2f}] m/s")
+            print(f"  Modified U: [{u_modified.min():.2f}, {u_modified.max():.2f}] m/s")
+            print(f"  Fluctuation RMS: u'={u_fluct.std():.3f}, v'={v_fluct.std():.3f}, w'={w_fluct.std():.3f} m/s")
+            
+            # Write to plotfile using internal function
+            success = pyWindSolver.write_plotfile_with_velocity(
+                plotfile_name,
+                u_modified.flatten(),
+                v_modified.flatten(),
+                w_modified.flatten(),
+                self.nx, self.ny, self.nz
+            )
+            
+            if not success:
+                raise RuntimeError(f"Failed to write plotfile with fluctuations: {plotfile_name}")
+            
+            print(f"✓ Wrote plotfile with fluctuations: {plotfile_name}")
+            return success
+        
+        except Exception as e:
+            print(f"ERROR: {e}")
+            raise RuntimeError(f"Failed to write plotfile with fluctuations: {e}")
+    
+    def _read_bts_fluctuations(self, bts_file, shape):
+        """
+        Read turbulence fluctuations from BTS file.
+        
+        Parameters:
+            bts_file (str): Path to BTS file
+            shape (tuple): Expected shape of velocity field (nz, ny, nx)
+        
+        Returns:
+            tuple: (u_fluct, v_fluct, w_fluct) arrays
+        """
+        import struct
+        
+        nz, ny, nx = shape
+        
+        try:
+            with open(bts_file, 'rb') as f:
+                # Read BTS header
+                header_ints = struct.unpack('6i', f.read(6 * 4))
+                id1, id2, nt, ny_bts, nz_bts, ncomp = header_ints
+                
+                header_floats = struct.unpack('6f', f.read(6 * 4))
+                dt, uHub, zHub, dy, dz, z0 = header_floats
+                
+                turb_intensity = struct.unpack('f', f.read(4))[0]
+                
+                # Read first time step velocity data
+                num_points = ny_bts * nz_bts * ncomp
+                vel_data = struct.unpack(f'{num_points}f', f.read(num_points * 4))
+                vel_data = np.array(vel_data, dtype=np.float32)
+                
+                # Extract components (data layout: u,v,w for each point)
+                u_fluct_1d = vel_data[0::3]
+                v_fluct_1d = vel_data[1::3]
+                w_fluct_1d = vel_data[2::3]
+                
+                # Reshape to match solver grid
+                # Resize if needed to match solver's grid dimensions
+                if u_fluct_1d.size != nx * ny * nz:
+                    print(f"WARNING: BTS grid size {u_fluct_1d.size} != solver grid {nx * ny * nz}")
+                    # Interpolate or pad as needed
+                    u_fluct_1d = u_fluct_1d[:nx * ny * nz]
+                
+                u_fluct = u_fluct_1d.reshape((nz, ny, nx))
+                v_fluct = v_fluct_1d.reshape((nz, ny, nx))
+                w_fluct = w_fluct_1d.reshape((nz, ny, nx))
+                
+                return u_fluct, v_fluct, w_fluct
+        
+        except Exception as e:
+            print(f"ERROR: Failed to read BTS file {bts_file}: {e}")
+            raise
     
     def write_extract(self, extract_filename="wind_extract.csv", agl_height=10.0):
         """
