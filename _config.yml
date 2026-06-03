@@ -1,0 +1,6 @@
+exclude:
+  - external/
+  - docs/
+  - src/
+  - regtest/
+  - tools/
