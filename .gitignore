@@ -19,9 +19,10 @@ env/
 venv/
 
 # Ignore user-local solver input files at root / build level,
-# but NOT the committed inputs.i files inside regtest/
+# but NOT the committed inputs.i files inside regtest/ and test/
 inputs.i
 !regtest/**/inputs.i
+!test/**/inputs.i
 terrain.xyz
 terrain.csv
 !regtest/**/terrain.csv
