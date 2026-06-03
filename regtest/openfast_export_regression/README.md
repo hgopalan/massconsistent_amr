@@ -1,6 +1,6 @@
-# Phase 5: OpenFAST Export Tool - Regression Tests
+# OpenFAST Export Tool - Regression Tests
 
-This directory contains regression tests for the OpenFAST/TurbSim export tool (Phase 5).
+This directory contains regression tests for the OpenFAST/TurbSim export tool.
 
 ## Test Cases
 
@@ -23,7 +23,7 @@ Unit tests for the TurbSim binary format (`.bts`) writer:
   - Float precision preservation
   - Data type conversion (float32, float64, int)
 
-### 2. Gaussian Hill Test (`test_phase5_openfast_gaussian_hill.py`)
+### 2. Gaussian Hill Test (`test_gaussian_hill.py`)
 
 Integration test using a Gaussian hill terrain:
 
@@ -54,18 +54,18 @@ Integration test using a Gaussian hill terrain:
 ### Run all BTS format tests:
 ```bash
 cd /tmp/workspace/hgopalan/massconsistent_amr
-python3 regtest/phase5_openfast_export/test_openfast_export.py
+python3 regtest/openfast_export_regression/test_openfast_export.py
 ```
 
 ### Run Gaussian hill regression test:
 ```bash
 cd /tmp/workspace/hgopalan/massconsistent_amr
-python3 regtest/phase5_openfast_export/test_phase5_openfast_gaussian_hill.py
+python3 regtest/openfast_export_regression/test_gaussian_hill.py
 ```
 
 ### Run specific test class:
 ```bash
-python3 -m unittest regtest.phase5_openfast_export.test_openfast_export.TestBTSFormat
+python3 -m unittest regtest.openfast_export_regression.test_openfast_export.TestBTSFormat
 ```
 
 ## Expected Output
@@ -73,7 +73,7 @@ python3 -m unittest regtest.phase5_openfast_export.test_openfast_export.TestBTSF
 When all tests pass:
 ```
 ======================================================================
-Phase 5: OpenFAST Export - Gaussian Hill Regression Test
+OpenFAST Export Tool - Gaussian Hill Regression Test
 ======================================================================
 
 ======================================================================

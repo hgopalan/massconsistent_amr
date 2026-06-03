@@ -75,11 +75,11 @@ cmake --build build --parallel
 
 **Phase 4**: Comprehensive validation framework (12 regression tests, all passing)
 
-**Phase 5**: OpenFAST Export & Documentation
+**OpenFAST Export & Documentation**
 - **OpenFAST Export Tool (openfast_export.py)** — Standalone Python tool for exporting wind fields to TurbSim binary format (.bts) compatible with NREL OpenFAST wind turbine simulations
 - **BTS Format Writer** — Full TurbSim binary format support with header, metadata, and 3D velocity field export
 - **Turbulence Metadata** — Configurable Von Kármán spectrum, intensity profiles, integral length scales, and surface roughness
-- **Regression Tests** — Phase 5 validation with Gaussian hill test case and comprehensive format compliance tests
+- **Regression Tests** — Validation with Gaussian hill test case and comprehensive format compliance tests
 
 See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html) for synthetic turbulence framework, and [Tools README](tools/README.md) for tool usage examples.
 

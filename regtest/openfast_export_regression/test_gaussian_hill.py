@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_phase5_openfast_gaussian_hill.py - OpenFAST export regression test
+test_openfast_gaussian_hill.py - OpenFAST export regression test
 
 Tests OpenFAST/TurbSim BTS export over Gaussian hill terrain.
 Validates:
@@ -26,7 +26,7 @@ def test_bts_format():
     print("="*70)
     
     # Create test directory
-    test_dir = tempfile.mkdtemp(prefix="phase5_test_")
+    test_dir = tempfile.mkdtemp(prefix="openfast_test_")
     
     try:
         # Get the regression test directory
@@ -295,7 +295,7 @@ def test_physical_ranges():
 def main():
     """Run all regression tests."""
     print("\n" + "="*70)
-    print("Phase 5: OpenFAST Export - Gaussian Hill Regression Test")
+    print("OpenFAST Export Tool - Gaussian Hill Regression Test")
     print("="*70)
     
     tests = [

@@ -2,7 +2,8 @@
 """
 test_openfast_export.py - Validation tests for OpenFAST/TurbSim export
 
-Tests BTS format generation, data integrity, and compatibility with OpenFAST.
+Tests BTS binary format generation, data integrity, and compatibility with OpenFAST.
+Validates the openfast_export.py tool for exporting wind fields to TurbSim format.
 """
 
 import sys
