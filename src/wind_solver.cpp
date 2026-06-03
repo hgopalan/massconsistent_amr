@@ -104,6 +104,10 @@
 #include "flux_diagnostics.H"
 #include "landuse_roughness.H"
 #include "directional_bias_correction.H"
+#include "divergence_damping.H"
+#include "pressure_poisson_solver.H"
+#include "terrain_analysis.H"
+#include "surface_layer_transition.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1391,6 +1395,48 @@ int main(int argc, char* argv[])
         pp.query("bias_speed_factor", bias_speed_factor);
         pp.query("bias_periodic_enabled", bias_periodic_enabled);
         pp.query("bias_periodic_amplitude", bias_periodic_amplitude);
+
+        // ===== PHASE 3 SOLVER ENHANCEMENT PARAMETERS =====
+        
+        // Feature 11: Divergence Damping Filter
+        bool enable_divergence_damping = false;
+        Real damping_coefficient = -1.0;    // Auto-compute if negative
+        int damping_iterations = 1;
+        pp.query("enable_divergence_damping", enable_divergence_damping);
+        pp.query("damping_coefficient", damping_coefficient);
+        pp.query("damping_iterations", damping_iterations);
+        
+        // Feature 15: Perturbation Pressure Gradient (OPT-IN, default OFF)
+        bool enable_perturbation_pressure = false;
+        Real pressure_tol_rel = 1.0e-6;
+        int pressure_max_iter = 100;
+        Real pressure_scale = 0.5;
+        pp.query("enable_perturbation_pressure", enable_perturbation_pressure);
+        pp.query("pressure_tol_rel", pressure_tol_rel);
+        pp.query("pressure_max_iter", pressure_max_iter);
+        pp.query("pressure_scale", pressure_scale);
+        
+        // Feature 22: Multi-Scale Terrain Analysis
+        bool enable_terrain_analysis = false;
+        Real slope_threshold_moderate = 0.1;
+        Real slope_threshold_steep = 0.3;
+        Real roughness_factor_moderate = 0.2;
+        Real roughness_factor_steep = 0.8;
+        Real transition_zone_width = 0.02;
+        pp.query("enable_terrain_analysis", enable_terrain_analysis);
+        pp.query("slope_threshold_moderate", slope_threshold_moderate);
+        pp.query("slope_threshold_steep", slope_threshold_steep);
+        pp.query("roughness_factor_moderate", roughness_factor_moderate);
+        pp.query("roughness_factor_steep", roughness_factor_steep);
+        pp.query("transition_zone_width", transition_zone_width);
+        
+        // Feature 24: Surface-Layer-to-Mixed-Layer Transition Smoothing
+        bool enable_transition_smoothing = false;
+        Real transition_height_scale = 100.0;   // Blend zone width [m]
+        Real bl_transition_height = 300.0;      // Nominal transition height [m]
+        pp.query("enable_transition_smoothing", enable_transition_smoothing);
+        pp.query("transition_height_scale", transition_height_scale);
+        pp.query("bl_transition_height", bl_transition_height)
 
          // Terrain-aligned extraction parameters
         // extract_agl  : sample at this height above local terrain [m]; snapped to

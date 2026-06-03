@@ -48,9 +48,10 @@ cmake --build build --parallel
 - **Thermal stratification with buoyancy** — Temperature-driven buoyancy effects on vertical velocity using Boussinesq approximation
 - **Kinematic terrain-following BC** — No-flow-through condition w = u·∇h at terrain surface for improved terrain representation
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
-- **Phase 1: Surface Flux Diagnostics** — Computes friction velocity, momentum flux, drag coefficient, sensible/latent heat flux
-- **Phase 1: Land-use Roughness Classification** — Categorical z₀ mapping from NLCD/IGBP land-use categories
-- **Phase 1: Directional Bias Correction** — Corrects systematic wind direction and speed biases from NWP models
+- **Surface Flux Diagnostics** — Computes friction velocity, momentum flux, drag coefficient, sensible/latent heat flux
+- **Land-use Roughness Classification** — Categorical z₀ mapping from NLCD/IGBP land-use categories
+- **Directional Bias Correction** — Corrects systematic wind direction and speed biases from NWP models
+- **Solver enhancements** — Divergence damping filter, optional perturbation pressure gradient, multi-scale terrain analysis, smooth boundary layer transition
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Terrain-following coordinates** — Streamline coordinate transformation for improved accuracy on steep terrain
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
