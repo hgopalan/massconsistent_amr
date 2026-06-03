@@ -320,6 +320,40 @@ add_regression_test(puff_coupled_full puff_coupled_full)
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_following_steep terrain_following_steep)
 
+# ===========================================================================
+# Advanced Boundary Conditions & Wind Profile Features
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# diurnal_roughness/ – Diurnal roughness length variations z₀(t)
+# ---------------------------------------------------------------------------
+add_regression_test(diurnal_roughness diurnal_roughness)
+
+# ---------------------------------------------------------------------------
+# bl_decay/ – Exponential boundary layer wind decay
+# ---------------------------------------------------------------------------
+add_regression_test(bl_decay bl_decay)
+
+# ---------------------------------------------------------------------------
+# momentum_flux/ – Momentum flux output fields (τ_x, τ_y, u*)
+# ---------------------------------------------------------------------------
+add_regression_test(momentum_flux momentum_flux)
+
+# ---------------------------------------------------------------------------
+# richardson_diagnostic/ – Richardson number boundary layer depth diagnostic
+# ---------------------------------------------------------------------------
+add_regression_test(richardson_diagnostic richardson_diagnostic)
+
+# ---------------------------------------------------------------------------
+# froude_scaling/ – Froude number height scaling with terrain blocking
+# ---------------------------------------------------------------------------
+add_regression_test(froude_scaling froude_scaling)
+
+# ---------------------------------------------------------------------------
+# ageostrophic_balance/ – Ageostrophic wind balance boundary conditions
+# ---------------------------------------------------------------------------
+add_regression_test(ageostrophic_balance ageostrophic_balance)
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------
@@ -380,5 +414,11 @@ message(STATUS "  puff_buildings/        : Puff dispersion with building wake ef
 message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
 message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
 message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain (Feature 17)")
+message(STATUS "  diurnal_roughness/     : Diurnal roughness length variations z₀(t)")
+message(STATUS "  bl_decay/              : Exponential boundary layer wind decay above BL depth")
+message(STATUS "  momentum_flux/         : Momentum flux output fields (τ_x, τ_y, u*)")
+message(STATUS "  richardson_diagnostic/ : Richardson number boundary layer depth diagnostic")
+message(STATUS "  froude_scaling/        : Froude number height scaling with terrain blocking")
+message(STATUS "  ageostrophic_balance/  : Ageostrophic wind balance boundary conditions")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

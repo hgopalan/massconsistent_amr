@@ -1188,6 +1188,24 @@ Summary of Physics Models
    * - Terrain-following coordinates
      - Streamline coordinates for steep terrain
      - ``terrain_following_coords.H``
+   * - Diurnal roughness
+     - Time-dependent aerodynamic roughness variations
+     - ``diurnal_roughness_models.H``
+   * - Boundary layer decay
+     - Exponential wind decay above boundary layer
+     - ``boundary_layer_decay_models.H``
+   * - Momentum flux diagnostics
+     - Surface shear stress and friction velocity output
+     - ``wind_solver.cpp``
+   * - Richardson number diagnostics
+     - Automatic boundary layer depth diagnosis
+     - ``richardson_number_models.H``
+   * - Froude number height scaling
+     - Height-dependent terrain blocking intensity
+     - ``terrain_blocking_models.H``
+   * - Ageostrophic wind balance
+     - Geostrophic boundary conditions with Coriolis
+     - ``ageostrophic_models.H``
 
 All physics models are:
 
@@ -1195,3 +1213,59 @@ All physics models are:
 * **Optional** (disabled by default for backward compatibility)
 * **Combinable** (e.g., stability + buoyancy + canopy)
 * **Validated** via regression tests
+
+Advanced Boundary Conditions & Wind Profile Features
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In addition to the fundamental physics models listed above, the solver includes
+advanced boundary condition and wind profile refinement features for enhanced
+realism in complex atmospheric scenarios:
+
+**Diurnal Roughness (Feature 7)**
+
+Aerodynamic roughness length z₀ varies sinusoidally with time of day to represent
+diurnal cycles in canopy structure and surface properties.
+
+Configuration: ``enable_diurnal_roughness = true``
+
+**Boundary Layer Wind Decay (Feature 9)**
+
+Wind speed decays exponentially above the boundary layer depth to represent the
+transition from well-mixed PBL to stratified free atmosphere.
+
+Configuration: ``enable_bl_decay = true``
+
+**Momentum Flux Diagnostics (Feature 8)**
+
+Computes and outputs surface momentum flux components (τ_x, τ_y) and friction
+velocity u* for drag parameterization and land-atmosphere coupling analysis.
+
+Output fields: indices 13-15 in plotfile
+
+**Richardson Number Boundary Layer Depth (Feature 23)**
+
+Diagnoses boundary layer depth automatically by finding where the Richardson
+number exceeds a critical threshold (typically 0.25).
+
+Configuration: ``enable_bl_depth_diagnostic = true``
+
+Output fields: indices 16-17 in plotfile
+
+**Froude Number Height Scaling (Feature 21)**
+
+Terrain blocking intensity varies with height through a height-dependent Froude
+number (Fr = U(z)/(N·h)), enabling realistic flow blocking at lower levels and
+overtopping at upper levels in stably stratified conditions.
+
+Configuration: ``enable_froude_height_scaling = true`` (requires terrain blocking)
+
+**Ageostrophic Wind Balance (Feature 10)**
+
+Applies lateral boundary conditions with geostrophic wind balance, computing the
+wind components from pressure gradients and Coriolis parameter based on latitude.
+
+Configuration: ``enable_ageostrophic_balance = true``
+
+Detailed documentation on these features, including physics formulations,
+configuration parameters, and validation tests, is available in the
+:ref:`implementation_status` section.

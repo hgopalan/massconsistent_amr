@@ -1,8 +1,8 @@
-# Phase 2: Boundary Conditions & Profile Refinement
+# Advanced Boundary Conditions & Profile Refinement
 
 ## Overview
 
-Phase 2 enhances the mass-consistent wind solver with advanced boundary condition handling and refined wind profile representation. These features provide more accurate simulation of diurnal cycles, boundary layer structure, and geostrophic balance.
+The mass-consistent wind solver is enhanced with advanced boundary condition handling and refined wind profile representation. These features provide more accurate simulation of diurnal cycles, boundary layer structure, and geostrophic balance.
 
 ## Features
 
@@ -243,7 +243,7 @@ diurnal_time_of_day = 14.0
 ## Complete Example Configuration
 
 ```ini
-# Phase 2 Features Configuration File
+# Advanced Features Configuration File
 
 # Feature 7: Diurnal Roughness
 enable_diurnal_roughness = true
@@ -294,7 +294,7 @@ plot_file = plt_wind_phase2
 
 ## Output Field Index Reference
 
-Phase 2 adds the following output fields to the plotfile:
+Advanced features add the following output fields to the plotfile:
 
 | Index | Name | Units | Description |
 |-------|------|-------|-------------|
@@ -313,7 +313,7 @@ Phase 2 adds the following output fields to the plotfile:
 | **16** | **richardson_no** | **-** | **Richardson number (NEW)** |
 | **17** | **bl_depth** | **m** | **Boundary layer depth (NEW)** |
 
-## Testing Phase 2 Features
+## Testing Advanced Features
 
 ### Regression Test for Feature 7 (Diurnal Roughness)
 ```bash

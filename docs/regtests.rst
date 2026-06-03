@@ -257,6 +257,128 @@ model output.
     dz                 = 25.0
     extract_agl        = 15.0
 
+Advanced Features
+^^^^^^^^^^^^^^^^^
+
+The following tests validate advanced boundary condition and wind profile features:
+
+diurnal_roughness
+~~~~~~~~~~~~~~~~~
+
+**Location:** ``regtest/diurnal_roughness/``
+
+**Purpose:** Tests time-dependent variation of aerodynamic roughness length z₀(t) 
+following a diurnal cycle. Validates that the sinusoidal modulation is correctly 
+applied to the initial log-law profiles.
+
+**Physics:** z₀(t) = z₀_base × [1 + A·sin(πt/12 + φ)]
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_diurnal_roughness = true
+    roughness_amplitude      = 0.3
+    diurnal_time_of_day      = 14.0
+
+bl_decay
+~~~~~~~~
+
+**Location:** ``regtest/bl_decay/``
+
+**Purpose:** Verifies exponential wind decay above the boundary layer depth. 
+Tests that wind speed decays correctly in the region above z_BL.
+
+**Physics:** u(z) = u_BL · exp[-(z - z_BL) / H_decay] for z > z_BL
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_bl_decay         = true
+    bl_depth_param          = 80.0
+    decay_height_scale      = 20.0
+    bl_transition_height    = 10.0
+
+momentum_flux
+~~~~~~~~~~~~~
+
+**Location:** ``regtest/momentum_flux/``
+
+**Purpose:** Validates computation and output of momentum flux diagnostic fields 
+(τ_x, τ_y, u*). Ensures correct friction velocity and shear stress calculation 
+and output in plotfile.
+
+**Output fields validated:**
+
+- Index 13: τ_x [Pa] - Shear stress x-component
+- Index 14: τ_y [Pa] - Shear stress y-component
+- Index 15: u* [m/s] - Friction velocity
+
+richardson_diagnostic
+~~~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``regtest/richardson_diagnostic/``
+
+**Purpose:** Tests Richardson number computation and boundary layer depth diagnosis. 
+Validates that the critical Richardson number (Ri ≈ 0.25) correctly identifies 
+the boundary layer top.
+
+**Physics:** Ri = (g/θ)·(dθ/dz) / [(du/dz)² + (dv/dz)²]
+
+**Output fields validated:**
+
+- Index 16: richardson_no - Richardson number diagnostic
+- Index 17: bl_depth [m] - Diagnosed boundary layer depth
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_bl_depth_diagnostic  = true
+    richardson_critical        = 0.25
+    richardson_min_wind_shear  = 0.001
+
+froude_scaling
+~~~~~~~~~~~~~~
+
+**Location:** ``regtest/froude_scaling/``
+
+**Purpose:** Validates height-dependent terrain blocking intensity modification through 
+Froude number scaling. Tests that blocking intensity varies realistically with height 
+and wind speed.
+
+**Physics:** Fr(z) = U(z) / (N·h), where blocking effect ∝ 1/Fr(z)
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_terrain_blocking                    = true
+    enable_froude_height_scaling               = true
+    terrain_blocking_brunt_vaisala_frequency   = 0.01
+
+ageostrophic_balance
+~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``regtest/ageostrophic_balance/``
+
+**Purpose:** Tests geostrophic wind balance at domain boundaries with proper 
+Coriolis parameter computation. Validates that ageostrophic wind components 
+are correctly computed from pressure gradients and latitude.
+
+**Physics:** U_geo = -(1/ρf)·∂p/∂y, V_geo = +(1/ρf)·∂p/∂x
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_ageostrophic_balance         = true
+    ageostrophic_latitude               = 45.0
+    ageostrophic_pressure_grad_y        = -1.0
+    ageostrophic_air_density            = 1.225
+    ageostrophic_fraction               = 0.15
+
 Adding New Tests
 ----------------
 
