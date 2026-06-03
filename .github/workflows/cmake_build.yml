@@ -51,6 +51,9 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ninja
 
+      - name: Install Python dependencies
+        run: pip3 install numpy
+
       - name: Configure (3D, CPU-only)
         shell: bash
         run: |
