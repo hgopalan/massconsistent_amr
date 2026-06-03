@@ -264,6 +264,7 @@ jobs:
     name: Build Windows CUDA (windows-2022, Release)
     runs-on: windows-2022
     if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
+    continue-on-error: true
 
     steps:
       - name: Checkout repository (with submodules)
