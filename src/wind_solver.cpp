@@ -53,6 +53,20 @@
 //   The output CSV (extract_file) has columns:
 //       x, y, z_terrain, z_physical, z_agl, u, v, w, speed
 //
+// Time-stepping (transient simulations):
+//   When enable_time_varying = true and a time_series.csv file is provided,
+//   the solver performs a full transient simulation with one Poisson solve
+//   per time point.  The wind field is re-initialized at each time step with
+//   updated U_ref and V_ref from the time series, and separate output files
+//   are generated for each time step (indexed by time_step 00000, 00001, ...).
+//   Time series file format:
+//       time [s]  U_ref [m/s]  V_ref [m/s]
+//       0.0       10.0         0.0
+//       60.0      12.0         2.0
+//       ...
+//   When disabled or no time series file, solver operates in steady-state
+//   mode (single time point).
+//
 // Usage:  wind_solver inputs.i   (or  wind_solver key=value ...)
 //
 // Key parameters (with defaults):
@@ -79,6 +93,8 @@
 //   extract_agl   = -1.0          # terrain-aligned extraction AGL [m] (<0 = off)
 //   extract_k     = -1            # explicit k-index extraction (<0 = off)
 //   extract_file  = wind_extract.csv  # terrain-aligned CSV output filename
+//   enable_time_varying = false   # enable transient time-stepping simulation
+//   time_series_file = time_series.csv # time series input (t, U_ref, V_ref)
 //   building_file = buildings.csv # optional CSV file with building boxes
 //                                 # format: xmin xmax ymin ymax zmin zmax (one per line)
 //                                 # buildings mask cells where z_phys < building_zmax
@@ -1797,6 +1813,8 @@ int main(int argc, char* argv[])
         std::vector<Real> time_series_U_refs;
         std::vector<Real> time_series_V_refs;
         
+        // Determine number of time steps to simulate
+        int num_time_steps = 1;
         if (enable_time_varying) {
             // Check if time_series_file exists before trying to read it
             std::ifstream check_file(time_series_file);
@@ -1806,19 +1824,14 @@ int main(int argc, char* argv[])
                                      time_series_U_refs,
                                      time_series_V_refs);
                 
-                // Override U_ref and V_ref with first time point
-                // Note: Full time-stepping implementation would require restructuring the solver loop.
-                // This implementation uses the first time point as a proof-of-concept.
-                // Future enhancement: wrap solver in time loop for transient simulations.
                 if (!time_series_times.empty()) {
-                    U_ref = time_series_U_refs[0];
-                    V_ref = time_series_V_refs[0];
-                    amrex::Print() << "wind_solver: time-varying mode enabled, using t=" 
-                                  << time_series_times[0] << " s with U_ref=" << U_ref 
-                                  << " m/s, V_ref=" << V_ref << " m/s\n";
-                    amrex::Print() << "wind_solver: note - full time-stepping requires solver loop restructuring\n";
-                    amrex::Print() << "wind_solver: for now, using first time point from series with " 
-                                  << time_series_times.size() << " total time points\n";
+                    num_time_steps = static_cast<int>(time_series_times.size());
+                    amrex::Print() << "wind_solver: time-varying mode ENABLED - " 
+                                  << num_time_steps << " time steps will be computed\n";
+                    amrex::Print() << "wind_solver: time range: [" << time_series_times.front() 
+                                  << ", " << time_series_times.back() << "] s\n";
+                } else {
+                    enable_time_varying = false;
                 }
             } else {
                 amrex::Print() << "wind_solver: WARNING - time-varying mode requested but file not found: "
@@ -2251,6 +2264,29 @@ int main(int argc, char* argv[])
 
         amrex::Print() << "wind_solver: grid setup time = " 
                        << (amrex::second() - t_phase) << " s\n";
+
+        // ================================================================
+        // Main time-stepping loop
+        // ================================================================
+        for (int time_step = 0; time_step < num_time_steps; ++time_step) {
+            // Update reference wind components from time series
+            if (enable_time_varying) {
+                U_ref = time_series_U_refs[time_step];
+                V_ref = time_series_V_refs[time_step];
+                amrex::Print() << "\n";
+                amrex::Print() << "wind_solver: ========== TIME STEP " << (time_step + 1) << " / " 
+                             << num_time_steps << " ==========\n";
+                amrex::Print() << "wind_solver: t = " << time_series_times[time_step] << " s, "
+                             << "U_ref = " << U_ref << " m/s, V_ref = " << V_ref << " m/s\n";
+            } else if (num_time_steps > 1) {
+                amrex::Print() << "\nwind_solver: TIME STEP " << (time_step + 1) << " / " 
+                             << num_time_steps << "\n";
+            }
+            
+            // Reset wind field for this time step
+            vel0.setVal(0.0);
+            lam.setVal(0.0);
+            rhs.setVal(0.0);
 
         // ----------------------------------------------------------------
         // 9. Fill initial wind field based on initialization mode
@@ -4334,6 +4370,19 @@ int main(int argc, char* argv[])
             amrex::Print() << "wind_solver: generating synthetic turbulence field...\n";
             amrex::Real t_turb_start = amrex::second();
 
+            // Create timestep-dependent turbulence output filename if multiple time steps
+            std::string turbulence_output_file_ts = turbulence_output_file;
+            if (num_time_steps > 1) {
+                size_t dot_pos = turbulence_output_file.find_last_of('.');
+                std::string base = (dot_pos != std::string::npos) ? 
+                                   turbulence_output_file.substr(0, dot_pos) : turbulence_output_file;
+                std::string ext = (dot_pos != std::string::npos) ? 
+                                  turbulence_output_file.substr(dot_pos) : ".bts";
+                std::ostringstream fname;
+                fname << base << "_t" << time_step << ext;
+                turbulence_output_file_ts = fname.str();
+            }
+
             const auto& turb_ba = vel_c.boxArray();
             const auto& turb_dm = vel_c.DistributionMap();
             const auto& turb_geom = geom;
@@ -4417,7 +4466,7 @@ int main(int argc, char* argv[])
             bts_writer.Initialize(nt, turb_nx, turb_ny, turb_nz, dt_turb, U_mean,
                                   dx, dy, dz, z_hub, intensity_u, seed);
             bool success = bts_writer.ExportTimeSeries(
-                turbulence_output_file,
+                turbulence_output_file_ts,
                 time_series.u_prime_time_series,
                 time_series.v_prime_time_series,
                 time_series.w_prime_time_series,
@@ -4425,7 +4474,7 @@ int main(int argc, char* argv[])
 
             if (!success) {
                 amrex::Print() << "WARNING: BTS export failed for "
-                               << turbulence_output_file << "\n";
+                               << turbulence_output_file_ts << "\n";
             }
 
             const Real expected_timescale =
@@ -4748,7 +4797,8 @@ int main(int argc, char* argv[])
 
         t_phase = amrex::second();
         // Use indexed plot file name: plot_file_00000, plot_file_00001, etc.
-        std::string indexed_plot_file = amrex::Concatenate(plot_file, 0);
+        // When time-stepping, use time_step index; otherwise use 0
+        std::string indexed_plot_file = amrex::Concatenate(plot_file, time_step);
         WriteSingleLevelPlotfile(indexed_plot_file, output, var_names, geom, 0.0, 0);
         amrex::Print() << "wind_solver: plotfile written to " << indexed_plot_file << "\n";
         amrex::Print() << "wind_solver: output writing time = " 
@@ -4859,19 +4909,26 @@ int main(int argc, char* argv[])
 
                 // Generate output filename for this height
                 std::string output_file;
-                if (extraction_levels.size() == 1) {
-                    // Single height - use the specified extract_file
+                if (extraction_levels.size() == 1 && num_time_steps == 1) {
+                    // Single height, single time step - use the specified extract_file
                     output_file = extract_file;
                 } else {
-                    // Multiple heights - append height to filename
-                    // e.g., wind_extract.csv -> wind_extract_10m.csv
+                    // Multiple heights or multiple time steps - append height and/or time to filename
+                    // e.g., wind_extract.csv -> wind_extract_10m_t0.csv (for time step 0)
                     size_t dot_pos = extract_file.find_last_of('.');
                     std::string base = (dot_pos != std::string::npos) ? 
                                        extract_file.substr(0, dot_pos) : extract_file;
                     std::string ext = (dot_pos != std::string::npos) ? 
                                       extract_file.substr(dot_pos) : ".csv";
                     std::ostringstream fname;
-                    fname << base << "_" << static_cast<int>(agl_target) << "m" << ext;
+                    fname << base;
+                    if (extraction_levels.size() > 1) {
+                        fname << "_" << static_cast<int>(agl_target) << "m";
+                    }
+                    if (num_time_steps > 1) {
+                        fname << "_t" << time_step;
+                    }
+                    fname << ext;
                     output_file = fname.str();
                 }
 
@@ -4916,6 +4973,7 @@ int main(int argc, char* argv[])
                                << output_file << "  (" << (nx * ny) << " points)\n";
             } // end loop over extraction levels
         }
+        } // end time step loop
 
         // Print total execution time
         amrex::Print() << "wind_solver: ========================================\n";
