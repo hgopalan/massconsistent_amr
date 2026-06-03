@@ -53,8 +53,13 @@ jobs:
 
       # Install Python dependencies needed for regression tests
       # (both Linux and macOS run parameter_sensitivity_test)
-      - name: Install Python dependencies
+      - name: Install Python dependencies (Linux)
+        if: runner.os == 'Linux'
         run: pip3 install 'numpy>=1.24,<2.0'
+
+      - name: Install Python dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: pip3 install --break-system-packages 'numpy>=1.24,<2.0'
 
       - name: Configure (3D, CPU-only)
         shell: bash
