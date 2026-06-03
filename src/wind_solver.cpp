@@ -109,8 +109,8 @@
 #include "coriolis_latitude_scaling.H"
 // Synthetic turbulence framework (Phase 1-3 components)
 #include "synthetic_turbulence.H"
-#include "random_field_synthesis.H"
-#include "temporal_synthesis.H"
+// #include "random_field_synthesis.H"  // Phase 2 - random field synthesis (TODO: implement)
+// #include "temporal_synthesis.H"       // Phase 3 - temporal synthesis (TODO: implement)
 #include "turbsim_bts_export.H"
 // Layer 2 (Phase 3): Kernel integration and MultiFab initialization
 // Note: We don't include the Layer 2 kernel headers here as they are
@@ -1600,9 +1600,10 @@ int main(int argc, char* argv[])
             pp.query("turbulence_anisotropy_ratio_w", turb_params.anisotropy_ratio_w);
             
             // Random seed for reproducibility
-            unsigned int random_seed = 12345u;
-            pp.query("turbulence_random_seed", random_seed);
-            turb_params.random_seed = random_seed;
+            // Note: ParmParse only supports signed int, so we parse as int then convert
+            int random_seed_int = 12345;
+            pp.query("turbulence_random_seed", random_seed_int);
+            turb_params.random_seed = static_cast<unsigned int>(std::max(1, random_seed_int));
             
             // Export format and output file
             std::string export_format = "bts";

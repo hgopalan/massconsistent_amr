@@ -28,6 +28,118 @@ cmake --build build --parallel
 ./build/wind_solver regtest/gaussian_hill/inputs.i
 ```
 
+## Build Options
+
+The CMake build system supports multiple configuration options for customizing the build:
+
+### Basic Configuration
+
+```bash
+# CPU-only Release build (default)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+
+# CPU-only Debug build (with optimizations disabled for debugging)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel
+```
+
+### GPU Acceleration
+
+Enable GPU support by specifying the backend:
+
+```bash
+# NVIDIA CUDA (requires CUDA toolkit 12.0+)
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_GPU_BACKEND=CUDA
+cmake --build build --parallel
+
+# AMD HIP/ROCm (requires ROCm 6.0+)
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_GPU_BACKEND=HIP
+cmake --build build --parallel
+
+# Intel SYCL/oneAPI (requires oneAPI 2024.0+)
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_GPU_BACKEND=SYCL
+cmake --build build --parallel
+```
+
+### Python Bindings
+
+Build Python bindings for integration with fire simulation and atmospheric models:
+
+```bash
+# Enable Python bindings (requires pybind11 and Python 3.6+)
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON
+cmake --build build --parallel
+
+# After building, the Python module is available at:
+# build/src/python/pyWindSolver.*.so
+# Can be imported as: from src.python import pyWindSolver
+
+# Or install to Python site-packages:
+pip install -e .
+```
+
+### MPI Parallelism
+
+Enable distributed memory parallelism for large-scale simulations:
+
+```bash
+# Enable MPI support (requires MPI implementation like OpenMPI or MPICH)
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_ENABLE_MPI=ON
+cmake --build build --parallel
+
+# Run with MPI:
+mpirun -np 4 ./build/wind_solver regtest/gaussian_hill/inputs.i
+```
+
+### Combined Options
+
+Example: GPU (CUDA) + Python + MPI:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_GPU_BACKEND=CUDA \
+  -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON \
+  -DMASSCONSISTENT_ENABLE_MPI=ON
+cmake --build build --parallel
+```
+
+### Documentation Build
+
+Build Sphinx documentation (requires Sphinx and Python):
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_BUILD_DOCS=ON
+cmake --build build --target docs
+# Documentation will be in: build/docs/_build/html/
+```
+
+### Advanced AMReX Options
+
+For custom AMReX builds (e.g., external installation):
+
+```bash
+# Use system-installed AMReX instead of vendored submodule
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DMASSCONSISTENT_USE_VENDORED_AMREX=OFF \
+  -DAMReX_DIR=/path/to/amrex/lib/cmake/AMReX
+cmake --build build --parallel
+```
+
 ## Features
 
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
@@ -70,6 +182,10 @@ cmake --build build --parallel
 
 **Synthetic Turbulence Framework** — Complete three-phase system for terrain-aware wind field generation:
 - **Phase 1**: Turbulence parameters (Von Kármán/Kaimal spectra, intensity profiles, coherence functions)
+  - ✅ **Parameter Parsing Integrated**: All 13 configuration parameters now parsed from inputs files
+  - Spectral models: Von Kármán, Kaimal
+  - Intensity profiles: Power-law, Logarithmic, Constant
+  - Coherence models: Gaussian, Exponential
 - **Phase 2**: Random field synthesis (FFT-based with energy conservation, spatial correlations)
 - **Phase 3**: Time-series generation (temporal synthesis for realistic wind fluctuations)
 
@@ -80,6 +196,43 @@ cmake --build build --parallel
 - **BTS Format Writer** — Full TurbSim binary format support with header, metadata, and 3D velocity field export
 - **Turbulence Metadata** — Configurable Von Kármán spectrum, intensity profiles, integral length scales, and surface roughness
 - **Regression Tests** — Validation with Gaussian hill test case and comprehensive format compliance tests
+
+**Synthetic Turbulence Example Usage**
+
+Create an inputs file with synthetic turbulence enabled:
+
+```ini
+# Enable synthetic turbulence generation
+enable_synthetic_turbulence = true
+
+# Phase 1: Turbulence Parameters
+turbulence_spectrum_model = VonKarman          # or Kaimal
+turbulence_intensity_model = PowerLaw          # or Logarithmic, Constant
+turbulence_coherence_model = Gaussian          # or Exponential
+turbulence_intensity_ref = 0.12                # turbulence intensity [fraction]
+turbulence_z_intensity_ref = 10.0              # reference height [m]
+turbulence_intensity_exponent = 0.14           # power-law exponent
+turbulence_length_scale_u = 300.0              # u-component length scale [m]
+turbulence_length_scale_v = 200.0              # v-component length scale [m]
+turbulence_length_scale_w = 120.0              # w-component length scale [m]
+turbulence_coherence_decay_vertical = 0.008    # vertical coherence decay [1/m]
+turbulence_coherence_decay_lateral = 0.006     # lateral coherence decay [1/m]
+turbulence_anisotropy_ratio_v = 0.80           # v/u velocity ratio
+turbulence_anisotropy_ratio_w = 0.50           # w/u velocity ratio
+
+# Phase 2: Random Field Generation
+turbulence_random_seed = 12345                 # reproducible random fields
+
+# Phase 3: Export
+turbulence_export_format = bts                 # TurbSim binary format
+turbulence_output_file = turbulence.bts        # output filename
+```
+
+Then run:
+```bash
+./build/wind_solver your_inputs.i
+# Output will include: turbulence.bts + optional turbulence.bts.meta
+```
 
 See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed parameter sensitivity methodology and [Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html) for synthetic turbulence framework, and [Tools README](tools/README.md) for tool usage examples.
 
