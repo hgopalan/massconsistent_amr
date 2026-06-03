@@ -97,6 +97,10 @@
 #include "slope_flow_models.H"
 #include "valley_channeling_models.H"
 #include "gap_flow_models.H"
+#include "richardson_number_models.H"
+#include "diurnal_roughness_models.H"
+#include "boundary_layer_decay_models.H"
+#include "ageostrophic_models.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1277,6 +1281,63 @@ int main(int argc, char* argv[])
         if (!divergence_source_file.empty()) {
             enable_divergence_source = true;
         }
+
+        // ====================================================================
+        // PHASE 2: Boundary Conditions & Profile Refinement (Features 7-26)
+        // ====================================================================
+        
+        // Feature 7: Diurnal z₀ Variations
+        bool enable_diurnal_roughness = false;
+        Real roughness_amplitude = 0.3;        // Amplitude of z₀ modulation (0-1)
+        Real roughness_phase_offset = 0.0;     // Phase offset [radians]
+        pp.query("enable_diurnal_roughness", enable_diurnal_roughness);
+        pp.query("roughness_amplitude", roughness_amplitude);
+        pp.query("roughness_phase_offset", roughness_phase_offset);
+        
+        // Feature 9: Exponential Wind Decay Above BL
+        bool enable_bl_decay = false;
+        Real bl_depth_param = 1000.0;          // Boundary layer depth [m]
+        Real decay_height_scale = 1000.0;      // Wind decay height scale [m]
+        Real bl_transition_height = 200.0;     // Transition zone above z_BL [m]
+        pp.query("enable_bl_decay", enable_bl_decay);
+        pp.query("bl_depth_param", bl_depth_param);
+        pp.query("decay_height_scale", decay_height_scale);
+        pp.query("bl_transition_height", bl_transition_height);
+        
+        // Feature 23: Boundary Layer Depth Diagnostic (Richardson Number)
+        bool enable_bl_depth_diagnostic = false;
+        Real richardson_critical = 0.25;       // Critical Richardson number
+        Real richardson_min_wind_shear = 0.001;  // Min shear to avoid div by zero [1/s]
+        pp.query("enable_bl_depth_diagnostic", enable_bl_depth_diagnostic);
+        pp.query("richardson_critical", richardson_critical);
+        pp.query("richardson_min_wind_shear", richardson_min_wind_shear);
+        
+        // Feature 21: Froude Number Height Scaling
+        bool enable_froude_height_scaling = false;
+        pp.query("enable_froude_height_scaling", enable_froude_height_scaling);
+        // Note: Froude height scaling is integrated into terrain blocking model
+        // when both enable_terrain_blocking and enable_froude_height_scaling are true
+        
+        // Feature 10: Ageostrophic Wind Balance
+        bool enable_ageostrophic_balance = false;
+        Real ageostrophic_latitude = 45.0;     // Latitude [degrees]
+        Real ageostrophic_pressure_grad_x = 0.0;  // Pressure gradient ∂p/∂x [Pa/m]
+        Real ageostrophic_pressure_grad_y = 0.0;  // Pressure gradient ∂p/∂y [Pa/m]
+        Real ageostrophic_air_density = 1.225;    // Air density [kg/m³]
+        Real ageostrophic_fraction = 0.1;     // Ageostrophic as fraction of geostrophic (0-1)
+        pp.query("enable_ageostrophic_balance", enable_ageostrophic_balance);
+        pp.query("ageostrophic_latitude", ageostrophic_latitude);
+        pp.query("ageostrophic_pressure_grad_x", ageostrophic_pressure_grad_x);
+        pp.query("ageostrophic_pressure_grad_y", ageostrophic_pressure_grad_y);
+        pp.query("ageostrophic_air_density", ageostrophic_air_density);
+        pp.query("ageostrophic_fraction", ageostrophic_fraction);
+        
+        // Feature 26: Time-Series Thermal Circulation Forcing
+        bool enable_time_varying_thermal_amplitude = false;
+        std::string thermal_amplitude_file = "";  // Time series: time, thermal_amplitude
+        Real thermal_amplitude_time_of_day = diurnal_time_of_day;  // Use same time as diurnal
+        pp.query("enable_time_varying_thermal_amplitude", enable_time_varying_thermal_amplitude);
+        pp.query("thermal_amplitude_file", thermal_amplitude_file);
 
         int  mlmg_verbose = 1;
         Real tol_rel      = 1.e-8;
@@ -3872,12 +3933,17 @@ int main(int argc, char* argv[])
         //     10  terrain_z     terrain elevation at column [m]
         //     11  heat_flux     surface sensible heat flux Q_H [W/m²]
         //     12  drag_coeff    drag coefficient Cd [-]
+        //     13  tau_x         shear stress x-component τ_x [Pa]
+        //     14  tau_y         shear stress y-component τ_y [Pa]
+        //     15  u_star        friction velocity u* [m/s]
+        //     16  richardson_no Richardson number Ri [-]
+        //     17  bl_depth      boundary layer depth H_mix [m]
         // ----------------------------------------------------------------
-        const int nout = 13;
+        const int nout = 18;
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
         
-        // Compute diagnostics (heat flux and drag coefficient)
+        // Compute diagnostics (heat flux, drag coefficient, momentum flux, Richardson number, BL depth)
         // Constants for heat flux calculation
         const Real rho_air = 1.225;      // air density [kg/m³] at sea level, 15°C
         const Real cp_air = 1005.0;      // specific heat at constant pressure [J/(kg·K)]
@@ -3918,6 +3984,10 @@ int main(int argc, char* argv[])
                 Real ustar_local = Real(0.0);
                 Real heat_flux = Real(0.0);
                 Real Cd = Real(0.0);
+                Real tau_x = Real(0.0);
+                Real tau_y = Real(0.0);
+                Real richardson_no = Real(0.0);
+                Real bl_depth = Real(0.0);
                 
                 if (z_agl > Real(0.0) && u_mag > Real(1.0e-6)) {
                     // Use local z0 if available, otherwise constant
@@ -3935,11 +4005,29 @@ int main(int argc, char* argv[])
                         
                         // Drag coefficient Cd = (κ / ln(z/z0))²
                         Cd = (kappa_diag / log_term) * (kappa_diag / log_term);
+                        
+                        // Momentum flux (Phase 2, Feature 8)
+                        // τ = ρ u*² = ρ u* × (u_mag / κ × ln((z + z0) / z0))
+                        // τ_x = τ × (u / u_mag), τ_y = τ × (v / u_mag)
+                        Real tau_magnitude = rho_air * ustar_local * ustar_local;
+                        tau_x = tau_magnitude * (u / u_mag);
+                        tau_y = tau_magnitude * (v / u_mag);
+                        
+                        // Simplified Richardson number (Phase 2, Feature 23)
+                        // Approximation: Ri ≈ (g/T) × (dθ/dz) / (du/dz)²
+                        // For now, using zero/small value as placeholder
+                        richardson_no = Real(0.0);
+                        bl_depth = Real(1000.0);  // Default BL depth placeholder
                     }
                 }
                 
                 out(i,j,k,11) = heat_flux;
                 out(i,j,k,12) = Cd;
+                out(i,j,k,13) = tau_x;
+                out(i,j,k,14) = tau_y;
+                out(i,j,k,15) = ustar_local;
+                out(i,j,k,16) = richardson_no;
+                out(i,j,k,17) = bl_depth;
             });
         }
 
@@ -3949,7 +4037,9 @@ int main(int argc, char* argv[])
             "lambda",
             "div_before", "div_after",
             "terrain_z",
-            "heat_flux", "drag_coeff"
+            "heat_flux", "drag_coeff",
+            "tau_x", "tau_y", "u_star",
+            "richardson_no", "bl_depth"
         };
 
         amrex::Print() << "wind_solver: divergence computation time = " 
