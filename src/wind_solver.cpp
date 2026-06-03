@@ -104,8 +104,13 @@
 #include "flux_diagnostics.H"
 #include "landuse_roughness.H"
 #include "directional_bias_correction.H"
-// Phase 3 features: divergence_damping.H, pressure_poisson_solver.H, terrain_analysis.H, 
-// and surface_layer_transition.H are documented but integration is deferred to full implementation
+// Layer 2 (Phase 3): Kernel integration and MultiFab initialization
+// Note: We don't include the Layer 2 kernel headers here as they are
+// designed for FArrayBox and are inlined or called separately
+// #include "divergence_damping.H"
+// #include "pressure_poisson_solver.H"
+// #include "terrain_analysis.H"
+// #include "surface_layer_transition.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1929,6 +1934,36 @@ int main(int argc, char* argv[])
             alpha_v_field.setVal(alpha_v);
         }
 
+        // ================================================================
+        // Layer 2: Initialize MultiFabs for advanced solver features
+        // ================================================================
+        
+        // MultiFab for divergence damping (Feature 11)
+        MultiFab lambda_damped(ba, dm, 1, 1);
+        lambda_damped.setVal(0.0);
+        
+        // MultiFab for perturbation pressure (Feature 15, optional)
+        MultiFab p_prime(ba, dm, 1, 1);
+        p_prime.setVal(0.0);
+        
+        // MultiFabs for terrain analysis (Feature 22)
+        MultiFab terrain_type(ba, dm, 1, 0);        // Classification: 0=flat, 1=moderate, 2=steep
+        MultiFab terrain_slope(ba, dm, 1, 0);       // Slope magnitude |∇h|
+        MultiFab terrain_curvature(ba, dm, 1, 0);   // Curvature ∇²h
+        MultiFab terrain_aspect(ba, dm, 1, 0);      // Aspect ratio (direction of max slope)
+        
+        terrain_type.setVal(0);
+        terrain_slope.setVal(0.0);
+        terrain_curvature.setVal(0.0);
+        terrain_aspect.setVal(0.0);
+        
+        // Adaptive parameters from terrain analysis (Feature 22)
+        MultiFab adaptive_roughness(ba, dm, 1, 0);  // Spatially-adapted z0
+        MultiFab adaptive_stability(ba, dm, 1, 0);  // Stability parameter scaling
+        
+        adaptive_roughness.setVal(z0);
+        adaptive_stability.setVal(1.0);
+
         // Temperature MultiFab (if buoyancy stratification enabled)
         MultiFab temp(ba, dm, 1, 0);
         temp.setVal(temperature_reference);  // Initialize to reference temperature
@@ -2034,6 +2069,112 @@ int main(int argc, char* argv[])
             d_z0_pos_ptr = d_z0_pos.data();
             
             amrex::Print() << "wind_solver: position-dependent roughness interpolated to grid\n";
+        }
+
+        // ================================================================
+        // Layer 2: Compute terrain analysis (Feature 22)
+        // ================================================================
+        if (enable_terrain_analysis) {
+            amrex::Print() << "wind_solver: computing multi-scale terrain analysis...\n";
+            
+            // Terrain slopes and curvatures are 2D (j,i). Create a temporary 2D terrain fab
+            // for easier kernel calling. We'll compute these on the xy-plane (k=0 layer).
+            
+            for (MFIter mfi(terrain_slope); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto slope_arr = terrain_slope.array(mfi);
+                auto curv_arr = terrain_curvature.array(mfi);
+                auto aspect_arr = terrain_aspect.array(mfi);
+                auto ttype_arr = terrain_type.array(mfi);
+                auto adap_rough = adaptive_roughness.array(mfi);
+                auto adap_stab = adaptive_stability.array(mfi);
+                
+                // Create a simple 2D terrain fab for this box
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Access terrain height from device array (nx x ny layout)
+                    // Compute slope at (i, j) - only valid for interior points
+                    if (i > 0 && i < nx_cap_init - 1 && j > 0 && j < ny_cap_init - 1) {
+                        Real h_c  = d_terr_ptr[j * nx_cap_init + i];
+                        Real h_e  = d_terr_ptr[j * nx_cap_init + (i+1)];
+                        Real h_w  = d_terr_ptr[j * nx_cap_init + (i-1)];
+                        Real h_n  = d_terr_ptr[(j+1) * nx_cap_init + i];
+                        Real h_s  = d_terr_ptr[(j-1) * nx_cap_init + i];
+                        
+                        // Compute slope magnitude
+                        Real dh_dx = (h_e - h_w) / (Real(2.0) * dx_cap_init);
+                        Real dh_dy = (h_n - h_s) / (Real(2.0) * dy_cap_init);
+                        Real slope = std::sqrt(dh_dx * dh_dx + dh_dy * dh_dy);
+                        
+                        // Compute curvature (Laplacian)
+                        Real d2h_dx2 = (h_e - Real(2.0) * h_c + h_w) / (dx_cap_init * dx_cap_init);
+                        Real d2h_dy2 = (h_n - Real(2.0) * h_c + h_s) / (dy_cap_init * dy_cap_init);
+                        Real curvature = d2h_dx2 + d2h_dy2;
+                        
+                        // Compute aspect (direction of max slope)
+                        Real aspect = std::atan2(dh_dy, dh_dx);
+                        
+                        slope_arr(i, j, k) = slope;
+                        curv_arr(i, j, k) = curvature;
+                        aspect_arr(i, j, k) = aspect;
+                        
+                        // Classify terrain type
+                        Real slope_threshold_moderate = Real(0.1);  // ~5.7 degrees
+                        Real slope_threshold_steep = Real(0.3);     // ~17 degrees
+                        
+                        // Inline classification
+                        int ttype;
+                        if (slope < slope_threshold_moderate) {
+                            ttype = 0;  // Flat
+                        } else if (slope < slope_threshold_steep) {
+                            ttype = 1;  // Moderate
+                        } else {
+                            ttype = 2;  // Steep
+                        }
+                        ttype_arr(i, j, k) = ttype;
+                        
+                        // Get adaptive roughness based on terrain type
+                        Real rough_fact_mod = Real(0.15);   // 15% increase for moderate
+                        Real rough_fact_steep = Real(0.75); // 75% increase for steep
+                        
+                        Real z0_adaptive;
+                        if (ttype == 0) {
+                            z0_adaptive = z0_cap;
+                        } else if (ttype == 1) {
+                            z0_adaptive = z0_cap * (Real(1.0) + rough_fact_mod);
+                        } else {
+                            z0_adaptive = z0_cap * (Real(1.0) + rough_fact_steep);
+                        }
+                        adap_rough(i, j, k) = z0_adaptive;
+                        
+                        // Get adaptive stability scaling
+                        Real stab_flat = Real(0.8);
+                        Real stab_mod = Real(1.0);
+                        Real stab_steep = Real(1.3);
+                        
+                        Real stab_scale;
+                        if (ttype == 0) {
+                            stab_scale = stab_flat;
+                        } else if (ttype == 1) {
+                            stab_scale = stab_mod;
+                        } else {
+                            stab_scale = stab_steep;
+                        }
+                        adap_stab(i, j, k) = stab_scale;
+                    } else {
+                        // Boundary cells: use constant values
+                        slope_arr(i, j, k) = Real(0.0);
+                        curv_arr(i, j, k) = Real(0.0);
+                        aspect_arr(i, j, k) = Real(0.0);
+                        ttype_arr(i, j, k) = 0;  // flat
+                        adap_rough(i, j, k) = z0_cap;
+                        adap_stab(i, j, k) = Real(1.0);
+                    }
+                });
+            }
+            
+            amrex::Print() << "wind_solver: terrain analysis complete\n";
         }
 
         if (init_mode == "loglaw") {
@@ -3756,6 +3897,78 @@ int main(int argc, char* argv[])
         // Fill interior ghost cells of λ (needed for gradient computation)
         lam.FillBoundary(geom.periodicity());
 
+        // ================================================================
+        // Layer 2: Apply divergence damping filter (Feature 11)
+        // ================================================================
+        if (enable_divergence_damping) {
+            amrex::Print() << "wind_solver: applying divergence damping filter...\n";
+            t_phase = amrex::second();
+            
+            // Estimate damping coefficient from grid spacing if not set
+            Real damp_coeff = damping_coefficient;
+            if (damp_coeff < Real(0.0)) {
+                // Estimate: ε ≈ 0.05 × min(dx², dy², dz²)
+                Real min_spacing = std::min({dx, dy, dz});
+                Real min_spacing_sq = min_spacing * min_spacing;
+                damp_coeff = Real(0.05) * min_spacing_sq;
+            }
+            
+            amrex::Print() << "  damping_coefficient = " << damp_coeff << " m^2/s\n";
+            amrex::Print() << "  damping_iterations = " << damping_iterations << "\n";
+            
+            const Real inv_dx2 = Real(1.0) / (dx * dx);
+            const Real inv_dy2 = Real(1.0) / (dy * dy);
+            const Real inv_dz2 = Real(1.0) / (dz * dz);
+            
+            // Apply damping iterations
+            for (int iter = 0; iter < damping_iterations; ++iter) {
+                for (MFIter mfi(lam); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.validbox();
+                    const auto lam_arr = lam.const_array(mfi);
+                    auto lambda_damp_arr = lambda_damped.array(mfi);
+                    
+                    amrex::ParallelFor(bx,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        // Inline divergence damping: λ_filtered = λ - ε∇²λ
+                        // Laplacian: ∇²f = (f_E - 2*f_C + f_W)/dx² + (f_N - 2*f_C + f_S)/dy² + (f_T - 2*f_C + f_B)/dz²
+                        Real lambda_val = lam_arr(i, j, k);
+                        
+                        Real f_xx = (lam_arr(i+1, j, k) - Real(2.0) * lambda_val + lam_arr(i-1, j, k)) * inv_dx2;
+                        Real f_yy = (lam_arr(i, j+1, k) - Real(2.0) * lambda_val + lam_arr(i, j-1, k)) * inv_dy2;
+                        Real f_zz = (lam_arr(i, j, k+1) - Real(2.0) * lambda_val + lam_arr(i, j, k-1)) * inv_dz2;
+                        
+                        Real laplacian = f_xx + f_yy + f_zz;
+                        
+                        // Apply damping: λ_filtered = λ - ε∇²λ
+                        lambda_damp_arr(i, j, k) = lambda_val - damp_coeff * laplacian;
+                    });
+                }
+                
+                // Copy damped values back to lam for next iteration
+                MultiFab::Copy(lam, lambda_damped, 0, 0, 1, 0);
+                lam.FillBoundary(geom.periodicity());
+            }
+            
+            amrex::Print() << "wind_solver: divergence damping time = " 
+                           << (amrex::second() - t_phase) << " s\n";
+        }
+
+        // ================================================================
+        // Layer 2: Apply perturbation pressure gradient (Feature 15, optional)
+        // ================================================================
+        if (enable_perturbation_pressure) {
+            amrex::Print() << "wind_solver: setting up perturbation pressure solve...\n";
+            t_phase = amrex::second();
+            
+            // For now, just initialize p_prime to zero (full implementation in future)
+            // This is a placeholder for pressure Poisson solve
+            p_prime.setVal(0.0);
+            
+            amrex::Print() << "wind_solver: perturbation pressure initialization time = " 
+                           << (amrex::second() - t_phase) << " s\n";
+        }
+
         // ----------------------------------------------------------------
         // 13. Correct velocity field:  u = u0 - α_h² ∂λ/∂x  etc.
         //     One-sided gradient at physical domain boundaries.
@@ -3868,9 +4081,9 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: velocity correction time = " 
                        << (amrex::second() - t_phase) << " s\n";
 
-        // ----------------------------------------------------------------
+        // ================================================================
         // 14. Compute diagnostics: divergence before and after correction
-        // ----------------------------------------------------------------
+        // ================================================================
         t_phase = amrex::second();
         MultiFab div_before(ba, dm, 1, 0);
         MultiFab div_after (ba, dm, 1, 0);
@@ -4016,8 +4229,11 @@ int main(int argc, char* argv[])
         //     15  u_star        friction velocity u* [m/s]
         //     16  richardson_no Richardson number Ri [-]
         //     17  bl_depth      boundary layer depth H_mix [m]
-        // ----------------------------------------------------------------
-        const int nout = 18;
+        //     18  terrain_type  terrain classification (0=flat, 1=moderate, 2=steep) [-]
+        //     19  terrain_slope magnitude of terrain slope |∇h| [-]
+        //     20  adaptive_z0   adaptive roughness from terrain analysis [m]
+        // ================================================================
+        const int nout = 21;
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
         
@@ -4036,6 +4252,12 @@ int main(int argc, char* argv[])
             const auto la   = lam.const_array(mfi);
             const auto dib  = div_before.const_array(mfi);
             const auto dia  = div_after.const_array(mfi);
+            
+            // Layer 2: Terrain analysis arrays
+            const auto ttype_arr = terrain_type.const_array(mfi);
+            const auto tslope_arr = terrain_slope.const_array(mfi);
+            const auto adap_rough_arr = adaptive_roughness.const_array(mfi);
+            
             auto out = output.array(mfi);
 
             amrex::ParallelFor(bx,
@@ -4106,6 +4328,11 @@ int main(int argc, char* argv[])
                 out(i,j,k,15) = ustar_local;
                 out(i,j,k,16) = richardson_no;
                 out(i,j,k,17) = bl_depth;
+                
+                // Layer 2: Terrain analysis diagnostics (Feature 22)
+                out(i,j,k,18) = enable_terrain_analysis ? Real(ttype_arr(i,j,k)) : Real(0.0);
+                out(i,j,k,19) = enable_terrain_analysis ? tslope_arr(i,j,k) : Real(0.0);
+                out(i,j,k,20) = enable_terrain_analysis ? adap_rough_arr(i,j,k) : z0_cap;
             });
         }
 
@@ -4117,7 +4344,8 @@ int main(int argc, char* argv[])
             "terrain_z",
             "heat_flux", "drag_coeff",
             "tau_x", "tau_y", "u_star",
-            "richardson_no", "bl_depth"
+            "richardson_no", "bl_depth",
+            "terrain_type", "terrain_slope", "adaptive_z0"
         };
 
         amrex::Print() << "wind_solver: divergence computation time = " 
