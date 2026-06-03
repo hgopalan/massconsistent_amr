@@ -58,6 +58,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <limits>
 
 // ============================================================================
 // Namespace: TemporalSynthesis
@@ -148,10 +149,10 @@ amrex::Real GenerateUniformRandom(unsigned int& seed)
     // Linear congruential generator
     static constexpr unsigned int a = 1664525u;
     static constexpr unsigned int c = 1013904223u;
-    static constexpr unsigned int m = 4294967296u;  // 2^32
     
     seed = (a * seed + c);
-    return (amrex::Real)(seed >> 8) * (1.0 / amrex::Real(1u << 24));
+    return static_cast<amrex::Real>(seed)
+         / static_cast<amrex::Real>(std::numeric_limits<unsigned int>::max());
 }
 
 /// Generate Gaussian random number (Box-Muller transform)

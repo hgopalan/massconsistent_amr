@@ -22,6 +22,9 @@ import struct
 import math
 from pathlib import Path
 
+INPUTS_FILE = Path("inputs.i")
+ARTIFACT_DIR = Path.cwd()
+
 
 def validate_bts_file(bts_path):
     """
@@ -166,9 +169,9 @@ def test_phase1_parameter_parsing():
         'turbulence_length_scale_u': 300.0,
     }
     
-    inputs_file = 'inputs.i'
+    inputs_file = INPUTS_FILE
     
-    if not os.path.exists(inputs_file):
+    if not inputs_file.exists():
         print(f"ERROR: Inputs file not found: {inputs_file}")
         return False
     
@@ -246,21 +249,21 @@ def test_bts_to_vtk_conversion():
     try:
         from bts_to_vtk import BTSReader, VTKWriter
         
-        bts_file = 'turbulence_synthetic.bts'
-        vtk_file = 'turbulence_synthetic.vtk'
+        bts_file = ARTIFACT_DIR / 'turbulence_synthetic.bts'
+        vtk_file = ARTIFACT_DIR / 'turbulence_synthetic.vtk'
         
         if not os.path.exists(bts_file):
             print(f"WARNING: BTS file not found for VTK conversion: {bts_file}")
             return True  # Skip test if BTS wasn't created yet
         
         # Read BTS file
-        reader = BTSReader(bts_file)
+        reader = BTSReader(str(bts_file))
         if not reader.read():
             print(f"ERROR: Failed to read BTS file: {bts_file}")
             return False
         
         # Convert to VTK (single time step)
-        if not VTKWriter.write_structured_grid(vtk_file, reader, 0):
+        if not VTKWriter.write_structured_grid(str(vtk_file), reader, 0):
             print(f"ERROR: Failed to convert BTS to VTK")
             return False
         
@@ -320,8 +323,8 @@ def test_bts_export_integration():
     """
     print("\n=== BTS Export Integration Test ===")
     
-    output_file = 'turbulence_synthetic.bts'
-    meta_file = 'turbulence_synthetic.meta'
+    output_file = ARTIFACT_DIR / 'turbulence_synthetic.bts'
+    meta_file = ARTIFACT_DIR / 'turbulence_synthetic.meta'
     
     # Check BTS file
     bts_info = validate_bts_file(output_file)
@@ -395,10 +398,12 @@ def run_all_tests():
 
 
 if __name__ == "__main__":
-    # Run tests in the test directory
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    if test_dir:
-        os.chdir(test_dir)
+    if len(sys.argv) >= 2:
+        INPUTS_FILE = Path(sys.argv[1]).resolve()
+    if len(sys.argv) >= 3:
+        ARTIFACT_DIR = Path(sys.argv[2]).resolve()
+    test_dir = Path(__file__).resolve().parent
+    os.chdir(test_dir)
     
     success = run_all_tests()
     sys.exit(0 if success else 1)

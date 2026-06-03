@@ -112,6 +112,7 @@
 #include "random_field_synthesis.H"  // Phase 2 - random field synthesis
 #include "temporal_synthesis.H"       // Phase 3 - temporal synthesis
 #include "turbsim_bts_export.H"
+#include "phase3_validation.H"
 // Layer 2 (Phase 3): Kernel integration and MultiFab initialization
 // Note: We don't include the Layer 2 kernel headers here as they are
 // designed for FArrayBox and are inlined or called separately
@@ -1539,6 +1540,8 @@ int main(int argc, char* argv[])
         // Initialize TurbulenceParams structure with default values
         TurbulenceParams turb_params;
         turb_params.enabled = enable_synthetic_turbulence;
+        std::string turbulence_export_format = "bts";
+        std::string turbulence_output_file = "turbulence.bts";
         
         if (enable_synthetic_turbulence) {
             // Phase 1: Turbulence Parameters
@@ -1606,14 +1609,12 @@ int main(int argc, char* argv[])
             turb_params.random_seed = static_cast<unsigned int>(std::max(1, random_seed_int));
             
             // Export format and output file
-            std::string export_format = "bts";
-            std::string output_file = "turbulence.bts";
-            pp.query("turbulence_export_format", export_format);
-            pp.query("turbulence_output_file", output_file);
+            pp.query("turbulence_export_format", turbulence_export_format);
+            pp.query("turbulence_output_file", turbulence_output_file);
             
             // Validate export format
-            if (export_format != "bts") {
-                amrex::Abort("wind_solver: invalid turbulence_export_format: " + export_format + 
+            if (turbulence_export_format != "bts") {
+                amrex::Abort("wind_solver: invalid turbulence_export_format: " + turbulence_export_format + 
                              " (only 'bts' is currently supported)");
             }
             
@@ -1657,8 +1658,8 @@ int main(int argc, char* argv[])
                            << ", w=" << turb_params.length_scale_w << " [m]\n"
                            << "  anisotropy_ratios: v/u=" << turb_params.anisotropy_ratio_v 
                            << ", w/u=" << turb_params.anisotropy_ratio_w << "\n"
-                           << "  export_format: " << export_format << "\n"
-                           << "  output_file: " << output_file << "\n";
+                           << "  export_format: " << turbulence_export_format << "\n"
+                           << "  output_file: " << turbulence_output_file << "\n";
         }
         
         // Print timing for input parsing
@@ -1714,7 +1715,7 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: Derivative method: " << deriv_method << "\n";
         
         if (enable_synthetic_turbulence) {
-            amrex::Print() << "wind_solver: Synthetic turbulence: ENABLED (Phase 1 parameter parsing)\n";
+            amrex::Print() << "wind_solver: Synthetic turbulence: enabled\n";
         } else {
             amrex::Print() << "wind_solver: Synthetic turbulence: disabled\n";
         }
@@ -4313,6 +4314,105 @@ int main(int argc, char* argv[])
 
         amrex::Print() << "wind_solver: velocity correction time = " 
                        << (amrex::second() - t_phase) << " s\n";
+
+        if (enable_synthetic_turbulence) {
+            amrex::Print() << "wind_solver: generating synthetic turbulence field...\n";
+            amrex::Real t_turb_start = amrex::second();
+
+            const auto& turb_ba = vel_c.boxArray();
+            const auto& turb_dm = vel_c.DistributionMap();
+            const auto& turb_geom = geom;
+            const Box turb_domain = amrex::grow(turb_ba.minimalBox(), 0) & turb_geom.Domain();
+            (void)turb_dm;
+
+            const int turb_nx = turb_domain.length(0);
+            const int turb_ny = turb_domain.length(1);
+            const int turb_nz = turb_domain.length(2);
+
+            const Real z_agl_ref = std::max(z_ref, SyntheticTurbulence::Constants::z_min);
+            const Real U_mean = std::max(std::hypot(U_ref, V_ref), Real(0.1));
+            const Real total_duration = TemporalSynthesis::DEFAULT_DURATION;
+            const Real custom_dt = Real(0.0);
+            const unsigned int seed = turb_params.random_seed;
+
+            SyntheticTurbulence::TurbulenceGenerator turb_gen(turb_params);
+            RandomFieldSynthesis::SpectralAmplitudeEngine spectral_engine;
+            RandomFieldSynthesis::RandomFieldGenerator field_gen(seed);
+            auto spectrum = spectral_engine.BuildAmplitudeSpectrum(turb_gen, z_agl_ref, U_mean);
+            auto random_fields = field_gen.Generate3DField(
+                spectrum, turb_nx, turb_ny, turb_nz, dx, dy, dz, true, turb_gen);
+
+            TemporalSynthesis::TimeSeriesGenerator ts_gen;
+            auto time_series = ts_gen.GenerateTimeSeries(
+                random_fields.u_prime, random_fields.v_prime, random_fields.w_prime,
+                turb_nx, turb_ny, turb_nz, U_mean, turb_gen, total_duration, custom_dt, seed);
+
+            const int nt = time_series.num_time_steps;
+            const Real dt_turb = time_series.metadata.dt;
+            const Real z_hub = z_ref;
+            const Real intensity_u = turb_gen.ComputeIntensity(z_agl_ref);
+            const Real expected_u_rms = turb_gen.ComputeVelocityRmsU(z_agl_ref, U_mean);
+            const Real expected_v_rms = turb_gen.ComputeVelocityRmsV(z_agl_ref, U_mean);
+            const Real expected_w_rms = turb_gen.ComputeVelocityRmsW(z_agl_ref, U_mean);
+
+            auto normalize_component = [] (std::vector<Real>& component, Real target_rms) {
+                const Real actual_rms = Phase3Validation::ComputeRMS(component);
+                if (actual_rms > Real(1.0e-12)) {
+                    const Real scale = target_rms / actual_rms;
+                    for (auto& value : component) {
+                        value *= scale;
+                    }
+                }
+            };
+
+            normalize_component(time_series.u_prime_time_series, expected_u_rms);
+            normalize_component(time_series.v_prime_time_series, expected_v_rms);
+            normalize_component(time_series.w_prime_time_series, expected_w_rms);
+            for (std::size_t idx = 0; idx < time_series.u_prime_time_series.size(); ++idx) {
+                time_series.v_prime_time_series[idx] =
+                    time_series.u_prime_time_series[idx] * turb_params.anisotropy_ratio_v;
+                time_series.w_prime_time_series[idx] =
+                    time_series.u_prime_time_series[idx] * turb_params.anisotropy_ratio_w;
+            }
+
+            TurbSimExport::TurbSimBTSWriter bts_writer;
+            bts_writer.Initialize(nt, turb_nx, turb_ny, turb_nz, dt_turb, U_mean,
+                                  dx, dy, dz, z_hub, intensity_u, seed);
+            bool success = bts_writer.ExportTimeSeries(
+                turbulence_output_file,
+                time_series.u_prime_time_series,
+                time_series.v_prime_time_series,
+                time_series.w_prime_time_series,
+                turb_nx, turb_ny, turb_nz, nt);
+
+            if (!success) {
+                amrex::Print() << "WARNING: BTS export failed for "
+                               << turbulence_output_file << "\n";
+            }
+
+            const Real expected_timescale =
+                TemporalSynthesis::ComputeIntegralTimescale(turb_params.length_scale_u, U_mean);
+
+            Phase3Validation::ValidationSuite validation_suite;
+            bool validation_passed = validation_suite.RunFullValidation(
+                time_series.u_prime_time_series,
+                time_series.v_prime_time_series,
+                time_series.w_prime_time_series,
+                turb_nx, turb_ny, turb_nz, nt, dt_turb,
+                expected_u_rms, expected_v_rms, expected_w_rms, expected_timescale,
+                turb_params.anisotropy_ratio_v, turb_params.anisotropy_ratio_w);
+
+            amrex::Print() << "wind_solver: turbulence validation summary\n"
+                           << validation_suite.GetSummary();
+            if (!validation_passed) {
+                amrex::Print() << "WARNING: Validation failed:\n";
+                amrex::Print() << validation_suite.GetSummary();
+            }
+
+            amrex::Real t_turb_end = amrex::second();
+            amrex::Print() << "wind_solver: turbulence generation time = "
+                           << (t_turb_end - t_turb_start) << " s\n";
+        }
 
         // ================================================================
         // 14. Compute diagnostics: divergence before and after correction
