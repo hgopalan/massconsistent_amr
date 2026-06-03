@@ -65,6 +65,16 @@ cmake --build build --parallel
 - **FLORIS integration** — Export wind data to FLORIS wind farm simulation format
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 
+## Advanced Solver Capabilities
+
+The solver includes three implementation layers for advanced features:
+
+- **Foundation Layer** — Comprehensive parameter documentation and modular header files enabling configuration and regression testing
+- **Integration Layer** — Kernel integration into main simulation loops with output field diagnostics
+- **Validation & Optimization Layer** — Performance profiling on CPU/GPU, physical correctness validation, parameter sensitivity analysis, and production hardening
+
+See [Validation & Optimization documentation](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html) for detailed validation framework and performance profiling tools.
+
 ## Documentation
 
 See the [full documentation](https://hgopalan.github.io/massconsistent_amr/) for:
