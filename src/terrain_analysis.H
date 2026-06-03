@@ -39,8 +39,8 @@ amrex::Real compute_terrain_slope(
     const amrex::Real inv_2dy = amrex::Real(1.0) / (amrex::Real(2.0) * dy);
 
     // Centered differences for terrain height gradient
-    amrex::Real dh_dx = (terrain_fab(i+1, j, 0, 0) - terrain_fab(i-1, j, 0, 0)) * inv_2dx;
-    amrex::Real dh_dy = (terrain_fab(i, j+1, 0, 0) - terrain_fab(i, j-1, 0, 0)) * inv_2dy;
+    amrex::Real dh_dx = (terrain_fab(i+1, j) - terrain_fab(i-1, j)) * inv_2dx;
+    amrex::Real dh_dy = (terrain_fab(i, j+1) - terrain_fab(i, j-1)) * inv_2dy;
 
     return std::sqrt(dh_dx * dh_dx + dh_dy * dh_dy);
 }
@@ -60,8 +60,8 @@ amrex::Real compute_terrain_curvature(
     const amrex::Real inv_dy2 = amrex::Real(1.0) / (dy * dy);
 
     // Second derivatives
-    amrex::Real d2h_dx2 = (terrain_fab(i+1, j, 0, 0) - amrex::Real(2.0) * terrain_fab(i, j, 0, 0) + terrain_fab(i-1, j, 0, 0)) * inv_dx2;
-    amrex::Real d2h_dy2 = (terrain_fab(i, j+1, 0, 0) - amrex::Real(2.0) * terrain_fab(i, j, 0, 0) + terrain_fab(i, j-1, 0, 0)) * inv_dy2;
+    amrex::Real d2h_dx2 = (terrain_fab(i+1, j) - amrex::Real(2.0) * terrain_fab(i, j) + terrain_fab(i-1, j)) * inv_dx2;
+    amrex::Real d2h_dy2 = (terrain_fab(i, j+1) - amrex::Real(2.0) * terrain_fab(i, j) + terrain_fab(i, j-1)) * inv_dy2;
 
     return d2h_dx2 + d2h_dy2;
 }
@@ -80,8 +80,8 @@ amrex::Real compute_aspect_ratio(
     const amrex::Real inv_2dx = amrex::Real(1.0) / (amrex::Real(2.0) * dx);
     const amrex::Real inv_2dy = amrex::Real(1.0) / (amrex::Real(2.0) * dy);
 
-    amrex::Real dh_dx = (terrain_fab(i+1, j, 0, 0) - terrain_fab(i-1, j, 0, 0)) * inv_2dx;
-    amrex::Real dh_dy = (terrain_fab(i, j+1, 0, 0) - terrain_fab(i, j-1, 0, 0)) * inv_2dy;
+    amrex::Real dh_dx = (terrain_fab(i+1, j) - terrain_fab(i-1, j)) * inv_2dx;
+    amrex::Real dh_dy = (terrain_fab(i, j+1) - terrain_fab(i, j-1)) * inv_2dy;
 
     return std::atan2(dh_dy, dh_dx);
 }

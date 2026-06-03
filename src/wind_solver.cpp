@@ -104,10 +104,8 @@
 #include "flux_diagnostics.H"
 #include "landuse_roughness.H"
 #include "directional_bias_correction.H"
-#include "divergence_damping.H"
-#include "pressure_poisson_solver.H"
-#include "terrain_analysis.H"
-#include "surface_layer_transition.H"
+// Phase 3 features: divergence_damping.H, pressure_poisson_solver.H, terrain_analysis.H, 
+// and surface_layer_transition.H are documented but integration is deferred to full implementation
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -1433,10 +1431,10 @@ int main(int argc, char* argv[])
         // Feature 24: Surface-Layer-to-Mixed-Layer Transition Smoothing
         bool enable_transition_smoothing = false;
         Real transition_height_scale = 100.0;   // Blend zone width [m]
-        Real bl_transition_height = 300.0;      // Nominal transition height [m]
+        Real transition_layer_height = 300.0;      // Nominal transition height [m]
         pp.query("enable_transition_smoothing", enable_transition_smoothing);
         pp.query("transition_height_scale", transition_height_scale);
-        pp.query("bl_transition_height", bl_transition_height)
+        pp.query("bl_transition_height", transition_layer_height);
 
          // Terrain-aligned extraction parameters
         // extract_agl  : sample at this height above local terrain [m]; snapped to
