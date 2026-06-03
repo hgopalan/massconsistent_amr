@@ -1,4 +1,4 @@
-# Phase 1: Directional Bias Correction Feature Test
+# Core Feature: Directional Bias Correction Feature Test
 # Tests: Wind direction and speed bias correction for NWP model systematic errors
 # This test verifies that directional and speed biases are correctly applied
 # to adjust initial wind fields based on systematic model errors
@@ -29,7 +29,7 @@ alpha_v = 1.0
 mlmg_verbose  = 0
 max_grid_size = 32
 
-# Phase 1 directional bias correction parameters
+# Core Feature directional bias correction parameters
 # Enable directional bias correction for systematic NWP model errors
 enable_directional_bias_correction = true
 

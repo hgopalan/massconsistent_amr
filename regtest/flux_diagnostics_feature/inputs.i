@@ -1,4 +1,4 @@
-# Phase 1: Flux Diagnostics Feature Test
+# Core Feature: Flux Diagnostics Feature Test
 # Tests: Sensible heat flux (SHF), latent heat flux (LHF), momentum flux, drag coefficient
 # This test verifies that diagnostic flux fields are computed and output correctly
 # Terrain: 3x3 flat domain, simple geometry to isolate flux calculations
@@ -28,7 +28,7 @@ alpha_v = 1.0
 mlmg_verbose  = 0
 max_grid_size = 32
 
-# Phase 1 flux diagnostic parameters
+# Core Feature flux diagnostic parameters
 # Enable surface flux diagnostics (SHF, LHF, momentum flux, drag coefficient)
 enable_flux_diagnostics = true
 

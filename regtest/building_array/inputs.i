@@ -1,4 +1,4 @@
-# Building Array Test - Phase 2
+# Building Array Test - Advanced Boundary Layer
 # Tests: Wake superposition and street canyon effects for multiple buildings
 # Configuration: 3x3 regular array of buildings (30m tall, 20m x 20m)
 # Street width: 40m (H/W = 0.75 -> skimming flow regime)

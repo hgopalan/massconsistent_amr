@@ -1,4 +1,4 @@
-# Phase 1: Land-use Roughness Classification Feature Test
+# Core Feature: Land-use Roughness Classification Feature Test
 # Tests: NLCD-compatible land-use category mapping to aerodynamic roughness (z0)
 # This test verifies that land-use classification correctly assigns z0 values
 # based on categorical mapping and that they are used in initialization
@@ -32,7 +32,7 @@ alpha_v = 1.0
 mlmg_verbose  = 0
 max_grid_size = 32
 
-# Phase 1 land-use classification parameters
+# Core Feature land-use classification parameters
 # Enable land-use based roughness assignment
 enable_landuse_classification = true
 

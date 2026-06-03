@@ -1,4 +1,4 @@
-# Terrain for Phase 1 landuse classification test
+# Terrain for Core Feature landuse classification test
 # Gaussian hill for realistic terrain with variable roughness
 # Domain: 0-300 x 0-300 m, peak=50 m at (150,150), sigma=60 m
 0.0 0.0 0.096523

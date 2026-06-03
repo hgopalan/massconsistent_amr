@@ -1,4 +1,4 @@
-# Land-use classification for Phase 1 feature test
+# Land-use classification for Core Feature feature test
 # Domain: 0-300 x 0-300 m grid with NLCD land-use categories
 # Maps spatial points to z0 values based on land-use type
 # NLCD codes: 11=Water, 21=Developed Open, 71=Grassland, 41=Deciduous Forest, etc.

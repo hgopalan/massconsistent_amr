@@ -1,4 +1,4 @@
-# Phase 3 Regression Test: Building Orientation Effects
+# Solver Enhancement Regression Test: Building Orientation Effects
 #
 # This test validates arbitrary building orientation support in the wake model.
 # The same building geometry is tested with multiple orientations to verify that
