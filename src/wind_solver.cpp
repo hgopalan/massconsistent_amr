@@ -4315,6 +4315,12 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: velocity correction time = " 
                        << (amrex::second() - t_phase) << " s\n";
 
+        // Create MultiFab to store synthetic turbulence fluctuations (if enabled)
+        // Will be populated if enable_synthetic_turbulence is true
+        MultiFab synthetic_turbulence_fluc(ba, dm, 3, 0);
+        synthetic_turbulence_fluc.setVal(0.0);  // initialize to zero
+        bool has_synthetic_turbulence = false;
+
         if (enable_synthetic_turbulence) {
             amrex::Print() << "wind_solver: generating synthetic turbulence field...\n";
             amrex::Real t_turb_start = amrex::second();
@@ -4346,6 +4352,29 @@ int main(int argc, char* argv[])
             auto time_series = ts_gen.GenerateTimeSeries(
                 random_fields.u_prime, random_fields.v_prime, random_fields.w_prime,
                 turb_nx, turb_ny, turb_nz, U_mean, turb_gen, total_duration, custom_dt, seed);
+
+            // Populate the synthetic_turbulence_fluc MultiFab with fluctuation data
+            for (MFIter mfi(synthetic_turbulence_fluc); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto fluc = synthetic_turbulence_fluc.array(mfi);
+                
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Map 3D index (i,j,k) to 1D index in random_fields
+                    int idx_1d = (k * turb_ny + j) * turb_nx + i;
+                    if (idx_1d >= 0 && idx_1d < static_cast<int>(random_fields.u_prime.size())) {
+                        fluc(i,j,k,0) = random_fields.u_prime[idx_1d];
+                        fluc(i,j,k,1) = random_fields.v_prime[idx_1d];
+                        fluc(i,j,k,2) = random_fields.w_prime[idx_1d];
+                    } else {
+                        fluc(i,j,k,0) = 0.0;
+                        fluc(i,j,k,1) = 0.0;
+                        fluc(i,j,k,2) = 0.0;
+                    }
+                });
+            }
+            has_synthetic_turbulence = true;
 
             const int nt = time_series.num_time_steps;
             const Real dt_turb = time_series.metadata.dt;
@@ -4566,7 +4595,7 @@ int main(int argc, char* argv[])
         //     19  terrain_slope magnitude of terrain slope |∇h| [-]
         //     20  adaptive_z0   adaptive roughness from terrain analysis [m]
         // ================================================================
-        const int nout = 21;
+        const int nout = has_synthetic_turbulence ? 24 : 21;  // Add 3 components for synthetic turbulence
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
         
@@ -4592,6 +4621,12 @@ int main(int argc, char* argv[])
             const auto adap_rough_arr = adaptive_roughness.const_array(mfi);
             
             auto out = output.array(mfi);
+            
+            // Synthetic turbulence fluctuations (if available)
+            amrex::Array4<amrex::Real> turb_fluc;
+            if (has_synthetic_turbulence) {
+                turb_fluc = synthetic_turbulence_fluc.array(mfi);
+            }
 
             amrex::ParallelFor(bx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -4666,6 +4701,17 @@ int main(int argc, char* argv[])
                 out(i,j,k,18) = enable_terrain_analysis ? Real(ttype_arr(i,j,k)) : Real(0.0);
                 out(i,j,k,19) = enable_terrain_analysis ? tslope_arr(i,j,k) : Real(0.0);
                 out(i,j,k,20) = enable_terrain_analysis ? adap_rough_arr(i,j,k) : z0_cap;
+                
+                // Layer 3: Synthetic turbulence (if enabled)
+                if (has_synthetic_turbulence) {
+                    // u_openfast, v_openfast, w_openfast: wind speed after synthetic fluctuations
+                    Real u_openfast = u + turb_fluc(i,j,k,0);
+                    Real v_openfast = v + turb_fluc(i,j,k,1);
+                    Real w_openfast = w + turb_fluc(i,j,k,2);
+                    out(i,j,k,21) = u_openfast;
+                    out(i,j,k,22) = v_openfast;
+                    out(i,j,k,23) = w_openfast;
+                }
             });
         }
 
@@ -4680,6 +4726,13 @@ int main(int argc, char* argv[])
             "richardson_no", "bl_depth",
             "terrain_type", "terrain_slope", "adaptive_z0"
         };
+        
+        // Add synthetic turbulence variables if enabled
+        if (has_synthetic_turbulence) {
+            var_names.push_back("u_openfast");
+            var_names.push_back("v_openfast");
+            var_names.push_back("w_openfast");
+        }
 
         amrex::Print() << "wind_solver: divergence computation time = " 
                        << (amrex::second() - t_phase) << " s\n";
