@@ -107,6 +107,11 @@
 #include "simplified_richardson_method.H"
 #include "roughness_blocking_method.H"
 #include "coriolis_latitude_scaling.H"
+// Synthetic turbulence framework (Phase 1-3 components)
+#include "synthetic_turbulence.H"
+#include "random_field_synthesis.H"
+#include "temporal_synthesis.H"
+#include "turbsim_bts_export.H"
 // Layer 2 (Phase 3): Kernel integration and MultiFab initialization
 // Note: We don't include the Layer 2 kernel headers here as they are
 // designed for FArrayBox and are inlined or called separately
@@ -1522,6 +1527,138 @@ int main(int argc, char* argv[])
                          " (must be 'central', 'weno3', or 'weno5')");
         }
         amrex::Print() << "wind_solver: using " << deriv_method << " derivatives\n";
+        
+        // ================================================================
+        // Synthetic Turbulence Parameters (Phase 1-3)
+        // ================================================================
+        
+        // Master enable flag for synthetic turbulence
+        bool enable_synthetic_turbulence = false;
+        pp.query("enable_synthetic_turbulence", enable_synthetic_turbulence);
+        
+        // Initialize TurbulenceParams structure with default values
+        TurbulenceParams turb_params;
+        turb_params.enabled = enable_synthetic_turbulence;
+        
+        if (enable_synthetic_turbulence) {
+            // Phase 1: Turbulence Parameters
+            std::string spectrum_model_str = "VonKarman";
+            std::string intensity_model_str = "PowerLaw";
+            std::string coherence_model_str = "Gaussian";
+            pp.query("turbulence_spectrum_model", spectrum_model_str);
+            pp.query("turbulence_intensity_model", intensity_model_str);
+            pp.query("turbulence_coherence_model", coherence_model_str);
+            
+            // Parse spectrum model
+            if (spectrum_model_str == "VonKarman") {
+                turb_params.spectrum_model = TurbulenceModel::VonKarman;
+            } else if (spectrum_model_str == "Kaimal") {
+                turb_params.spectrum_model = TurbulenceModel::Kaimal;
+            } else {
+                amrex::Abort("wind_solver: invalid turbulence_spectrum_model: " + spectrum_model_str + 
+                             " (must be 'VonKarman' or 'Kaimal')");
+            }
+            
+            // Parse intensity model
+            if (intensity_model_str == "PowerLaw") {
+                turb_params.intensity_model = IntensityModel::PowerLaw;
+            } else if (intensity_model_str == "Logarithmic") {
+                turb_params.intensity_model = IntensityModel::Logarithmic;
+            } else if (intensity_model_str == "Constant") {
+                turb_params.intensity_model = IntensityModel::Constant;
+            } else {
+                amrex::Abort("wind_solver: invalid turbulence_intensity_model: " + intensity_model_str + 
+                             " (must be 'PowerLaw', 'Logarithmic', or 'Constant')");
+            }
+            
+            // Parse coherence model
+            if (coherence_model_str == "Gaussian") {
+                turb_params.coherence_model = CoherenceModel::Gaussian;
+            } else if (coherence_model_str == "Exponential") {
+                turb_params.coherence_model = CoherenceModel::Exponential;
+            } else {
+                amrex::Abort("wind_solver: invalid turbulence_coherence_model: " + coherence_model_str + 
+                             " (must be 'Gaussian' or 'Exponential')");
+            }
+            
+            // Turbulence intensity parameters
+            pp.query("turbulence_intensity_ref", turb_params.intensity_ref);
+            pp.query("turbulence_z_intensity_ref", turb_params.z_intensity_ref);
+            pp.query("turbulence_intensity_exponent", turb_params.intensity_exponent);
+            
+            // Integral length scales
+            pp.query("turbulence_length_scale_u", turb_params.length_scale_u);
+            pp.query("turbulence_length_scale_v", turb_params.length_scale_v);
+            pp.query("turbulence_length_scale_w", turb_params.length_scale_w);
+            
+            // Coherence decay factors
+            pp.query("turbulence_coherence_decay_vertical", turb_params.coherence_decay_vertical);
+            pp.query("turbulence_coherence_decay_lateral", turb_params.coherence_decay_lateral);
+            
+            // Anisotropy ratios
+            pp.query("turbulence_anisotropy_ratio_v", turb_params.anisotropy_ratio_v);
+            pp.query("turbulence_anisotropy_ratio_w", turb_params.anisotropy_ratio_w);
+            
+            // Random seed for reproducibility
+            unsigned int random_seed = 12345u;
+            pp.query("turbulence_random_seed", random_seed);
+            turb_params.random_seed = random_seed;
+            
+            // Export format and output file
+            std::string export_format = "bts";
+            std::string output_file = "turbulence.bts";
+            pp.query("turbulence_export_format", export_format);
+            pp.query("turbulence_output_file", output_file);
+            
+            // Validate export format
+            if (export_format != "bts") {
+                amrex::Abort("wind_solver: invalid turbulence_export_format: " + export_format + 
+                             " (only 'bts' is currently supported)");
+            }
+            
+            // Validate parameter ranges
+            if (turb_params.intensity_ref < SyntheticTurbulence::Constants::intensity_min || 
+                turb_params.intensity_ref > SyntheticTurbulence::Constants::intensity_max) {
+                amrex::Print() << "WARNING: turbulence_intensity_ref = " << turb_params.intensity_ref 
+                               << " is outside typical range [0.01, 0.30]\n";
+            }
+            
+            if (turb_params.z_intensity_ref < 0.0) {
+                amrex::Abort("wind_solver: turbulence_z_intensity_ref must be >= 0.0");
+            }
+            
+            if (turb_params.intensity_exponent < 0.0 || turb_params.intensity_exponent > 0.5) {
+                amrex::Print() << "WARNING: turbulence_intensity_exponent = " << turb_params.intensity_exponent 
+                               << " is outside typical range [0.0, 0.5]\n";
+            }
+            
+            if (turb_params.length_scale_u <= 0.0 || turb_params.length_scale_v <= 0.0 || turb_params.length_scale_w <= 0.0) {
+                amrex::Abort("wind_solver: all length scales (u, v, w) must be > 0.0");
+            }
+            
+            if (turb_params.anisotropy_ratio_v < 0.0 || turb_params.anisotropy_ratio_v > 1.0) {
+                amrex::Print() << "WARNING: turbulence_anisotropy_ratio_v = " << turb_params.anisotropy_ratio_v 
+                               << " is outside typical range [0.0, 1.0]\n";
+            }
+            
+            if (turb_params.anisotropy_ratio_w < 0.0 || turb_params.anisotropy_ratio_w > 1.0) {
+                amrex::Print() << "WARNING: turbulence_anisotropy_ratio_w = " << turb_params.anisotropy_ratio_w 
+                               << " is outside typical range [0.0, 1.0]\n";
+            }
+            
+            amrex::Print() << "wind_solver: Synthetic turbulence ENABLED\n"
+                           << "  spectrum_model: " << spectrum_model_str << "\n"
+                           << "  intensity_model: " << intensity_model_str << "\n"
+                           << "  coherence_model: " << coherence_model_str << "\n"
+                           << "  intensity_ref: " << turb_params.intensity_ref << "\n"
+                           << "  length_scales: u=" << turb_params.length_scale_u 
+                           << ", v=" << turb_params.length_scale_v 
+                           << ", w=" << turb_params.length_scale_w << " [m]\n"
+                           << "  anisotropy_ratios: v/u=" << turb_params.anisotropy_ratio_v 
+                           << ", w/u=" << turb_params.anisotropy_ratio_w << "\n"
+                           << "  export_format: " << export_format << "\n"
+                           << "  output_file: " << output_file << "\n";
+        }
         
         // Print timing for input parsing
         amrex::Print() << "wind_solver: input parsing time = " 
