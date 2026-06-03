@@ -22,6 +22,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include "synthetic_turbulence.H"
+#include "math_constants.H"
 #include <cmath>
 #include <algorithm>
 #include <vector>
@@ -319,7 +320,7 @@ public:
         }
         
         // L_u = (π/2U) · integral
-        amrex::Real length_scale = (M_PI / (2.0 * u_mean)) * integral;
+        amrex::Real length_scale = (MathConstants::pi / (2.0 * u_mean)) * integral;
         
         return length_scale;
     }

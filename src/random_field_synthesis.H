@@ -57,6 +57,7 @@
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Utility.H>
 #include "synthetic_turbulence.H"
+#include "math_constants.H"
 #include <cmath>
 #include <algorithm>
 #include <random>
@@ -114,7 +115,7 @@ amrex::Real generate_gaussian_random(unsigned int& seed)
     amrex::Real u2 = generate_uniform_random(seed);
     // Clamp u1 to avoid log(0)
     u1 = amrex::max(u1, 1.0e-10);
-    return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
+    return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * MathConstants::pi * u2);
 }
 
 // ============================================================================
@@ -373,7 +374,7 @@ public:
         
         for (int i = 0; i < NUM_FREQ_BINS; ++i) {
             // Random phase: θ(f) ~ Uniform(0, 2π)
-            phases[i] = 2.0 * M_PI * generate_uniform_random(local_seed);
+            phases[i] = 2.0 * MathConstants::pi * generate_uniform_random(local_seed);
         }
         
         // Apply inverse FFT to get spatial field
@@ -385,7 +386,7 @@ public:
             // Inverse FFT: u'(x) = Σ_f A(f) * cos(2πfx + θ(f))
             for (int i = 0; i < NUM_FREQ_BINS; ++i) {
                 amrex::Real freq = spectrum.frequencies[i];
-                amrex::Real arg = 2.0 * M_PI * freq * static_cast<amrex::Real>(x);
+                amrex::Real arg = 2.0 * MathConstants::pi * freq * static_cast<amrex::Real>(x);
                 sum += spectrum.amp_u[i] * std::cos(arg + phases[i]);
             }
             
@@ -440,9 +441,9 @@ public:
                     std::vector<amrex::Real> phases_w(NUM_FREQ_BINS);
                     
                     for (int f = 0; f < NUM_FREQ_BINS; ++f) {
-                        phases_u[f] = 2.0 * M_PI * generate_uniform_random(local_seed);
-                        phases_v[f] = 2.0 * M_PI * generate_uniform_random(local_seed);
-                        phases_w[f] = 2.0 * M_PI * generate_uniform_random(local_seed);
+                        phases_u[f] = 2.0 * MathConstants::pi * generate_uniform_random(local_seed);
+                        phases_v[f] = 2.0 * MathConstants::pi * generate_uniform_random(local_seed);
+                        phases_w[f] = 2.0 * MathConstants::pi * generate_uniform_random(local_seed);
                     }
                     
                     // Synthesize field: sum over frequency bins
@@ -454,7 +455,7 @@ public:
                         amrex::Real freq = spectrum.frequencies[f];
                         
                         // Spatial oscillation: 2π * f * (x + y + z)
-                        amrex::Real spatial_arg = 2.0 * M_PI * freq * 
+                        amrex::Real spatial_arg = 2.0 * MathConstants::pi * freq * 
                             (static_cast<amrex::Real>(i) * dx + 
                              static_cast<amrex::Real>(j) * dy + 
                              static_cast<amrex::Real>(k) * dz);
