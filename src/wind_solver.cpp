@@ -109,8 +109,8 @@
 #include "coriolis_latitude_scaling.H"
 // Synthetic turbulence framework (Phase 1-3 components)
 #include "synthetic_turbulence.H"
-// #include "random_field_synthesis.H"  // Phase 2 - random field synthesis (TODO: implement)
-// #include "temporal_synthesis.H"       // Phase 3 - temporal synthesis (TODO: implement)
+#include "random_field_synthesis.H"  // Phase 2 - random field synthesis
+#include "temporal_synthesis.H"       // Phase 3 - temporal synthesis
 #include "turbsim_bts_export.H"
 // Layer 2 (Phase 3): Kernel integration and MultiFab initialization
 // Note: We don't include the Layer 2 kernel headers here as they are
