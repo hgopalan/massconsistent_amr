@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 4 Comprehensive Validation Test Suite
+Comprehensive synthetic turbulence validation test suite.
 
 Tests all aspects of synthetic turbulence validation:
 1. Spectral properties (Von Kármán, Kaimal, energy conservation)
@@ -11,12 +11,12 @@ Tests all aspects of synthetic turbulence validation:
 6. Cross-correlations
 7. OpenFAST format compatibility
 
-This test validates the Phase 4 modules:
-- phase4_spectral_validation.H
-- phase4_continuity_validation.H
+This test validates the spectral and continuity validation modules:
+- spectral_validation.H
+- continuity_validation.H
 
 Usage:
-    python3 test_phase4_validation.py
+    python3 test_comprehensive_validation.py
 
 Returns:
     0 on success (all tests pass)

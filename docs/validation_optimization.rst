@@ -92,7 +92,7 @@ Parameter Sensitivity Analysis
 
 Systematic parameter variation to identify which parameters significantly affect output.
 
-**Batch Parameter Sweep Tool (Phase 5)**
+**Batch Parameter Sweep Tool**
 
 The ``tools/parameter_sensitivity.py`` utility provides command-line access to systematic
 sensitivity studies:

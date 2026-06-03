@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Phase 3 Validation Test Suite
-Tests the Phase 3 modules (temporal synthesis, BTS export, validation)
-without needing to compile with AMReX.
+Temporal synthesis validation test suite.
+
+Exercises temporal synthesis, BTS export, and validation logic without
+requiring an AMReX build.
 
 This test verifies:
 1. Temporal correlation functions (mathematical correctness)

@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
 """
-Synthetic Turbulence Full Pipeline Regression Test (Phase 1-3)
+Synthetic turbulence regression coverage.
 
-Tests the complete synthetic turbulence workflow:
-1. Phase 1: Turbulence parameter parsing and configuration
-2. Phase 2: Random field synthesis from spectral parameters
-3. Phase 3: Time-series generation with temporal correlations
-4. BTS Export: Writing OpenFAST-compatible binary format
-
-Validates:
-- BTS file creation with correct format
-- Metadata generation and correctness
-- Energy conservation in spectral synthesis
-- Temporal coherence properties
-- Parameter sensitivity
+Exercises parameter parsing, spatial synthesis, temporal synthesis, and BTS
+export validation.
 """
 
 import os
@@ -156,9 +146,9 @@ def validate_metadata_file(meta_path):
 
 def test_phase1_parameter_parsing():
     """
-    Test that Phase 1 parameters are correctly parsed from inputs file.
+    Test that turbulence parameters are correctly parsed from the inputs file.
     """
-    print("\n=== Phase 1: Parameter Parsing Test ===")
+    print("\n=== Parameter Parsing Test ===")
     
     expected_params = {
         'enable_synthetic_turbulence': True,
@@ -185,7 +175,7 @@ def test_phase1_parameter_parsing():
                 print(f"ERROR: Parameter {key} not found in inputs file")
                 return False
         
-        print("✓ All Phase 1 parameters found in inputs file")
+        print("✓ All turbulence parameters found in inputs file")
         return True
     
     except Exception as e:
@@ -195,38 +185,38 @@ def test_phase1_parameter_parsing():
 
 def test_phase2_random_field_properties():
     """
-    Test properties of Phase 2 random field synthesis.
+    Test properties of the spatial random field synthesis.
     
     Validates:
     - Energy conservation (σ² matches input intensity)
     - Spatial correlations decay with distance
     - Field is deterministic given seed
     """
-    print("\n=== Phase 2: Random Field Synthesis Test ===")
+    print("\n=== Spatial Random Field Synthesis Test ===")
     
     # These tests verify the mathematical properties of the generated fields
     # They can be validated by analyzing the BTS binary data
     
-    print("✓ Phase 2 random field synthesis enabled")
+    print("✓ Spatial random field synthesis enabled")
     print("  (Full validation requires analysis of velocity fluctuation data)")
     return True
 
 
 def test_phase3_time_series_generation():
     """
-    Test properties of Phase 3 time-series generation.
+    Test properties of the temporal synthesis step.
     
     Validates:
     - Temporal coherence structure
     - Integral timescale consistency
     - Cross-component correlations
     """
-    print("\n=== Phase 3: Time-Series Generation Test ===")
+    print("\n=== Temporal Synthesis Test ===")
     
     # Time-series validation requires temporal analysis of BTS data
     # This is performed by the C++ implementation
     
-    print("✓ Phase 3 time-series generation enabled")
+    print("✓ Temporal synthesis enabled")
     print("  (Full validation requires temporal analysis of BTS velocity series)")
     return True
 
@@ -359,14 +349,14 @@ def run_all_tests():
     Run the complete regression test suite.
     """
     print("\n" + "="*70)
-    print("Synthetic Turbulence Full Pipeline Regression Test (Phase 1-3)")
+    print("Synthetic Turbulence Full Pipeline Regression Test")
     print("="*70)
     
     # Test sequence
     tests = [
-        ("Phase 1: Parameter Parsing", test_phase1_parameter_parsing),
-        ("Phase 2: Random Field Synthesis", test_phase2_random_field_properties),
-        ("Phase 3: Time-Series Generation", test_phase3_time_series_generation),
+        ("Parameter Parsing", test_phase1_parameter_parsing),
+        ("Spatial Random Field Synthesis", test_phase2_random_field_properties),
+        ("Temporal Synthesis", test_phase3_time_series_generation),
         ("BTS Export Integration", test_bts_export_integration),
         ("BTS to VTK Conversion", test_bts_to_vtk_conversion),
     ]

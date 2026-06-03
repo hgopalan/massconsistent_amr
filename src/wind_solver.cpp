@@ -112,7 +112,7 @@
 #include "random_field_synthesis.H"  // Phase 2 - random field synthesis
 #include "temporal_synthesis.H"       // Phase 3 - temporal synthesis
 #include "turbsim_bts_export.H"
-#include "phase3_validation.H"
+#include "turbulence_validation.H"
 // Layer 2 (Phase 3): Kernel integration and MultiFab initialization
 // Note: We don't include the Layer 2 kernel headers here as they are
 // designed for FArrayBox and are inlined or called separately

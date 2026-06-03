@@ -1,6 +1,6 @@
 // ============================================================================
-// phase4_spectral_validation.H
-// Phase 4: Spectral Properties Validation
+// spectral_validation.H
+// Spectral properties validation
 //
 // Validates spectral characteristics of generated turbulent fluctuations:
 // 1. Energy spectrum matches Von Kármán or Kaimal models
@@ -16,8 +16,8 @@
 //
 // ============================================================================
 
-#ifndef PHASE4_SPECTRAL_VALIDATION_H
-#define PHASE4_SPECTRAL_VALIDATION_H
+#ifndef SPECTRAL_VALIDATION_H
+#define SPECTRAL_VALIDATION_H
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
@@ -458,4 +458,4 @@ public:
 
 } // namespace Phase4Validation
 
-#endif // PHASE4_SPECTRAL_VALIDATION_H
+#endif // SPECTRAL_VALIDATION_H

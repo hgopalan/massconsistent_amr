@@ -1,6 +1,6 @@
 // ============================================================================
-// phase4_continuity_validation.H
-// Phase 4: Continuity & Physics Validation
+// continuity_validation.H
+// Continuity and physics validation
 //
 // Validates physical properties of generated turbulent fluctuations:
 // 1. Mass continuity: ∇·(u'+v'+w') ≈ 0
@@ -16,8 +16,8 @@
 //
 // ============================================================================
 
-#ifndef PHASE4_CONTINUITY_VALIDATION_H
-#define PHASE4_CONTINUITY_VALIDATION_H
+#ifndef CONTINUITY_VALIDATION_H
+#define CONTINUITY_VALIDATION_H
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
@@ -583,4 +583,4 @@ public:
 
 } // namespace Phase4Validation
 
-#endif // PHASE4_CONTINUITY_VALIDATION_H
+#endif // CONTINUITY_VALIDATION_H

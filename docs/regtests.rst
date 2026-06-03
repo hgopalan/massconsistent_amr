@@ -23,6 +23,24 @@ To run a single named test::
 
     ctest --test-dir build -R flat_terrain --output-on-failure
 
+Synthetic Turbulence and Export Coverage
+----------------------------------------
+
+The turbulence/export regression coverage is split between a solver run and
+Python-side file validation:
+
+* ``synthetic_turbulence_full`` runs ``wind_solver`` with synthetic turbulence
+  enabled on the Gaussian hill terrain and verifies end-to-end execution.
+* ``synthetic_turbulence_full_validation`` inspects the generated BTS and
+  metadata files and optionally exercises BTS-to-VTK conversion.
+* ``regtest/openfast_export_regression/test_openfast_export.py`` validates BTS
+  header layout, metadata consistency, and physical parameter ranges for the
+  standalone export path.
+
+Run the focused turbulence checks with::
+
+    ctest --test-dir build -R synthetic_turbulence_full --output-on-failure
+
 Test Descriptions
 -----------------
 
