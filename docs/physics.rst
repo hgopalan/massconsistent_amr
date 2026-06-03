@@ -1386,11 +1386,22 @@ where:
 
 **Comparison to Exponential Decay**
 
-| Aspect | Exponential | Power-law |
-|--------|-------------|-----------|
-| Asymptotic behavior | Decays to zero | Remains finite |
-| Physical basis | Stress decay | Tropospheric stability |
-| Best for | Rapidly stable layers | Weak/neutral stratification |
+.. list-table::
+   :header-rows: 1
+   :widths: 25 35 40
+
+   * - Aspect
+     - Exponential
+     - Power-law
+   * - Asymptotic behavior
+     - Decays to zero
+     - Remains finite
+   * - Physical basis
+     - Stress decay
+     - Tropospheric stability
+   * - Best for
+     - Rapidly stable layers
+     - Weak/neutral stratification
 
 **Usage**
 
