@@ -27,3 +27,6 @@ inputs.i
 terrain.xyz
 terrain.csv
 !regtest/**/terrain.csv
+
+# Ignore test and simulation output concentration step files
+*.csv_step*
