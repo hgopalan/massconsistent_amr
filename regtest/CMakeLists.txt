@@ -340,6 +340,11 @@ add_regression_test(puff_canopy puff_canopy)
 add_regression_test(puff_coupled_full puff_coupled_full)
 
 # ---------------------------------------------------------------------------
+# lpdm_terrain/ – Lagrangian Particle Dispersion Model on terrain
+# ---------------------------------------------------------------------------
+add_regression_test(lpdm_terrain lpdm_terrain)
+
+# ---------------------------------------------------------------------------
 # terrain_following_steep/ – Terrain-following coordinates on steep terrain
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_following_steep terrain_following_steep)
@@ -534,6 +539,7 @@ message(STATUS "  puff_terrain/          : Puff dispersion on terrain-following 
 message(STATUS "  puff_buildings/        : Puff dispersion with building wake effects")
 message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
 message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
+message(STATUS "  lpdm_terrain/          : Lagrangian Particle Dispersion Model on terrain")
 message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain (Feature 17)")
 message(STATUS "  diurnal_roughness/     : Diurnal roughness length variations z₀(t)")
 message(STATUS "  bl_decay/              : Exponential boundary layer wind decay above BL depth")
