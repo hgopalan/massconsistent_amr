@@ -1,6 +1,6 @@
 # massconsistent_amr
 
-An AMReX-based C++ mass-consistent 3-D wind diagnostic solver providing terrain-following wind field adjustment with GPU-ready kernels (CUDA/HIP/SYCL), building wake parameterization, canopy effects, and optional MPI parallelism.
+An AMReX-based C++ mass-consistent 3-D wind diagnostic solver providing terrain-following wind field adjustment with GPU-ready kernels (CUDA/HIP/SYCL), building wake parameterization (including advanced cavity trapping and plume deformation under wind shear), canopy effects, and optional MPI parallelism.
 
 ## CI / Build Status
 

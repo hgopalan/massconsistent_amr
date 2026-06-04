@@ -738,6 +738,169 @@ New regression tests demonstrate terrain/building/canopy integration:
 * **regtest/puff_canopy**: Canopy diffusivity and deposition
 * **regtest/puff_coupled_full**: All features combined (terrain + buildings + canopy)
 
+Advanced Plume Rise under Complex Wind Shear and Building Downwash
+-------------------------------------------------------------------
+
+The puff model includes advanced parameterizations for building-induced plume rise and
+downwash effects, extending beyond simple cavity/wake mixing to include empirical
+building cavity trapping, wake recirculation, and plume deformation under vertical
+wind shear.
+
+Cavity Trapping (AERMOD PRIME)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Basis**
+
+Building cavities are recirculation zones where pollutants are trapped and partially
+mixed. The cavity zone is characterized by:
+
+1. **Geometry** (AERMOD PRIME model):
+   
+   - **Height**: H_cav = 0.67 × H (building height H)
+   - **Upwind extent**: 0.5 × H from building front
+   - **Downwind extent**: 2.0 × H from building back
+   - **Lateral extent**: ±0.5 × W (building width W)
+
+2. **Flow behavior**:
+   
+   - Recirculating flow traps pollutants
+   - Sheltered horizontal diffusion (K_h reduction: 0.5 ×)
+   - Enhanced vertical mixing (K_v enhancement: 2.0 ×)
+   - Plume residence time: 150-200 seconds typical
+
+**Configuration**
+
+.. code-block:: ini
+
+    # Enable cavity trapping
+    enable_cavity_trapping = true
+    enable_building_masking = true
+    building_file = buildings.csv
+    aermod_prime_cavity_factor = 0.67    # Cavity height as fraction of H
+    cavity_recirculation_strength = 0.8  # Recirculation intensity [0-1]
+
+**Implementation**
+
+The cavity zone is computed from building dimensions using empirical correlations:
+
+.. math::
+
+    x_{\text{cav,min}} &= x_{\text{bldg,min}} - 0.5 H \\
+    x_{\text{cav,max}} &= x_{\text{bldg,max}} + 2.0 H \\
+    y_{\text{cav,min}} &= y_{\text{bldg,min}} - 0.5 W \\
+    y_{\text{cav,max}} &= y_{\text{bldg,max}} + 0.5 W \\
+    z_{\text{cav,max}} &= z_{\text{bldg,min}} + 0.67 H
+
+When a puff enters the cavity zone, the following effects are applied:
+
+- **Diffusivity modification**: K_h → 0.5 K_h, K_v → 2.0 K_v
+- **Recirculation velocity**: v_recirc ≈ -0.4 m/s (toward building)
+- **Shelter effect**: Puff growth slowed in horizontal direction
+- **Residence time tracking**: Records time spent in cavity zone
+
+**References**
+
+- Schulman, L.L., Strimaitis, D.G., & Scire, J.S. (2000). Development and Evaluation of 
+  the PRIME Plume Rise and Building Downwash Model. *Journal of the Air & Waste 
+  Management Association*, 50(3), 378-390.
+- EPA AERMOD User's Guide and Technical Documentation
+
+Wake Recirculation and Vortex Mixing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Basis**
+
+Far-wake regions (2-7 building heights downwind) contain rooftop counter-rotating vortex
+pairs (CVP) created by flow separation. These vortices induce:
+
+- Lateral plume spreading
+- Vertical circulation patterns
+- Enhanced mixing and plume recovery
+- Characteristic length scales: 0.1-0.5 building width
+
+**Vortex Characteristics**
+
+The far-wake vortex strength is modeled as:
+
+.. math::
+
+    \Gamma = 0.15 \times U_{\text{ref}} \times H
+
+where:
+- U_ref = approach wind speed [m/s]
+- H = building height [m]
+- Γ = circulation strength [m²/s]
+
+Induced vertical velocity in vortex cores:
+
+.. math::
+
+    w_{\text{max}} = \frac{\Gamma}{2 \pi r_{\text{core}}}
+
+with r_core ≈ 0.1 W (vortex core radius as fraction of building width).
+
+**Configuration**
+
+.. code-block:: ini
+
+    # Wake recirculation (computed automatically with cavity trapping)
+    enable_cavity_trapping = true
+    # Additional wake parameters available:
+    wake_enhancement_far = 1.5  # Far-wake diffusivity enhancement
+
+Plume Deformation under Wind Shear
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Basis**
+
+Vertical wind shear (dU/dz) causes plume tilting and deformation:
+
+- **Lower shear** (stable conditions): Vertical plume maintains coherence
+- **Strong shear** (unstable BL): Plume tilts, stretches horizontally, compresses vertically
+
+**Model Implementation**
+
+For power-law wind profile U(z) = U_ref × (z/z_ref)^p, the wind shear is:
+
+.. math::
+
+    \frac{dU}{dz} = U_{\text{ref}} \times p \times \left(\frac{z}{z_{\text{ref}}}\right)^{p-1} / z_{\text{ref}}
+
+The plume tilt angle θ and deformation factor are:
+
+.. math::
+
+    \theta &= \arctan\left(\frac{dU}{dz} \times \Delta t\right) \\
+    \text{deformation} &= 1 + 0.5 |\theta|
+
+Puff dimensions are updated:
+
+.. math::
+
+    \sigma_y &\leftarrow \sigma_y \times \text{deformation} \\
+    \sigma_z &\leftarrow \sigma_z / (1 + 0.1 |\theta|)
+
+This models horizontal stretching and vertical compression consistent with theoretical
+plume rise models (Briggs, Turner).
+
+**Configuration**
+
+.. code-block:: ini
+
+    # Enable plume deformation under shear
+    enable_plume_deformation = true
+    enable_height_dependent_K = true
+    K_profile = "power_law"          # Enable wind profile variation
+    K_power_law_exponent = 0.2       # Typical stable boundary layer
+
+Test Cases
+~~~~~~~~~~
+
+New regression tests for advanced downwash features:
+
+* **regtest/puff_downwash_single_time**: Single building cavity trapping (1 time step)
+* **regtest/puff_downwash_multi_time**: Building wake recirculation (multiple time steps)
+
 Current Limitations and Future Work
 ------------------------------------
 

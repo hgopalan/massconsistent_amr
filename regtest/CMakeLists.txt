@@ -340,6 +340,16 @@ add_regression_test(puff_canopy puff_canopy)
 add_regression_test(puff_coupled_full puff_coupled_full)
 
 # ---------------------------------------------------------------------------
+# puff_downwash_single_time/ – Single time instance cavity trapping test
+# ---------------------------------------------------------------------------
+add_regression_test(puff_downwash_single_time puff_downwash_single_time)
+
+# ---------------------------------------------------------------------------
+# puff_downwash_multi_time/ – Multiple time instances for wake recirculation
+# ---------------------------------------------------------------------------
+add_regression_test(puff_downwash_multi_time puff_downwash_multi_time)
+
+# ---------------------------------------------------------------------------
 # lpdm_terrain/ – Lagrangian Particle Dispersion Model on terrain
 # ---------------------------------------------------------------------------
 add_regression_test(lpdm_terrain lpdm_terrain)
@@ -546,6 +556,8 @@ message(STATUS "  puff_terrain/          : Puff dispersion on terrain-following 
 message(STATUS "  puff_buildings/        : Puff dispersion with building wake effects")
 message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
 message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
+message(STATUS "  puff_downwash_single_time/ : Single time step cavity trapping (AERMOD PRIME)")
+message(STATUS "  puff_downwash_multi_time/  : Multiple time steps wake recirculation and plume deformation")
 message(STATUS "  lpdm_terrain/          : Lagrangian Particle Dispersion Model on terrain")
 message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain (Feature 17)")
 message(STATUS "  diurnal_roughness/     : Diurnal roughness length variations z₀(t)")
