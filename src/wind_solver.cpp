@@ -1743,9 +1743,12 @@ int main(int argc, char* argv[])
                 }
             }
             
-            if (turb_params.coherence_powerlaw_exponent <= 0.0) {
-                amrex::Print() << "WARNING: coherence_powerlaw_exponent = " << turb_params.coherence_powerlaw_exponent 
-                               << " is outside typical range (0, inf)\n";
+            // Validate coherence power-law exponent (Phase 1 - only if using PowerLaw coherence)
+            if (turb_params.coherence_model == CoherenceModel::PowerLaw) {
+                if (turb_params.coherence_powerlaw_exponent <= 0.0) {
+                    amrex::Print() << "WARNING: coherence_powerlaw_exponent = " << turb_params.coherence_powerlaw_exponent 
+                                   << " is outside typical range (0, inf)\n";
+                }
             }
             
             amrex::Print() << "wind_solver: Synthetic turbulence ENABLED\n"
