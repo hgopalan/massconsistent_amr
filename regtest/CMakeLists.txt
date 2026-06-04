@@ -424,6 +424,12 @@ add_python_regression_test(synthetic_turbulence_full_validation synthetic_turbul
                           test_synthetic_turbulence.py)
 
 # ===========================================================================
+# Synthetic Turbulence Generators (GP_LLJ, NWTC, USWTPP, HIT)
+# ===========================================================================
+add_python_regression_test(synthetic_turbulence_generators synthetic_turbulence_generators
+                          test_new_generators.py)
+
+# ===========================================================================
 # IEC 61400-1:2019 Spectral Synthesis Tests
 # ===========================================================================
 # Tests IEC 61400-1 turbulence categories with different spectral models
