@@ -453,4 +453,64 @@ void read_vertical_profile_csv(const std::string& filename,
                    << " vertical profile points from " << filename << "\n";
 }
 
+// Read multi-point 3D windfield CSV file (whitespace or comma separated; '#' comments).
+// Format: X Y Z U V W
+void read_windfield_file(const std::string& filename,
+                         std::vector<Real>& xd,
+                         std::vector<Real>& yd,
+                         std::vector<Real>& zd,
+                         std::vector<Real>& ux,
+                         std::vector<Real>& uy,
+                         std::vector<Real>& uz)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open windfield file: " + filename);
+
+    std::string line;
+    bool is_first = true;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        if (line.empty()) continue;
+
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        
+        // Skip header if it contains text instead of numbers
+        if (is_first) {
+            std::string first_token;
+            if (ss >> first_token) {
+                try {
+                    std::stod(first_token);
+                } catch (...) {
+                    is_first = false;
+                    continue;
+                }
+            }
+            is_first = false;
+            ss.clear();
+            ss.str(line);
+        }
+
+        Real x, y, z, u, v, w;
+        if (ss >> x >> y >> z >> u >> v >> w) {
+            xd.push_back(x);
+            yd.push_back(y);
+            zd.push_back(z);
+            ux.push_back(u);
+            uy.push_back(v);
+            uz.push_back(w);
+        }
+    }
+    if (xd.empty()) {
+        amrex::Abort("wind_solver: no data read from windfield file: " + filename);
+    }
+
+    amrex::Print() << "wind_solver: read " << xd.size()
+                   << " windfield points from " << filename << "\n";
+}
+
 } // namespace WindIO

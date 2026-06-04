@@ -23,6 +23,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    puff
    python_api
    floris
+   netcdf_ingestion
    regtests
    mann_model
    iec61400_synthesis
