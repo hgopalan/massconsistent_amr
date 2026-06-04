@@ -188,4 +188,121 @@ amrex::Real compute_combined_porosity(
     return min_porosity;
 }
 
+// ============================================================================
+// Sub-grid Windbreak structure
+// ============================================================================
+struct Windbreak {
+    amrex::Real x1, y1;      // Start point [m]
+    amrex::Real x2, y2;      // End point [m]
+    amrex::Real height;      // Barrier height [m]
+    amrex::Real blockage;    // Blockage factor (1 - porosity, 0 to 1)
+    amrex::Real drag_coeff;  // Drag coefficient (typically ~1.0-2.0 for fences/hedgerows)
+};
+
+// ============================================================================
+// Compute distance from point P to line segment AB
+// Inputs:
+//   px, py       - Point coordinates (cell center)
+//   ax, ay       - Segment start coordinates
+//   bx, by       - Segment end coordinates
+//   t_clamped    - (Output) Parameter t clamped to [0, 1] for closest point
+// Returns:
+//   Distance to segment [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real distance_to_segment(
+    amrex::Real px, amrex::Real py,
+    amrex::Real ax, amrex::Real ay,
+    amrex::Real bx, amrex::Real by,
+    amrex::Real& t_clamped)
+{
+    const amrex::Real vx = bx - ax;
+    const amrex::Real vy = by - ay;
+    
+    const amrex::Real wx = px - ax;
+    const amrex::Real wy = py - ay;
+    
+    const amrex::Real v2 = vx*vx + vy*vy;
+    if (v2 <= amrex::Real(1.0e-10)) {
+        t_clamped = amrex::Real(0.0);
+        return std::sqrt(wx*wx + wy*wy);
+    }
+    
+    const amrex::Real t = (wx*vx + wy*vy) / v2;
+    t_clamped = std::max(amrex::Real(0.0), std::min(amrex::Real(1.0), t));
+    
+    const amrex::Real closest_x = ax + t_clamped * vx;
+    const amrex::Real closest_y = ay + t_clamped * vy;
+    
+    const amrex::Real dx = px - closest_x;
+    const amrex::Real dy = py - closest_y;
+    
+    return std::sqrt(dx*dx + dy*dy);
+}
+
+// ============================================================================
+// Apply directional drag from an unresolved windbreak / linear barrier
+// Inputs:
+//   u, v         - Velocity components [m/s] (modified in place)
+//   blockage     - Blockage factor (1 - porosity, 0 = open, 1 = solid)
+//   drag_coeff   - Drag coefficient
+//   ax, ay       - Segment start coordinates
+//   bx, by       - Segment end coordinates
+//   dx, dy       - Grid spacing [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_windbreak_drag(
+    amrex::Real& u,
+    amrex::Real& v,
+    amrex::Real blockage,
+    amrex::Real drag_coeff,
+    amrex::Real ax, amrex::Real ay,
+    amrex::Real bx, amrex::Real by,
+    amrex::Real dx, amrex::Real dy)
+{
+    if (blockage <= amrex::Real(0.001)) {
+        return; // No blockage
+    }
+    
+    const amrex::Real vx = bx - ax;
+    const amrex::Real vy = by - ay;
+    const amrex::Real seg_len = std::sqrt(vx*vx + vy*vy);
+    
+    if (seg_len <= amrex::Real(1.0e-10)) {
+        return;
+    }
+    
+    // Segment direction (unit vector)
+    const amrex::Real sx = vx / seg_len;
+    const amrex::Real sy = vy / seg_len;
+    
+    // Unit normal vector (pointing perpendicular to segment)
+    const amrex::Real nx = -sy;
+    const amrex::Real ny = sx;
+    
+    // Project wind velocity onto normal and parallel directions
+    const amrex::Real Un = u * nx + v * ny;
+    const amrex::Real Up = u * sx + v * sy;
+    
+    if (std::abs(Un) > amrex::Real(1.0e-10)) {
+        // Drag factor for the unresolved barrier
+        // drag_factor = blockage * Cd * |Un| / dx_avg
+        const amrex::Real dx_avg = amrex::Real(0.5) * (dx + dy);
+        amrex::Real drag_factor = blockage * drag_coeff * std::abs(Un) / dx_avg;
+        
+        // Clamp drag factor for stability
+        drag_factor = (drag_factor > amrex::Real(10.0)) ? amrex::Real(10.0) : drag_factor;
+        
+        // Apply directional reduction to normal component only
+        const amrex::Real characteristic_time = amrex::Real(0.1);
+        const amrex::Real reduction = std::exp(-drag_factor * characteristic_time);
+        
+        const amrex::Real Un_new = Un * reduction;
+        
+        // Reconstruct horizontal velocity components
+        u = Un_new * nx + Up * sx;
+        v = Un_new * ny + Up * sy;
+    }
+}
+
 #endif // POROSITY_MODELS_H

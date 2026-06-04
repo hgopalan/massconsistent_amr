@@ -1,0 +1,3 @@
+# Sub-grid Windbreaks list: x1 y1 x2 y2 height blockage drag_coeff
+# Fence at y=75m extending from x=0 to x=150m, 4m high, blockage=0.8, Cd=1.5
+0.0 75.0 150.0 75.0 4.0 0.8 1.5

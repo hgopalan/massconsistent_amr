@@ -460,6 +460,13 @@ add_python_regression_test(iec61400_categories_regtest iec61400_categories
 add_regression_test(field_output_test field_output_test)
 
 # ===========================================================================
+# Phase 1: High-Yield, Low-Effort Parameterizations (New Features)
+# ===========================================================================
+add_regression_test(canopy_lai_profiles canopy_lai_profiles)
+add_regression_test(coriolis_meridional coriolis_meridional)
+add_regression_test(subgrid_windbreaks subgrid_windbreaks)
+
+# ===========================================================================
 # parameter_sensitivity_test/ – Phase 5: Parameter sensitivity sweep tool
 # ===========================================================================
 add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test 
@@ -507,6 +514,9 @@ message(STATUS "  terrain_kinematic_bc/  : Kinematic terrain-following boundary 
 message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
 message(STATUS "  canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
 message(STATUS "  canopy_exponential/    : Exponential canopy profile model")
+message(STATUS "  canopy_lai_profiles/   : Vertical Leaf Area Index (LAI) profiles (Phase 1)")
+message(STATUS "  coriolis_meridional/   : Coriolis Meridional Beta-Effect and scaled Ekman veer (Phase 1)")
+message(STATUS "  subgrid_windbreaks/    : Sub-grid windbreaks and directional barrier drag (Phase 1)")
 message(STATUS "  drag_diagnostic/       : Drag coefficient and heat flux diagnostics")
 message(STATUS "  stability_stable/      : Non-neutral stability (stable conditions, L > 0)")
 message(STATUS "  stability_unstable/    : Non-neutral stability (unstable conditions, L < 0)")
