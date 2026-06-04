@@ -424,6 +424,37 @@ add_python_regression_test(synthetic_turbulence_full_validation synthetic_turbul
                           test_synthetic_turbulence.py)
 
 # ===========================================================================
+# IEC 61400-1:2019 Spectral Synthesis Tests
+# ===========================================================================
+# Tests IEC 61400-1 turbulence categories with different spectral models
+# and coherence functions in the C++ wind solver
+
+# -----------------------------------------------------------------------
+# iec61400_von_karman/ – IEC Category B with Von Kármán spectrum
+# -----------------------------------------------------------------------
+# Validates IEC61400 intensity model parser and Von Kármán spectrum synthesis
+add_regression_test(iec61400_von_karman iec61400_von_karman)
+
+# -----------------------------------------------------------------------
+# iec61400_kaimal/ – IEC Category A with Kaimal spectrum
+# -----------------------------------------------------------------------
+# Validates Kaimal spectrum model and PowerLaw coherence model
+add_regression_test(iec61400_kaimal iec61400_kaimal)
+
+# -----------------------------------------------------------------------
+# iec61400_category_c/ – IEC Category C with QuadraticExponential coherence
+# -----------------------------------------------------------------------
+# Validates low-turbulence sites (Category C) and QuadraticExponential coherence
+add_regression_test(iec61400_category_c iec61400_category_c)
+
+# -----------------------------------------------------------------------
+# iec61400_categories/ – Python-based regression tests
+# -----------------------------------------------------------------------
+# Python unit tests for IEC 61400 spectral models across all categories
+add_python_regression_test(iec61400_categories_regtest iec61400_categories
+                          test_iec61400_categories.py)
+
+# ===========================================================================
 # field_output_test/ – Phase 5: Unified field output (21 diagnostic fields)
 # ===========================================================================
 add_regression_test(field_output_test field_output_test)
@@ -513,6 +544,10 @@ message(STATUS "  orographic_activation_thresholds/ : Orographic model activatio
 message(STATUS "")
 message(STATUS "Output & Integration Features")
 message(STATUS "  synthetic_turbulence_full/      : synthetic turbulence pipeline (spectral synthesis + BTS export)")
+message(STATUS "  iec61400_von_karman/            : IEC 61400-1:2019 Category B with Von Kármán spectrum")
+message(STATUS "  iec61400_kaimal/                : IEC 61400-1:2019 Category A with Kaimal spectrum")
+message(STATUS "  iec61400_category_c/            : IEC 61400-1:2019 Category C with QuadraticExponential coherence")
+message(STATUS "  iec61400_categories_regtest/    : Python unit tests for IEC 61400 spectral models (20 tests)")
 message(STATUS "  field_output_test/              : Unified field output with 21 diagnostic fields")
 message(STATUS "  parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
 message(STATUS "")
