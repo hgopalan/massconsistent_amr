@@ -48,10 +48,10 @@ What Was Implemented
 
 .. code-block:: python
 
-    CLASS_I:   Vref = 10.0 m/s,  Iref = 0.18 (high wind resource sites)
-    CLASS_II:  Vref = 8.5 m/s,   Iref = 0.18 (medium wind resource sites)
-    CLASS_III: Vref = 7.0 m/s,   Iref = 0.18 (low wind resource sites)
-    CLASS_IV:  Vref = 6.0 m/s,   Iref = 0.18 (very low wind resource sites)
+    CLASS_I:   Vref = 50.0 m/s,  Vavg = 10.0 m/s,  Iref = 0.18 (high wind resource sites)
+    CLASS_II:  Vref = 42.5 m/s,  Vavg = 8.5 m/s,   Iref = 0.18 (medium wind resource sites)
+    CLASS_III: Vref = 37.5 m/s,  Vavg = 7.5 m/s,   Iref = 0.18 (low wind resource sites)
+    CLASS_IV:  Vref = 30.0 m/s,  Vavg = 6.0 m/s,   Iref = 0.18 (very low wind resource sites)
 
 **Terrain Categories and Roughness:**
 
