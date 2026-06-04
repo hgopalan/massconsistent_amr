@@ -1,0 +1,5 @@
+# Porous buildings: xmin xmax ymin ymax zmin zmax porosity [rotation]
+# Tree stand: 40% porous (moderately dense forest)
+20 40 20 40 0 20 0.4 0
+# Fence: 70% porous (open lattice)
+60 70 20 80 0 5 0.7 0

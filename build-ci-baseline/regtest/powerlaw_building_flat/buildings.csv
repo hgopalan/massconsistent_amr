@@ -1,0 +1,6 @@
+# Building boxes for buildings_flat regression test
+# Format: xmin xmax ymin ymax zmin zmax [m]
+# Building 1: 40-60m x 40-60m, height 0-30m
+# Building 2: 100-140m x 60-80m, height 0-50m
+40.0  60.0  40.0  60.0   0.0  30.0
+100.0 140.0 60.0  80.0   0.0  50.0
