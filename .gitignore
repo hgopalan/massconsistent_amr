@@ -30,6 +30,7 @@ terrain.csv
 
 # Ignore test and simulation output concentration step files
 *.csv_step*
+*_step*
 
 # Ignore CTest generated files
 Testing/Temporary/
