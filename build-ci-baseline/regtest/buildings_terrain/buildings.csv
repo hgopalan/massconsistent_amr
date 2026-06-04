@@ -1,9 +1,0 @@
-# Buildings on Gaussian Hill Terrain
-# Format: xmin xmax ymin ymax zmin zmax [m]
-# All buildings have height 30 m with zmin = 0 (to sit on terrain)
-# Building 1: Low terrain area (southwest)
-30.0 60.0 30.0 60.0 0.0 30.0
-# Building 2: Medium terrain area
-120.0 150.0 120.0 150.0 0.0 30.0
-# Building 3: High terrain area (near peak)
-150.0 180.0 150.0 180.0 0.0 30.0

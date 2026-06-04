@@ -1,9 +1,0 @@
-# Synthetic surface data for testing initialization mode = "surface_data"
-# Format: X Y Z USTAR Z0 U10 V10 (spatial coords in m, friction velocity in m/s, roughness in m, 10m winds in m/s)
-# Three surface observation points with varying parameters over 300x300 m domain
-# USTAR = friction velocity [m/s]
-# Z0 = roughness length [m]
-# U10, V10 = 10m wind components [m/s]
-0.0 0.0 0.0 0.35 0.05 8.0 2.0
-300.0 0.0 0.0 0.40 0.10 9.0 1.0
-150.0 260.0 0.0 0.38 0.08 8.5 2.5
