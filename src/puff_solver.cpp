@@ -22,6 +22,7 @@
 // ============================================================================
 
 #include "puff_models.H"
+#include "lpdm_models.H"
 #include "math_constants.H"
 
 #include <AMReX.H>
@@ -38,6 +39,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <random>
 
 using namespace amrex;
 
@@ -193,10 +195,17 @@ int main(int argc, char* argv[])
         
         // Puff model parameters
         bool enable_puff = false;
+        bool enable_lpdm = false;
         pp.query("enable_puff", enable_puff);
+        pp.query("enable_lpdm", enable_lpdm);
         
-        if (!enable_puff) {
-            amrex::Print() << "puff_solver: puff model disabled (enable_puff = false)\n";
+        int particles_per_step = 100;
+        int lpdm_random_seed = 42;
+        pp.query("particles_per_step", particles_per_step);
+        pp.query("lpdm_random_seed", lpdm_random_seed);
+        
+        if (!enable_puff && !enable_lpdm) {
+            amrex::Print() << "puff_solver: both puff and lpdm models disabled\n";
             amrex::Finalize();
             return 0;
         }
@@ -348,7 +357,13 @@ int main(int argc, char* argv[])
         pp.query("puff_output", puff_output);
         
         // Print settings
-        amrex::Print() << "puff_solver: Gaussian puff model enabled\n";
+        if (enable_lpdm) {
+            amrex::Print() << "puff_solver: Lagrangian Particle Dispersion Model (LPDM) enabled\n";
+            amrex::Print() << "  Particles per step: " << particles_per_step << "\n";
+            amrex::Print() << "  Random seed: " << lpdm_random_seed << "\n";
+        } else {
+            amrex::Print() << "puff_solver: Gaussian puff model enabled\n";
+        }
         amrex::Print() << "  Source: (" << source_x << ", " << source_y 
                        << ", " << source_z << ")\n";
         amrex::Print() << "  Emission rate: " << emission_rate << " units/s\n";
@@ -369,8 +384,10 @@ int main(int argc, char* argv[])
             amrex::Print() << "  Plume rise enabled (Briggs formula)\n";
             amrex::Print() << "    Buoyancy flux: " << heat_flux << " m⁴/s³\n";
         }
-        amrex::Print() << "  Initial puff size: σy₀ = " << sigma_y0 
-                       << " m, σz₀ = " << sigma_z0 << " m\n";
+        if (!enable_lpdm) {
+            amrex::Print() << "  Initial puff size: σy₀ = " << sigma_y0 
+                           << " m, σz₀ = " << sigma_z0 << " m\n";
+        }
         amrex::Print() << "  Wind: U = " << U_wind << ", V = " << V_wind 
                        << ", W = " << W_wind << " m/s\n";
         amrex::Print() << "  Time steps: " << n_steps_puff << " @ dt = " 
@@ -411,14 +428,146 @@ int main(int argc, char* argv[])
         // ====================================================================
         
         std::vector<Puff> puffs;
+        std::vector<LpdParticle> particles;
+        
+        std::mt19937 gen(lpdm_random_seed);
+        std::normal_distribution<Real> normal_dist(0.0, 1.0);
         
         for (int step = 0; step < n_steps_puff; ++step) {
             Real time = step * dt_puff;
             
-            // Emit new puff if still within emission duration
-            if (time < emission_duration) {
-                Real puff_mass = emission_rate * dt_puff;
+            if (enable_lpdm) {
+                // Emit new particles if still within emission duration
+                if (time < emission_duration) {
+                Real step_emitted_mass = emission_rate * dt_puff;
+                Real particle_mass = step_emitted_mass / particles_per_step;
+                    
+                // Compute effective source height with plume rise
+                Real effective_source_z = source_z;
+                if (enable_plume_rise && heat_flux > 0.0) {
+                    Real representative_distance = std::max(100.0, 10.0 * source_z);
+                    Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                    effective_source_z = source_z + plume_rise;
+                }
+                    
+                for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                    LpdParticle new_p = create_particle(
+                        source_x, source_y, effective_source_z,
+                        particle_mass, time);
+                    particles.push_back(new_p);
+                }
+                }
                 
+                // Advect and update all particles
+                for (auto& p : particles) {
+                if (!p.active) continue;
+                    
+                // Get terrain height at particle location
+                Real terrain_height = 0.0;
+                if (enable_terrain_reflection && !x_terr.empty()) {
+                    terrain_height = interpolate_terrain_height(
+                        p.x, p.y, x_terr, y_terr, z_terr);
+                }
+                    
+                // Check if particle is inside building - deactivate if so
+                if (enable_building_masking && !buildings.empty()) {
+                    if (point_in_any_building(p.x, p.y, p.z, buildings)) {
+                        p.active = false;
+                        continue;
+                    }
+                }
+                    
+                // Compute effective diffusivities
+                Real K_h_eff = K_h;
+                Real K_v_eff = K_v;
+                    
+                // Apply height-dependent diffusivity
+                Real z_agl = p.z - terrain_height;
+                if (enable_height_dependent_K && z_agl >= 0.0) {
+                    PuffParams temp_params;
+                    temp_params.enable_height_dependent_K = enable_height_dependent_K;
+                    temp_params.K_profile = K_profile;
+                    temp_params.K_power_law_exponent = K_power_law_exponent;
+                    temp_params.K_reference_height = K_reference_height;
+                        
+                    K_h_eff = compute_K_height_dependent(z_agl, K_h, temp_params);
+                    K_v_eff = compute_K_height_dependent(z_agl, K_v, temp_params);
+                }
+                    
+                // Apply canopy effects
+                if (enable_canopy_effects && z_agl >= 0.0) {
+                    compute_canopy_diffusivity(
+                        z_agl, canopy_height, K_h_eff, K_v_eff,
+                        canopy_enhancement_factor, canopy_sheltering_factor,
+                        K_h_eff, K_v_eff);
+                }
+                    
+                // Apply wake enhancement
+                Real wake_factor = 1.0;
+                if (enable_wake_diffusivity && !buildings.empty()) {
+                    for (const auto& building : buildings) {
+                        Real bldg_factor = compute_wake_enhancement_factor(
+                            p.x, p.y, p.z, building,
+                            wind_speed, wind_dir_x, wind_dir_y,
+                            wake_params, wake_enhancement_cavity, wake_enhancement_far);
+                        wake_factor = std::max(wake_factor, bldg_factor);
+                    }
+                }
+                    
+                // Enhance diffusivities based on wake factor
+                K_h_eff *= wake_factor;
+                K_v_eff *= wake_factor;
+                    
+                // Apply canopy deposition
+                if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
+                    if (canopy_height > 0.0 && frontal_area_index > 0.0) {
+                        const Real decay_rate = deposition_velocity * frontal_area_index / canopy_height;
+                        p.mass *= std::exp(-decay_rate * dt_puff);
+                    }
+                }
+                    
+                // Apply first-order decay
+                if (enable_decay && decay_constant > 0.0) {
+                    p.mass *= std::exp(-decay_constant * dt_puff);
+                }
+                    
+                if (p.mass < 1.0e-12) {
+                    p.active = false;
+                    continue;
+                }
+                    
+                // Generate random walk steps
+                Real rand_dx = std::sqrt(2.0 * K_h_eff * dt_puff) * normal_dist(gen);
+                Real rand_dy = std::sqrt(2.0 * K_h_eff * dt_puff) * normal_dist(gen);
+                Real rand_dz = std::sqrt(2.0 * K_v_eff * dt_puff) * normal_dist(gen);
+                    
+                // Advection with terrain reflection
+                if (enable_terrain_reflection) {
+                    advect_particle_with_terrain(p, U_wind, V_wind, W_wind, 
+                                                rand_dx, rand_dy, rand_dz,
+                                                dt_puff, terrain_height, true);
+                } else {
+                    advect_particle(p, U_wind, V_wind, W_wind, 
+                                    rand_dx, rand_dy, rand_dz, dt_puff);
+                }
+                    
+                // Check bounds with terrain awareness
+                if (enable_terrain_reflection) {
+                    check_particle_bounds_with_terrain(p, xmin, xmax, ymin, ymax, 
+                                                       zmin, zmax, terrain_height, true);
+                } else {
+                    check_particle_bounds(p, xmin, xmax, ymin, ymax, zmin, zmax);
+                }
+                    
+                // Update age
+                p.age += dt_puff;
+                }
+            } else {
+                // Emit new puff if still within emission duration
+                if (time < emission_duration) {
+                Real puff_mass = emission_rate * dt_puff;
+                    
                 // Compute effective source height with plume rise
                 Real effective_source_z = source_z;
                 if (enable_plume_rise && heat_flux > 0.0) {
@@ -429,24 +578,24 @@ int main(int argc, char* argv[])
                                                          std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
                     effective_source_z = source_z + plume_rise;
                 }
-                
+                    
                 Puff new_puff = create_puff(
                     source_x, source_y, effective_source_z,
                     puff_mass, sigma_y0, sigma_z0, time);
                 puffs.push_back(new_puff);
-            }
-            
-            // Advect, grow, and update all puffs
-            for (auto& puff : puffs) {
-                if (!puff.active) continue;
+                }
                 
+                // Advect, grow, and update all puffs
+                for (auto& puff : puffs) {
+                if (!puff.active) continue;
+                    
                 // Get terrain height at puff location
                 Real terrain_height = 0.0;
                 if (enable_terrain_reflection && !x_terr.empty()) {
                     terrain_height = interpolate_terrain_height(
                         puff.x, puff.y, x_terr, y_terr, z_terr);
                 }
-                
+                    
                 // Check if puff is inside building - deactivate if so
                 if (enable_building_masking && !buildings.empty()) {
                     if (point_in_any_building(puff.x, puff.y, puff.z, buildings)) {
@@ -454,7 +603,7 @@ int main(int argc, char* argv[])
                         continue;
                     }
                 }
-                
+                    
                 // Advection with terrain reflection
                 if (enable_terrain_reflection) {
                     advect_puff_with_terrain(puff, U_wind, V_wind, W_wind, 
@@ -462,11 +611,11 @@ int main(int argc, char* argv[])
                 } else {
                     advect_puff(puff, U_wind, V_wind, W_wind, dt_puff);
                 }
-                
+                    
                 // Compute effective diffusivities
                 Real K_h_eff = K_h;
                 Real K_v_eff = K_v;
-                
+                    
                 // Apply height-dependent diffusivity
                 Real z_agl = puff.z - terrain_height;
                 if (enable_height_dependent_K && z_agl >= 0.0) {
@@ -476,11 +625,11 @@ int main(int argc, char* argv[])
                     temp_params.K_profile = K_profile;
                     temp_params.K_power_law_exponent = K_power_law_exponent;
                     temp_params.K_reference_height = K_reference_height;
-                    
+                        
                     K_h_eff = compute_K_height_dependent(z_agl, K_h, temp_params);
                     K_v_eff = compute_K_height_dependent(z_agl, K_v, temp_params);
                 }
-                
+                    
                 // Apply canopy effects
                 if (enable_canopy_effects && z_agl >= 0.0) {
                     compute_canopy_diffusivity(
@@ -488,7 +637,7 @@ int main(int argc, char* argv[])
                         canopy_enhancement_factor, canopy_sheltering_factor,
                         K_h_eff, K_v_eff);
                 }
-                
+                    
                 // Apply wake enhancement
                 Real wake_factor = 1.0;
                 if (enable_wake_diffusivity && !buildings.empty()) {
@@ -500,28 +649,28 @@ int main(int argc, char* argv[])
                         wake_factor = std::max(wake_factor, bldg_factor);
                     }
                 }
-                
+                    
                 // Growth with combined effects
                 if (wake_factor > 1.01) {
                     update_puff_growth_with_wake(puff, K_h_eff, K_v_eff, wake_factor);
                 } else {
                     update_puff_growth(puff, K_h_eff, K_v_eff);
                 }
-                
+                    
                 // Apply canopy deposition
                 if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
                     apply_canopy_deposition(puff, dt_puff, z_agl, canopy_height,
                                           frontal_area_index, deposition_velocity);
                 }
-                
+                    
                 // Update age
                 update_puff_age(puff, dt_puff);
-                
+                    
                 // Apply first-order decay
                 if (enable_decay && decay_constant > 0.0) {
                     apply_puff_decay(puff, dt_puff, decay_constant);
                 }
-                
+                    
                 // Check bounds with terrain awareness
                 if (enable_terrain_reflection) {
                     check_puff_bounds_with_terrain(puff, xmin, xmax, ymin, ymax, 
@@ -529,12 +678,18 @@ int main(int argc, char* argv[])
                 } else {
                     check_puff_bounds(puff, xmin, xmax, ymin, ymax, zmin, zmax);
                 }
+                }
             }
             
             // Output concentration field at specified frequency
             if (step % output_freq_puff == 0) {
+                if (enable_lpdm) {
+                amrex::Print() << "  Step " << step << " (t = " << time 
+                               << " s): " << particles.size() << " particles\n";
+                } else {
                 amrex::Print() << "  Step " << step << " (t = " << time 
                                << " s): " << puffs.size() << " puffs\n";
+                }
                 
                 // Compute and write concentration field
                 std::string step_file = puff_output + "_step" + std::to_string(step);
@@ -542,20 +697,38 @@ int main(int argc, char* argv[])
                 // Create concentration grid
                 std::vector<Real> concentration(nx * ny * nz, 0.0);
                 
+                if (enable_lpdm) {
+                for (const auto& p : particles) {
+                    if (!p.active) continue;
+                        
+                    int i = static_cast<int>((p.x - xmin) / dx);
+                    int j = static_cast<int>((p.y - ymin) / dy);
+                    int k = static_cast<int>((p.z - zmin) / dz);
+                        
+                    if (i >= 0 && i < nx && j >= 0 && j < ny && k >= 0 && k < nz) {
+                        concentration[i + j * nx + k * nx * ny] += p.mass;
+                    }
+                }
+                    
+                Real cell_vol = dx * dy * dz;
+                for (auto& val : concentration) {
+                    val /= cell_vol;
+                }
+                } else {
                 for (int k = 0; k < nz; ++k) {
                     for (int j = 0; j < ny; ++j) {
                         for (int i = 0; i < nx; ++i) {
                             Real x = xmin + (i + 0.5) * dx;
                             Real y = ymin + (j + 0.5) * dy;
                             Real z = zmin + (k + 0.5) * dz;
-                            
+                                
                             // Get terrain height at this point
                             Real terrain_height = 0.0;
                             if (enable_terrain_reflection && !x_terr.empty()) {
                                 terrain_height = interpolate_terrain_height(
                                     x, y, x_terr, y_terr, z_terr);
                             }
-                            
+                                
                             // Sum concentration from all puffs
                             Real C = 0.0;
                             for (const auto& puff : puffs) {
@@ -566,29 +739,30 @@ int main(int argc, char* argv[])
                                     C += gaussian_puff_concentration(x, y, z, puff);
                                 }
                             }
-                            
+                                
                             concentration[i + j * nx + k * nx * ny] = C;
                         }
                     }
                 }
+                }
                 
                 // Write to file (simple ASCII format)
                 std::ofstream outf(step_file);
-                outf << "# Gaussian puff concentration field (step " << step << ")\n";
+                outf << "# LPDM or Gaussian puff concentration field (step " << step << ")\n";
                 outf << "# x [m], y [m], z [m], C [units/m³]\n";
                 outf << std::scientific << std::setprecision(6);
                 
                 for (int k = 0; k < nz; ++k) {
-                    for (int j = 0; j < ny; ++j) {
-                        for (int i = 0; i < nx; ++i) {
-                            Real x = xmin + (i + 0.5) * dx;
-                            Real y = ymin + (j + 0.5) * dy;
-                            Real z = zmin + (k + 0.5) * dz;
-                            Real C = concentration[i + j * nx + k * nx * ny];
+                for (int j = 0; j < ny; ++j) {
+                    for (int i = 0; i < nx; ++i) {
+                        Real x = xmin + (i + 0.5) * dx;
+                        Real y = ymin + (j + 0.5) * dy;
+                        Real z = zmin + (k + 0.5) * dz;
+                        Real C = concentration[i + j * nx + k * nx * ny];
                             
-                            outf << x << "," << y << "," << z << "," << C << "\n";
-                        }
+                        outf << x << "," << y << "," << z << "," << C << "\n";
                     }
+                }
                 }
                 outf.close();
                 
@@ -596,15 +770,23 @@ int main(int argc, char* argv[])
             }
         }
         
-        // Count active puffs
+        // Count active elements
         int n_active = 0;
-        for (const auto& puff : puffs) {
-            if (puff.active) n_active++;
+        if (enable_lpdm) {
+            for (const auto& p : particles) {
+                if (p.active) n_active++;
+            }
+            amrex::Print() << "puff_solver: done.\n";
+            amrex::Print() << "  Total particles emitted: " << particles.size() << "\n";
+            amrex::Print() << "  Active particles at end: " << n_active << "\n";
+        } else {
+            for (const auto& puff : puffs) {
+                if (puff.active) n_active++;
+            }
+            amrex::Print() << "puff_solver: done.\n";
+            amrex::Print() << "  Total puffs emitted: " << puffs.size() << "\n";
+            amrex::Print() << "  Active puffs at end: " << n_active << "\n";
         }
-        
-        amrex::Print() << "puff_solver: done.\n";
-        amrex::Print() << "  Total puffs emitted: " << puffs.size() << "\n";
-        amrex::Print() << "  Active puffs at end: " << n_active << "\n";
     }
     amrex::Finalize();
     return 0;
