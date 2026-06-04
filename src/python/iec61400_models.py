@@ -69,14 +69,16 @@ IEC_CLASS_PARAMETERS = {
         "a": 2,
     },
     WindTurbineClass.CLASS_III: {
-        "vref": 37.5,   # Class III: Vref = 37.5 m/s
+        "vref": 37.5,   # Class III: Vref = 37.5 m/s per IEC 61400-1:2019 Table 1
         "vavg": 7.5,    # Average wind speed: 7.5 m/s
         "iref": 0.18,   # Turbulence intensity: 18%
         "a": 2,
     },
     WindTurbineClass.CLASS_IV: {
-        "vref": 30.0,   # Class IV: Vref ~ 30 m/s (not in official standard, estimated)
-        "vavg": 6.0,    # Average wind speed: 6.0 m/s
+        # NOTE: Class IV is NOT in official IEC 61400-1 standard.
+        # Vref=30.0 m/s and Vavg=6.0 m/s are estimated values for very low wind resources.
+        "vref": 30.0,   # Class IV: Vref ~ 30 m/s (estimated, non-standard)
+        "vavg": 6.0,    # Average wind speed: 6.0 m/s (estimated, non-standard)
         "iref": 0.18,   # Turbulence intensity: 18%
         "a": 2,
     },
@@ -224,8 +226,8 @@ class NormalTurbulenceModel(IEC61400Model):
         Returns:
             Turbulence intensity (fraction)
         """
-        # IEC 61400-1 (2005/2019): I(z) = Iref * (0.2 / (z/zref))^0.2
-        # This is a widely-used simplified formula based on the standard
+        # IEC 61400-1:2019 (and earlier editions) formula: I(z) = Iref * (0.2 / (z/zref))^0.2
+        # This simplified model relates turbulence intensity to height above ground
         z_ref = 15.0  # Reference height (15 m)
         ti_exponent = 0.2  # Turbulence intensity exponent
         ti_coefficient = 0.2  # Coefficient in the fraction

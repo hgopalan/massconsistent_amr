@@ -53,6 +53,12 @@ What Was Implemented
     CLASS_III: Vref = 37.5 m/s,  Vavg = 7.5 m/s,   Iref = 0.18 (low wind resource sites)
     CLASS_IV:  Vref = 30.0 m/s,  Vavg = 6.0 m/s,   Iref = 0.18 (very low wind resource sites)
 
+.. note::
+
+   Classes I-III are defined in IEC 61400-1:2019 Table 1. Class IV is **not** part of the official
+   standard but is provided for very low wind resource sites with estimated parameters.
+   For certification purposes, use only Classes I-III.
+
 **Terrain Categories and Roughness:**
 
 .. code-block:: python
@@ -528,8 +534,8 @@ References
   
 - **IEC 61400-1:2005** — Previous edition (still referenced for some applications)
 
-- **ISO 2372** — Wind turbine power performance measurement
-  
+- **IEC 61400-12-1** — Wind turbine power performance measurement and certification
+
 - **GL** — Germanischer Lloyd rules and regulations for wind turbines
 
 Additional Resources

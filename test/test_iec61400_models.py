@@ -428,6 +428,14 @@ def test_invalid_parameters():
         except ValueError:
             print(f"✓ Correctly rejects negative terrain category")
         
+        # Test valid upper boundary terrain category (should not raise)
+        try:
+            NormalTurbulenceModel("II", terrain_category=4)
+            print(f"✓ Correctly accepts terrain_category=4 (upper boundary)")
+        except ValueError:
+            print(f"✗ Should not raise ValueError for terrain_category=4")
+            return False
+        
         return True
     except Exception as e:
         print(f"✗ Error handling test FAILED: {e}")
