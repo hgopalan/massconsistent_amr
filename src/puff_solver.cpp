@@ -296,11 +296,21 @@ int main(int argc, char* argv[])
         Real wake_enhancement_cavity = 3.0;
         Real wake_enhancement_far = 1.5;
         
+        // Advanced downwash parameters
+        bool enable_cavity_trapping = false;
+        bool enable_plume_deformation = false;
+        Real aermod_prime_cavity_factor = 0.67;
+        Real cavity_recirculation_strength = 0.8;
+
         pp.query("building_file", building_file);
         pp.query("enable_building_masking", enable_building_masking);
         pp.query("enable_wake_diffusivity", enable_wake_diffusivity);
         pp.query("wake_enhancement_cavity", wake_enhancement_cavity);
         pp.query("wake_enhancement_far", wake_enhancement_far);
+        pp.query("enable_cavity_trapping", enable_cavity_trapping);
+        pp.query("enable_plume_deformation", enable_plume_deformation);
+        pp.query("aermod_prime_cavity_factor", aermod_prime_cavity_factor);
+        pp.query("cavity_recirculation_strength", cavity_recirculation_strength);
         
         std::vector<Building> buildings;
         WakeParams wake_params;
@@ -407,6 +417,14 @@ int main(int argc, char* argv[])
             amrex::Print() << "  Wake diffusivity: ENABLED\n";
             amrex::Print() << "    Cavity enhancement: " << wake_enhancement_cavity << "x\n";
             amrex::Print() << "    Far wake enhancement: " << wake_enhancement_far << "x\n";
+        }
+        if (enable_cavity_trapping) {
+            amrex::Print() << "  Cavity trapping (AERMOD PRIME): ENABLED\n";
+            amrex::Print() << "    Cavity factor: " << aermod_prime_cavity_factor << "\n";
+            amrex::Print() << "    Recirculation strength: " << cavity_recirculation_strength << "\n";
+        }
+        if (enable_plume_deformation) {
+            amrex::Print() << "  Plume deformation under shear: ENABLED\n";
         }
         if (enable_canopy_effects) {
             amrex::Print() << "  Canopy effects: ENABLED\n";
