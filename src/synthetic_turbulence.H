@@ -179,7 +179,27 @@ struct TurbulenceParams {
     // Terrain adaptation factor for Mann Box (multiplicative)
     // Modifies tensor anisotropy based on local terrain features
     amrex::Real mann_terrain_adaptation_factor = amrex::Real(1.0);
+    
+    // ---- Phase 3+ Enhancements: Non-neutral Stability Corrections ----
+    // Monin-Obukhov similarity theory for non-neutral atmospheric conditions
+    // See docs/PHASE3_STABILITY_CORRECTIONS.md for detailed documentation
+    
+    // Enable/disable non-neutral stability corrections
+    bool enable_stability_correction = false;
+    
+    // Obukhov length scale L [m]
+    // L > 0: Stable conditions (e.g., nighttime, weak wind, clear sky)
+    // L < 0: Unstable conditions (e.g., daytime, strong heating, surface convection)
+    // |L| → ∞: Neutral conditions (typical for overcast, strong wind)
+    // Typical values: L = 10 to 1000 m for stable, L = -10 to -1000 m for unstable
+    amrex::Real monin_obukhov_length = amrex::Real(1.0e6);
+    
+    // Use Holtslag-De Bruin (1988) instead of Businger-Dyer (1971) parameterization
+    // Holtslag-De Bruin performs better in very stable conditions (polar, nighttime)
+    // Businger-Dyer is standard and more widely used
+    bool use_holtslag_stability = false;
 };
+
 
 // ============================================================================
 // Namespace for turbulence calculations
@@ -607,7 +627,7 @@ amrex::Real mann_box_spectrum_diagonal(
     //
     // We use a phenomenological form that ensures proper spectral behavior:
     const amrex::Real k_scaled = wavenumber * length_scale / asymmetry;
-    const amrex::Real norm_factor = amrex::Real(8.0) * std::sqrt(amrex::Real(3.0) / (amrex::Real(11.0) * M_PI));
+    const amrex::Real norm_factor = amrex::Real(8.0) * std::sqrt(amrex::Real(3.0) / (amrex::Real(11.0) * MathConstants::pi));
     
     const amrex::Real numerator = norm_factor * variance * length_scale;
     const amrex::Real denominator_base = amrex::Real(1.0) + k_scaled * k_scaled;
@@ -633,7 +653,7 @@ amrex::Real mann_box_terrain_anisotropy_factor(
     // Guard against invalid inputs
     z_agl = std::max(z_agl, amrex::Real(1.0));
     terrain_slope = std::max(terrain_slope, amrex::Real(0.0));
-    terrain_slope = std::min(terrain_slope, amrex::Real(M_PI / 2.0));
+    terrain_slope = std::min(terrain_slope, amrex::Real(MathConstants::pi / 2.0));
     
     // Height-dependent suppression near ground
     const amrex::Real height_factor = std::min(z_agl / amrex::Real(50.0), amrex::Real(1.0));
@@ -804,7 +824,7 @@ public:
            case TurbulenceModel::MannBox: {
                // Mann Box spectral tensor for u-component
                // Convert frequency to wavenumber: k = 2π*f/U
-               const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(M_PI) * frequency 
+               const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(MathConstants::pi) * frequency 
                                              / std::max(mean_wind_speed, amrex::Real(0.1));
                // Mann Box variance for u-component
                const amrex::Real mann_variance_u = params_.mann_variance_u * rms_u * rms_u;
@@ -840,7 +860,7 @@ public:
                                       rms_v);
             case TurbulenceModel::MannBox: {
                 // Mann Box spectral tensor for v-component
-                const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(M_PI) * frequency 
+                const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(MathConstants::pi) * frequency 
                                               / std::max(mean_wind_speed, amrex::Real(0.1));
                 const amrex::Real mann_variance_v = params_.mann_variance_v * rms_v * rms_v;
                 return mann_box_spectrum_diagonal(wavenumber, params_.mann_length_scale_v,
@@ -875,7 +895,7 @@ public:
                                       rms_w);
             case TurbulenceModel::MannBox: {
                 // Mann Box spectral tensor for w-component
-                const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(M_PI) * frequency 
+                const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(MathConstants::pi) * frequency 
                                               / std::max(mean_wind_speed, amrex::Real(0.1));
                 const amrex::Real mann_variance_w = params_.mann_variance_w * rms_w * rms_w;
                 return mann_box_spectrum_diagonal(wavenumber, params_.mann_length_scale_w,

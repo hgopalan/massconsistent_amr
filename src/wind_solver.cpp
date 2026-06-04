@@ -1585,9 +1585,13 @@ int main(int argc, char* argv[])
                 turb_params.intensity_model = IntensityModel::Logarithmic;
             } else if (intensity_model_str == "Constant") {
                 turb_params.intensity_model = IntensityModel::Constant;
+            } else if (intensity_model_str == "IEC61400") {
+                turb_params.intensity_model = IntensityModel::IEC61400;
+            } else if (intensity_model_str == "SmoothProfile") {
+                turb_params.intensity_model = IntensityModel::SmoothProfile;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_intensity_model: " + intensity_model_str + 
-                             " (must be 'PowerLaw', 'Logarithmic', or 'Constant')");
+                             " (must be 'PowerLaw', 'Logarithmic', 'Constant', 'IEC61400', or 'SmoothProfile')");
             }
             
             // Parse coherence model
@@ -1595,16 +1599,27 @@ int main(int argc, char* argv[])
                 turb_params.coherence_model = CoherenceModel::Gaussian;
             } else if (coherence_model_str == "Exponential") {
                 turb_params.coherence_model = CoherenceModel::Exponential;
+            } else if (coherence_model_str == "QuadraticExponential") {
+                turb_params.coherence_model = CoherenceModel::QuadraticExponential;
+            } else if (coherence_model_str == "PowerLaw") {
+                turb_params.coherence_model = CoherenceModel::PowerLaw;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_coherence_model: " + coherence_model_str + 
-                             " (must be 'Gaussian' or 'Exponential')");
+                             " (must be 'Gaussian', 'Exponential', 'QuadraticExponential', or 'PowerLaw')");
             }
             
             // Turbulence intensity parameters
             pp.query("turbulence_intensity_ref", turb_params.intensity_ref);
             pp.query("turbulence_z_intensity_ref", turb_params.z_intensity_ref);
             pp.query("turbulence_intensity_exponent", turb_params.intensity_exponent);
-            
+             
+            // IEC 61400-1 parameters (for IntensityModel::IEC61400 and SmoothProfile)
+            pp.query("turbulence_hub_height", turb_params.hub_height);
+            pp.query("turbulence_iec_category", turb_params.iec_turbulence_category);
+             
+            // Power-law coherence exponent (for CoherenceModel::PowerLaw)
+            pp.query("turbulence_coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent);
+             
             // Integral length scales
             pp.query("turbulence_length_scale_u", turb_params.length_scale_u);
             pp.query("turbulence_length_scale_v", turb_params.length_scale_v);
@@ -1623,6 +1638,22 @@ int main(int argc, char* argv[])
             int random_seed_int = 12345;
             pp.query("turbulence_random_seed", random_seed_int);
             turb_params.random_seed = static_cast<unsigned int>(std::max(1, random_seed_int));
+             
+            // Phase 3+ Enhancements: Non-neutral stability corrections
+            pp.query("turbulence_enable_stability_correction", turb_params.enable_stability_correction);
+            pp.query("turbulence_monin_obukhov_length", turb_params.monin_obukhov_length);
+             
+            // Stability parameterization selection
+            std::string stability_param_str = "BusingerDyer";  // default
+            pp.query("turbulence_stability_parameterization", stability_param_str);
+            if (stability_param_str == "BusingerDyer") {
+                turb_params.use_holtslag_stability = false;
+            } else if (stability_param_str == "HoltslagDeBruin") {
+                turb_params.use_holtslag_stability = true;
+            } else {
+                amrex::Abort("wind_solver: invalid turbulence_stability_parameterization: " + stability_param_str + 
+                             " (must be 'BusingerDyer' or 'HoltslagDeBruin')");
+            }
             
             // Export format and output file
             pp.query("turbulence_export_format", turbulence_export_format);
@@ -1702,9 +1733,9 @@ int main(int argc, char* argv[])
         // Print GPU backend info
         #ifdef AMREX_USE_CUDA
         amrex::Print() << "wind_solver: GPU Backend: NVIDIA CUDA\n";
-        #elif AMREX_USE_HIP
+        #elif defined(AMREX_USE_HIP)
         amrex::Print() << "wind_solver: GPU Backend: AMD HIP/ROCm\n";
-        #elif AMREX_USE_SYCL
+        #elif defined(AMREX_USE_SYCL)
         amrex::Print() << "wind_solver: GPU Backend: Intel SYCL/oneAPI\n";
         #else
         amrex::Print() << "wind_solver: GPU Backend: None (CPU-only)\n";
@@ -1714,9 +1745,9 @@ int main(int argc, char* argv[])
         #ifdef AMREX_USE_FFT
         #ifdef AMREX_USE_CUDA
         amrex::Print() << "wind_solver: FFT Backend: cuFFT (NVIDIA CUDA)\n";
-        #elif AMREX_USE_HIP
+        #elif defined(AMREX_USE_HIP)
         amrex::Print() << "wind_solver: FFT Backend: rocFFT (AMD HIP/ROCm)\n";
-        #elif AMREX_USE_SYCL
+        #elif defined(AMREX_USE_SYCL)
         amrex::Print() << "wind_solver: FFT Backend: oneMKL (Intel SYCL/oneAPI)\n";
         #else
         amrex::Print() << "wind_solver: FFT Backend: FFTPACK (CPU)\n";
@@ -2663,10 +2694,7 @@ int main(int argc, char* argv[])
             const bool use_veg_roughness = enable_vegetation_roughness;
             const Real veg_state_val = vegetation_state;
             const int veg_state_type_val = vegetation_state_type;
-            
-            // Diurnal temperature (only affects temperature, used later if enabled)
-            const bool use_diurnal_temp = enable_diurnal_temperature;
-            
+             
             // Wall function parameters
             const bool use_wall_func = enable_wall_functions;
             const bool use_terrain_wall = enable_terrain_wall_function;
@@ -2699,10 +2727,6 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters  
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -3279,10 +3303,6 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -3453,14 +3473,10 @@ int main(int argc, char* argv[])
             const bool use_ekman = enable_ekman_veer;
             const Real veer_height = ekman_veer_height;
             const Real veer_total = ekman_veer_total_rad;
-            
+             
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -4411,6 +4427,26 @@ int main(int argc, char* argv[])
                 random_fields.u_prime, random_fields.v_prime, random_fields.w_prime,
                 turb_nx, turb_ny, turb_nz, U_mean, turb_gen, total_duration, custom_dt, seed);
 
+            Gpu::DeviceVector<Real> d_u_prime(random_fields.u_prime.size());
+            Gpu::DeviceVector<Real> d_v_prime(random_fields.v_prime.size());
+            Gpu::DeviceVector<Real> d_w_prime(random_fields.w_prime.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             random_fields.u_prime.begin(),
+                             random_fields.u_prime.end(),
+                             d_u_prime.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             random_fields.v_prime.begin(),
+                             random_fields.v_prime.end(),
+                             d_v_prime.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             random_fields.w_prime.begin(),
+                             random_fields.w_prime.end(),
+                             d_w_prime.begin());
+            Real const* d_u_prime_ptr = d_u_prime.data();
+            Real const* d_v_prime_ptr = d_v_prime.data();
+            Real const* d_w_prime_ptr = d_w_prime.data();
+            const int n_fluc = static_cast<int>(random_fields.u_prime.size());
+
             // Populate the synthetic_turbulence_fluc MultiFab with fluctuation data
             for (MFIter mfi(synthetic_turbulence_fluc); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -4421,10 +4457,10 @@ int main(int argc, char* argv[])
                 {
                     // Map 3D index (i,j,k) to 1D index in random_fields
                     int idx_1d = (k * turb_ny + j) * turb_nx + i;
-                    if (idx_1d >= 0 && idx_1d < static_cast<int>(random_fields.u_prime.size())) {
-                        fluc(i,j,k,0) = random_fields.u_prime[idx_1d];
-                        fluc(i,j,k,1) = random_fields.v_prime[idx_1d];
-                        fluc(i,j,k,2) = random_fields.w_prime[idx_1d];
+                    if (idx_1d >= 0 && idx_1d < n_fluc) {
+                        fluc(i,j,k,0) = d_u_prime_ptr[idx_1d];
+                        fluc(i,j,k,1) = d_v_prime_ptr[idx_1d];
+                        fluc(i,j,k,2) = d_w_prime_ptr[idx_1d];
                     } else {
                         fluc(i,j,k,0) = 0.0;
                         fluc(i,j,k,1) = 0.0;
@@ -4656,14 +4692,13 @@ int main(int argc, char* argv[])
         const int nout = has_synthetic_turbulence ? 24 : 21;  // Add 3 components for synthetic turbulence
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
-        
+         
         // Compute diagnostics (heat flux, drag coefficient, momentum flux, Richardson number, BL depth)
         // Constants for heat flux calculation
         const Real rho_air = 1.225;      // air density [kg/m³] at sea level, 15°C
         const Real cp_air = 1005.0;      // specific heat at constant pressure [J/(kg·K)]
         const Real theta_star = 0.1;     // characteristic temperature scale [K] (typical for neutral conditions)
         const Real kappa_diag = 0.41;    // von Karman constant
-        const Real z_ref_diag = z_ref;   // reference height for diagnostics
 
         for (MFIter mfi(output); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
