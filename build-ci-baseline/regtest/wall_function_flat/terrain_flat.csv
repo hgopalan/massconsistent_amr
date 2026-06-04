@@ -1,0 +1,6 @@
+# Flat terrain - 10m x 10m domain at z=0
+# Four corner points to define a flat surface
+0.0 0.0 0.0
+10.0 0.0 0.0
+0.0 10.0 0.0
+10.0 10.0 0.0
