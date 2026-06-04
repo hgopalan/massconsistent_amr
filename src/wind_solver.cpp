@@ -1735,7 +1735,7 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: GPU Backend: NVIDIA CUDA\n";
         #elif AMREX_USE_HIP
         amrex::Print() << "wind_solver: GPU Backend: AMD HIP/ROCm\n";
-        #elif AMREX_USE_SYCL
+        #elif defined(AMREX_USE_SYCL)
         amrex::Print() << "wind_solver: GPU Backend: Intel SYCL/oneAPI\n";
         #else
         amrex::Print() << "wind_solver: GPU Backend: None (CPU-only)\n";
@@ -1747,7 +1747,7 @@ int main(int argc, char* argv[])
         amrex::Print() << "wind_solver: FFT Backend: cuFFT (NVIDIA CUDA)\n";
         #elif AMREX_USE_HIP
         amrex::Print() << "wind_solver: FFT Backend: rocFFT (AMD HIP/ROCm)\n";
-        #elif AMREX_USE_SYCL
+        #elif defined(AMREX_USE_SYCL)
         amrex::Print() << "wind_solver: FFT Backend: oneMKL (Intel SYCL/oneAPI)\n";
         #else
         amrex::Print() << "wind_solver: FFT Backend: FFTPACK (CPU)\n";
@@ -4427,6 +4427,26 @@ int main(int argc, char* argv[])
                 random_fields.u_prime, random_fields.v_prime, random_fields.w_prime,
                 turb_nx, turb_ny, turb_nz, U_mean, turb_gen, total_duration, custom_dt, seed);
 
+            Gpu::DeviceVector<Real> d_u_prime(random_fields.u_prime.size());
+            Gpu::DeviceVector<Real> d_v_prime(random_fields.v_prime.size());
+            Gpu::DeviceVector<Real> d_w_prime(random_fields.w_prime.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             random_fields.u_prime.begin(),
+                             random_fields.u_prime.end(),
+                             d_u_prime.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             random_fields.v_prime.begin(),
+                             random_fields.v_prime.end(),
+                             d_v_prime.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             random_fields.w_prime.begin(),
+                             random_fields.w_prime.end(),
+                             d_w_prime.begin());
+            Real const* d_u_prime_ptr = d_u_prime.data();
+            Real const* d_v_prime_ptr = d_v_prime.data();
+            Real const* d_w_prime_ptr = d_w_prime.data();
+            const int n_fluc = static_cast<int>(random_fields.u_prime.size());
+
             // Populate the synthetic_turbulence_fluc MultiFab with fluctuation data
             for (MFIter mfi(synthetic_turbulence_fluc); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -4437,10 +4457,10 @@ int main(int argc, char* argv[])
                 {
                     // Map 3D index (i,j,k) to 1D index in random_fields
                     int idx_1d = (k * turb_ny + j) * turb_nx + i;
-                    if (idx_1d >= 0 && idx_1d < static_cast<int>(random_fields.u_prime.size())) {
-                        fluc(i,j,k,0) = random_fields.u_prime[idx_1d];
-                        fluc(i,j,k,1) = random_fields.v_prime[idx_1d];
-                        fluc(i,j,k,2) = random_fields.w_prime[idx_1d];
+                    if (idx_1d >= 0 && idx_1d < n_fluc) {
+                        fluc(i,j,k,0) = d_u_prime_ptr[idx_1d];
+                        fluc(i,j,k,1) = d_v_prime_ptr[idx_1d];
+                        fluc(i,j,k,2) = d_w_prime_ptr[idx_1d];
                     } else {
                         fluc(i,j,k,0) = 0.0;
                         fluc(i,j,k,1) = 0.0;
