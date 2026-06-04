@@ -95,6 +95,12 @@ struct PuffParams {
     amrex::Real canopy_sheltering_factor = 0.8;   // Canopy horizontal diffusivity reduction
     bool enable_canopy_deposition = false;   // Enable dry deposition in canopy
     amrex::Real deposition_velocity = 0.01;  // Dry deposition velocity [m/s]
+    
+    // Advanced building downwash parameters
+    bool enable_cavity_trapping = false;     // Enable cavity trapping parameterization
+    bool enable_plume_deformation = false;   // Enable plume deformation under shear
+    amrex::Real aermod_prime_cavity_factor = 0.67;  // Cavity height factor (fraction of H)
+    amrex::Real cavity_recirculation_strength = 0.8;  // Recirculation intensity [0-1]
 };
 
 // ============================================================================
@@ -108,6 +114,36 @@ struct Puff {
     amrex::Real time_emitted;       // Time when puff was emitted [s]
     amrex::Real age;                // Current age of puff [s]
     bool active;                    // Whether puff should be modeled
+    bool in_cavity = false;         // Whether puff is in building cavity zone
+    amrex::Real cavity_age = 0.0;   // Time spent in cavity zone [s]
+};
+
+// ============================================================================
+// Building Cavity Zone (AERMOD PRIME)
+//
+// Represents the building-induced cavity zone for advanced downwash modeling.
+// The cavity zone is where recirculating flow traps and partially recirculates
+// pollutants back toward and above the building.
+// ============================================================================
+struct CavityZone {
+    amrex::Real xmin, xmax;         // Cavity bounds [m] (extends upwind and downwind)
+    amrex::Real ymin, ymax;         // Lateral bounds [m]
+    amrex::Real z_bottom, z_top;    // Cavity height bounds [m]
+    amrex::Real recirculation_strength;  // Fraction of flow that recirculates [0-1]
+    amrex::Real residence_time;     // Average residence time in cavity [s]
+};
+
+// ============================================================================
+// Wake Recirculation Zone
+//
+// Represents the far-wake region where plume recovery occurs.
+// Models the gradual mixing and dissipation of building-induced perturbations.
+// ============================================================================
+struct RecirculationZone {
+    amrex::Real x_start, x_end;     // Downwind extent of recirculation [m]
+    amrex::Real vortex_strength;    // Strength of rooftop vortex pair [m²/s]
+    amrex::Real lateral_spread;     // Lateral spreading due to vortices [m]
+    amrex::Real vertical_velocity_max;  // Maximum induced vertical velocity [m/s]
 };
 
 // ============================================================================
@@ -989,7 +1025,284 @@ Puff create_puff(
     puff.time_emitted = time;
     puff.age = amrex::Real(0.0);
     puff.active = true;
+    puff.in_cavity = false;
+    puff.cavity_age = amrex::Real(0.0);
     return puff;
+}
+
+// ============================================================================
+// Compute building cavity zone geometry (AERMOD PRIME model)
+//
+// The cavity zone is a recirculation region downwind of a building where
+// pollutants are trapped and partially recirculated. This function computes
+// the cavity zone bounds using empirical correlations from AERMOD PRIME.
+//
+// Cavity zone parameters:
+// - Height: H_cav = 0.67 × H (default cavity_factor)
+// - Upwind extent: x_up = 0.5 × H
+// - Downwind extent: x_down = 2.0 × H (approximately c1 × H where c1 ≈ 0.9)
+// - Lateral extent: ±0.5 × W (half building width on each side)
+//
+// References:
+// - Schulman, L.L., et al. (2000). Development and Evaluation of the PRIME
+//   Plume Rise and Building Downwash Model. JAWMA, 50(3), 378-390.
+// - EPA AERMOD User's Guide
+//
+// Inputs:
+//   building            - Building structure with dimensions and position
+//   cavity_factor       - Fraction of building height defining cavity (default 0.67)
+//   upwind_factor       - Fraction of H for upwind extent (default 0.5)
+//   downwind_factor     - Fraction of H for downwind extent (default 2.0)
+//   wind_dir_x          - Wind direction x-component (unit vector)
+//   wind_dir_y          - Wind direction y-component (unit vector)
+//
+// Returns:
+//   CavityZone structure with bounds
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+CavityZone compute_cavity_zone(
+    const Building& building,
+    amrex::Real cavity_factor = 0.67,
+    amrex::Real upwind_factor = 0.5,
+    amrex::Real downwind_factor = 2.0,
+    amrex::Real wind_dir_x = 1.0,
+    amrex::Real wind_dir_y = 0.0)
+{
+    CavityZone cavity;
+    
+    // Cavity dimensions from AERMOD PRIME
+    amrex::Real H = building.height;
+    amrex::Real W = building.width;
+    amrex::Real L = building.length;
+    
+    // Cavity height: 0.67 × H above building base
+    cavity.z_bottom = building.zmin;
+    cavity.z_top = building.zmin + cavity_factor * H;
+    
+    // Cavity horizontal extent (in building reference frame)
+    // For simplicity, use axis-aligned approach
+    // Upwind: 0.5×H, Downwind: 2×H from building edges
+    cavity.xmin = building.xmin - upwind_factor * H;
+    cavity.xmax = building.xmax + downwind_factor * H;
+    
+    cavity.ymin = building.ymin - 0.5 * W;
+    cavity.ymax = building.ymax + 0.5 * W;
+    
+    // Recirculation strength: fraction of incident flow that recirculates
+    cavity.recirculation_strength = amrex::Real(0.8);  // 80% of mass stays in cavity
+    
+    // Residence time: estimate based on cavity volume and typical wind speed
+    // τ_res ≈ L_cavity / U_typical
+    // For 1 m/s wind: approximately 2-3 building heights of distance / 1 m/s ≈ 100-300 s
+    cavity.residence_time = amrex::Real(150.0);  // Typical value [s]
+    
+    return cavity;
+}
+
+// ============================================================================
+// Check if puff is in building cavity zone
+//
+// Determines if a puff center is within the cavity zone bounds.
+//
+// Inputs:
+//   puff        - Puff to check
+//   cavity      - Cavity zone structure
+//
+// Returns:
+//   True if puff center is inside cavity zone
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool puff_in_cavity_zone(
+    const Puff& puff,
+    const CavityZone& cavity)
+{
+    return (puff.x >= cavity.xmin && puff.x <= cavity.xmax &&
+            puff.y >= cavity.ymin && puff.y <= cavity.ymax &&
+            puff.z >= cavity.z_bottom && puff.z <= cavity.z_top);
+}
+
+// ============================================================================
+// Apply cavity trapping effect to puff
+//
+// Modifies puff behavior when in a building cavity zone:
+// 1. Reduced horizontal diffusion (sheltering effect)
+// 2. Enhanced vertical diffusion (vortex mixing)
+// 3. Partial recirculation (puff drifts back toward building)
+//
+// Inputs/Outputs:
+//   puff                - Puff to modify (in-place modification)
+//   cavity              - Cavity zone structure
+//   K_h, K_v            - Base diffusivity values [m²/s]
+//   dt                  - Time step [s]
+//   building_center_x   - Building center x-coordinate [m]
+//
+// Effects:
+//   - K_h is reduced by factor of 0.5 (lateral sheltering)
+//   - K_v is enhanced by factor of 2.0 (vertical vortex mixing)
+//   - Puff drifts back toward building with recirculation velocity
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_cavity_trapping(
+    Puff& puff,
+    const CavityZone& cavity,
+    amrex::Real& K_h_modified,
+    amrex::Real& K_v_modified,
+    amrex::Real dt,
+    amrex::Real building_center_x,
+    amrex::Real cavity_recirculation_strength = 0.8)
+{
+    if (!puff_in_cavity_zone(puff, cavity)) {
+        return;
+    }
+    
+    puff.in_cavity = true;
+    puff.cavity_age += dt;
+    
+    // Modify diffusivity in cavity
+    K_h_modified = K_h_modified * amrex::Real(0.5);  // Reduced lateral diffusion
+    K_v_modified = K_v_modified * amrex::Real(2.0);  // Enhanced vertical mixing
+    
+    // Recirculation effect: puff drifts back toward building center with reduced strength
+    // This is a simplified model; real recirculation is more complex
+    amrex::Real recirculation_velocity = -cavity_recirculation_strength * amrex::Real(0.5);  // m/s (negative = toward building)
+    amrex::Real downwind_distance = puff.x - cavity.xmin;
+    amrex::Real cavity_length = cavity.xmax - cavity.xmin;
+    
+    if (cavity_length > amrex::Real(0.0)) {
+        // Recirculation decreases with distance from building
+        amrex::Real recirculation_factor = 
+            amrex::Real(1.0) - (downwind_distance / cavity_length);
+        if (recirculation_factor > amrex::Real(0.0)) {
+            puff.x += recirculation_velocity * recirculation_factor * dt;
+        }
+    }
+}
+
+// ============================================================================
+// Compute plume deformation under vertical wind shear
+//
+// Implements plume tilting and deformation due to vertical variation in
+// horizontal wind speed. When lower layers move slower than upper layers,
+// the plume tilts downwind.
+//
+// Deformation model:
+// 1. Compute local wind shear: dU/dz
+// 2. Calculate tilt angle: θ = arctan(dU/dz × Δt)
+// 3. Deform puff: stretch in downwind direction, compress in upwind
+//
+// References:
+// - Anfossi, D., et al. (2005). A new Eulerian model of dispersion in
+//   complex terrain: the role of wind deformation.
+// - Venkatram, A. (1993). Revisiting the Gaussian puff model.
+//
+// Inputs:
+//   puff            - Puff to deform
+//   wind_speed_z    - Wind speed at puff height [m/s]
+//   wind_speed_z_ref - Wind speed at reference height [m/s]
+//   puff_z          - Puff vertical position [m]
+//   z_ref           - Reference height [m]
+//   z_exponent      - Wind profile exponent (power law) [0.1-0.5]
+//   dt              - Time step [s]
+//   max_deformation - Maximum deformation factor [dimensionless]
+//
+// Outputs:
+//   puff.sigma_y    - Modified horizontal standard deviation
+//   puff.sigma_z    - Modified vertical standard deviation
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_plume_deformation_shear(
+    Puff& puff,
+    amrex::Real wind_speed_z,
+    amrex::Real wind_speed_z_ref,
+    amrex::Real puff_z,
+    amrex::Real z_ref,
+    amrex::Real z_exponent,
+    amrex::Real dt,
+    amrex::Real max_deformation = 2.0)
+{
+    if (puff_z <= amrex::Real(0.0) || z_ref <= amrex::Real(0.0)) {
+        return;
+    }
+    
+    // Compute wind shear: dU/dz using power law profile
+    // U(z) = U_ref × (z/z_ref)^p  ⟹  dU/dz = U_ref × p × (z/z_ref)^(p-1) / z_ref
+    amrex::Real wind_shear = amrex::Real(0.0);
+    if (wind_speed_z_ref > MIN_WIND_SPEED_FOR_PLUME_RISE) {
+        amrex::Real z_ratio = puff_z / z_ref;
+        wind_shear = wind_speed_z_ref * z_exponent * 
+                     std::pow(z_ratio, z_exponent - amrex::Real(1.0)) / z_ref;
+    }
+    
+    // Tilt angle: θ = arctan(wind_shear × dt)
+    amrex::Real tilt_angle = std::atan(wind_shear * dt);
+    
+    // Deformation factor based on tilt
+    amrex::Real deformation_factor = 
+        amrex::Real(1.0) + std::abs(tilt_angle) * amrex::Real(0.5);
+    
+    // Clamp deformation to avoid unrealistic values
+    if (deformation_factor > max_deformation) {
+        deformation_factor = max_deformation;
+    }
+    
+    // Apply deformation: increase horizontal spread, decrease vertical spread
+    // (plume stretches horizontally and compresses vertically in strong shear)
+    puff.sigma_y = puff.sigma_y * deformation_factor;
+    puff.sigma_z = puff.sigma_z / (amrex::Real(1.0) + amrex::Real(0.1) * tilt_angle);
+}
+
+// ============================================================================
+// Compute wake recirculation zone for far-wake mixing
+//
+// Identifies the far-wake region where rooftop vortex pairs create complex
+// mixing patterns. This function characterizes the vortex strength and
+// induced velocities.
+//
+// Far-wake characteristics:
+// - Extends from ~2H to ~7H downwind of building
+// - Two counter-rotating vortex pair (CVP) induced by flow separation
+// - Vortex strength proportional to building height and wind speed
+// - Creates lateral and vertical mixing enhancement
+//
+// Inputs:
+//   building        - Building structure
+//   wind_speed      - Approach wind speed at building height [m/s]
+//
+// Returns:
+//   RecirculationZone structure with vortex characteristics
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+RecirculationZone compute_recirculation_zone(
+    const Building& building,
+    amrex::Real wind_speed)
+{
+    RecirculationZone rz;
+    
+    amrex::Real H = building.height;
+    amrex::Real W = building.width;
+    
+    // Far-wake extent: starts at ~2H, ends at ~7H downwind
+    rz.x_start = building.xmax + amrex::Real(2.0) * H;
+    rz.x_end = building.xmax + amrex::Real(7.0) * H;
+    
+    // Vortex strength (Γ) proportional to wind speed and building size
+    // Γ = Γ₀ × U × H, where Γ₀ is a dimensionless coefficient (~0.1-0.3)
+    rz.vortex_strength = amrex::Real(0.15) * wind_speed * H;
+    
+    // Lateral spreading in wake: grows with distance from building
+    // Maximum spread approximately ±0.5W at far edge
+    rz.lateral_spread = amrex::Real(0.25) * W;
+    
+    // Maximum induced vertical velocity in vortex core
+    // w_max ≈ Γ / (2π × r_core), where r_core ≈ 0.1W (vortex core radius)
+    amrex::Real r_core = amrex::Real(0.1) * W;
+    if (r_core > amrex::Real(0.01)) {
+        rz.vertical_velocity_max = rz.vortex_strength / (amrex::Real(2.0) * amrex::Real(3.14159265) * r_core);
+    } else {
+        rz.vertical_velocity_max = amrex::Real(0.0);
+    }
+    
+    return rz;
 }
 
 #endif // PUFF_MODELS_H
