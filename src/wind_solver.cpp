@@ -678,6 +678,47 @@ static void read_porous_building_file(const std::string& filename,
                    << " porous building(s) from " << filename << "\n";
 }
 
+// Read windbreaks file: x1 y1 x2 y2 height blockage drag_coeff
+// (whitespace or comma separated; '#' comments).
+static void read_windbreaks_file(const std::string& filename,
+                                 std::vector<Real>& x1,
+                                 std::vector<Real>& y1,
+                                 std::vector<Real>& x2,
+                                 std::vector<Real>& y2,
+                                 std::vector<Real>& height,
+                                 std::vector<Real>& blockage,
+                                 std::vector<Real>& drag_coeff)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open windbreaks file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real ax, ay, bx, by, h, block, cd;
+        if (ss >> ax >> ay >> bx >> by >> h >> block >> cd) {
+            x1.push_back(ax);
+            y1.push_back(ay);
+            x2.push_back(bx);
+            y2.push_back(by);
+            height.push_back(h);
+            blockage.push_back(block);
+            drag_coeff.push_back(cd);
+        }
+    }
+    if (x1.empty())
+        amrex::Abort("wind_solver: no data read from windbreaks file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << x1.size()
+                   << " windbreak segment(s) from " << filename << "\n";
+}
+
 // Read time series file: time U_ref V_ref (whitespace or comma separated; '#' comments)
 static void read_time_series_file(const std::string& filename,
                                    std::vector<Real>& times,
@@ -914,6 +955,7 @@ int main(int argc, char* argv[])
         Real canopy_drag_coeff = 0.2;
         Real canopy_attenuation = 2.5;
         bool use_exponential_profile = false;
+        int canopy_profile_type = 0;
         pp.query("enable_canopy", enable_canopy);
         pp.query("canopy_height", canopy_height);
         pp.query("frontal_area_index", frontal_area_index);
@@ -921,6 +963,13 @@ int main(int argc, char* argv[])
         pp.query("canopy_drag_coeff", canopy_drag_coeff);
         pp.query("canopy_attenuation", canopy_attenuation);
         pp.query("use_exponential_profile", use_exponential_profile);
+        pp.query("canopy_profile_type", canopy_profile_type);
+
+        // Sub-grid Windbreak and Linear Barrier Drag
+        bool enable_windbreaks = false;
+        std::string windbreaks_file = "";
+        pp.query("enable_windbreaks", enable_windbreaks);
+        pp.query("windbreaks_file", windbreaks_file);
 
         // Wake model parameters
         bool enable_wake = false;
@@ -1946,6 +1995,22 @@ int main(int argc, char* argv[])
                                     porous_building_rotation);
         }
 
+        // Read windbreaks file (if enabled)
+        std::vector<Real> windbreak_x1, windbreak_y1;
+        std::vector<Real> windbreak_x2, windbreak_y2;
+        std::vector<Real> windbreak_height;
+        std::vector<Real> windbreak_blockage;
+        std::vector<Real> windbreak_drag_coeff;
+
+        if (enable_windbreaks && !windbreaks_file.empty()) {
+            read_windbreaks_file(windbreaks_file,
+                                 windbreak_x1, windbreak_y1,
+                                 windbreak_x2, windbreak_y2,
+                                 windbreak_height,
+                                 windbreak_blockage,
+                                 windbreak_drag_coeff);
+        }
+
         // Read time series file (if enabled)
         std::vector<Real> time_series_times;
         std::vector<Real> time_series_U_refs;
@@ -2679,6 +2744,7 @@ int main(int argc, char* argv[])
             canopy_params.drag_coefficient = canopy_drag_coeff;
             canopy_params.attenuation_coeff = canopy_attenuation;
             canopy_params.use_exponential_profile = use_exponential_profile;
+            canopy_params.profile_type = canopy_profile_type;
 
             // Print canopy model status
             if (enable_canopy) {
@@ -2688,7 +2754,7 @@ int main(int argc, char* argv[])
                 amrex::Print() << "  plan_area_index = " << plan_area_index << "\n";
                 amrex::Print() << "  canopy_drag_coeff = " << canopy_drag_coeff << "\n";
                 if (use_exponential_profile) {
-                    amrex::Print() << "  using Shaw-Pereira exponential profile\n";
+                    amrex::Print() << "  using Shaw-Pereira exponential profile (profile_type = " << canopy_profile_type << ")\n";
                     amrex::Print() << "  attenuation_coeff = " << canopy_attenuation << "\n";
                 } else {
                     amrex::Print() << "  using MacDonald displacement height\n";
@@ -2835,6 +2901,12 @@ int main(int argc, char* argv[])
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
 
+            const bool cap_enable_coriolis_latitude = enable_coriolis_latitude;
+            const Real cap_domain_latitude = domain_latitude;
+            const Real cap_y_lo = y_lo;
+            const Real cap_dy = dy;
+            const Real cap_y_center = y_lo + Real(0.5) * (y_hi - y_lo);
+
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto vel = vel0.array(mfi);
@@ -2962,7 +3034,16 @@ int main(int argc, char* argv[])
                         Real u_vel, v_vel;
                         if (use_ekman) {
                             // Compute veer angle at this height
-                            Real veer_angle = ekman_veer_angle(z_agl, veer_height, veer_total);
+                            Real local_veer_height = veer_height;
+                            if (cap_enable_coriolis_latitude) {
+                                Real y_coord = cap_y_lo + (j + Real(0.5)) * cap_dy;
+                                Real f_ref = compute_latitude_coriolis_parameter(cap_domain_latitude);
+                                Real f_loc = compute_latitude_dependent_coriolis(y_coord, cap_y_center, cap_domain_latitude);
+                                if (std::abs(f_loc) > Real(1.0e-8) && std::abs(f_ref) > Real(1.0e-8)) {
+                                    local_veer_height *= std::sqrt(std::abs(f_ref) / std::abs(f_loc));
+                                }
+                            }
+                            Real veer_angle = ekman_veer_angle(z_agl, local_veer_height, veer_total);
                             
                             // Apply rotation to horizontal wind components
                             Real u_base = speed * ux_h;
@@ -3401,6 +3482,7 @@ int main(int argc, char* argv[])
             canopy_params.drag_coefficient = canopy_drag_coeff;
             canopy_params.attenuation_coeff = canopy_attenuation;
             canopy_params.use_exponential_profile = use_exponential_profile;
+            canopy_params.profile_type = canopy_profile_type;
             
             // Capture Ekman veer parameters
             const bool use_ekman = enable_ekman_veer;
@@ -3410,6 +3492,12 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
+
+            const bool cap_enable_coriolis_latitude = enable_coriolis_latitude;
+            const Real cap_domain_latitude = domain_latitude;
+            const Real cap_y_lo = y_lo;
+            const Real cap_dy = dy;
+            const Real cap_y_center = y_lo + Real(0.5) * (y_hi - y_lo);
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -3446,7 +3534,16 @@ int main(int argc, char* argv[])
                         Real u_vel, v_vel;
                         if (use_ekman) {
                             // Compute veer angle at this height
-                            Real veer_angle = ekman_veer_angle(z_agl, veer_height, veer_total);
+                            Real local_veer_height = veer_height;
+                            if (cap_enable_coriolis_latitude) {
+                                Real y_coord = cap_y_lo + (j + Real(0.5)) * cap_dy;
+                                Real f_ref = compute_latitude_coriolis_parameter(cap_domain_latitude);
+                                Real f_loc = compute_latitude_dependent_coriolis(y_coord, cap_y_center, cap_domain_latitude);
+                                if (std::abs(f_loc) > Real(1.0e-8) && std::abs(f_ref) > Real(1.0e-8)) {
+                                    local_veer_height *= std::sqrt(std::abs(f_ref) / std::abs(f_loc));
+                                }
+                            }
+                            Real veer_angle = ekman_veer_angle(z_agl, local_veer_height, veer_total);
                             
                             // Apply rotation to horizontal wind components
                             Real u_base = speed * ux_hat;
@@ -3585,6 +3682,12 @@ int main(int argc, char* argv[])
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
 
+            const bool cap_enable_coriolis_latitude = enable_coriolis_latitude;
+            const Real cap_domain_latitude = domain_latitude;
+            const Real cap_y_lo = y_lo;
+            const Real cap_dy = dy;
+            const Real cap_y_center = y_lo + Real(0.5) * (y_hi - y_lo);
+
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto vel = vel0.array(mfi);
@@ -3617,7 +3720,16 @@ int main(int argc, char* argv[])
                         Real u_vel, v_vel;
                         if (use_ekman) {
                             // Compute veer angle at this height
-                            Real veer_angle = ekman_veer_angle(z_agl, veer_height, veer_total);
+                            Real local_veer_height = veer_height;
+                            if (cap_enable_coriolis_latitude) {
+                                Real y_coord = cap_y_lo + (j + Real(0.5)) * cap_dy;
+                                Real f_ref = compute_latitude_coriolis_parameter(cap_domain_latitude);
+                                Real f_loc = compute_latitude_dependent_coriolis(y_coord, cap_y_center, cap_domain_latitude);
+                                if (std::abs(f_loc) > Real(1.0e-8) && std::abs(f_ref) > Real(1.0e-8)) {
+                                    local_veer_height *= std::sqrt(std::abs(f_ref) / std::abs(f_loc));
+                                }
+                            }
+                            Real veer_angle = ekman_veer_angle(z_agl, local_veer_height, veer_total);
                             
                             // Apply rotation to horizontal wind components
                             Real u_base = speed * ux_h;
@@ -3950,6 +4062,111 @@ int main(int argc, char* argv[])
             }
             
             // Fill boundary after porosity modification
+            vel0.FillBoundary(geom.periodicity());
+        }
+
+        // ----------------------------------------------------------------
+        // 9c. Apply sub-grid windbreaks and linear barriers model (if enabled)
+        // ----------------------------------------------------------------
+        if (enable_windbreaks && !windbreak_x1.empty()) {
+            amrex::Print() << "wind_solver: applying sub-grid windbreaks model\n";
+            
+            int n_windbreaks = static_cast<int>(windbreak_x1.size());
+            Gpu::DeviceVector<Real> d_wb_x1(n_windbreaks);
+            Gpu::DeviceVector<Real> d_wb_y1(n_windbreaks);
+            Gpu::DeviceVector<Real> d_wb_x2(n_windbreaks);
+            Gpu::DeviceVector<Real> d_wb_y2(n_windbreaks);
+            Gpu::DeviceVector<Real> d_wb_height(n_windbreaks);
+            Gpu::DeviceVector<Real> d_wb_blockage(n_windbreaks);
+            Gpu::DeviceVector<Real> d_wb_drag_coeff(n_windbreaks);
+            
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             windbreak_x1.begin(), windbreak_x1.end(), d_wb_x1.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             windbreak_y1.begin(), windbreak_y1.end(), d_wb_y1.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             windbreak_x2.begin(), windbreak_x2.end(), d_wb_x2.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             windbreak_y2.begin(), windbreak_y2.end(), d_wb_y2.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             windbreak_height.begin(), windbreak_height.end(), d_wb_height.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             windbreak_blockage.begin(), windbreak_blockage.end(), d_wb_blockage.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             windbreak_drag_coeff.begin(), windbreak_drag_coeff.end(), d_wb_drag_coeff.begin());
+            
+            Real const* d_wb_x1_ptr = d_wb_x1.data();
+            Real const* d_wb_y1_ptr = d_wb_y1.data();
+            Real const* d_wb_x2_ptr = d_wb_x2.data();
+            Real const* d_wb_y2_ptr = d_wb_y2.data();
+            Real const* d_wb_height_ptr = d_wb_height.data();
+            Real const* d_wb_blockage_ptr = d_wb_blockage.data();
+            Real const* d_wb_drag_coeff_ptr = d_wb_drag_coeff.data();
+            
+            const int n_wb_cap = n_windbreaks;
+            const Real dx_wb = dx;
+            const Real dy_wb = dy;
+            const Real dz_wb = dz;
+            const Real x_lo_wb = x_lo;
+            const Real y_lo_wb = y_lo;
+            const Real z_lo_wb = z_lo;
+            const Real max_cell_spacing = std::max(dx, dy);
+            
+            // Capture terrain pointer and bounds
+            Real const* d_terr_ptr = d_terr.data();
+            const int nx_cap_init = nx;
+            
+            for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0.array(mfi);
+                
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real x = x_lo_wb + (i + Real(0.5)) * dx_wb;
+                    Real y = y_lo_wb + (j + Real(0.5)) * dy_wb;
+                    Real z = z_lo_wb + (k + Real(0.5)) * dz_wb;
+                    
+                    Real terrain_elev = d_terr_ptr[j * nx_cap_init + i];
+                    Real z_agl = z - terrain_elev;
+                    
+                    // Check all windbreaks to find if any intersects this cell
+                    int closest_wb = -1;
+                    Real closest_dist = max_cell_spacing;
+                    
+                    for (int b = 0; b < n_wb_cap; ++b) {
+                        Real wb_height = d_wb_height_ptr[b];
+                        if (z_agl > Real(0.0) && z_agl <= wb_height) {
+                            Real t_clamped;
+                            Real dist = distance_to_segment(x, y, 
+                                                            d_wb_x1_ptr[b], d_wb_y1_ptr[b],
+                                                            d_wb_x2_ptr[b], d_wb_y2_ptr[b],
+                                                            t_clamped);
+                            if (dist <= Real(0.5) * max_cell_spacing && dist < closest_dist) {
+                                closest_dist = dist;
+                                closest_wb = b;
+                            }
+                        }
+                    }
+                    
+                    if (closest_wb >= 0) {
+                        Real u = vel(i, j, k, 0);
+                        Real v = vel(i, j, k, 1);
+                        
+                        apply_windbreak_drag(u, v, 
+                                             d_wb_blockage_ptr[closest_wb],
+                                             d_wb_drag_coeff_ptr[closest_wb],
+                                             d_wb_x1_ptr[closest_wb], d_wb_y1_ptr[closest_wb],
+                                             d_wb_x2_ptr[closest_wb], d_wb_y2_ptr[closest_wb],
+                                             dx_wb, dy_wb);
+                        
+                        vel(i, j, k, 0) = u;
+                        vel(i, j, k, 1) = v;
+                    }
+                });
+            }
+            
+            // Fill boundary after windbreak modification
             vel0.FillBoundary(geom.periodicity());
         }
 
@@ -4796,9 +5013,19 @@ int main(int argc, char* argv[])
         //     19  terrain_slope magnitude of terrain slope |∇h| [-]
         //     20  adaptive_z0   adaptive roughness from terrain analysis [m]
         // ================================================================
-        const int nout = has_synthetic_turbulence ? 24 : 21;  // Add 3 components for synthetic turbulence
+        int nout_val = 21;
+        if (has_synthetic_turbulence) nout_val += 3;
+        if (enable_coriolis_latitude) nout_val += 3;
+        const int nout = nout_val;
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
+
+        const bool cap_enable_coriolis_latitude = enable_coriolis_latitude;
+        const Real cap_domain_latitude = domain_latitude;
+        const Real cap_y_lo = y_lo;
+        const Real cap_dy = dy;
+        const Real cap_y_center = y_lo + Real(0.5) * (y_hi - y_lo);
+        const bool cap_has_turb = has_synthetic_turbulence;
          
         // Compute diagnostics (heat flux, drag coefficient, momentum flux, Richardson number, BL depth)
         // Constants for heat flux calculation
@@ -4912,6 +5139,20 @@ int main(int argc, char* argv[])
                     out(i,j,k,22) = v_openfast;
                     out(i,j,k,23) = w_openfast;
                 }
+
+                // Coriolis Latitude Scaling diagnostics (if enabled)
+                if (cap_enable_coriolis_latitude) {
+                    Real y_coord = cap_y_lo + (j + Real(0.5)) * cap_dy;
+                    Real f = compute_latitude_dependent_coriolis(y_coord, cap_y_center, cap_domain_latitude);
+                    Real U_mag = std::sqrt(u*u + v*v + w*w);
+                    Real Ro = compute_rossby_number(U_mag, f, Real(1000.0));
+                    Real T_i = compute_inertial_period(f);
+                    
+                    int idx_offset = cap_has_turb ? 24 : 21;
+                    out(i,j,k, idx_offset) = f;
+                    out(i,j,k, idx_offset + 1) = Ro;
+                    out(i,j,k, idx_offset + 2) = T_i;
+                }
             });
         }
 
@@ -4932,6 +5173,13 @@ int main(int argc, char* argv[])
             var_names.push_back("u_openfast");
             var_names.push_back("v_openfast");
             var_names.push_back("w_openfast");
+        }
+
+        // Add Coriolis latitude variables if enabled
+        if (enable_coriolis_latitude) {
+            var_names.push_back("coriolis_f");
+            var_names.push_back("rossby_number");
+            var_names.push_back("inertial_period");
         }
 
         amrex::Print() << "wind_solver: divergence computation time = " 

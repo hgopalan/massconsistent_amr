@@ -95,4 +95,30 @@ amrex::Real compute_inertial_period(amrex::Real coriolis_f)
     return 2.0 * PI / std::abs(coriolis_f);
 }
 
+// Compute latitude-dependent Coriolis parameter f(y) using the beta-effect / latitude mapping
+// Inputs:
+//   y_coord      - Current physical Y coordinate in meters [m]
+//   y_center     - Physical Y coordinate of the domain center [m]
+//   ref_lat_deg  - Reference/domain latitude at the center [degrees]
+// Returns:
+//   Coriolis parameter f [rad/s]
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_latitude_dependent_coriolis(
+    amrex::Real y_coord,
+    amrex::Real y_center,
+    amrex::Real ref_lat_deg)
+{
+    // Earth's radius in meters
+    constexpr amrex::Real EARTH_RADIUS = 6.371e6;
+    constexpr amrex::Real RAD_TO_DEG = 180.0 / PI;
+    
+    // Compute latitude in degrees at the current y-coordinate
+    amrex::Real lat_deg = ref_lat_deg + ((y_coord - y_center) / EARTH_RADIUS) * RAD_TO_DEG;
+    
+    // Clamp to valid latitude range [-90, 90]
+    lat_deg = std::max(-90.0, std::min(lat_deg, 90.0));
+    
+    return compute_latitude_coriolis_parameter(lat_deg);
+}
+
 #endif

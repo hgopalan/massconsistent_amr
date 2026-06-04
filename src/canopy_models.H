@@ -38,6 +38,7 @@ struct CanopyParams {
     amrex::Real drag_coefficient = 0.2;      // Drag coefficient Cd (dimensionless)
     amrex::Real attenuation_coeff = 2.5;     // Exponential attenuation coefficient α
     bool use_exponential_profile = false;    // Use Shaw-Pereira exponential profile
+    int profile_type = 0;                    // Canopy profile type: 0=Uniform, 1=Coniferous, 2=Deciduous, 3=Grass/Shrub
 };
 
 // ============================================================================
@@ -143,7 +144,8 @@ AMREX_GPU_HOST_DEVICE AMREX_INLINE
 amrex::Real shaw_pereira_profile(
     amrex::Real z_agl,
     amrex::Real canopy_height,
-    amrex::Real alpha)
+    amrex::Real alpha,
+    int profile_type = 0)
 {
     
     if (canopy_height <= amrex::Real(0.0) || z_agl >= canopy_height) {
@@ -154,9 +156,28 @@ amrex::Real shaw_pereira_profile(
         return amrex::Real(0.0);  // Below ground
     }
     
-    // Within canopy: u(z)/u(h) = exp(-α * (1 - z/h))
-    const amrex::Real z_ratio = z_agl / canopy_height;
-    const amrex::Real exponent = -alpha * (amrex::Real(1.0) - z_ratio);
+    const amrex::Real eta = z_agl / canopy_height;
+    amrex::Real cum_lai_frac = eta; // default for uniform profile (profile_type == 0)
+    
+    if (profile_type == 1) { // Coniferous (middle peak at 0.5 * h)
+        cum_lai_frac = amrex::Real(10.0) * eta * eta * eta 
+                     - amrex::Real(15.0) * eta * eta * eta * eta 
+                     + amrex::Real(6.0) * eta * eta * eta * eta * eta;
+    } else if (profile_type == 2) { // Deciduous/Broadleaf (upper peak at 0.75 * h)
+        cum_lai_frac = amrex::Real(5.0) * eta * eta * eta * eta 
+                     - amrex::Real(4.0) * eta * eta * eta * eta * eta;
+    } else if (profile_type == 3) { // Grass/Shrub (lower peak at 0.25 * h)
+        cum_lai_frac = amrex::Real(10.0) * eta * eta 
+                     - amrex::Real(20.0) * eta * eta * eta 
+                     + amrex::Real(15.0) * eta * eta * eta * eta 
+                     - amrex::Real(4.0) * eta * eta * eta * eta * eta;
+    }
+    
+    // Safety clamp to [0, 1]
+    cum_lai_frac = std::max(amrex::Real(0.0), std::min(cum_lai_frac, amrex::Real(1.0)));
+    
+    // Decay factor: exp(-alpha * (1 - cumulative_lai_fraction_from_bottom))
+    const amrex::Real exponent = -alpha * (amrex::Real(1.0) - cum_lai_frac);
     
     return std::exp(exponent);
 }
@@ -254,7 +275,7 @@ amrex::Real canopy_wind_profile(
         
         // Apply exponential decay within canopy
         const amrex::Real decay_factor = shaw_pereira_profile(
-            z_agl, params.height, params.attenuation_coeff);
+            z_agl, params.height, params.attenuation_coeff, params.profile_type);
         
         return u_at_top * decay_factor;
     } else {

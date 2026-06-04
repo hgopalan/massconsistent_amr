@@ -1,0 +1,8 @@
+# Terrain for Coriolis Meridional test  X[m]  Y[m]  Z[m]
+# Domain: 0-100 x 0-10000 m, flat at z=0
+0.0     0.0      0.0
+100.0   0.0      0.0
+0.0     5000.0   0.0
+100.0   5000.0   0.0
+0.0     10000.0  0.0
+100.0   10000.0  0.0
