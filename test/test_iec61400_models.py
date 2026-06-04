@@ -418,7 +418,7 @@ def test_invalid_parameters():
             print(f"✗ Should have raised ValueError for terrain category=5 (> 4)")
             return False
         except ValueError:
-            print(f"✓ Correctly rejects invalid terrain category (terrain_category=5)")
+            print(f"✓ Correctly rejects terrain_category=5 (upper boundary violation)")
         
         # Test invalid terrain category (negative)
         try:

@@ -76,8 +76,9 @@ IEC_CLASS_PARAMETERS = {
     },
     WindTurbineClass.CLASS_IV: {
         # NOTE: Class IV is NOT in official IEC 61400-1 standard.
+        # WARNING: Should ONLY be used for preliminary design studies, NOT for certification.
         # Vref=30.0 m/s and Vavg=6.0 m/s are estimated values for very low wind resources.
-        "vref": 30.0,   # Class IV: Vref ~ 30 m/s (estimated, non-standard)
+        "vref": 30.0,   # Class IV: Vref ~ 30 m/s (estimated, non-standard, non-certifiable)
         "vavg": 6.0,    # Average wind speed: 6.0 m/s (estimated, non-standard)
         "iref": 0.18,   # Turbulence intensity: 18%
         "a": 2,
@@ -228,7 +229,7 @@ class NormalTurbulenceModel(IEC61400Model):
         """
         # IEC 61400-1:2019 (and earlier editions) formula: I(z) = Iref * (0.2 / (z/zref))^0.2
         # where zref = 15 m is the reference height
-        # This simplifies to: I(z) = Iref * (0.2 * 15 / z)^0.2
+        # This simplifies to: I(z) = Iref * (3.0 / z)^0.2 (where 3.0 = 0.2 * 15)
         # Turbulence intensity decreases with height above ground
         z_ref = 15.0  # Reference height (15 m)
         ti_exponent = 0.2  # Turbulence intensity exponent
