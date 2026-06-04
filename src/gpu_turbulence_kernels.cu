@@ -42,14 +42,14 @@ amrex::Real GPUSpectrumComputer::compute_vonkarman_spectrum_gpu(
     amrex::Real* d_frequencies = nullptr;
     amrex::Real* d_spectrum = nullptr;
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_frequencies, 
-                                                        n_freq * sizeof(amrex::Real)));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_spectrum, 
-                                                        n_freq * sizeof(amrex::Real)));
+    amrex::Gpu::Device::mem_alloc((void**)&d_frequencies, 
+                                  n_freq * sizeof(amrex::Real));
+    amrex::Gpu::Device::mem_alloc((void**)&d_spectrum, 
+                                  n_freq * sizeof(amrex::Real));
     
     // Copy input to device
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::htod_memcpy(d_frequencies, frequencies.data(), 
-                                                  n_freq * sizeof(amrex::Real)));
+    amrex::Gpu::htod_memcpy(d_frequencies, frequencies.data(), 
+                            n_freq * sizeof(amrex::Real));
     
     // Launch kernel configuration
     int blocks = (n_freq + block_size_ - 1) / block_size_;
@@ -61,15 +61,15 @@ amrex::Real GPUSpectrumComputer::compute_vonkarman_spectrum_gpu(
                 d_frequencies, n_freq, length_scale, mean_wind_speed, velocity_rms, d_spectrum);
         });
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::synchronize());
+    amrex::Gpu::synchronize();
     
     // Copy result back to host
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::dtoh_memcpy(spectrum_out.data(), d_spectrum, 
-                                                  n_freq * sizeof(amrex::Real)));
+    amrex::Gpu::dtoh_memcpy(spectrum_out.data(), d_spectrum, 
+                            n_freq * sizeof(amrex::Real));
     
     // Free GPU memory
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_frequencies));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_spectrum));
+    amrex::Gpu::Device::mem_free(d_frequencies);
+    amrex::Gpu::Device::mem_free(d_spectrum);
     
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -107,14 +107,14 @@ amrex::Real GPUSpectrumComputer::compute_kaimal_spectrum_gpu(
     amrex::Real* d_frequencies = nullptr;
     amrex::Real* d_spectrum = nullptr;
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_frequencies, 
-                                                        n_freq * sizeof(amrex::Real)));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_spectrum, 
-                                                        n_freq * sizeof(amrex::Real)));
+    amrex::Gpu::Device::mem_alloc((void**)&d_frequencies, 
+                                  n_freq * sizeof(amrex::Real));
+    amrex::Gpu::Device::mem_alloc((void**)&d_spectrum, 
+                                  n_freq * sizeof(amrex::Real));
     
     // Copy input to device
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::htod_memcpy(d_frequencies, frequencies.data(), 
-                                                  n_freq * sizeof(amrex::Real)));
+    amrex::Gpu::htod_memcpy(d_frequencies, frequencies.data(), 
+                            n_freq * sizeof(amrex::Real));
     
     // Launch kernel configuration
     int blocks = (n_freq + block_size_ - 1) / block_size_;
@@ -126,15 +126,15 @@ amrex::Real GPUSpectrumComputer::compute_kaimal_spectrum_gpu(
                 d_frequencies, n_freq, length_scale, mean_wind_speed, velocity_rms, d_spectrum);
         });
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::synchronize());
+    amrex::Gpu::synchronize();
     
     // Copy result back to host
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::dtoh_memcpy(spectrum_out.data(), d_spectrum, 
-                                                  n_freq * sizeof(amrex::Real)));
+    amrex::Gpu::dtoh_memcpy(spectrum_out.data(), d_spectrum, 
+                            n_freq * sizeof(amrex::Real));
     
     // Free GPU memory
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_frequencies));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_spectrum));
+    amrex::Gpu::Device::mem_free(d_frequencies);
+    amrex::Gpu::Device::mem_free(d_spectrum);
     
     auto end = std::chrono::high_resolution_clock::now();
     
@@ -170,14 +170,14 @@ amrex::Real GPUSpectrumComputer::compute_intensity_powerlaw_gpu(
     amrex::Real* d_heights = nullptr;
     amrex::Real* d_intensity = nullptr;
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_heights, 
-                                                        n_heights * sizeof(amrex::Real)));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_intensity, 
-                                                        n_heights * sizeof(amrex::Real)));
+    amrex::Gpu::Device::mem_alloc((void**)&d_heights, 
+                                  n_heights * sizeof(amrex::Real));
+    amrex::Gpu::Device::mem_alloc((void**)&d_intensity, 
+                                  n_heights * sizeof(amrex::Real));
     
     // Copy input to device
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::htod_memcpy(d_heights, heights.data(), 
-                                                  n_heights * sizeof(amrex::Real)));
+    amrex::Gpu::htod_memcpy(d_heights, heights.data(), 
+                            n_heights * sizeof(amrex::Real));
     
     // Launch kernel configuration
     int blocks = (n_heights + block_size_ - 1) / block_size_;
@@ -189,15 +189,15 @@ amrex::Real GPUSpectrumComputer::compute_intensity_powerlaw_gpu(
                 d_heights, n_heights, intensity_ref, z_ref, exponent, d_intensity);
         });
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::synchronize());
+    amrex::Gpu::synchronize();
     
     // Copy result back to host
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::dtoh_memcpy(intensity_out.data(), d_intensity, 
-                                                  n_heights * sizeof(amrex::Real)));
+    amrex::Gpu::dtoh_memcpy(intensity_out.data(), d_intensity, 
+                            n_heights * sizeof(amrex::Real));
     
     // Free GPU memory
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_heights));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_intensity));
+    amrex::Gpu::Device::mem_free(d_heights);
+    amrex::Gpu::Device::mem_free(d_intensity);
     
     auto end = std::chrono::high_resolution_clock::now();
     
@@ -233,14 +233,14 @@ amrex::Real GPUSpectrumComputer::compute_intensity_logarithmic_gpu(
     amrex::Real* d_heights = nullptr;
     amrex::Real* d_intensity = nullptr;
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_heights, 
-                                                        n_heights * sizeof(amrex::Real)));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_intensity, 
-                                                        n_heights * sizeof(amrex::Real)));
+    amrex::Gpu::Device::mem_alloc((void**)&d_heights, 
+                                  n_heights * sizeof(amrex::Real));
+    amrex::Gpu::Device::mem_alloc((void**)&d_intensity, 
+                                  n_heights * sizeof(amrex::Real));
     
     // Copy input to device
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::htod_memcpy(d_heights, heights.data(), 
-                                                  n_heights * sizeof(amrex::Real)));
+    amrex::Gpu::htod_memcpy(d_heights, heights.data(), 
+                            n_heights * sizeof(amrex::Real));
     
     // Launch kernel configuration
     int blocks = (n_heights + block_size_ - 1) / block_size_;
@@ -252,15 +252,15 @@ amrex::Real GPUSpectrumComputer::compute_intensity_logarithmic_gpu(
                 d_heights, n_heights, intensity_ref, z_ref, z_0, d_intensity);
         });
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::synchronize());
+    amrex::Gpu::synchronize();
     
     // Copy result back to host
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::dtoh_memcpy(intensity_out.data(), d_intensity, 
-                                                  n_heights * sizeof(amrex::Real)));
+    amrex::Gpu::dtoh_memcpy(intensity_out.data(), d_intensity, 
+                            n_heights * sizeof(amrex::Real));
     
     // Free GPU memory
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_heights));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_intensity));
+    amrex::Gpu::Device::mem_free(d_heights);
+    amrex::Gpu::Device::mem_free(d_intensity);
     
     auto end = std::chrono::high_resolution_clock::now();
     
@@ -295,16 +295,16 @@ amrex::Real GPUSpectrumComputer::apply_terrain_mask_gpu(
     amrex::Real* d_velocity = nullptr;
     amrex::Real* d_terrain = nullptr;
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_velocity, 
-                                                        total_points * sizeof(amrex::Real)));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_alloc((void**)&d_terrain, 
-                                                        (nx * ny) * sizeof(amrex::Real)));
+    amrex::Gpu::Device::mem_alloc((void**)&d_velocity, 
+                                  total_points * sizeof(amrex::Real));
+    amrex::Gpu::Device::mem_alloc((void**)&d_terrain, 
+                                  (nx * ny) * sizeof(amrex::Real));
     
     // Copy inputs to device
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::htod_memcpy(d_velocity, velocity_field.data(), 
-                                                  total_points * sizeof(amrex::Real)));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::htod_memcpy(d_terrain, terrain_elevation.data(), 
-                                                  (nx * ny) * sizeof(amrex::Real)));
+    amrex::Gpu::htod_memcpy(d_velocity, velocity_field.data(), 
+                            total_points * sizeof(amrex::Real));
+    amrex::Gpu::htod_memcpy(d_terrain, terrain_elevation.data(), 
+                            (nx * ny) * sizeof(amrex::Real));
     
     // Configure 3D grid for kernel launch
     dim3 blockDim(8, 8, 4);  // 256 threads per block
@@ -319,15 +319,15 @@ amrex::Real GPUSpectrumComputer::apply_terrain_mask_gpu(
                 d_velocity, d_terrain, nx, ny, nz, dz, z_bottom);
         });
     
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::synchronize());
+    amrex::Gpu::synchronize();
     
     // Copy result back to host
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::dtoh_memcpy(velocity_field.data(), d_velocity, 
-                                                  total_points * sizeof(amrex::Real)));
+    amrex::Gpu::dtoh_memcpy(velocity_field.data(), d_velocity, 
+                            total_points * sizeof(amrex::Real));
     
     // Free GPU memory
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_velocity));
-    AMREX_GPU_ERROR_CHECK(amrex::Gpu::Device::mem_free(d_terrain));
+    amrex::Gpu::Device::mem_free(d_velocity);
+    amrex::Gpu::Device::mem_free(d_terrain);
     
     auto end = std::chrono::high_resolution_clock::now();
     
