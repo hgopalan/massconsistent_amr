@@ -1,7 +1,9 @@
-#include "wind_solver_api.H"
-#include "canopy_models.H"
-#include "terrain_following_coords.H"
-
+// Include AMReX headers first to avoid CUDA/MSVC standard library header conflicts on Windows
+#include <AMReX.H>
+#include <AMReX_Geometry.H>
+#include <AMReX_MultiFab.H>
+#include <AMReX_BoxArray.H>
+#include <AMReX_DistributionMapping.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_GpuContainers.H>
@@ -11,6 +13,10 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Print.H>
+
+#include "wind_solver_api.H"
+#include "canopy_models.H"
+#include "terrain_following_coords.H"
 
 #include <algorithm>
 #include <cmath>
