@@ -1,0 +1,110 @@
+{
+  "summary": {
+    "analysis_type": "Morris GSA",
+    "n_parameters": 11,
+    "n_trajectories": 20
+  },
+  "rankings": [
+    {
+      "parameter": "z0",
+      "score": 0.009300087361014224
+    },
+    {
+      "parameter": "U_ref",
+      "score": 0.0
+    },
+    {
+      "parameter": "L_u",
+      "score": 0.0
+    },
+    {
+      "parameter": "L_v",
+      "score": 0.0
+    },
+    {
+      "parameter": "L_w",
+      "score": 0.0
+    },
+    {
+      "parameter": "anisotropy_v",
+      "score": 0.0
+    },
+    {
+      "parameter": "anisotropy_w",
+      "score": 0.0
+    },
+    {
+      "parameter": "decay_rate_uy",
+      "score": 0.0
+    },
+    {
+      "parameter": "decay_rate_uz",
+      "score": 0.0
+    },
+    {
+      "parameter": "mann_a",
+      "score": 0.0
+    },
+    {
+      "parameter": "mann_k",
+      "score": 0.0
+    }
+  ],
+  "morris_indices": {
+    "U_ref": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "z0": {
+      "mu": 0.006529258023317027,
+      "sigma": 0.005541658675394394,
+      "mu_star": 0.006529258023317027
+    },
+    "L_u": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "L_v": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "L_w": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "anisotropy_v": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "anisotropy_w": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "decay_rate_uy": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "decay_rate_uz": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "mann_a": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    },
+    "mann_k": {
+      "mu": 0.0,
+      "sigma": 0.0,
+      "mu_star": 0.0
+    }
+  }
+}
