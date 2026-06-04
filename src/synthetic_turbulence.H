@@ -71,7 +71,11 @@
 enum class TurbulenceModel {
     VonKarman = 0,    // Von Kármán (1948) isotropic spectrum
     Kaimal = 1,       // Kaimal et al. (1972) empirical spectrum
-    MannBox = 2       // Mann (1994) anisotropic spectral tensor model (Phase 2)
+    MannBox = 2,       // Mann (1994) anisotropic spectral tensor model (Phase 2)
+    GP_LLJ = 3,       // Great Plains Low-Level Jet (NEW)
+    NWTC = 4,         // National Wind Technology Center (NEW)
+    USWTPP = 5,       // US Wind Turbine Verification Program (NEW)
+    HIT = 6           // Homogeneous Isotropic Turbulence (NEW)
 };
 
 enum class IntensityModel {
@@ -198,6 +202,11 @@ struct TurbulenceParams {
     // Holtslag-De Bruin performs better in very stable conditions (polar, nighttime)
     // Businger-Dyer is standard and more widely used
     bool use_holtslag_stability = false;
+
+    // ---- New Synthetic Turbulence Generator Parameters ----
+    amrex::Real gp_llj_jet_height = amrex::Real(150.0);       // Great Plains jet height [m AGL] (typically 100-300m)
+    amrex::Real nwtc_scaling_parameter = amrex::Real(1.0);    // NWTC site scaling parameter
+    amrex::Real uswtpp_weight = amrex::Real(0.5);             // USWTPP weight [0.0 - 1.0] to blend VonKarman (0.0) and Kaimal (1.0)
 };
 
 
@@ -309,6 +318,114 @@ amrex::Real kaimal_spectrum(
                                        + amrex::Real(6.0) * f_hat;
     
     const amrex::Real denominator = std::pow(denominator_base, amrex::Real(5.0) / amrex::Real(3.0));
+    
+    return numerator / denominator;
+}
+
+// ============================================================================
+// GP_LLJ Spectrum Implementation
+//
+// Designed as a Kaimal base modulated with a Gaussian profile centered on
+// gp_llj_jet_height to capture jet-shear-induced low-to-medium frequency
+// energy amplification.
+// ============================================================================
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real gp_llj_spectrum(
+    amrex::Real frequency,           // Frequency [Hz]
+    amrex::Real length_scale,        // Integral length scale [m]
+    amrex::Real mean_wind_speed,     // Mean wind speed [m/s]
+    amrex::Real velocity_rms,        // RMS velocity fluctuation [m/s]
+    amrex::Real z_agl,               // Height above ground level [m]
+    amrex::Real jet_height           // Jet height [m]
+) noexcept
+{
+    const amrex::Real base_spectrum = kaimal_spectrum(frequency, length_scale, mean_wind_speed, velocity_rms);
+    
+    jet_height = std::max(jet_height, amrex::Real(10.0));
+    const amrex::Real sigma_z = amrex::Real(0.2) * jet_height;
+    const amrex::Real z_diff = z_agl - jet_height;
+    const amrex::Real z_factor = std::exp(-amrex::Real(0.5) * (z_diff * z_diff) / (sigma_z * sigma_z));
+    
+    // Frequency modulation peaking at 0.05 Hz
+    const amrex::Real log_f = std::log(frequency + amrex::Real(1e-6));
+    const amrex::Real log_f0 = std::log(amrex::Real(0.05));
+    const amrex::Real f_diff = log_f - log_f0;
+    const amrex::Real f_factor = std::exp(-amrex::Real(0.5) * (f_diff * f_diff) / amrex::Real(4.0));
+    
+    const amrex::Real amplification = amrex::Real(1.0) + amrex::Real(1.5) * z_factor * f_factor;
+    return base_spectrum * amplification;
+}
+
+// ============================================================================
+// NWTC Spectrum Implementation
+//
+// Formulated as a high-wind empirical spectrum with a custom
+// nwtc_scaling_parameter and a power-law frequency response.
+// ============================================================================
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real nwtc_spectrum(
+    amrex::Real frequency,           // Frequency [Hz]
+    amrex::Real length_scale,        // Integral length scale [m]
+    amrex::Real mean_wind_speed,     // Mean wind speed [m/s]
+    amrex::Real velocity_rms,        // RMS velocity fluctuation [m/s]
+    amrex::Real scaling_param        // NWTC scaling parameter
+) noexcept
+{
+    const amrex::Real base_spectrum = kaimal_spectrum(frequency, length_scale, mean_wind_speed, velocity_rms);
+    return scaling_param * base_spectrum;
+}
+
+// ============================================================================
+// USWTPP Spectrum Implementation
+//
+// Modeled as a blended combination of Von Kármán and Kaimal spectra
+// using a uswtpp_weight mixture parameter.
+// ============================================================================
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real uswtpp_spectrum(
+    amrex::Real frequency,           // Frequency [Hz]
+    amrex::Real length_scale,        // Integral length scale [m]
+    amrex::Real mean_wind_speed,     // Mean wind speed [m/s]
+    amrex::Real velocity_rms,        // RMS velocity fluctuation [m/s]
+    amrex::Real weight               // USWTPP blending weight (0.0 = VonKarman, 1.0 = Kaimal)
+) noexcept
+{
+    const amrex::Real vk = vonkarman_spectrum(frequency, length_scale, mean_wind_speed, velocity_rms);
+    const amrex::Real km = kaimal_spectrum(frequency, length_scale, mean_wind_speed, velocity_rms);
+    const amrex::Real w = std::max(amrex::Real(0.0), std::min(amrex::Real(1.0), weight));
+    return (amrex::Real(1.0) - w) * vk + w * km;
+}
+
+// ============================================================================
+// HIT Spectrum Implementation
+//
+// Formulated using the classical homogeneous isotropic -5/3 spectral decay
+// with a low-frequency roll-off vanishing at f=0.
+// ============================================================================
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real hit_spectrum(
+    amrex::Real frequency,           // Frequency [Hz]
+    amrex::Real length_scale,        // Integral length scale [m]
+    amrex::Real mean_wind_speed,     // Mean wind speed [m/s]
+    amrex::Real velocity_rms         // RMS velocity fluctuation [m/s]
+) noexcept
+{
+    mean_wind_speed = std::max(mean_wind_speed, amrex::Real(0.1));
+    velocity_rms = std::max(velocity_rms, amrex::Real(1e-6));
+    length_scale = std::max(length_scale, amrex::Real(1.0));
+    
+    const amrex::Real f_hat = frequency * length_scale / mean_wind_speed;
+    
+    const amrex::Real C0 = amrex::Real(6.11);
+    const amrex::Real numerator = C0 * (length_scale / mean_wind_speed) 
+                                * velocity_rms * velocity_rms * f_hat * f_hat;
+    
+    const amrex::Real denominator_base = amrex::Real(1.0) + f_hat * f_hat;
+    const amrex::Real denominator = std::pow(denominator_base, amrex::Real(11.0) / amrex::Real(6.0));
     
     return numerator / denominator;
 }
@@ -821,22 +938,46 @@ public:
                                       params_.length_scale_u,
                                       mean_wind_speed,
                                       rms_u);
-           case TurbulenceModel::MannBox: {
-               // Mann Box spectral tensor for u-component
-               // Convert frequency to wavenumber: k = 2π*f/U
-               const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(MathConstants::pi) * frequency 
+            case TurbulenceModel::MannBox: {
+                // Mann Box spectral tensor for u-component
+                // Convert frequency to wavenumber: k = 2π*f/U
+                const amrex::Real wavenumber = amrex::Real(2.0) * amrex::Real(MathConstants::pi) * frequency 
                                              / std::max(mean_wind_speed, amrex::Real(0.1));
-               // Mann Box variance for u-component
-               const amrex::Real mann_variance_u = params_.mann_variance_u * rms_u * rms_u;
-               return mann_box_spectrum_diagonal(wavenumber, params_.mann_length_scale_u, 
-                                                mann_variance_u, params_.mann_asymmetry_parameter);
-           }
-           default:
-               return vonkarman_spectrum(frequency,
-                                        params_.length_scale_u,
-                                        mean_wind_speed,
-                                        rms_u);
-       }
+                // Mann Box variance for u-component
+                const amrex::Real mann_variance_u = params_.mann_variance_u * rms_u * rms_u;
+                return mann_box_spectrum_diagonal(wavenumber, params_.mann_length_scale_u, 
+                                                 mann_variance_u, params_.mann_asymmetry_parameter);
+            }
+            case TurbulenceModel::GP_LLJ:
+                return gp_llj_spectrum(frequency,
+                                      params_.length_scale_u,
+                                      mean_wind_speed,
+                                      rms_u,
+                                      z_agl,
+                                      params_.gp_llj_jet_height);
+            case TurbulenceModel::NWTC:
+                return nwtc_spectrum(frequency,
+                                    params_.length_scale_u,
+                                    mean_wind_speed,
+                                    rms_u,
+                                    params_.nwtc_scaling_parameter);
+            case TurbulenceModel::USWTPP:
+                return uswtpp_spectrum(frequency,
+                                      params_.length_scale_u,
+                                      mean_wind_speed,
+                                      rms_u,
+                                      params_.uswtpp_weight);
+            case TurbulenceModel::HIT:
+                return hit_spectrum(frequency,
+                                   params_.length_scale_u,
+                                   mean_wind_speed,
+                                   rms_u);
+            default:
+                return vonkarman_spectrum(frequency,
+                                         params_.length_scale_u,
+                                         mean_wind_speed,
+                                         rms_u);
+        }
     }
     
     // Compute spectral density for v-component
@@ -866,6 +1007,30 @@ public:
                 return mann_box_spectrum_diagonal(wavenumber, params_.mann_length_scale_v,
                                                  mann_variance_v, params_.mann_asymmetry_parameter);
             }
+            case TurbulenceModel::GP_LLJ:
+                return gp_llj_spectrum(frequency,
+                                      params_.length_scale_v,
+                                      mean_wind_speed,
+                                      rms_v,
+                                      z_agl,
+                                      params_.gp_llj_jet_height);
+            case TurbulenceModel::NWTC:
+                return nwtc_spectrum(frequency,
+                                    params_.length_scale_v,
+                                    mean_wind_speed,
+                                    rms_v,
+                                    params_.nwtc_scaling_parameter);
+            case TurbulenceModel::USWTPP:
+                return uswtpp_spectrum(frequency,
+                                      params_.length_scale_v,
+                                      mean_wind_speed,
+                                      rms_v,
+                                      params_.uswtpp_weight);
+            case TurbulenceModel::HIT:
+                return hit_spectrum(frequency,
+                                   params_.length_scale_v,
+                                   mean_wind_speed,
+                                   rms_v);
             default:
                 return vonkarman_spectrum(frequency,
                                          params_.length_scale_v,
@@ -901,6 +1066,30 @@ public:
                 return mann_box_spectrum_diagonal(wavenumber, params_.mann_length_scale_w,
                                                  mann_variance_w, params_.mann_asymmetry_parameter);
             }
+            case TurbulenceModel::GP_LLJ:
+                return gp_llj_spectrum(frequency,
+                                      params_.length_scale_w,
+                                      mean_wind_speed,
+                                      rms_w,
+                                      z_agl,
+                                      params_.gp_llj_jet_height);
+            case TurbulenceModel::NWTC:
+                return nwtc_spectrum(frequency,
+                                    params_.length_scale_w,
+                                    mean_wind_speed,
+                                    rms_w,
+                                    params_.nwtc_scaling_parameter);
+            case TurbulenceModel::USWTPP:
+                return uswtpp_spectrum(frequency,
+                                      params_.length_scale_w,
+                                      mean_wind_speed,
+                                      rms_w,
+                                      params_.uswtpp_weight);
+            case TurbulenceModel::HIT:
+                return hit_spectrum(frequency,
+                                   params_.length_scale_w,
+                                   mean_wind_speed,
+                                   rms_w);
             default:
                 return vonkarman_spectrum(frequency,
                                          params_.length_scale_w,
