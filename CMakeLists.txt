@@ -5,6 +5,8 @@ option(MASSCONSISTENT_USE_VENDORED_AMREX "Prefer building the vendored AMReX sub
 option(MASSCONSISTENT_ENABLE_MPI "Enable MPI parallelism" OFF)
 option(MASSCONSISTENT_BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" OFF)
 option(MASSCONSISTENT_ENABLE_AMREX_FFT "Prefer AMReX FFT support when dependencies are available" ON)
+option(MASSCONSISTENT_ENABLE_EXPERIMENTAL_GPU_TURBULENCE
+  "Build experimental GPU turbulence kernels" OFF)
 set(MASSCONSISTENT_GPU_BACKEND "NONE" CACHE STRING
     "GPU backend for AMReX: NONE (CPU-only), CUDA, HIP, or SYCL")
 set_property(CACHE MASSCONSISTENT_GPU_BACKEND PROPERTY STRINGS NONE CUDA HIP SYCL)
@@ -100,19 +102,21 @@ else()
   endif()
 endif()
 
-# GPU-accelerated synthesis kernel compilation
-if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
-  set_source_files_properties(
-    src/gpu_turbulence_kernels.cu
-    PROPERTIES LANGUAGE CUDA
-  )
-  list(APPEND GPU_KERNEL_SOURCES src/gpu_turbulence_kernels.cu)
-elseif(MASSCONSISTENT_GPU_BACKEND STREQUAL "HIP")
-  set_source_files_properties(
-    src/gpu_turbulence_kernels.cu
-    PROPERTIES LANGUAGE HIP
-  )
-  list(APPEND GPU_KERNEL_SOURCES src/gpu_turbulence_kernels.cu)
+# Experimental GPU turbulence kernel compilation
+if(MASSCONSISTENT_ENABLE_EXPERIMENTAL_GPU_TURBULENCE)
+  if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
+    set_source_files_properties(
+      src/gpu_turbulence_kernels.cu
+      PROPERTIES LANGUAGE CUDA
+    )
+    list(APPEND GPU_KERNEL_SOURCES src/gpu_turbulence_kernels.cu)
+  elseif(MASSCONSISTENT_GPU_BACKEND STREQUAL "HIP")
+    set_source_files_properties(
+      src/gpu_turbulence_kernels.cu
+      PROPERTIES LANGUAGE HIP
+    )
+    list(APPEND GPU_KERNEL_SOURCES src/gpu_turbulence_kernels.cu)
+  endif()
 endif()
 
 add_executable(wind_solver src/wind_solver.cpp ${GPU_KERNEL_SOURCES})
@@ -122,7 +126,7 @@ add_library(wind_solver_api STATIC src/wind_solver_api.cpp ${GPU_KERNEL_SOURCES}
 # On Windows with CUDA, MSVC is the default host compiler and does not
 # understand CUDA device-side keywords that appear in AMReX headers.
 # Tell CMake to route the .cpp files through nvcc (LANGUAGE CUDA).
-if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
+if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA" AND WIN32)
   set_source_files_properties(
     src/wind_solver.cpp
     src/puff_solver.cpp
@@ -135,25 +139,23 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   # causes CRT header redefinition errors. This is a confirmed CUDA/MSVC interaction bug.
   # Workaround: Use --allow-unsupported-compiler and add defines to suppress specific errors.
   # Note: This is not ideal but allows builds to proceed until NVIDIA fixes nvcc.
-  if(WIN32)
-    # Define common compile options and definitions for all CUDA targets on Windows
-    set(_cuda_windows_compile_opts
-      $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
-    )
-    set(_cuda_windows_compile_defs
-      $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
-    )
-    
-    # Apply to all targets
-    target_compile_options(wind_solver PRIVATE ${_cuda_windows_compile_opts})
-    target_compile_options(puff_solver PRIVATE ${_cuda_windows_compile_opts})
-    target_compile_options(wind_solver_api PRIVATE ${_cuda_windows_compile_opts})
-    
-    target_compile_definitions(wind_solver PRIVATE ${_cuda_windows_compile_defs})
-    target_compile_definitions(puff_solver PRIVATE ${_cuda_windows_compile_defs})
-    target_compile_definitions(wind_solver_api PRIVATE ${_cuda_windows_compile_defs})
-  endif()
+  # Define common compile options and definitions for all CUDA targets on Windows
+  set(_cuda_windows_compile_opts
+    $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244>
+  )
+  set(_cuda_windows_compile_defs
+    $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
+  )
+  
+  # Apply to all targets
+  target_compile_options(wind_solver PRIVATE ${_cuda_windows_compile_opts})
+  target_compile_options(puff_solver PRIVATE ${_cuda_windows_compile_opts})
+  target_compile_options(wind_solver_api PRIVATE ${_cuda_windows_compile_opts})
+  
+  target_compile_definitions(wind_solver PRIVATE ${_cuda_windows_compile_defs})
+  target_compile_definitions(puff_solver PRIVATE ${_cuda_windows_compile_defs})
+  target_compile_definitions(wind_solver_api PRIVATE ${_cuda_windows_compile_defs})
 endif()
 
 target_link_libraries(wind_solver PRIVATE AMReX::amrex)
