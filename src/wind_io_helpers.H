@@ -85,6 +85,14 @@ void read_time_series_file(const std::string& filename,
                            std::vector<Real>& U_refs,
                            std::vector<Real>& V_refs);
 
+void read_windfield_file(const std::string& filename,
+                         std::vector<Real>& xd,
+                         std::vector<Real>& yd,
+                         std::vector<Real>& zd,
+                         std::vector<Real>& ux,
+                         std::vector<Real>& uy,
+                         std::vector<Real>& uz);
+
 } // namespace WindIO
 
 #endif // WIND_IO_HELPERS_H

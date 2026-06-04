@@ -76,9 +76,9 @@ void WindSolverApp::parse_inputs() {
     pp.query("init_mode", init_mode);
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
-        init_mode != "surface_data" && init_mode != "powerlaw") {
+        init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', or 'powerlaw')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', or 'windfield')");
     }
 
     pp.query("U_ref", U_ref);
@@ -131,6 +131,9 @@ void WindSolverApp::parse_inputs() {
 
     // Surface data mode parameters (for HRRR-style initialization)
     pp.query("surface_data_file", surface_data_file);
+
+    // Windfield mode parameters
+    pp.query("windfield_file", windfield_file);
 
     // Position-dependent roughness file (for spatially-varying z0)
     pp.query("z0_file", z0_file);
@@ -1274,9 +1277,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         d_temp_T_ptr = d_temp_T.data();
     }
 
-    Gpu::DeviceVector<Real> d_vel_u(0), d_vel_v(0);
+    Gpu::DeviceVector<Real> d_vel_u(0), d_vel_v(0), d_vel_w(0);
     Real const* d_vel_u_ptr = nullptr;
     Real const* d_vel_v_ptr = nullptr;
+    Real const* d_vel_w_ptr = nullptr;
 
     if (init_mode == "loglaw") {
         Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
@@ -2258,6 +2262,62 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     vel(i, j, k, 0) = u_vel;
                     vel(i, j, k, 1) = v_vel;
                     vel(i, j, k, 2) = w_vel;
+                }
+            });
+        }
+    } else if (init_mode == "windfield") {
+        std::vector<Real> x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf;
+        WindIO::read_windfield_file(windfield_file, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf);
+
+        std::vector<Real> vel_u_h(static_cast<std::size_t>(nx) * ny * nz);
+        std::vector<Real> vel_v_h(static_cast<std::size_t>(nx) * ny * nz);
+        std::vector<Real> vel_w_h(static_cast<std::size_t>(nx) * ny * nz);
+
+        for (int k = 0; k < nz; ++k) {
+            Real zc = z_lo_cap + (k + Real(0.5)) * dz_cap;
+            for (int j = 0; j < ny; ++j) {
+                Real yc = y_lo + (j + Real(0.5)) * dy;
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + Real(0.5)) * dx;
+                    auto [ux_interp, uy_interp, uz_interp] = WindInterpolation::idw_velocity_3d_full(
+                        xc, yc, zc, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf);
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
+                    vel_u_h[idx] = ux_interp;
+                    vel_v_h[idx] = uy_interp;
+                    vel_w_h[idx] = uz_interp;
+                }
+            }
+        }
+
+        d_vel_u.resize(vel_u_h.size());
+        d_vel_v.resize(vel_v_h.size());
+        d_vel_w.resize(vel_w_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, vel_u_h.begin(), vel_u_h.end(), d_vel_u.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, vel_v_h.begin(), vel_v_h.end(), d_vel_v.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, vel_w_h.begin(), vel_w_h.end(), d_vel_w.begin());
+        d_vel_u_ptr = d_vel_u.data();
+        d_vel_v_ptr = d_vel_v.data();
+        d_vel_w_ptr = d_vel_w.data();
+
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
+                    vel(i, j, k, 0) = d_vel_u_ptr[idx];
+                    vel(i, j, k, 1) = d_vel_v_ptr[idx];
+                    vel(i, j, k, 2) = d_vel_w_ptr[idx];
                 }
             });
         }

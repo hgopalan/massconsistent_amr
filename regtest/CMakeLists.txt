@@ -477,6 +477,13 @@ add_regression_test(subgrid_windbreaks subgrid_windbreaks)
 add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test 
                           test_parameter_sensitivity.py)
 
+# ===========================================================================
+# netcdf_ingestion/ – NetCDF 3D wind parsing and ingestion regtests
+# ===========================================================================
+add_regression_test(netcdf_cpp_ingestion netcdf_cpp_ingestion)
+add_python_regression_test(netcdf_ingestion_regtest netcdf_ingestion 
+                          test_netcdf_ingestion.py)
+
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
 # ---------------------------------------------------------------------------

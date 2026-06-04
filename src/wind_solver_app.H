@@ -80,6 +80,9 @@ private:
     // Surface data
     std::string surface_data_file = "surface_data.csv";
 
+    // Windfield data
+    std::string windfield_file = "windfield.csv";
+
     // Roughness file
     std::string z0_file = "";
     bool use_z0_file = false;
