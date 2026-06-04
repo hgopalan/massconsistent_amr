@@ -1647,9 +1647,9 @@ int main(int argc, char* argv[])
             std::string stability_param_str = "BusingerDyer";  // default
             pp.query("turbulence_stability_parameterization", stability_param_str);
             if (stability_param_str == "BusingerDyer") {
-                turb_params.use_holtslag = false;
+                turb_params.use_holtslag_stability = false;
             } else if (stability_param_str == "HoltslagDeBruin") {
-                turb_params.use_holtslag = true;
+                turb_params.use_holtslag_stability = true;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_stability_parameterization: " + stability_param_str + 
                              " (must be 'BusingerDyer' or 'HoltslagDeBruin')");
@@ -2694,10 +2694,7 @@ int main(int argc, char* argv[])
             const bool use_veg_roughness = enable_vegetation_roughness;
             const Real veg_state_val = vegetation_state;
             const int veg_state_type_val = vegetation_state_type;
-            
-            // Diurnal temperature (only affects temperature, used later if enabled)
-            const bool use_diurnal_temp = enable_diurnal_temperature;
-            
+             
             // Wall function parameters
             const bool use_wall_func = enable_wall_functions;
             const bool use_terrain_wall = enable_terrain_wall_function;
@@ -2730,10 +2727,6 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters  
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -3310,10 +3303,6 @@ int main(int argc, char* argv[])
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -3484,14 +3473,10 @@ int main(int argc, char* argv[])
             const bool use_ekman = enable_ekman_veer;
             const Real veer_height = ekman_veer_height;
             const Real veer_total = ekman_veer_total_rad;
-            
+             
             // Capture wind direction gradient parameters
             const bool use_wind_dir_gradient = enable_wind_direction_gradient;
             const Real dir_shear_rate = wind_direction_shear_rate_rad;
-            
-            // Capture fetch-dependent roughness transition parameters
-            const bool use_fetch_transition = enable_fetch_roughness_transition;
-            const Real fetch_blend_height = fetch_transition_blending_height;
 
             for (MFIter mfi(vel0); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
@@ -4687,14 +4672,13 @@ int main(int argc, char* argv[])
         const int nout = has_synthetic_turbulence ? 24 : 21;  // Add 3 components for synthetic turbulence
         const int nx_cap_out = nx;  // capture nx for output section
         MultiFab output(ba, dm, nout, 0);
-        
+         
         // Compute diagnostics (heat flux, drag coefficient, momentum flux, Richardson number, BL depth)
         // Constants for heat flux calculation
         const Real rho_air = 1.225;      // air density [kg/m³] at sea level, 15°C
         const Real cp_air = 1005.0;      // specific heat at constant pressure [J/(kg·K)]
         const Real theta_star = 0.1;     // characteristic temperature scale [K] (typical for neutral conditions)
         const Real kappa_diag = 0.41;    // von Karman constant
-        const Real z_ref_diag = z_ref;   // reference height for diagnostics
 
         for (MFIter mfi(output); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
