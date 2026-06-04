@@ -1575,9 +1575,17 @@ int main(int argc, char* argv[])
                 turb_params.spectrum_model = TurbulenceModel::Kaimal;
             } else if (spectrum_model_str == "MannBox") {
                 turb_params.spectrum_model = TurbulenceModel::MannBox;
+            } else if (spectrum_model_str == "GP_LLJ") {
+                turb_params.spectrum_model = TurbulenceModel::GP_LLJ;
+            } else if (spectrum_model_str == "NWTC") {
+                turb_params.spectrum_model = TurbulenceModel::NWTC;
+            } else if (spectrum_model_str == "USWTPP") {
+                turb_params.spectrum_model = TurbulenceModel::USWTPP;
+            } else if (spectrum_model_str == "HIT") {
+                turb_params.spectrum_model = TurbulenceModel::HIT;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_spectrum_model: " + spectrum_model_str + 
-                             " (must be 'VonKarman', 'Kaimal', or 'MannBox')");
+                             " (must be 'VonKarman', 'Kaimal', 'MannBox', 'GP_LLJ', 'NWTC', 'USWTPP', or 'HIT')");
             }
             
             // Parse intensity model
@@ -1655,6 +1663,17 @@ int main(int argc, char* argv[])
                 
                 // Terrain adaptation factor for Mann Box
                 pp.query("mann_terrain_adaptation_factor", turb_params.mann_terrain_adaptation_factor);
+            }
+             
+            // GP_LLJ, NWTC, and USWTPP Model specific parameters
+            if (turb_params.spectrum_model == TurbulenceModel::GP_LLJ) {
+                pp.query("gp_llj_jet_height", turb_params.gp_llj_jet_height);
+            }
+            if (turb_params.spectrum_model == TurbulenceModel::NWTC) {
+                pp.query("nwtc_scaling_parameter", turb_params.nwtc_scaling_parameter);
+            }
+            if (turb_params.spectrum_model == TurbulenceModel::USWTPP) {
+                pp.query("uswtpp_weight", turb_params.uswtpp_weight);
             }
             
             // IEC 61400 Parameters (Phase 1) - only read if using IEC61400 intensity model
@@ -1756,6 +1775,29 @@ int main(int argc, char* argv[])
                 }
             }
             
+            // Validate GP_LLJ parameters
+            if (turb_params.spectrum_model == TurbulenceModel::GP_LLJ) {
+                if (turb_params.gp_llj_jet_height <= 0.0) {
+                    amrex::Abort("wind_solver: gp_llj_jet_height must be > 0.0");
+                }
+            }
+            
+            // Validate NWTC parameters
+            if (turb_params.spectrum_model == TurbulenceModel::NWTC) {
+                if (turb_params.nwtc_scaling_parameter <= 0.0) {
+                    amrex::Abort("wind_solver: nwtc_scaling_parameter must be > 0.0");
+                }
+            }
+            
+            // Validate USWTPP parameters
+            if (turb_params.spectrum_model == TurbulenceModel::USWTPP) {
+                if (turb_params.uswtpp_weight < 0.0 || turb_params.uswtpp_weight > 1.0) {
+                    amrex::Print() << "WARNING: uswtpp_weight = " << turb_params.uswtpp_weight 
+                                   << " is outside range [0.0, 1.0]. Clamping value.\n";
+                    turb_params.uswtpp_weight = std::max(amrex::Real(0.0), std::min(amrex::Real(1.0), turb_params.uswtpp_weight));
+                }
+            }
+            
             // Validate IEC 61400 parameters (Phase 1)
             if (turb_params.intensity_model == IntensityModel::IEC61400) {
                 if (turb_params.hub_height <= 0.0) {
@@ -1797,6 +1839,24 @@ int main(int argc, char* argv[])
                                << "    mann_asymmetry_parameter: " << turb_params.mann_asymmetry_parameter << "\n"
                                << "    mann_eddy_lifetime: " << turb_params.mann_eddy_lifetime << " [s]\n"
                                << "    mann_terrain_adaptation_factor: " << turb_params.mann_terrain_adaptation_factor << "\n";
+            }
+            
+            // Print GP_LLJ parameters if using GP_LLJ model
+            if (turb_params.spectrum_model == TurbulenceModel::GP_LLJ) {
+                amrex::Print() << "  [GP_LLJ Model Parameters]\n"
+                               << "    gp_llj_jet_height: " << turb_params.gp_llj_jet_height << " [m]\n";
+            }
+            
+            // Print NWTC parameters if using NWTC model
+            if (turb_params.spectrum_model == TurbulenceModel::NWTC) {
+                amrex::Print() << "  [NWTC Model Parameters]\n"
+                               << "    nwtc_scaling_parameter: " << turb_params.nwtc_scaling_parameter << "\n";
+            }
+            
+            // Print USWTPP parameters if using USWTPP model
+            if (turb_params.spectrum_model == TurbulenceModel::USWTPP) {
+                amrex::Print() << "  [USWTPP Model Parameters]\n"
+                               << "    uswtpp_weight: " << turb_params.uswtpp_weight << "\n";
             }
             
             // Print IEC 61400 parameters if using IEC61400 model
