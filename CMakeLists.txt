@@ -123,16 +123,19 @@ add_executable(wind_solver src/wind_solver.cpp ${GPU_KERNEL_SOURCES})
 add_executable(puff_solver src/puff_solver.cpp ${GPU_KERNEL_SOURCES})
 add_library(wind_solver_api STATIC src/wind_solver_api.cpp ${GPU_KERNEL_SOURCES})
 
-# On Windows with CUDA, MSVC is the default host compiler and does not
-# understand CUDA device-side keywords that appear in AMReX headers.
+# On all platforms (Windows/Linux) with CUDA, host compilers (MSVC/GCC)
+# do not understand CUDA device-side keywords and attributes that appear in AMReX headers.
 # Tell CMake to route the .cpp files through nvcc (LANGUAGE CUDA).
-if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA" AND WIN32)
+if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   set_source_files_properties(
     src/wind_solver.cpp
     src/puff_solver.cpp
     src/wind_solver_api.cpp
     PROPERTIES LANGUAGE CUDA
   )
+endif()
+
+if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA" AND WIN32)
   
   # Workaround for CUDA 12.6 + Windows SDK 10.0.26100.0 with C++20
   # Known issue: nvcc on Windows with MSVC 19.40+ (VS 2022 17.10+) and C++20
