@@ -100,9 +100,24 @@ else()
   endif()
 endif()
 
-add_executable(wind_solver src/wind_solver.cpp)
-add_executable(puff_solver src/puff_solver.cpp)
-add_library(wind_solver_api STATIC src/wind_solver_api.cpp)
+# GPU-accelerated synthesis kernel compilation
+if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
+  set_source_files_properties(
+    src/gpu_turbulence_kernels.cu
+    PROPERTIES LANGUAGE CUDA
+  )
+  list(APPEND GPU_KERNEL_SOURCES src/gpu_turbulence_kernels.cu)
+elseif(MASSCONSISTENT_GPU_BACKEND STREQUAL "HIP")
+  set_source_files_properties(
+    src/gpu_turbulence_kernels.cu
+    PROPERTIES LANGUAGE HIP
+  )
+  list(APPEND GPU_KERNEL_SOURCES src/gpu_turbulence_kernels.cu)
+endif()
+
+add_executable(wind_solver src/wind_solver.cpp ${GPU_KERNEL_SOURCES})
+add_executable(puff_solver src/puff_solver.cpp ${GPU_KERNEL_SOURCES})
+add_library(wind_solver_api STATIC src/wind_solver_api.cpp ${GPU_KERNEL_SOURCES})
 
 # On Windows with CUDA, MSVC is the default host compiler and does not
 # understand CUDA device-side keywords that appear in AMReX headers.
