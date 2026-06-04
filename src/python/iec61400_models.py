@@ -1136,6 +1136,155 @@ class NormalTurbulenceModel(IEC61400Model):
             "roughness_length": z0,
             "model_type": "NTM",
         }
+    
+    def compute_coherence_matrix(
+        self,
+        heights: np.ndarray,
+        frequency: float,
+        mean_wind_speed: float,
+        coherence_model: str = "gaussian",
+    ) -> Dict[str, Union[np.ndarray, str]]:
+        """
+        Compute directional coherence matrix for u-v-w velocity components.
+        
+        This method computes the coherence correlation functions between velocity
+        components at different heights, enabling more realistic turbulence synthesis
+        with proper cross-component correlations (Phase 4+ Priority 2).
+        
+        Coherence formula (general form):
+            Coh_uv(Δz, f) = exp(-k * |Δz| * f / U_mean)  or similar
+        
+        where:
+            Δz = height separation [m]
+            f = frequency [Hz]
+            U_mean = mean wind speed [m/s]
+            k = decay parameter (model-dependent)
+        
+        Supported models:
+            - 'gaussian': Coh = exp(-k*distance²) (smooth, sharp decay)
+            - 'exponential': Coh = exp(-k*distance) (moderate decay)
+            - 'power-law': Coh = (1 + k*distance)^(-m) (algebraic, slow decay)
+        
+        Stability Modifications:
+            - Stable conditions: More localized coherence (shorter scales)
+            - Unstable conditions: Extended coherence (longer scales)
+            - Neutral: Standard behavior
+        
+        Parameters:
+            heights: Array of heights above ground [m AGL]
+            frequency: Frequency for coherence calculation [Hz]
+            mean_wind_speed: Mean wind speed at reference height [m/s]
+            coherence_model: Coherence function model ('gaussian', 'exponential', 'power-law')
+        
+        Returns:
+            Dictionary containing:
+                - 'heights': Input height array
+                - 'coherence_uu': U-component auto-coherence [n×n matrix]
+                - 'coherence_vv': V-component auto-coherence [n×n matrix]
+                - 'coherence_ww': W-component auto-coherence [n×n matrix]
+                - 'coherence_uv': U-V cross-coherence [n×n matrix]
+                - 'coherence_uw': U-W cross-coherence [n×n matrix]
+                - 'coherence_vw': V-W cross-coherence [n×n matrix]
+                - 'frequency': Input frequency [Hz]
+                - 'coherence_model': Model type used
+                - 'anisotropy_ratios': {'v/u': ratio_v, 'w/u': ratio_w}
+                - 'stability_effect': Factor applied for stability
+        
+        Example:
+            >>> heights = np.array([10, 50, 100, 150])
+            >>> coh = ntm.compute_coherence_matrix(heights, 0.1, 10.0, 'gaussian')
+            >>> print(coh['coherence_uu'][0, 1])  # Coherence between 10m and 50m
+        """
+        heights = np.atleast_1d(heights)
+        n_heights = len(heights)
+        mean_wind_speed = np.maximum(mean_wind_speed, 0.1)
+        frequency = np.maximum(frequency, 1e-6)
+        
+        # Initialize coherence matrices
+        coh_uu = np.zeros((n_heights, n_heights))
+        coh_vv = np.zeros((n_heights, n_heights))
+        coh_ww = np.zeros((n_heights, n_heights))
+        coh_uv = np.zeros((n_heights, n_heights))
+        coh_uw = np.zeros((n_heights, n_heights))
+        coh_vw = np.zeros((n_heights, n_heights))
+        
+        # Compute stability modification factor
+        stability_factor = 1.0
+        if self.enable_stability_correction and self.monin_obukhov_length is not None:
+            L = self.monin_obukhov_length
+            z_ref = 50.0  # Reference height for stability effect
+            zeta = z_ref / L
+            
+            if zeta > 0.0:  # Stable: reduce coherence scale
+                stability_factor = 1.0 / (1.0 + 3.0 * zeta)
+            else:  # Unstable: enhance coherence scale
+                stability_factor = (1.0 - 16.0 * zeta) ** 0.125
+        
+        # Fill coherence matrices
+        for i in range(n_heights):
+            for j in range(n_heights):
+                z_i = heights[i]
+                z_j = heights[j]
+                delta_z = abs(z_i - z_j)
+                
+                # Normalized separation
+                L_u_eff = 300.0 * stability_factor  # Effective length scale
+                normalized_sep = frequency * delta_z / mean_wind_speed / L_u_eff
+                
+                # Coherence decay based on model
+                if coherence_model.lower() == "gaussian":
+                    # Gaussian decay: exp(-k*distance²)
+                    decay_factor = np.exp(-0.5 * normalized_sep ** 2)
+                elif coherence_model.lower() == "exponential":
+                    # Exponential decay: exp(-k*distance)
+                    decay_factor = np.exp(-normalized_sep)
+                elif coherence_model.lower() == "power-law":
+                    # Power-law decay: (1 + k*distance)^(-m)
+                    decay_factor = (1.0 + normalized_sep) ** (-1.5)
+                else:
+                    decay_factor = np.exp(-normalized_sep)  # Default to exponential
+                
+                # Apply diagonal dominance (1.0 on diagonal, <1.0 off-diagonal)
+                if i == j:
+                    decay_factor = 1.0
+                else:
+                    decay_factor = max(0.0, decay_factor)  # Ensure non-negative
+                
+                # U-component (dominant)
+                coh_uu[i, j] = decay_factor
+                
+                # V-component (reduced by anisotropy)
+                v_ratio = 0.75  # V-component typically 75% of U coherence
+                coh_vv[i, j] = decay_factor * (v_ratio if i != j else 1.0)
+                
+                # W-component (more localized)
+                w_ratio = 0.50  # W-component typically 50% of U coherence
+                coh_ww[i, j] = decay_factor * (w_ratio if i != j else 1.0)
+                
+                # Cross-components (weaker correlation)
+                cross_factor = 0.6  # Cross-components typically 60% of auto-coherence
+                coh_uv[i, j] = decay_factor * cross_factor if i != j else 0.3
+                coh_uw[i, j] = decay_factor * cross_factor if i != j else 0.2
+                coh_vw[i, j] = decay_factor * cross_factor if i != j else 0.1
+        
+        return {
+            "heights": heights,
+            "coherence_uu": coh_uu,
+            "coherence_vv": coh_vv,
+            "coherence_ww": coh_ww,
+            "coherence_uv": coh_uv,
+            "coherence_uw": coh_uw,
+            "coherence_vw": coh_vw,
+            "frequency": frequency,
+            "mean_wind_speed": mean_wind_speed,
+            "coherence_model": coherence_model,
+            "anisotropy_ratios": {
+                "v/u": 0.75,
+                "w/u": 0.50,
+            },
+            "stability_factor": stability_factor,
+            "model_type": "NTM",
+        }
 
 
 class ExtremeTurbulenceModel(IEC61400Model):
