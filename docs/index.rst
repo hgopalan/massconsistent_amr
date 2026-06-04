@@ -17,6 +17,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    physics
    advanced_solver_features
    wind_solver
+   iec61400
    canopy
    wake
    puff
