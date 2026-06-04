@@ -104,6 +104,21 @@ add_executable(wind_solver src/wind_solver.cpp)
 add_executable(puff_solver src/puff_solver.cpp)
 add_library(wind_solver_api STATIC src/wind_solver_api.cpp)
 
+# Define preprocessor macros for GPU backend detection
+if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
+  target_compile_definitions(wind_solver PRIVATE AMREX_USE_CUDA=1)
+  target_compile_definitions(puff_solver PRIVATE AMREX_USE_CUDA=1)
+  target_compile_definitions(wind_solver_api PRIVATE AMREX_USE_CUDA=1)
+elseif(MASSCONSISTENT_GPU_BACKEND STREQUAL "HIP")
+  target_compile_definitions(wind_solver PRIVATE AMREX_USE_HIP=1)
+  target_compile_definitions(puff_solver PRIVATE AMREX_USE_HIP=1)
+  target_compile_definitions(wind_solver_api PRIVATE AMREX_USE_HIP=1)
+elseif(MASSCONSISTENT_GPU_BACKEND STREQUAL "SYCL")
+  target_compile_definitions(wind_solver PRIVATE AMREX_USE_SYCL=1)
+  target_compile_definitions(puff_solver PRIVATE AMREX_USE_SYCL=1)
+  target_compile_definitions(wind_solver_api PRIVATE AMREX_USE_SYCL=1)
+endif()
+
 # On Windows with CUDA, MSVC is the default host compiler and does not
 # understand CUDA device-side keywords that appear in AMReX headers.
 # Tell CMake to route the .cpp files through nvcc (LANGUAGE CUDA).

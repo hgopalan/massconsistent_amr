@@ -1700,11 +1700,11 @@ int main(int argc, char* argv[])
         #endif
         
         // Print GPU backend info
-        #ifdef AMREX_USE_CUDA
+        #if defined(AMREX_USE_CUDA)
         amrex::Print() << "wind_solver: GPU Backend: NVIDIA CUDA\n";
-        #elif AMREX_USE_HIP
+        #elif defined(AMREX_USE_HIP)
         amrex::Print() << "wind_solver: GPU Backend: AMD HIP/ROCm\n";
-        #elif AMREX_USE_SYCL
+        #elif defined(AMREX_USE_SYCL)
         amrex::Print() << "wind_solver: GPU Backend: Intel SYCL/oneAPI\n";
         #else
         amrex::Print() << "wind_solver: GPU Backend: None (CPU-only)\n";
@@ -1712,11 +1712,11 @@ int main(int argc, char* argv[])
         
         // Print FFT solver configuration
         #ifdef AMREX_USE_FFT
-        #ifdef AMREX_USE_CUDA
+        #if defined(AMREX_USE_CUDA)
         amrex::Print() << "wind_solver: FFT Backend: cuFFT (NVIDIA CUDA)\n";
-        #elif AMREX_USE_HIP
+        #elif defined(AMREX_USE_HIP)
         amrex::Print() << "wind_solver: FFT Backend: rocFFT (AMD HIP/ROCm)\n";
-        #elif AMREX_USE_SYCL
+        #elif defined(AMREX_USE_SYCL)
         amrex::Print() << "wind_solver: FFT Backend: oneMKL (Intel SYCL/oneAPI)\n";
         #else
         amrex::Print() << "wind_solver: FFT Backend: FFTPACK (CPU)\n";
