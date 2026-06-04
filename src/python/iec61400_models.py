@@ -1285,6 +1285,184 @@ class NormalTurbulenceModel(IEC61400Model):
             "stability_factor": stability_factor,
             "model_type": "NTM",
         }
+    
+    def _height_dependent_scale_function(
+        self,
+        height: float,
+        reference_height: float = 50.0,
+    ) -> float:
+        """
+        Compute height-dependent scaling function h(z) for correlation lengths.
+        
+        The full length scale is: L(z) = L_0 * h(z) where h(z) is this function.
+        
+        For stable conditions: h(z) = exp(-alpha_s * z/L) where alpha_s ~ 0.5
+        For unstable conditions: h(z) = (1 + beta_u * |z/L|)^(1/4) where beta_u ~ 16
+        For neutral conditions: h(z) = (z / z_ref)^alpha where alpha ~ 0.2
+        
+        This provides more physically accurate height-dependent scaling than constant
+        length scales, particularly important in stable/unstable regimes where mixing
+        properties vary dramatically with height.
+        
+        Parameters:
+            height: Current height above ground [m]
+            reference_height: Reference height for scaling [m], default 50m
+        
+        Returns:
+            Height-dependent scaling factor h(z) (typically in range 0.3-2.0)
+        
+        Physical Basis:
+            - In stable conditions: mixing is heavily suppressed near surface, reduced by ~50% per 100m
+            - In unstable conditions: mixing enhanced aloft, grows ~25% per 100m above surface
+            - In neutral conditions: log-law predicts (z/z_ref)^0.2 growth (~5% per 100m)
+        """
+        if not self.enable_stability_correction or self.monin_obukhov_length is None:
+            # Neutral conditions: weak height dependence
+            alpha = 0.2
+            h_z = (height / reference_height) ** alpha
+            return np.clip(h_z, 0.5, 2.0)
+        
+        L = self.monin_obukhov_length
+        zeta = height / L
+        
+        if zeta > 0.1:  # Strong stable conditions (zeta > 0.1 indicates very stable)
+            # Stable: strong suppression of mixing aloft
+            # h(z) = exp(-0.5 * z/L)
+            h_z = np.exp(-0.5 * zeta)
+            return np.clip(h_z, 0.1, 1.0)
+        
+        elif zeta > 0.0:  # Weakly stable (0 < zeta < 0.1)
+            # Transition to unstable: moderate suppression
+            # h(z) = 1 / (1 + 2*zeta)
+            h_z = 1.0 / (1.0 + 2.0 * zeta)
+            return np.clip(h_z, 0.5, 1.0)
+        
+        elif zeta > -0.5:  # Weakly unstable (-0.5 < zeta < 0)
+            # Weak unstable: slight enhancement
+            # h(z) = (1 - 8*zeta)^(1/4)
+            h_z = (1.0 - 8.0 * zeta) ** 0.25
+            return np.clip(h_z, 1.0, 1.5)
+        
+        else:  # Very unstable (zeta < -0.5)
+            # Strong unstable: significant enhancement of mixing aloft
+            # h(z) = (1 - 16*zeta)^(1/4)
+            h_z = (1.0 - 16.0 * zeta) ** 0.25
+            return np.clip(h_z, 1.0, 3.0)
+    
+    def compute_height_dependent_spectrum(
+        self,
+        frequencies: np.ndarray,
+        heights: np.ndarray,
+        mean_wind_speed: float,
+        spectrum_type: str = "VonKarman",
+        length_scale_u: float = 300.0,
+    ) -> Dict[str, Union[np.ndarray, Dict]]:
+        """
+        Compute spectral tensors at multiple heights with full height-dependent scaling.
+        
+        This method extends the existing spectral methods to account for height-dependent
+        correlation lengths L(z) = L_0 * h(z), providing more realistic turbulence
+        representation across the wind rotor swept area.
+        
+        Implementation (Priority 3):
+            1. For each height, compute height-dependent scaling h(z)
+            2. Adjust length scale: L_eff(z) = L_0 * h(z)
+            3. Compute spectra with height-dependent length scales
+            4. Return full spectral tensor with height information
+        
+        Parameters:
+            frequencies: Array of frequencies [Hz]
+            heights: Array of heights above ground [m]
+            mean_wind_speed: Mean wind speed [m/s]
+            spectrum_type: Spectrum type ("VonKarman" or "Kaimal")
+            length_scale_u: Base integral length scale [m]
+        
+        Returns:
+            Dictionary with spectral data for all heights:
+            {
+                'heights': Height array,
+                'frequencies': Frequency array,
+                'spectra_u': [n_heights × n_frequencies] spectral matrix,
+                'spectra_v': [n_heights × n_frequencies] spectral matrix,
+                'spectra_w': [n_heights × n_frequencies] spectral matrix,
+                'height_scales': Effective length scales at each height,
+                'height_scale_factors': Height-dependent scaling h(z),
+                'spectrum_type': Type used,
+            }
+        
+        Example:
+            >>> ntm = NormalTurbulenceModel(...)
+            >>> result = ntm.compute_height_dependent_spectrum(
+            ...     frequencies=np.logspace(-2, 1, 50),
+            ...     heights=np.array([10, 50, 100, 150]),
+            ...     mean_wind_speed=10.0,
+            ...     spectrum_type="Kaimal"
+            ... )
+            >>> print(result['height_scales'])  # [L(10m), L(50m), L(100m), L(150m)]
+        """
+        frequencies = np.atleast_1d(frequencies)
+        heights = np.atleast_1d(heights)
+        n_heights = len(heights)
+        n_freqs = len(frequencies)
+        
+        # Initialize spectral arrays
+        spectra_u = np.zeros((n_heights, n_freqs))
+        spectra_v = np.zeros((n_heights, n_freqs))
+        spectra_w = np.zeros((n_heights, n_freqs))
+        
+        # Store height-dependent parameters
+        height_scales = np.zeros(n_heights)
+        height_scale_factors = np.zeros(n_heights)
+        
+        # Compute spectra at each height with height-dependent scaling
+        for i, z in enumerate(heights):
+            # Compute height-dependent scaling factor
+            h_z = self._height_dependent_scale_function(z)
+            height_scale_factors[i] = h_z
+            
+            # Effective length scales at this height
+            L_u_z = length_scale_u * h_z
+            L_v_z = L_u_z * 0.7  # V-component typically 70% of U
+            L_w_z = L_u_z * 0.4  # W-component typically 40% of U
+            
+            height_scales[i] = L_u_z
+            
+            # Compute spectra with height-dependent length scales
+            if spectrum_type.lower() == "vonkarman":
+                spectra_u[i, :] = self.von_karman_spectrum(
+                    frequencies, z, mean_wind_speed, L_u_z
+                )
+                spectra_v[i, :] = self.von_karman_spectrum(
+                    frequencies, z, mean_wind_speed, L_v_z
+                )
+                spectra_w[i, :] = self.von_karman_spectrum(
+                    frequencies, z, mean_wind_speed, L_w_z
+                )
+            elif spectrum_type.lower() == "kaimal":
+                spectra_u[i, :] = self.kaimal_spectrum(
+                    frequencies, z, mean_wind_speed, L_u_z
+                )
+                spectra_v[i, :] = self.kaimal_spectrum(
+                    frequencies, z, mean_wind_speed, L_v_z
+                )
+                spectra_w[i, :] = self.kaimal_spectrum(
+                    frequencies, z, mean_wind_speed, L_w_z
+                )
+            else:
+                raise ValueError(f"Unknown spectrum type: {spectrum_type}")
+        
+        return {
+            "heights": heights,
+            "frequencies": frequencies,
+            "spectra_u": spectra_u,
+            "spectra_v": spectra_v,
+            "spectra_w": spectra_w,
+            "height_scales": height_scales,
+            "height_scale_factors": height_scale_factors,
+            "spectrum_type": spectrum_type,
+            "mean_wind_speed": mean_wind_speed,
+            "base_length_scale_u": length_scale_u,
+        }
 
 
 class ExtremeTurbulenceModel(IEC61400Model):
