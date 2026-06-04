@@ -223,10 +223,11 @@ class NormalTurbulenceModel(IEC61400Model):
         Returns:
             Turbulence intensity (fraction)
         """
-        # IEC 61400-1 Eq. (1): I(z) = Iref * (0.2 / (z/zref)^a)
+        # IEC 61400-1 Eq. (1): I(z) = Iref * (0.2 / (z/zref))^0.2
         z_ref = 15.0  # Reference height (15 m)
-        a = 0.2
-        return self.iref * (a / (height / z_ref) ** 0.2) if height > 0 else self.iref
+        ti_exponent = 0.2  # Turbulence intensity exponent
+        ti_coefficient = 0.2  # Coefficient in the fraction
+        return self.iref * (ti_coefficient / (height / z_ref)) ** ti_exponent if height > 0 else self.iref
     
     def generate_wind_profile(
         self,
@@ -286,7 +287,9 @@ class ExtremeTurbulenceModel(IEC61400Model):
         """
         # ETM uses higher turbulence (factor 1.4 relative to NTM at hub height)
         z_ref = 15.0
-        ntm_ti = self.iref * (0.2 / (height / z_ref) ** 0.2)
+        ti_exponent = 0.2
+        ti_coefficient = 0.2
+        ntm_ti = self.iref * (ti_coefficient / (height / z_ref)) ** ti_exponent
         return 1.4 * ntm_ti if height > 0 else 1.4 * self.iref
     
     def generate_wind_profile(
@@ -372,7 +375,7 @@ class ExtremeOperatingGust(IEC61400Model):
         time = np.arange(0, duration, 1.0 / sampling_rate)
         gust_amplitude = self.gust_speed(mean_speed)
         
-        # Halo-Karaman formula for gust shape
+        # Halos-Karman formula for gust shape
         # Ramps up to peak, then decays
         ramp_indices = time <= time_to_peak
         decay_indices = time > time_to_peak

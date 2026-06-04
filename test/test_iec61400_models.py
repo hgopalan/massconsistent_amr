@@ -54,8 +54,11 @@ def test_model_initialization():
             assert model.turbine_class == WindTurbineClass.CLASS_II, f"{name}: Wrong turbine class"
             assert model.terrain_category == 1, f"{name}: Wrong terrain category"
             assert model.z_hub == 90.0, f"{name}: Wrong hub height"
-            assert model.vref == 8.5, f"{name}: Wrong vref"
-            assert model.iref == 0.18, f"{name}: Wrong iref"
+            
+            # Use parameterized values from lookup table
+            expected_params = IEC_CLASS_PARAMETERS[WindTurbineClass.CLASS_II]
+            assert model.vref == expected_params["vref"], f"{name}: Wrong vref"
+            assert model.iref == expected_params["iref"], f"{name}: Wrong iref"
             assert model.z0 == TERRAIN_ROUGHNESS[1], f"{name}: Wrong roughness"
             print(f"✓ {name:4s} initialization OK")
         except Exception as e:
