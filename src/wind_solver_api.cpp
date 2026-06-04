@@ -223,12 +223,29 @@ std::pair<Real, Real> idw_velocity(Real xq, Real yq,
 
 void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 {
+    // Clean up previous ParmParse state if it exists
     if (g_parmparse_initialized) {
         ParmParse::Finalize();
         g_parmparse_initialized = false;
     }
 
-    ParmParse::Initialize(0, nullptr, inputs_file.c_str());
+    // Try to initialize ParmParse. If it fails because it's already initialized,
+    // finalize first and retry.
+    try {
+        ParmParse::Initialize(0, nullptr, inputs_file.c_str());
+    } catch (const std::exception& e) {
+        // If Initialize fails, try finalizing and retrying once
+        if (g_parmparse_initialized == false) {
+            try {
+                ParmParse::Finalize();
+            } catch (...) {
+                // Ignore if finalize fails
+            }
+            ParmParse::Initialize(0, nullptr, inputs_file.c_str());
+        } else {
+            throw;
+        }
+    }
     g_parmparse_initialized = true;
 
     ParmParse pp;
@@ -1351,15 +1368,19 @@ void wind_solver_finalize()
     g_wind_solver_runtime.reset();
     g_wind_solver_state.reset();
 
-    if (!g_amrex_initialized_here && g_parmparse_initialized) {
-        ParmParse::Finalize();
+    // Finalize ParmParse if we initialized it
+    if (g_parmparse_initialized) {
+        try {
+            ParmParse::Finalize();
+        } catch (...) {
+            // Ignore errors during finalization
+        }
         g_parmparse_initialized = false;
     }
 
     if (g_amrex_initialized_here && amrex::Initialized()) {
         amrex::Finalize();
         g_amrex_initialized_here = false;
-        g_parmparse_initialized = false;
     }
 }
 
