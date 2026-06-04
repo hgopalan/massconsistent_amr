@@ -106,6 +106,174 @@ amrex::Real get_z0_from_landuse(int category)
 }
 
 // ============================================================================
+// Get albedo for a land-use category
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_albedo_from_landuse(int category)
+{
+    switch (category) {
+        case static_cast<int>(LandUseCategory::WATER):
+            return amrex::Real(0.08);
+        case static_cast<int>(LandUseCategory::BARREN):
+            return amrex::Real(0.25);
+        case static_cast<int>(LandUseCategory::GRASSLAND_HERBACEOUS):
+            return amrex::Real(0.20);
+        case static_cast<int>(LandUseCategory::PASTURE_HAY):
+            return amrex::Real(0.20);
+        case static_cast<int>(LandUseCategory::CULTIVATED_CROPS):
+            return amrex::Real(0.18);
+        case static_cast<int>(LandUseCategory::SHRUBLAND):
+            return amrex::Real(0.18);
+        case static_cast<int>(LandUseCategory::DEVELOPED_OPEN):
+            return amrex::Real(0.15);
+        case static_cast<int>(LandUseCategory::DEVELOPED_LOW):
+            return amrex::Real(0.15);
+        case static_cast<int>(LandUseCategory::DEVELOPED_MED):
+            return amrex::Real(0.14);
+        case static_cast<int>(LandUseCategory::DEVELOPED_HIGH):
+            return amrex::Real(0.12);
+        case static_cast<int>(LandUseCategory::DECIDUOUS_FOREST):
+            return amrex::Real(0.16);
+        case static_cast<int>(LandUseCategory::EVERGREEN_FOREST):
+            return amrex::Real(0.12);
+        case static_cast<int>(LandUseCategory::MIXED_FOREST):
+            return amrex::Real(0.14);
+        case static_cast<int>(LandUseCategory::WOODY_WETLAND):
+            return amrex::Real(0.14);
+        case static_cast<int>(LandUseCategory::HERBACEOUS_WETLAND):
+            return amrex::Real(0.14);
+        default:
+            return amrex::Real(0.15);
+    }
+}
+
+// ============================================================================
+// Get Bowen ratio for a land-use category
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_bowen_ratio_from_landuse(int category)
+{
+    switch (category) {
+        case static_cast<int>(LandUseCategory::WATER):
+            return amrex::Real(0.10);
+        case static_cast<int>(LandUseCategory::BARREN):
+            return amrex::Real(4.00);
+        case static_cast<int>(LandUseCategory::GRASSLAND_HERBACEOUS):
+            return amrex::Real(1.00);
+        case static_cast<int>(LandUseCategory::PASTURE_HAY):
+            return amrex::Real(0.80);
+        case static_cast<int>(LandUseCategory::CULTIVATED_CROPS):
+            return amrex::Real(0.50);
+        case static_cast<int>(LandUseCategory::SHRUBLAND):
+            return amrex::Real(1.50);
+        case static_cast<int>(LandUseCategory::DEVELOPED_OPEN):
+            return amrex::Real(1.50);
+        case static_cast<int>(LandUseCategory::DEVELOPED_LOW):
+            return amrex::Real(2.00);
+        case static_cast<int>(LandUseCategory::DEVELOPED_MED):
+            return amrex::Real(3.00);
+        case static_cast<int>(LandUseCategory::DEVELOPED_HIGH):
+            return amrex::Real(4.00);
+        case static_cast<int>(LandUseCategory::DECIDUOUS_FOREST):
+            return amrex::Real(0.30);
+        case static_cast<int>(LandUseCategory::EVERGREEN_FOREST):
+            return amrex::Real(0.50);
+        case static_cast<int>(LandUseCategory::MIXED_FOREST):
+            return amrex::Real(0.40);
+        case static_cast<int>(LandUseCategory::WOODY_WETLAND):
+            return amrex::Real(0.20);
+        case static_cast<int>(LandUseCategory::HERBACEOUS_WETLAND):
+            return amrex::Real(0.20);
+        default:
+            return amrex::Real(1.00);
+    }
+}
+
+// ============================================================================
+// Get soil moisture for a land-use category
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_soil_moisture_from_landuse(int category)
+{
+    switch (category) {
+        case static_cast<int>(LandUseCategory::WATER):
+            return amrex::Real(1.00);
+        case static_cast<int>(LandUseCategory::BARREN):
+            return amrex::Real(0.05);
+        case static_cast<int>(LandUseCategory::GRASSLAND_HERBACEOUS):
+            return amrex::Real(0.15);
+        case static_cast<int>(LandUseCategory::PASTURE_HAY):
+            return amrex::Real(0.20);
+        case static_cast<int>(LandUseCategory::CULTIVATED_CROPS):
+            return amrex::Real(0.25);
+        case static_cast<int>(LandUseCategory::SHRUBLAND):
+            return amrex::Real(0.10);
+        case static_cast<int>(LandUseCategory::DEVELOPED_OPEN):
+            return amrex::Real(0.15);
+        case static_cast<int>(LandUseCategory::DEVELOPED_LOW):
+            return amrex::Real(0.10);
+        case static_cast<int>(LandUseCategory::DEVELOPED_MED):
+            return amrex::Real(0.05);
+        case static_cast<int>(LandUseCategory::DEVELOPED_HIGH):
+            return amrex::Real(0.02);
+        case static_cast<int>(LandUseCategory::DECIDUOUS_FOREST):
+            return amrex::Real(0.25);
+        case static_cast<int>(LandUseCategory::EVERGREEN_FOREST):
+            return amrex::Real(0.25);
+        case static_cast<int>(LandUseCategory::MIXED_FOREST):
+            return amrex::Real(0.25);
+        case static_cast<int>(LandUseCategory::WOODY_WETLAND):
+            return amrex::Real(0.80);
+        case static_cast<int>(LandUseCategory::HERBACEOUS_WETLAND):
+            return amrex::Real(0.90);
+        default:
+            return amrex::Real(0.15);
+    }
+}
+
+// ============================================================================
+// Get emissivity for a land-use category
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_emissivity_from_landuse(int category)
+{
+    switch (category) {
+        case static_cast<int>(LandUseCategory::WATER):
+            return amrex::Real(0.98);
+        case static_cast<int>(LandUseCategory::BARREN):
+            return amrex::Real(0.90);
+        case static_cast<int>(LandUseCategory::GRASSLAND_HERBACEOUS):
+            return amrex::Real(0.95);
+        case static_cast<int>(LandUseCategory::PASTURE_HAY):
+            return amrex::Real(0.96);
+        case static_cast<int>(LandUseCategory::CULTIVATED_CROPS):
+            return amrex::Real(0.96);
+        case static_cast<int>(LandUseCategory::SHRUBLAND):
+            return amrex::Real(0.93);
+        case static_cast<int>(LandUseCategory::DEVELOPED_OPEN):
+            return amrex::Real(0.95);
+        case static_cast<int>(LandUseCategory::DEVELOPED_LOW):
+            return amrex::Real(0.93);
+        case static_cast<int>(LandUseCategory::DEVELOPED_MED):
+            return amrex::Real(0.91);
+        case static_cast<int>(LandUseCategory::DEVELOPED_HIGH):
+            return amrex::Real(0.90);
+        case static_cast<int>(LandUseCategory::DECIDUOUS_FOREST):
+            return amrex::Real(0.97);
+        case static_cast<int>(LandUseCategory::EVERGREEN_FOREST):
+            return amrex::Real(0.97);
+        case static_cast<int>(LandUseCategory::MIXED_FOREST):
+            return amrex::Real(0.97);
+        case static_cast<int>(LandUseCategory::WOODY_WETLAND):
+            return amrex::Real(0.98);
+        case static_cast<int>(LandUseCategory::HERBACEOUS_WETLAND):
+            return amrex::Real(0.98);
+        default:
+            return amrex::Real(0.95);
+    }
+}
+
+// ============================================================================
 // Get descriptive name for land-use category (for output/debugging)
 // Note: Returns C++ string, suitable for host code only (not GPU kernels)
 // ============================================================================

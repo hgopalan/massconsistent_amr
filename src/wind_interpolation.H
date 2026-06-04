@@ -213,6 +213,44 @@ std::pair<Real, Real> idw_alpha_coefficients_gpu(
     return {ah_val / wsum, av_val / wsum};
 }
 
+// IDW interpolation: 3D wind velocity at query point (xq, yq, zq)
+// Uses k nearest data points with 3D inverse-square-distance weights.
+// Returns (ux, uy) pair.
+inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
+                                             const std::vector<Real>& x,
+                                             const std::vector<Real>& y,
+                                             const std::vector<Real>& z,
+                                             const std::vector<Real>& ux_data,
+                                             const std::vector<Real>& uy_data,
+                                             int k = 6)
+{
+    int n = static_cast<int>(x.size());
+    k = std::min(k, n);
+
+    // Squared distances to all 3D data points
+    std::vector<std::pair<Real, int>> d2(n);
+    for (int i = 0; i < n; ++i) {
+        Real dx = x[i] - xq;
+        Real dy = y[i] - yq;
+        Real dz = z[i] - zq;
+        d2[i] = {dx * dx + dy * dy + dz * dz, i};
+    }
+    // Partial sort: first k elements are the k nearest
+    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
+
+    Real wsum = 0.0, ux_val = 0.0, uy_val = 0.0;
+    for (int i = 0; i < k; ++i) {
+        if (d2[i].first < DISTANCE_EPSILON) {
+            return {ux_data[d2[i].second], uy_data[d2[i].second]}; // exact hit
+        }
+        Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
+        wsum += w;
+        ux_val += w * ux_data[d2[i].second];
+        uy_val += w * uy_data[d2[i].second];
+    }
+    return {ux_val / wsum, uy_val / wsum};
+}
+
 } // namespace WindInterpolation
 
 #endif // WIND_INTERPOLATION_H

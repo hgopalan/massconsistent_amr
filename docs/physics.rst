@@ -1461,3 +1461,137 @@ Enable in your input file::
 
 * Foken, T. (2006). 50 years of the Monin-Obukhov similarity theory.
   Boundary-Layer Meteorol., 119, 431–447.
+
+
+Spatially-varying Boundary Layer Height (H_abl)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+The Atmospheric Boundary Layer (ABL) height varies spatially across complex terrain and heterogenous land-cover surfaces. Real-world boundary layer models dynamically estimate spatially-varying boundary layer height based on local surface roughness, Monin-Obukhov stability, and sensible heat flux.
+
+**Implementation**
+
+A 2D diagnostic function :math:`H_{abl}(x, y)` is implemented using existing surface flux outputs. The boundary layer height is diagnosed under different stability regimes:
+
+* **Stable conditions** (:math:`L > 0`): Uses the Zilitinkevich (1972) formula:
+
+  .. math::
+
+     H_{abl} = C_s \sqrt{\frac{u_* L}{|f|}}
+
+  where :math:`C_s \approx 0.4`, :math:`u_*` is the local friction velocity, :math:`L` is the Obukhov length, and :math:`f` is the Coriolis parameter.
+
+* **Unstable conditions** (:math:`L < 0`): Employs convective boundary layer scaling:
+
+  .. math::
+
+     H_{abl} = \frac{0.2 u_* |L|}{1 + w_*/u_*}
+
+  where :math:`w_* = \left(\frac{g H_s \delta_0}{\rho c_p T_0}\right)^{1/3}` is the convective velocity scale, :math:`H_s` is the surface sensible heat flux, and :math:`\delta_0 = 1000\text{ m}` is a nominal boundary layer depth scale.
+
+* **Neutral conditions**: Scales with shear and rotation:
+
+  .. math::
+
+     H_{abl} = C_n \frac{u_*}{|f|}
+
+  where :math:`C_n \approx 0.15`.
+
+**Configuration**
+
+Enable in your input file::
+
+    enable_bl_depth_diagnostic = true
+    bl_depth_param = 1000.0             # Default/neutral boundary layer height [m]
+
+
+Extended Surface Property Tables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+Accurate modeling of surface-atmosphere interaction requires land cover mapping for albedo, Bowen ratio, soil moisture, and surface emissivity, in addition to aerodynamic roughness length :math:`z_0`.
+
+**Implementation**
+
+The NLCD/IGBP land-use classification table is expanded to provide these parameters:
+
+* **Albedo**: Surface solar reflectivity.
+* **Bowen Ratio**: Ratio of sensible to latent heat flux.
+* **Soil Moisture**: Volumetric soil water content fraction [0–1].
+* **Surface Emissivity**: Thermal radiation absorption/emission efficiency.
+
+**Mapping Table**
+
+.. list-table:: Land-Use Surface Properties
+   :widths: 30 15 15 15 15 10
+   :header-rows: 1
+
+   * - Category (NLCD)
+     - Roughness :math:`z_0` (m)
+     - Albedo
+     - Bowen Ratio
+     - Soil Moisture
+     - Emissivity
+   * - Water (11)
+     - 0.0005
+     - 0.08
+     - 0.10
+     - 1.00
+     - 0.98
+   * - Barren (31)
+     - 0.02
+     - 0.25
+     - 4.00
+     - 0.05
+     - 0.90
+   * - Grassland (71)
+     - 0.04
+     - 0.20
+     - 1.00
+     - 0.15
+     - 0.95
+   * - Forest (41-43)
+     - 0.80–1.20
+     - 0.12–0.16
+     - 0.30–0.50
+     - 0.25
+     - 0.97
+   * - Developed High (24)
+     - 1.50
+     - 0.12
+     - 4.00
+     - 0.02
+     - 0.90
+
+
+Vertical Wind Profile Assimilation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Physical Motivation**
+
+Wind field reconstruction in real-world complex terrain is greatly improved by ingesting multi-point vertical profiles of wind speed/direction from remote sensing instruments like Sodar, LIDAR, or meteorological masts.
+
+**Implementation**
+
+The observational/RAWS input module is updated to parse vertical profile CSV files containing columns for:
+
+.. code-block:: text
+
+   # X, Y, Z, WindSpeed, WindDirection_deg
+
+Using these profiles, a 3D distance-height IDW (Inverse Distance Weighting) interpolation reconstructs the initial 3D wind field:
+
+.. math::
+
+   u_j(\mathbf{x}) = \frac{\sum_{i=1}^k w_i u_{j, i}}{\sum_{i=1}^k w_i}
+
+where the weight :math:`w_i = d_i^{-2} = \left[(\Delta x_i)^2 + (\Delta y_i)^2 + (\Delta z_i)^2\right]^{-1}` is computed using 3D spatial distances.
+
+**Configuration**
+
+Enable in your input file::
+
+    init_mode = raws
+    velocity_file = vertical_profiles.csv
