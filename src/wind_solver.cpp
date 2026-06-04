@@ -1638,6 +1638,22 @@ int main(int argc, char* argv[])
             int random_seed_int = 12345;
             pp.query("turbulence_random_seed", random_seed_int);
             turb_params.random_seed = static_cast<unsigned int>(std::max(1, random_seed_int));
+             
+            // Phase 3+ Enhancements: Non-neutral stability corrections
+            pp.query("turbulence_enable_stability_correction", turb_params.enable_stability_correction);
+            pp.query("turbulence_monin_obukhov_length", turb_params.monin_obukhov_length);
+             
+            // Stability parameterization selection
+            std::string stability_param_str = "BusingerDyer";  // default
+            pp.query("turbulence_stability_parameterization", stability_param_str);
+            if (stability_param_str == "BusingerDyer") {
+                turb_params.use_holtslag = false;
+            } else if (stability_param_str == "HoltslagDeBruin") {
+                turb_params.use_holtslag = true;
+            } else {
+                amrex::Abort("wind_solver: invalid turbulence_stability_parameterization: " + stability_param_str + 
+                             " (must be 'BusingerDyer' or 'HoltslagDeBruin')");
+            }
             
             // Export format and output file
             pp.query("turbulence_export_format", turbulence_export_format);

@@ -179,7 +179,27 @@ struct TurbulenceParams {
     // Terrain adaptation factor for Mann Box (multiplicative)
     // Modifies tensor anisotropy based on local terrain features
     amrex::Real mann_terrain_adaptation_factor = amrex::Real(1.0);
+    
+    // ---- Phase 3+ Enhancements: Non-neutral Stability Corrections ----
+    // Monin-Obukhov similarity theory for non-neutral atmospheric conditions
+    // See docs/PHASE3_STABILITY_CORRECTIONS.md for detailed documentation
+    
+    // Enable/disable non-neutral stability corrections
+    bool enable_stability_correction = false;
+    
+    // Obukhov length scale L [m]
+    // L > 0: Stable conditions (e.g., nighttime, weak wind, clear sky)
+    // L < 0: Unstable conditions (e.g., daytime, strong heating, surface convection)
+    // |L| → ∞: Neutral conditions (typical for overcast, strong wind)
+    // Typical values: L = 10 to 1000 m for stable, L = -10 to -1000 m for unstable
+    amrex::Real monin_obukhov_length = amrex::Real(1.0e6);
+    
+    // Use Holtslag-De Bruin (1988) instead of Businger-Dyer (1971) parameterization
+    // Holtslag-De Bruin performs better in very stable conditions (polar, nighttime)
+    // Businger-Dyer is standard and more widely used
+    bool use_holtslag_stability = false;
 };
+
 
 // ============================================================================
 // Namespace for turbulence calculations

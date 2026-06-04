@@ -215,7 +215,232 @@ class NormalTurbulenceModel(IEC61400Model):
     - Mean wind speed profile
     - Turbulence intensity profile
     - Turbulent fluctuations (von Kármán spectrum)
+    - Non-neutral stability corrections (Phase 3+)
+    
+    Stability Corrections:
+    - Monin-Obukhov similarity theory for non-neutral conditions
+    - Businger-Dyer (1971) parameterization
+    - Holtslag-De Bruin (1988) alternative for very stable conditions
     """
+    
+    def __init__(
+        self,
+        turbine_class: Union[str, WindTurbineClass],
+        terrain_category: int = 1,
+        z_hub: float = 90.0,
+        enable_stability_correction: bool = False,
+        monin_obukhov_length: Optional[float] = None,
+        use_holtslag: bool = False,
+    ):
+        """
+        Initialize NormalTurbulenceModel with optional stability corrections.
+        
+        Parameters:
+            turbine_class: Wind turbine class (I, II, III, or IV)
+            terrain_category: Terrain roughness category (0-4)
+            z_hub: Hub height in meters (default: 90 m)
+            enable_stability_correction: Enable non-neutral stability corrections (default: False)
+            monin_obukhov_length: Obukhov length scale L in meters. If None, neutral conditions assumed.
+                - L > 0: Stable conditions (e.g., nighttime)
+                - L < 0: Unstable conditions (e.g., daytime with heating)
+                - L → ∞: Neutral conditions
+            use_holtslag: Use Holtslag-De Bruin (1988) parameterization instead of Businger-Dyer (default: False)
+        """
+        super().__init__(turbine_class, terrain_category, z_hub)
+        self.enable_stability_correction = enable_stability_correction
+        self.monin_obukhov_length = monin_obukhov_length
+        self.use_holtslag = use_holtslag
+    
+    def _psi_m_stable(self, zeta: float) -> float:
+        """
+        Momentum stability function for stable conditions (zeta > 0).
+        Based on Businger et al. (1971) and Dyer (1974).
+        
+        Parameters:
+            zeta: Dimensionless height z/L where L is Obukhov length
+        
+        Returns:
+            Stability function psi_m(zeta)
+        """
+        # Limit zeta to prevent numerical issues
+        zeta = min(max(zeta, -2.0), 2.0)
+        # Standard Businger-Dyer: psi_m = -beta * zeta
+        beta = 5.0
+        return -beta * zeta
+    
+    def _psi_m_holtslag_stable(self, zeta: float) -> float:
+        """
+        Holtslag-De Bruin (1988) momentum stability function for stable conditions.
+        Better performance in very stable conditions (nighttime, polar regions).
+        
+        Parameters:
+            zeta: Dimensionless height z/L where L is Obukhov length
+        
+        Returns:
+            Stability function psi_m(zeta)
+        """
+        zeta = min(max(zeta, -2.0), 2.0)
+        a, b, c, d = 1.0, 0.667, 5.0, 0.35
+        return -(a * zeta + b * (zeta - c / d) * np.exp(-d * zeta) + b * c / d)
+    
+    def _psi_m_unstable(self, zeta: float) -> float:
+        """
+        Momentum stability function for unstable conditions (zeta < 0).
+        Based on Paulson (1970) and Businger et al. (1971).
+        
+        Parameters:
+            zeta: Dimensionless height z/L where L is Obukhov length (negative for unstable)
+        
+        Returns:
+            Stability function psi_m(zeta)
+        """
+        zeta = min(max(zeta, -2.0), 2.0)
+        # For unstable conditions: psi_m = 2*ln((1+x)/2) + ln((1+x^2)/2) - 2*arctan(x) + pi/2
+        x = np.power(1.0 - 16.0 * zeta, 0.25)
+        return (2.0 * np.log((1.0 + x) / 2.0) + np.log((1.0 + x * x) / 2.0)
+                - 2.0 * np.arctan(x) + np.pi / 2.0)
+    
+    def _psi_m(self, zeta: float) -> float:
+        """
+        Combined stability function psi_m(zeta).
+        Handles both stable and unstable conditions.
+        
+        Parameters:
+            zeta: Dimensionless height z/L (positive for stable, negative for unstable)
+        
+        Returns:
+            Stability function value
+        """
+        if zeta > 0.0:  # Stable conditions
+            return self._psi_m_holtslag_stable(zeta) if self.use_holtslag else self._psi_m_stable(zeta)
+        elif zeta < 0.0:  # Unstable conditions
+            return self._psi_m_unstable(zeta)
+        else:  # Neutral conditions
+            return 0.0
+    
+    def _wind_speed_with_stability(
+        self,
+        height: float,
+        reference_speed: float,
+        reference_height: float = 10.0,
+    ) -> float:
+        """
+        Compute wind speed with stability corrections using log-law with Monin-Obukhov correction.
+        
+        Log-law with stability: U(z) = (u*/κ) * [ln(z/z0) - ψ_m(z/L) + ψ_m(z0/L)]
+        
+        where:
+            u* = friction velocity
+            κ = von Kármán constant (0.41)
+            z0 = surface roughness
+            L = Obukhov length
+            ψ_m = momentum stability function
+        
+        Parameters:
+            height: Measurement height in meters
+            reference_speed: Wind speed at reference height in m/s
+            reference_height: Reference height (default: 10 m)
+        
+        Returns:
+            Wind speed at given height with stability correction
+        """
+        if not self.enable_stability_correction or self.monin_obukhov_length is None:
+            # Use power law without stability correction
+            return self.power_law_profile(
+                np.array([height]), reference_speed, reference_height
+            )[0]
+        
+        # Compute stability parameters
+        L = self.monin_obukhov_length
+        z0 = self.z0
+        kappa = 0.41  # von Kármán constant
+        
+        # Guard against invalid inputs
+        if height <= z0 or L == 0.0:
+            return reference_speed
+        
+        # Compute dimensionless stability parameter zeta
+        zeta_ref = reference_height / L
+        zeta_z = height / L
+        
+        # Compute friction velocity from reference speed
+        # U_ref = (u*/κ) * [ln(z_ref/z0) - ψ_m(z_ref/L) + ψ_m(z0/L)]
+        psi_m_ref = self._psi_m(zeta_ref)
+        psi_m_z0 = self._psi_m(reference_height / L * z0 / reference_height)  # at roughness height
+        
+        ln_ref = np.log(reference_height / z0)
+        u_star = reference_speed * kappa / (ln_ref - psi_m_ref + psi_m_z0)
+        
+        # Compute wind speed at height z
+        psi_m_z = self._psi_m(zeta_z)
+        ln_z = np.log(height / z0)
+        return (u_star / kappa) * (ln_z - psi_m_z + psi_m_z0)
+    
+    def _turbulence_intensity_with_stability(self, height: float) -> float:
+        """
+        Compute turbulence intensity with stability modifications.
+        
+        In stable conditions, turbulence intensity decreases (weaker mixing).
+        In unstable conditions, turbulence intensity increases (stronger convection).
+        
+        Parameters:
+            height: Height above ground in meters
+        
+        Returns:
+            Modified turbulence intensity accounting for stability
+        """
+        # Base neutral turbulence intensity
+        ti_neutral = self.turbulence_intensity(height)
+        
+        if not self.enable_stability_correction or self.monin_obukhov_length is None:
+            return ti_neutral
+        
+        L = self.monin_obukhov_length
+        zeta = height / L
+        
+        # Stability modification factors (empirical, based on Sorbjan 1989)
+        # In stable conditions (zeta > 0): reduce turbulence
+        # In unstable conditions (zeta < 0): increase turbulence
+        
+        if zeta > 0.0:  # Stable conditions
+            # Reduction factor: decreases with increasing stability
+            stability_factor = 1.0 / (1.0 + 5.0 * zeta) ** 0.5
+        else:  # Unstable conditions (zeta < 0)
+            # Enhancement factor: increases with increasing instability
+            stability_factor = (1.0 - 16.0 * zeta) ** 0.25
+        
+        return ti_neutral * stability_factor
+    
+    def _length_scale_with_stability(self, length_scale_neutral: float, height: float) -> float:
+        """
+        Modify integral length scale based on atmospheric stability.
+        
+        In stable conditions: length scales decrease (weaker mixing)
+        In unstable conditions: length scales increase (stronger vertical mixing)
+        
+        Based on Panofsky & Dutton (1984) and Sorbjan (1989).
+        
+        Parameters:
+            length_scale_neutral: Integral length scale for neutral conditions (m)
+            height: Height above ground (m)
+        
+        Returns:
+            Modified length scale accounting for stability
+        """
+        if not self.enable_stability_correction or self.monin_obukhov_length is None:
+            return length_scale_neutral
+        
+        L = self.monin_obukhov_length
+        zeta = height / L
+        
+        if zeta > 0.0:  # Stable conditions
+            # In stable conditions, reduce length scale (weaker mixing)
+            stability_factor = 1.0 / (1.0 + 3.0 * zeta)
+        else:  # Unstable conditions (zeta < 0)
+            # In unstable conditions, enhance length scale (stronger mixing)
+            stability_factor = (1.0 - 16.0 * zeta) ** 0.125
+        
+        return length_scale_neutral * stability_factor
     
     def turbulence_intensity(self, height: float) -> float:
         """
@@ -294,6 +519,8 @@ class NormalTurbulenceModel(IEC61400Model):
         v_rms = 0.8 * u_rms (lateral component)
         w_rms = 0.5 * u_rms (vertical component)
         
+        With stability corrections: I(z) is modified by Monin-Obukhov factors when enabled.
+        
         Parameters:
             height: Height above ground in meters
             mean_wind_speed: Mean wind speed at the height in m/s
@@ -301,7 +528,12 @@ class NormalTurbulenceModel(IEC61400Model):
         Returns:
             Dictionary with RMS velocities for u, v, w components
         """
-        intensity = self.turbulence_intensity(height)
+        # Use stability-aware intensity if enabled, otherwise use neutral intensity
+        if self.enable_stability_correction and self.monin_obukhov_length is not None:
+            intensity = self._turbulence_intensity_with_stability(height)
+        else:
+            intensity = self.turbulence_intensity(height)
+        
         u_rms = intensity * mean_wind_speed
         v_rms = 0.8 * u_rms  # Lateral anisotropy (typical for atmospheric boundary layer)
         w_rms = 0.5 * u_rms  # Vertical anisotropy (typical for atmospheric boundary layer)
@@ -326,6 +558,9 @@ class NormalTurbulenceModel(IEC61400Model):
         The Von Kármán spectrum is defined as:
         S_u(f) = (4 * L_u * u_rms^2) / (1 + 70.8 * (f * L_u / U_mean)^2)^(5/6)
         
+        With stability correction: L_u = L_u_neutral * f(zeta) where f(zeta)
+        is a stability-dependent length scale modification.
+        
         where:
             f = frequency [Hz]
             L_u = integral length scale [m]
@@ -346,6 +581,11 @@ class NormalTurbulenceModel(IEC61400Model):
         # Get RMS velocity
         rms_data = self.compute_velocity_rms(height, mean_wind_speed)
         u_rms = rms_data["u_rms"]
+        
+        # Apply stability correction to length scale if enabled
+        L_u_effective = length_scale_u
+        if self.enable_stability_correction and self.monin_obukhov_length is not None:
+            L_u_effective = self._length_scale_with_stability(length_scale_u, height)
         
         # Guard against division by zero
         mean_wind_speed = np.maximum(mean_wind_speed, 0.1)
