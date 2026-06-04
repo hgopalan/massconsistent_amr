@@ -4412,25 +4412,19 @@ int main(int argc, char* argv[])
                 turb_nx, turb_ny, turb_nz, U_mean, turb_gen, total_duration, custom_dt, seed);
 
             // Populate the synthetic_turbulence_fluc MultiFab with fluctuation data
-            // Extract data pointers and sizes for GPU access (avoid calling vector methods from device code)
-            const double* u_prime_ptr = random_fields.u_prime.data();
-            const double* v_prime_ptr = random_fields.v_prime.data();
-            const double* w_prime_ptr = random_fields.w_prime.data();
-            const int field_size = static_cast<int>(random_fields.u_prime.size());
-             
             for (MFIter mfi(synthetic_turbulence_fluc); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto fluc = synthetic_turbulence_fluc.array(mfi);
-                 
+                
                 amrex::ParallelFor(bx,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     // Map 3D index (i,j,k) to 1D index in random_fields
                     int idx_1d = (k * turb_ny + j) * turb_nx + i;
-                    if (idx_1d >= 0 && idx_1d < field_size) {
-                        fluc(i,j,k,0) = u_prime_ptr[idx_1d];
-                        fluc(i,j,k,1) = v_prime_ptr[idx_1d];
-                        fluc(i,j,k,2) = w_prime_ptr[idx_1d];
+                    if (idx_1d >= 0 && idx_1d < static_cast<int>(random_fields.u_prime.size())) {
+                        fluc(i,j,k,0) = random_fields.u_prime[idx_1d];
+                        fluc(i,j,k,1) = random_fields.v_prime[idx_1d];
+                        fluc(i,j,k,2) = random_fields.w_prime[idx_1d];
                     } else {
                         fluc(i,j,k,0) = 0.0;
                         fluc(i,j,k,1) = 0.0;
@@ -4769,19 +4763,12 @@ int main(int argc, char* argv[])
                 // Layer 3: Synthetic turbulence (if enabled)
                 if (has_synthetic_turbulence) {
                     // u_openfast, v_openfast, w_openfast: wind speed after synthetic fluctuations
-                    // Mask turbulence inside terrain (z_agl <= 0) to prevent non-physical fluctuations
-                    if (z_agl <= Real(0.0)) {
-                        out(i,j,k,21) = Real(0.0);
-                        out(i,j,k,22) = Real(0.0);
-                        out(i,j,k,23) = Real(0.0);
-                    } else {
-                        Real u_openfast = u + turb_fluc(i,j,k,0);
-                        Real v_openfast = v + turb_fluc(i,j,k,1);
-                        Real w_openfast = w + turb_fluc(i,j,k,2);
-                        out(i,j,k,21) = u_openfast;
-                        out(i,j,k,22) = v_openfast;
-                        out(i,j,k,23) = w_openfast;
-                    }
+                    Real u_openfast = u + turb_fluc(i,j,k,0);
+                    Real v_openfast = v + turb_fluc(i,j,k,1);
+                    Real w_openfast = w + turb_fluc(i,j,k,2);
+                    out(i,j,k,21) = u_openfast;
+                    out(i,j,k,22) = v_openfast;
+                    out(i,j,k,23) = w_openfast;
                 }
             });
         }

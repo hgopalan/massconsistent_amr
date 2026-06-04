@@ -223,17 +223,11 @@ std::pair<Real, Real> idw_velocity(Real xq, Real yq,
 
 void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 {
-    // ParmParse might have been initialized by AMReX::Initialize() or by our code.
-    // We need to finalize and reinitialize with the specified inputs file.
-    // Always try to finalize ParmParse first to clear any existing initialization.
-    try {
+    if (g_parmparse_initialized) {
         ParmParse::Finalize();
-    } catch (...) {
-        // Ignore errors if ParmParse is not initialized
+        g_parmparse_initialized = false;
     }
-    g_parmparse_initialized = false;
 
-    // Now initialize ParmParse with the inputs file
     ParmParse::Initialize(0, nullptr, inputs_file.c_str());
     g_parmparse_initialized = true;
 
@@ -1357,19 +1351,15 @@ void wind_solver_finalize()
     g_wind_solver_runtime.reset();
     g_wind_solver_state.reset();
 
-    // Finalize ParmParse if we initialized it
-    if (g_parmparse_initialized) {
-        try {
-            ParmParse::Finalize();
-        } catch (...) {
-            // Ignore errors during finalization
-        }
+    if (!g_amrex_initialized_here && g_parmparse_initialized) {
+        ParmParse::Finalize();
         g_parmparse_initialized = false;
     }
 
     if (g_amrex_initialized_here && amrex::Initialized()) {
         amrex::Finalize();
         g_amrex_initialized_here = false;
+        g_parmparse_initialized = false;
     }
 }
 
