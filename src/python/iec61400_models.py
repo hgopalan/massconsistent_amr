@@ -227,7 +227,9 @@ class NormalTurbulenceModel(IEC61400Model):
             Turbulence intensity (fraction)
         """
         # IEC 61400-1:2019 (and earlier editions) formula: I(z) = Iref * (0.2 / (z/zref))^0.2
-        # This simplified model relates turbulence intensity to height above ground
+        # where zref = 15 m is the reference height
+        # This simplifies to: I(z) = Iref * (0.2 * 15 / z)^0.2
+        # Turbulence intensity decreases with height above ground
         z_ref = 15.0  # Reference height (15 m)
         ti_exponent = 0.2  # Turbulence intensity exponent
         ti_coefficient = 0.2  # Coefficient in the fraction

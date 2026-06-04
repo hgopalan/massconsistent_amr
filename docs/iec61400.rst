@@ -534,13 +534,13 @@ References
   
 - **IEC 61400-1:2005** — Previous edition (still referenced for some applications)
 
-- **IEC 61400-12-1** — Wind turbine power performance measurement and certification
-
 - **GL** — Germanischer Lloyd rules and regulations for wind turbines
 
 Additional Resources
 ~~~~~~~~~~~~~~~~~~~~
 
+- **IEC 61400-12-1** — Wind turbine power performance measurement and certification
+  (Related standard for performance validation under the wind models defined here)
 - Wind turbine design standards (IEC, DNV, GL, ABS, etc.)
 - Wind resource assessment guides
 - Aerodynamic load calculation methods
