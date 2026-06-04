@@ -3,8 +3,7 @@ MANN BOX USER GUIDE: Complete Reference
 
 
 **Last Updated**: June 4, 2026  
-**Phases Covered**: 1-7 (Complete Implementation)  
-**Status**: Production Ready
+**Status**: Complete Implementation (Production Ready)
 
 ----
 
@@ -56,10 +55,10 @@ Verify Installation
 .. code-block:: bash
 
     # Run basic tests
-    python3 test/mann_box_phase3_test.py       # Phase 3: ✓
-    python3 test/mann_box_phase4_test.py       # Phase 4: ✓
-    python3 test/mann_box_phase6_test.py       # Phase 6: ✓
-    python3 test/mann_box_phase7_validation.py # Phase 7: ✓
+    python3 test/mann_box_phase3_test.py       # Spectral Tensor Tests: ✓
+    python3 test/mann_box_phase4_test.py       # Stability Physics Tests: ✓
+    python3 test/mann_box_phase6_test.py       # Advanced Features Tests: ✓
+    python3 test/mann_box_phase7_validation.py # Validation Diagnostics Tests: ✓
 
 
 ----
@@ -138,19 +137,19 @@ Create ``inputs.i``:
     wind_solver.enable_mann_box = 1
     wind_solver.mann_box_model = "spectral_tensor"
 
-    # Spectral tensor (Phase 3)
+    # Spectral tensor features
     wind_solver.mann_box_coherence_decay = 5.0
     wind_solver.mann_box_phase3_enabled = 1
 
-    # Temporal synthesis (Phase 4)
+    # Temporal synthesis & stability features
     wind_solver.mann_box_temporal_enabled = 1
     wind_solver.mann_box_stability_model = "richardson"
 
-    # Advanced features (Phase 6)
+    # Roughness & Wind Veer features
     wind_solver.mann_box_roughness_class = 2
     wind_solver.mann_box_veer_model = "power_law"
 
-    # Diagnostics (Phase 7)
+    # Validation & Diagnostics features
     wind_solver.enable_validation_diagnostics = 1
     wind_solver.export_csv = 1
     wind_solver.export_bts = 1
@@ -201,7 +200,7 @@ Parameter Reference
      - bool
      - 0
      - 
-     - Enable Phase 7 diagnostics
+     - Enable validation diagnostics
    * - ``export_csv``
      - bool
      - 0
@@ -291,8 +290,8 @@ Boundary Conditions
     wind_solver.surface_roughness = 0.1       # Roughness length [m]
 
 
-Spectral Tensor Parameters (Phase 3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Spectral Tensor Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 .. code-block:: ini
@@ -302,8 +301,8 @@ Spectral Tensor Parameters (Phase 3)
     wind_solver.mann_spectrum_model = "von_karman"  # von_karman | kaimal
 
 
-Temporal Synthesis (Phase 4)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Temporal Synthesis
+~~~~~~~~~~~~~~~~~~
 
 
 .. code-block:: ini
@@ -313,8 +312,8 @@ Temporal Synthesis (Phase 4)
     wind_solver.mann_richardson_number = auto  # Auto-compute from Ri_b
 
 
-Roughness & Veer (Phase 6)
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Roughness & Veer
+~~~~~~~~~~~~~~~~
 
 
 .. code-block:: ini
@@ -324,8 +323,8 @@ Roughness & Veer (Phase 6)
     wind_solver.mann_box_veer_gradient = 15.0  # °/100m
 
 
-Diagnostics (Phase 7)
-~~~~~~~~~~~~~~~~~~~~~
+Diagnostics
+~~~~~~~~~~~
 
 
 .. code-block:: ini
@@ -395,8 +394,8 @@ VALIDATION & DIAGNOSTICS
 ------------------------
 
 
-Phase 7 Validation Metrics
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Validation Metrics
+~~~~~~~~~~~~~~~~~~
 
 
 .. code-block:: text
@@ -412,9 +411,9 @@ Phase 7 Validation Metrics
       └─ TKE: = 0.5·(σ_u² + σ_v² + σ_w²)
 
     Energy conservation:
-      ├─ Kinetic energy: Consistent across phases
+      ├─ Kinetic energy: Consistent across components
       ├─ Budget: Production ≈ Dissipation
-      └─ Cross-phase: Preserved through Phases 3-7
+      └─ Cross-component: Preserved throughout analysis
 
 
 Running Validation Suite
