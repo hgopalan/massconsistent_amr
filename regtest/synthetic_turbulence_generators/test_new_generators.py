@@ -233,12 +233,12 @@ def run_all_tests():
                 
             elif model_name == "NWTC":
                 # Check if scaling parameters were printed in log
-                assert "nwtc_scaling_parameter: 1.5" in stdout or "nwtc_scaling_parameter: 1.5" in stdout.replace(" ", ""), \
+                assert "nwtc_scaling_parameter: 1.5" in stdout or "nwtc_scaling_parameter:1.5" in stdout.replace(" ", ""), \
                     "NWTC scaling parameter was not parsed or logged correctly"
                 print("  ✓ NWTC scaling parameter parsing & logging verified")
                 
             elif model_name == "USWTPP":
-                assert "uswtpp_weight: 0.5" in stdout or "uswtpp_weight: 0.5" in stdout.replace(" ", ""), \
+                assert "uswtpp_weight: 0.5" in stdout or "uswtpp_weight:0.5" in stdout.replace(" ", ""), \
                     "USWTPP weight was not parsed or logged correctly"
                 print("  ✓ USWTPP blending weight parsing & logging verified")
                 

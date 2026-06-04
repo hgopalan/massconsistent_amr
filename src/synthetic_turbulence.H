@@ -342,9 +342,9 @@ amrex::Real gp_llj_spectrum(
 {
     const amrex::Real base_spectrum = kaimal_spectrum(frequency, length_scale, mean_wind_speed, velocity_rms);
     
-    jet_height = std::max(jet_height, amrex::Real(10.0));
-    const amrex::Real sigma_z = amrex::Real(0.2) * jet_height;
-    const amrex::Real z_diff = z_agl - jet_height;
+    const amrex::Real clamped_jet_height = std::max(jet_height, amrex::Real(10.0));
+    const amrex::Real sigma_z = amrex::Real(0.2) * clamped_jet_height;
+    const amrex::Real z_diff = z_agl - clamped_jet_height;
     const amrex::Real z_factor = std::exp(-amrex::Real(0.5) * (z_diff * z_diff) / (sigma_z * sigma_z));
     
     // Frequency modulation peaking at 0.05 Hz
