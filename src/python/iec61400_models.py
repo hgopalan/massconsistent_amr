@@ -278,6 +278,432 @@ class NormalTurbulenceModel(IEC61400Model):
             "turbulence_intensity": turbulence_intensities,
             "model_type": "NTM",
         }
+    
+    def compute_velocity_rms(
+        self,
+        height: float,
+        mean_wind_speed: float,
+    ) -> Dict[str, float]:
+        """
+        Compute RMS velocities for u, v, w components from turbulence intensity.
+        
+        Based on IEC 61400-1:2019, the RMS velocity is:
+        u_rms = I(z) * U_mean
+        
+        The other components follow anisotropy ratios:
+        v_rms = 0.8 * u_rms (lateral component)
+        w_rms = 0.5 * u_rms (vertical component)
+        
+        Parameters:
+            height: Height above ground in meters
+            mean_wind_speed: Mean wind speed at the height in m/s
+        
+        Returns:
+            Dictionary with RMS velocities for u, v, w components
+        """
+        intensity = self.turbulence_intensity(height)
+        u_rms = intensity * mean_wind_speed
+        v_rms = 0.8 * u_rms  # Lateral anisotropy (typical for atmospheric boundary layer)
+        w_rms = 0.5 * u_rms  # Vertical anisotropy (typical for atmospheric boundary layer)
+        
+        return {
+            "u_rms": u_rms,
+            "v_rms": v_rms,
+            "w_rms": w_rms,
+            "turbulence_intensity": intensity,
+        }
+    
+    def von_karman_spectrum(
+        self,
+        frequency: np.ndarray,
+        height: float,
+        mean_wind_speed: float,
+        length_scale_u: float = 300.0,
+    ) -> np.ndarray:
+        """
+        Compute Von Kármán spectrum for wind turbulence.
+        
+        The Von Kármán spectrum is defined as:
+        S_u(f) = (4 * L_u * u_rms^2) / (1 + 70.8 * (f * L_u / U_mean)^2)^(5/6)
+        
+        where:
+            f = frequency [Hz]
+            L_u = integral length scale [m]
+            u_rms = RMS velocity [m/s]
+            U_mean = mean wind speed [m/s]
+        
+        Parameters:
+            frequency: Array of frequencies in Hz
+            height: Height above ground in meters
+            mean_wind_speed: Mean wind speed in m/s
+            length_scale_u: Integral length scale for u-component in meters
+        
+        Returns:
+            Spectral density array in (m/s)^2/Hz
+        """
+        frequency = np.atleast_1d(frequency)
+        
+        # Get RMS velocity
+        rms_data = self.compute_velocity_rms(height, mean_wind_speed)
+        u_rms = rms_data["u_rms"]
+        
+        # Guard against division by zero
+        mean_wind_speed = np.maximum(mean_wind_speed, 0.1)
+        length_scale_u = np.maximum(length_scale_u, 1.0)
+        u_rms = np.maximum(u_rms, 1e-6)
+        
+        # Normalized frequency
+        f_hat = frequency * length_scale_u / mean_wind_speed
+        
+        # Von Kármán spectral density
+        numerator = 4.0 * length_scale_u * u_rms**2
+        denominator = (1.0 + 70.8 * f_hat**2)**(5.0/6.0)
+        
+        return numerator / denominator
+    
+    def kaimal_spectrum(
+        self,
+        frequency: np.ndarray,
+        height: float,
+        mean_wind_speed: float,
+        length_scale_u: float = 300.0,
+    ) -> np.ndarray:
+        """
+        Compute Kaimal spectrum for wind turbulence.
+        
+        The Kaimal spectrum is defined as:
+        S_u(f) = (4 * L_u * u_rms^2 * f_hat) / (1 + 6 * f_hat)^(5/3)
+        
+        where f_hat = f * L_u / U_mean (normalized frequency)
+        
+        The Kaimal spectrum is commonly used in IEC 61400-1 applications
+        and wind engineering standards.
+        
+        Parameters:
+            frequency: Array of frequencies in Hz
+            height: Height above ground in meters
+            mean_wind_speed: Mean wind speed in m/s
+            length_scale_u: Integral length scale for u-component in meters
+        
+        Returns:
+            Spectral density array in (m/s)^2/Hz
+        """
+        frequency = np.atleast_1d(frequency)
+        
+        # Get RMS velocity
+        rms_data = self.compute_velocity_rms(height, mean_wind_speed)
+        u_rms = rms_data["u_rms"]
+        
+        # Guard against division by zero
+        mean_wind_speed = np.maximum(mean_wind_speed, 0.1)
+        length_scale_u = np.maximum(length_scale_u, 1.0)
+        u_rms = np.maximum(u_rms, 1e-6)
+        
+        # Normalized frequency
+        f_hat = frequency * length_scale_u / mean_wind_speed
+        
+        # Kaimal spectral density
+        numerator = 4.0 * length_scale_u * u_rms**2 * f_hat
+        denominator = (1.0 + 6.0 * f_hat)**(5.0/3.0)
+        
+        return numerator / denominator
+    
+    def compute_spectrum(
+        self,
+        frequencies: np.ndarray,
+        height: float,
+        mean_wind_speed: float,
+        spectrum_type: str = "VonKarman",
+        length_scale_u: float = 300.0,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Compute turbulence spectrum at a given height and wind speed.
+        
+        Supports both Von Kármán and Kaimal spectrum models used in
+        IEC 61400-1 and wind engineering standards.
+        
+        Parameters:
+            frequencies: Array of frequencies in Hz
+            height: Height above ground in meters
+            mean_wind_speed: Mean wind speed in m/s
+            spectrum_type: Type of spectrum ("VonKarman" or "Kaimal")
+            length_scale_u: Integral length scale for u-component in meters
+        
+        Returns:
+            Dictionary with spectral densities for each component:
+            {
+                "frequency": frequencies,
+                "S_u": u-component spectrum,
+                "S_v": v-component spectrum,
+                "S_w": w-component spectrum,
+                "spectrum_type": spectrum_type,
+                "height": height,
+                "mean_wind_speed": mean_wind_speed,
+            }
+        """
+        frequencies = np.atleast_1d(frequencies)
+        
+        # Get RMS velocities for all components
+        rms_data = self.compute_velocity_rms(height, mean_wind_speed)
+        u_rms = rms_data["u_rms"]
+        v_rms = rms_data["v_rms"]
+        w_rms = rms_data["w_rms"]
+        
+        # Typical length scales (from atmospheric boundary layer theory)
+        # v and w components typically have shorter integral length scales
+        length_scale_v = 0.7 * length_scale_u  # Lateral component
+        length_scale_w = 0.4 * length_scale_u  # Vertical component
+        
+        # Compute spectrum based on type
+        if spectrum_type.lower() == "vonkarman":
+            S_u = self.von_karman_spectrum(frequencies, height, mean_wind_speed, length_scale_u)
+            S_v = self.von_karman_spectrum(frequencies, height, mean_wind_speed, length_scale_v)
+            S_w = self.von_karman_spectrum(frequencies, height, mean_wind_speed, length_scale_w)
+        elif spectrum_type.lower() == "kaimal":
+            S_u = self.kaimal_spectrum(frequencies, height, mean_wind_speed, length_scale_u)
+            S_v = self.kaimal_spectrum(frequencies, height, mean_wind_speed, length_scale_v)
+            S_w = self.kaimal_spectrum(frequencies, height, mean_wind_speed, length_scale_w)
+        else:
+            raise ValueError(f"Unknown spectrum type: {spectrum_type}. Use 'VonKarman' or 'Kaimal'")
+        
+        return {
+            "frequency": frequencies,
+            "S_u": S_u,
+            "S_v": S_v,
+            "S_w": S_w,
+            "spectrum_type": spectrum_type,
+            "height": height,
+            "mean_wind_speed": mean_wind_speed,
+            "length_scale_u": length_scale_u,
+            "length_scale_v": length_scale_v,
+            "length_scale_w": length_scale_w,
+        }
+    
+    def generate_fluctuations(
+        self,
+        frequencies: np.ndarray,
+        height: float,
+        mean_wind_speed: float,
+        spectrum_type: str = "VonKarman",
+        random_seed: int = 12345,
+        length_scale_u: float = 300.0,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Generate synthetic turbulent fluctuations in frequency domain.
+        
+        This method synthesizes frequency-domain representations of turbulent
+        fluctuations using spectral methods. The output can be converted to
+        time-domain fluctuations using inverse FFT or spectral analysis.
+        
+        The method generates random phases for each frequency component and
+        combines them with the computed spectral amplitude to create physically
+        realistic turbulent fluctuations following IEC 61400-1 standards.
+        
+        Parameters:
+            frequencies: Array of frequencies in Hz
+            height: Height above ground in meters
+            mean_wind_speed: Mean wind speed in m/s
+            spectrum_type: Type of spectrum ("VonKarman" or "Kaimal")
+            random_seed: Random seed for reproducibility
+            length_scale_u: Integral length scale for u-component in meters
+        
+        Returns:
+            Dictionary with spectral components and amplitudes:
+            {
+                "frequency": frequencies,
+                "amplitude_u": Amplitude array for u-component,
+                "amplitude_v": Amplitude array for v-component,
+                "amplitude_w": Amplitude array for w-component,
+                "phase_u": Phase array for u-component (radians),
+                "phase_v": Phase array for v-component (radians),
+                "phase_w": Phase array for w-component (radians),
+                "spectrum_data": Full spectrum information,
+            }
+        """
+        frequencies = np.atleast_1d(frequencies)
+        
+        # Compute spectral densities
+        spectrum = self.compute_spectrum(
+            frequencies, height, mean_wind_speed,
+            spectrum_type=spectrum_type,
+            length_scale_u=length_scale_u
+        )
+        
+        # Create reproducible random number generator
+        rng = np.random.RandomState(random_seed)
+        
+        # Frequency resolution for energy conservation
+        df = np.gradient(frequencies) if len(frequencies) > 1 else np.ones_like(frequencies)
+        if np.isscalar(df):
+            df = np.ones_like(frequencies) * df
+        else:
+            # Extend first and last values
+            df = np.concatenate([[df[0]], df, [df[-1]]])
+            df = df[1:-1] if len(df) > len(frequencies) else df[:len(frequencies)]
+        
+        # Convert spectral density to amplitude: A = sqrt(2 * S * df)
+        amplitude_u = np.sqrt(2.0 * spectrum["S_u"] * df)
+        amplitude_v = np.sqrt(2.0 * spectrum["S_v"] * df)
+        amplitude_w = np.sqrt(2.0 * spectrum["S_w"] * df)
+        
+        # Generate random phases uniformly distributed in [0, 2π]
+        phase_u = rng.uniform(0, 2 * np.pi, len(frequencies))
+        phase_v = rng.uniform(0, 2 * np.pi, len(frequencies))
+        phase_w = rng.uniform(0, 2 * np.pi, len(frequencies))
+        
+        return {
+            "frequency": frequencies,
+            "amplitude_u": amplitude_u,
+            "amplitude_v": amplitude_v,
+            "amplitude_w": amplitude_w,
+            "phase_u": phase_u,
+            "phase_v": phase_v,
+            "phase_w": phase_w,
+            "spectrum_data": spectrum,
+            "random_seed": random_seed,
+            "height": height,
+            "mean_wind_speed": mean_wind_speed,
+        }
+    
+    def generate_time_series(
+        self,
+        duration: float = 600.0,
+        dt: float = 0.1,
+        height: float = 90.0,
+        mean_wind_speed: float = 12.0,
+        spectrum_type: str = "VonKarman",
+        length_scale_u: float = 300.0,
+        random_seed: int = 12345,
+        n_freq_bins: int = 256,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Generate synthetic time series of turbulent fluctuations.
+        
+        This method creates realistic time-domain turbulent fluctuations
+        following IEC 61400-1 standards. The fluctuations are generated using
+        spectral synthesis methods with proper temporal correlation.
+        
+        The method:
+        1. Generates a frequency array (logarithmically spaced for efficiency)
+        2. Computes spectral densities at each frequency
+        3. Creates random amplitudes and phases
+        4. Performs inverse FFT to get time-domain fluctuations
+        5. Scales to match computed RMS values
+        
+        Parameters:
+            duration: Duration of time series in seconds (default: 600s = 10 min)
+            dt: Time step in seconds (default: 0.1s = 10 Hz)
+            height: Height above ground in meters (default: 90m)
+            mean_wind_speed: Mean wind speed in m/s (default: 12.0)
+            spectrum_type: Type of spectrum ("VonKarman" or "Kaimal")
+            length_scale_u: Integral length scale for u-component in meters
+            random_seed: Random seed for reproducibility
+            n_freq_bins: Number of frequency bins for spectral discretization
+        
+        Returns:
+            Dictionary with time series and metadata:
+            {
+                "time": Time array [s],
+                "u_prime": u-component fluctuations [m/s],
+                "v_prime": v-component fluctuations [m/s],
+                "w_prime": w-component fluctuations [m/s],
+                "u_mean": Mean u-component (should be close to 0),
+                "v_mean": Mean v-component (should be close to 0),
+                "w_mean": Mean w-component (should be close to 0),
+                "u_rms": RMS of u-component [m/s],
+                "v_rms": RMS of v-component [m/s],
+                "w_rms": RMS of w-component [m/s],
+                "height": Height above ground [m],
+                "mean_wind_speed": Mean wind speed [m/s],
+                "duration": Duration [s],
+                "dt": Time step [s],
+                "spectrum_type": Type of spectrum used,
+            }
+        """
+        # Create time array
+        nt = int(np.ceil(duration / dt))
+        time = np.arange(nt) * dt
+        
+        # Create frequency array (logarithmically spaced, 0.001 to 10 Hz)
+        f_min = 0.001
+        f_max = 10.0
+        frequencies = np.logspace(np.log10(f_min), np.log10(f_max), n_freq_bins)
+        
+        # Generate fluctuations in frequency domain
+        fluct = self.generate_fluctuations(
+            frequencies, height, mean_wind_speed,
+            spectrum_type=spectrum_type,
+            random_seed=random_seed,
+            length_scale_u=length_scale_u
+        )
+        
+        # Reconstruct time series from spectral components
+        # Using inverse FFT for proper temporal correlation
+        rng = np.random.RandomState(random_seed)
+        
+        # Generate time series by summing sinusoids
+        u_prime = np.zeros(nt)
+        v_prime = np.zeros(nt)
+        w_prime = np.zeros(nt)
+        
+        for i, freq in enumerate(frequencies):
+            # Add sinusoidal components with random phases
+            phase_offset = 2 * np.pi * freq * time
+            u_prime += fluct["amplitude_u"][i] * np.cos(phase_offset + fluct["phase_u"][i])
+            v_prime += fluct["amplitude_v"][i] * np.cos(phase_offset + fluct["phase_v"][i])
+            w_prime += fluct["amplitude_w"][i] * np.cos(phase_offset + fluct["phase_w"][i])
+        
+        # Remove mean (should be close to zero, but remove for cleanliness)
+        u_mean = np.mean(u_prime)
+        v_mean = np.mean(v_prime)
+        w_mean = np.mean(w_prime)
+        u_prime -= u_mean
+        v_prime -= v_mean
+        w_prime -= w_mean
+        
+        # Compute realized RMS values
+        u_rms_realized = np.std(u_prime)
+        v_rms_realized = np.std(v_prime)
+        w_rms_realized = np.std(w_prime)
+        
+        # Get target RMS values
+        rms_data = self.compute_velocity_rms(height, mean_wind_speed)
+        u_rms_target = rms_data["u_rms"]
+        v_rms_target = rms_data["v_rms"]
+        w_rms_target = rms_data["w_rms"]
+        
+        # Scale fluctuations to match target RMS
+        # (account for energy loss from spectral discretization)
+        if u_rms_realized > 1e-10:
+            u_prime *= u_rms_target / u_rms_realized
+        if v_rms_realized > 1e-10:
+            v_prime *= v_rms_target / v_rms_realized
+        if w_rms_realized > 1e-10:
+            w_prime *= w_rms_target / w_rms_realized
+        
+        # Recompute RMS after scaling
+        u_rms = np.std(u_prime)
+        v_rms = np.std(v_prime)
+        w_rms = np.std(w_prime)
+        
+        return {
+            "time": time,
+            "u_prime": u_prime,
+            "v_prime": v_prime,
+            "w_prime": w_prime,
+            "u_mean": np.mean(u_prime),
+            "v_mean": np.mean(v_prime),
+            "w_mean": np.mean(w_prime),
+            "u_rms": u_rms,
+            "v_rms": v_rms,
+            "w_rms": w_rms,
+            "height": height,
+            "mean_wind_speed": mean_wind_speed,
+            "duration": duration,
+            "dt": dt,
+            "spectrum_type": spectrum_type,
+            "model_type": "NTM",
+        }
 
 
 class ExtremeTurbulenceModel(IEC61400Model):
