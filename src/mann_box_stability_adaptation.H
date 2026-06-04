@@ -425,19 +425,21 @@ amrex::Real scale_turbulence_intensity(
 // PART 5: Vertical Coherence Modifications
 // ============================================================================
 
-/// Compute vertical coherence decay exponent based on stability
-/// Stable conditions enhance vertical coherence (slower decay)
-/// Unstable conditions reduce vertical coherence (faster decay)
+/// Compute effective length scale factor for vertical coherence based on stability
+/// Stable conditions enhance vertical coherence (larger effective scale)
+/// Unstable conditions reduce vertical coherence (smaller effective scale)
 /// 
 /// @param richardson_number    Bulk Richardson number
-/// @return                     Coherence decay exponent (0.5-2.0)
+/// @return                     Length scale multiplication factor (0.5-2.0)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real compute_vertical_coherence_exponent(
+amrex::Real compute_vertical_coherence_length_scale_factor(
     amrex::Real richardson_number
 ) noexcept
 {
-    // Base exponent for neutral: 1.0
-    amrex::Real base_exponent = amrex::Real(1.0);
+    constexpr amrex::Real CRITICAL = amrex::Real(0.25);
+    
+    // Base factor (neutral)
+    amrex::Real base_factor = amrex::Real(1.0);
     
     // Clamp Ri for safety
     amrex::Real clamped_ri = std::max(std::min(richardson_number, 1.0), -1.0);
@@ -445,19 +447,19 @@ amrex::Real compute_vertical_coherence_exponent(
     int stability = classify_stability_regime(richardson_number);
     
     if (stability > 0) {
-        // Stable: enhance coherence (reduce decay exponent)
-        // Exponent ≈ 1.0 - 0.3*Ri (weaker decay = more coherence)
-        amrex::Real exponent = base_exponent - amrex::Real(0.3) * clamped_ri;
-        return std::max(exponent, amrex::Real(0.5));
+        // Stable: enhance coherence (increase effective scale)
+        // f_L = 1.0 + 0.5*Ri (larger scale = slower decay = stronger coherence)
+        amrex::Real factor = base_factor + amrex::Real(0.5) * clamped_ri;
+        return std::min(factor, amrex::Real(2.0));
     } else if (stability < 0) {
-        // Unstable: reduce coherence (increase decay exponent)
-        // Exponent ≈ 1.0 - 0.3*Ri (Ri negative, so exponent increases)
-        amrex::Real exponent = base_exponent - amrex::Real(0.3) * clamped_ri;
-        return std::min(exponent, amrex::Real(2.0));
+        // Unstable: reduce coherence (decrease effective scale)
+        // f_L = 1.0 + 0.3*Ri (Ri negative, so factor < 1)
+        amrex::Real factor = base_factor + amrex::Real(0.3) * clamped_ri;
+        return std::max(factor, amrex::Real(0.5));
     }
     
-    // Neutral: base exponent
-    return base_exponent;
+    // Neutral: base factor
+    return base_factor;
 }
 
 /// Compute vertical correlation coefficient at given height separation
@@ -476,17 +478,17 @@ amrex::Real compute_vertical_correlation_coefficient(
 {
     if (vertical_length_scale < 1.0e-6) return 0.0;
     
-    // Base correlation: exponential decay
-    amrex::Real normalized_sep = height_separation / vertical_length_scale;
+    // Get stability-adjusted effective length scale factor
+    amrex::Real length_factor = 
+        compute_vertical_coherence_length_scale_factor(richardson_number);
     
-    // Get stability-modified decay exponent
-    amrex::Real decay_exponent = compute_vertical_coherence_exponent(richardson_number);
+    // Effective length scale with stability adjustment
+    amrex::Real effective_L = vertical_length_scale * length_factor;
     
-    // Correlation with stability-modified exponent
-    // ρ(Δz) = exp(-(Δz/L_w)^α) where α depends on stability
-    amrex::Real decay_power = std::pow(std::abs(normalized_sep), decay_exponent);
+    // Standard exponential decay with adjusted length scale
+    amrex::Real normalized_sep = height_separation / effective_L;
     
-    return std::exp(-decay_power);
+    return std::exp(-std::abs(normalized_sep));
 }
 
 } // namespace MannBoxStabilityAdaptation
