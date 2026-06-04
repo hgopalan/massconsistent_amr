@@ -480,6 +480,7 @@ add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test
 # ===========================================================================
 # netcdf_ingestion/ – NetCDF 3D wind parsing and ingestion regtests
 # ===========================================================================
+add_regression_test(netcdf_cpp_ingestion netcdf_cpp_ingestion)
 add_python_regression_test(netcdf_ingestion_regtest netcdf_ingestion 
                           test_netcdf_ingestion.py)
 
