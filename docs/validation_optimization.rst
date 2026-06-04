@@ -307,7 +307,8 @@ Before a feature is considered production-ready:
 
 - ``src/validation_optimization.H`` — Main validation/optimization framework
 - ``docs/advanced_solver_features.rst`` — Feature specifications
-- ``docs/implementation_status.rst`` — Overall implementation tracking
+- ``docs/mann_model.rst`` — Mann Model reference documentation
+- ``docs/iec61400_synthesis.rst`` — IEC 61400-1 synthesis reference
 - Regression tests in ``regtest/`` — Automated validation suite
 
 **Next Steps**

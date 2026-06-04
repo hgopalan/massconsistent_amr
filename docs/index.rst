@@ -24,7 +24,8 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    python_api
    floris
    regtests
-   implementation_status
+   mann_model
+   iec61400_synthesis
    validation_optimization
 
 Overview
