@@ -4763,12 +4763,19 @@ int main(int argc, char* argv[])
                 // Layer 3: Synthetic turbulence (if enabled)
                 if (has_synthetic_turbulence) {
                     // u_openfast, v_openfast, w_openfast: wind speed after synthetic fluctuations
-                    Real u_openfast = u + turb_fluc(i,j,k,0);
-                    Real v_openfast = v + turb_fluc(i,j,k,1);
-                    Real w_openfast = w + turb_fluc(i,j,k,2);
-                    out(i,j,k,21) = u_openfast;
-                    out(i,j,k,22) = v_openfast;
-                    out(i,j,k,23) = w_openfast;
+                    // Mask turbulence inside terrain (z_agl <= 0) to prevent non-physical fluctuations
+                    if (z_agl <= Real(0.0)) {
+                        out(i,j,k,21) = Real(0.0);
+                        out(i,j,k,22) = Real(0.0);
+                        out(i,j,k,23) = Real(0.0);
+                    } else {
+                        Real u_openfast = u + turb_fluc(i,j,k,0);
+                        Real v_openfast = v + turb_fluc(i,j,k,1);
+                        Real w_openfast = w + turb_fluc(i,j,k,2);
+                        out(i,j,k,21) = u_openfast;
+                        out(i,j,k,22) = v_openfast;
+                        out(i,j,k,23) = w_openfast;
+                    }
                 }
             });
         }
