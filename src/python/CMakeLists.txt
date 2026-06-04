@@ -79,6 +79,12 @@ configure_file(
   COPYONLY
 )
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/mann_box.py
+  ${CMAKE_BINARY_DIR}/python/mann_box.py
+  COPYONLY
+)
+
 # Installation support (optional)
 install(TARGETS pyWindSolver
   LIBRARY DESTINATION python
@@ -88,6 +94,7 @@ install(FILES
   wind_solver.py
   __init__.py
   README.md
+  mann_box.py
   DESTINATION python
 )
 
