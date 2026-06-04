@@ -365,7 +365,7 @@ def main():
         # Only one time instance, use it directly
         inst_1 = time_instances[0]
         inst_2 = time_instances[0]
-        w1, w2 = 0.5, 0.5
+        wt1, wt2 = 0.5, 0.5
         print(f"Using single time instance at t = {inst_1['time']} s")
     else:
         # Find surrounding time instances
@@ -375,12 +375,12 @@ def main():
         if t_target <= times_array[0]:
             inst_1 = time_instances[0]
             inst_2 = time_instances[0]
-            w1, w2 = 0.5, 0.5
+            wt1, wt2 = 0.5, 0.5
             print(f"Target time {t_target} s is before/at first time; clamping to t = {inst_1['time']} s")
         elif t_target >= times_array[-1]:
             inst_1 = time_instances[-1]
             inst_2 = time_instances[-1]
-            w1, w2 = 0.5, 0.5
+            wt1, wt2 = 0.5, 0.5
             print(f"Target time {t_target} s is after/at last time; clamping to t = {inst_1['time']} s")
         else:
             idx2 = np.searchsorted(times_array, t_target)
@@ -390,9 +390,9 @@ def main():
             
             # Compute interpolation weights
             t1, t2 = inst_1['time'], inst_2['time']
-            w2 = (t_target - t1) / (t2 - t1)
-            w1 = 1.0 - w2
-            print(f"Interpolating in time: {w1:.3f} * t={t1} s + {w2:.3f} * t={t2} s to target t={t_target} s")
+            wt2 = (t_target - t1) / (t2 - t1)
+            wt1 = 1.0 - wt2
+            print(f"Interpolating in time: {wt1:.3f} * t={t1} s + {wt2:.3f} * t={t2} s to target t={t_target} s")
             
     # 5. Perform terrain-aware 3D spatial interpolation
     # Output arrays
@@ -435,9 +435,9 @@ def main():
                 u2, v2, w2_vel = idw_velocity_3d(xc, yc, z_src_2_req, inst_2['x_src'], inst_2['y_src'], inst_2['z_src'], inst_2['u'], inst_2['v'], inst_2['w'])
                 
                 # Combine times
-                u_interp = w1 * u1 + w2 * u2
-                v_interp = w1 * v1 + w2 * v2
-                w_interp = w1 * w1_vel + w2 * w2_vel
+                u_interp = wt1 * u1 + wt2 * u2
+                v_interp = wt1 * v1 + wt2 * v2
+                w_interp = wt1 * w1_vel + wt2 * w2_vel
                 
                 out_lines.append(f"{xc:.4f} {yc:.4f} {zc:.4f} {u_interp:.4f} {v_interp:.4f} {w_interp:.4f}\n")
                 

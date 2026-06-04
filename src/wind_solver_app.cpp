@@ -2281,7 +2281,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     Real xc = x_lo + (i + Real(0.5)) * dx;
                     auto [ux_interp, uy_interp, uz_interp] = WindInterpolation::idw_velocity_3d_full(
                         xc, yc, zc, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf);
-                    std::size_t idx = (static_cast<std::size_t>(k) * ny + j) * nx + i;
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
                     vel_u_h[idx] = ux_interp;
                     vel_v_h[idx] = uy_interp;
                     vel_w_h[idx] = uz_interp;
