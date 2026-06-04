@@ -132,92 +132,56 @@ See :ref:`physics` for detailed physics documentation.
 Comparison with Related Tools
 ------------------------------
 
-``massconsistent_amr`` is positioned alongside other mass-consistent wind solvers like
-QUIC-URB (Pardyjak & Brown 2001) and WindNinja. The following table summarizes key
-feature comparisons (excluding wildfire/visualization features specific to those codes):
+``massconsistent_amr`` is positioned alongside diagnostic wind and dispersion solvers like QUIC-URB/QUIC-Plume and WindNinja, and regulatory dispersion systems like AERMOD/AEROMOD and CALPUFF. The following table summarizes key features and capabilities:
 
 .. list-table::
-   :widths: 25 25 25 25
+   :widths: 20 20 20 20 20
    :header-rows: 1
 
    * - Feature
      - massconsistent_amr
-     - QUIC-URB
+     - QUIC (QUIC-URB / QUIC-Plume)
      - WindNinja
-   * - **Mass-consistent solver**
-     - ✓ (Lagrange multiplier)
-     - ✓ (Lagrange multiplier)
-     - ✓ (Lagrange multiplier)
-   * - **GPU acceleration**
+     - AERMOD / AEROMOD + CALPUFF
+   * - **Wind Solver**
+     - ✓ (Lagrange mass-consistent)
+     - ✓ (Lagrange mass-consistent)
+     - ✓ (Lagrange mass-consistent / CFD)
+     - ✗ (None; reads pre-computed wind fields)
+   * - **GPU Acceleration**
      - ✓ (CUDA/HIP/SYCL via AMReX)
      - ✗ (CPU only)
-     - Limited (OpenMP)
-   * - **Terrain-following grid**
-     - ✓ (terrain-following coords)
-     - ✓ (terrain-following coords)
-     - ✓ (terrain-following coords)
-   * - **Building wake models**
+     - Limited (OpenMP CPU multi-threading)
+     - ✗ (CPU only)
+   * - **Turbulence Models**
+     - ✓ (Mann Box spectral, Von Kármán, Kaimal)
+     - ✓ (Röckle wake, local diagnostic)
+     - Limited (Basic Monin-Obukhov)
+     - ✓ (Boundary layer similarity, PDF models)
+   * - **Obstacles & Wake**
      - ✓ (Röckle, Huber-Snyder, AERMOD PRIME)
-     - ✓ (Röckle parameterization)
-     - ✓ (Basic wake effects)
-   * - **Canopy drag**
-     - ✓ (MacDonald et al. 2000, exponential)
-     - ✓ (MacDonald et al. 2000)
-     - ✓ (Vegetation drag)
-   * - **Non-neutral stability**
-     - ✓ (Businger-Dyer, Holtslag-De Bruin)
-     - ✓ (Businger-Dyer)
-     - ✓ (Monin-Obukhov)
-   * - **Thermal buoyancy**
-     - ✓ (Boussinesq approximation)
-     - Limited
-     - ✓ (Temperature-driven)
-   * - **Position-dependent roughness**
-     - ✓ (file or NLCD classification)
-     - ✓ (file based)
-     - ✓ (landuse classification)
-   * - **Directional bias correction**
-     - ✓ (Core feature)
-     - ✗
-     - Limited
-   * - **Surface flux diagnostics**
-     - ✓ (SHF, LHF, τ, C_d)
-     - Limited diagnostics
-     - Basic flux output
-   * - **Gap flow parameterization**
-     - ✓ (pressure-driven channeling)
-     - ✗
-     - Limited
-   * - **Valley channeling**
-     - ✓ (geometry-based model)
-     - Basic
-     - Basic
-   * - **Froude number terrain blocking**
-     - ✓ (stable stratification)
-     - Basic
-     - Basic
-   * - **Multiple initialization modes**
-     - ✓ (log-law, uniform, RAWS, surface_data)
-     - Limited
-     - Limited (NWP data)
-   * - **Python API**
-     - ✓ (Model coupling interface)
-     - ✗
-     - Limited
-   * - **MPI parallelism**
-     - ✓ (via AMReX)
-     - Limited
-     - Limited
-   * - **Open source**
-     - ✓ (GitHub)
-     - ✗ (Proprietary)
-     - ✓ (OpenWind model)
+     - ✓ (Röckle wake parameterization)
+     - ✗ (No building-level support)
+     - ✓ (PRIME downwash algorithm in AERMOD)
+   * - **Pollutant Dispersion**
+     - ✓ (Integrated Gaussian puff, Briggs plume rise, K(z))
+     - ✓ (Lagrangian dispersion via QUIC-Plume)
+     - ✗ (Wind solver only)
+     - ✓ (Steady-state plume [AERMOD] & Lagrangian puff [CALPUFF])
+   * - **Parallel Scalability**
+     - ✓ (High-performance MPI + GPU via AMReX)
+     - Limited (OpenMP / basic multi-threading)
+     - Limited (OpenMP multi-threading)
+     - Limited (Embarrassingly parallel batching)
+   * - **Open Source**
+     - ✓ (Open source on GitHub)
+     - ✗ (Proprietary / Restricted access)
+     - ✓ (Open source on GitHub)
+     - ✓ (US EPA regulatory open-source)
 
 .. note::
 
-   This comparison focuses on the core mass-consistent wind solver capabilities.
-   Wildfire-specific features and GUI elements are excluded. For current information,
-   consult the respective project documentation.
+   This comparison highlights differences across distinct modeling philosophies, from diagnostic microscale flow solvers to regulatory meso/macroscale transport models. For design certification, consult official US EPA or international regulatory guidelines. Wildfire-specific features and GUI elements are excluded. For current information, consult the respective project documentation.
 
 AMReX Integration
 -----------------

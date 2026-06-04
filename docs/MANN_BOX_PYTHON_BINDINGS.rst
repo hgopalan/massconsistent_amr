@@ -314,32 +314,32 @@ Next Steps (Future Work)
 ------------------------
 
 
-Phase 1: Direct C++ Bindings (Optional)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C++ Bindings Direct Access
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If direct C++ access needed beyond Python wrapper:
 - Add pybind11 bindings in ``pyWindSolver.cpp``
 - Expose ``SpectralTensor3x3`` to Python
 - Expose C++ helper functions for advanced users
 
-Phase 2: Extended Features
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Extended Features
+~~~~~~~~~~~~~~~~~
 
 - GPU acceleration for large-scale spectrum computation
 - Time-series generation from spectra
 - Spatial field synthesis using FFT
 - Export to BTS/VTK formats
 
-Phase 3: Advanced Features
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Advanced Features
+~~~~~~~~~~~~~~~~~
 
 - Non-neutral stability corrections
 - Terrain-adaptive anisotropy
 - Mann Box + IEC 61400 coupling
 - Frequency-domain to time-domain conversion
 
-Phase 4: Integration
-~~~~~~~~~~~~~~~~~~~~
+Solver Integration
+~~~~~~~~~~~~~~~~~~
 
 - Integrate with wind solver for automatic turbulence generation
 - Couple with fire simulation models
@@ -427,10 +427,10 @@ Support and Documentation
 Existing Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-- ``docs/MANN_BOX_USER_GUIDE.md`` - User guide for Mann Box
-- ``docs/MANN_BOX_API_REFERENCE.md`` - API reference
-- ``docs/MANN_BOX_BEST_PRACTICES.md`` - Best practices
-- ``docs/PHASE2_MANN_BOX_INTEGRATION.md`` - Integration details
+- ``docs/MANN_BOX_USER_GUIDE.rst`` - User guide for Mann Box
+- ``docs/MANN_BOX_API_REFERENCE.rst`` - API reference
+- ``docs/MANN_BOX_BEST_PRACTICES.rst`` - Best practices
+- ``docs/mann_model.rst`` - Mann Model reference documentation
 
 References
 ~~~~~~~~~~
