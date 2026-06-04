@@ -948,6 +948,194 @@ class NormalTurbulenceModel(IEC61400Model):
             "spectrum_type": spectrum_type,
             "model_type": "NTM",
         }
+    
+    def compute_wind_profile_with_stability(
+        self,
+        heights: np.ndarray,
+        reference_speed: float,
+        reference_height: float = 10.0,
+        enable_profile_correction: bool = None,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Compute full Monin-Obukhov wind profile with stability corrections.
+        
+        This method implements the complete log-law wind profile with stability
+        corrections using the Monin-Obukhov similarity theory. This represents
+        Phase 4+ enhancement (full profile correction, not just TI).
+        
+        Wind profile formula:
+            U(z) = (u*/κ) * [ln(z/z0) - ψ_m(z/L) + ψ_m(z0/L)]
+        
+        where:
+            u* = friction velocity [m/s]
+            κ = von Kármán constant (0.41)
+            z = height above ground [m]
+            z0 = surface roughness [m]
+            L = Obukhov length [m] (stability parameter)
+            ψ_m = momentum stability function
+        
+        Stability Effects:
+            - Stable (L > 0): Steeper profiles, reduced wind shear
+            - Unstable (L < 0): Flatter profiles, enhanced wind shear
+            - Neutral (|L| → ∞): Standard logarithmic profile
+        
+        Parameters:
+            heights: Array of heights above ground in meters [m AGL]
+            reference_speed: Mean wind speed at reference height [m/s]
+            reference_height: Reference height for wind speed (default: 10 m)
+            enable_profile_correction: Override instance setting (default: None uses instance setting)
+        
+        Returns:
+            Dictionary containing:
+                - 'heights': Input height array
+                - 'wind_speed': Wind speed profile at each height [m/s]
+                - 'wind_shear': Vertical wind shear (dU/dz) [1/s]
+                - 'turbulence_intensity': Turbulence intensity profile
+                - 'friction_velocity': Computed friction velocity u* [m/s]
+                - 'reference_speed': Input reference speed [m/s]
+                - 'reference_height': Input reference height [m]
+                - 'obukhov_length': Used Obukhov length [m]
+                - 'stability_regime': 'stable'/'unstable'/'neutral'
+                - 'profile_type': 'full_monin_obukhov' or 'neutral_loglaw'
+        
+        Example:
+            >>> ntm = NormalTurbulenceModel("II", terrain_category=1)
+            >>> heights = np.array([10, 30, 50, 100, 150])
+            >>> profile = ntm.compute_wind_profile_with_stability(
+            ...     heights, reference_speed=10.0, reference_height=10.0,
+            ...     enable_profile_correction=True
+            ... )
+            >>> print(profile['wind_speed'])
+        """
+        heights = np.atleast_1d(heights)
+        
+        # Determine if profile correction is enabled
+        use_correction = enable_profile_correction
+        if use_correction is None:
+            use_correction = self.enable_stability_correction
+        
+        # If corrections disabled or neutral conditions, use standard log-law
+        if not use_correction or self.monin_obukhov_length is None:
+            return self._compute_wind_profile_neutral(heights, reference_speed, reference_height)
+        
+        L = self.monin_obukhov_length
+        z0 = self.z0
+        kappa = 0.41  # von Kármán constant
+        
+        # Guard against invalid inputs
+        heights = np.maximum(heights, z0 + 0.01)  # Ensure heights > z0
+        reference_height = np.maximum(reference_height, z0 + 0.01)
+        reference_speed = np.maximum(reference_speed, 0.1)
+        
+        # Compute dimensionless stability parameters
+        zeta_ref = reference_height / L
+        zeta_heights = heights / L
+        
+        # Compute friction velocity from reference speed using Monin-Obukhov profile
+        # U_ref = (u*/κ) * [ln(z_ref/z0) - ψ_m(z_ref/L) + ψ_m(z0/L)]
+        psi_m_ref = self._psi_m(zeta_ref)
+        psi_m_z0 = self._psi_m(z0 / L)
+        
+        ln_ref = np.log(reference_height / z0)
+        u_star = reference_speed * kappa / (ln_ref - psi_m_ref + psi_m_z0)
+        
+        # Compute wind speed profile at all heights
+        psi_m_z = np.array([self._psi_m(zeta) for zeta in zeta_heights])
+        ln_z = np.log(heights / z0)
+        wind_speeds = (u_star / kappa) * (ln_z - psi_m_z + psi_m_z0)
+        
+        # Compute wind shear (dU/dz) - used for load calculations
+        # dU/dz ≈ (u*/κ) * (1/z - dψ_m/dz)
+        wind_shear = np.zeros_like(heights)
+        dz = 0.1  # Small height increment for derivative
+        for i, h in enumerate(heights):
+            h_plus = h + dz
+            zeta_plus = h_plus / L
+            psi_m_plus = self._psi_m(zeta_plus)
+            ln_plus = np.log(h_plus / z0)
+            u_plus = (u_star / kappa) * (ln_plus - psi_m_plus + psi_m_z0)
+            wind_shear[i] = (u_plus - wind_speeds[i]) / dz
+        
+        # Compute turbulence intensity profile
+        ti_profile = np.array([self._turbulence_intensity_with_stability(h) for h in heights])
+        
+        # Determine stability regime
+        if abs(L) > 1e4:
+            stability_regime = "neutral"
+        elif L > 0:
+            stability_regime = "stable"
+        else:
+            stability_regime = "unstable"
+        
+        return {
+            "heights": heights,
+            "wind_speed": wind_speeds,
+            "wind_shear": wind_shear,
+            "turbulence_intensity": ti_profile,
+            "friction_velocity": u_star,
+            "reference_speed": reference_speed,
+            "reference_height": reference_height,
+            "obukhov_length": L,
+            "stability_regime": stability_regime,
+            "profile_type": "full_monin_obukhov",
+            "roughness_length": z0,
+            "model_type": "NTM",
+        }
+    
+    def _compute_wind_profile_neutral(
+        self,
+        heights: np.ndarray,
+        reference_speed: float,
+        reference_height: float = 10.0,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Compute neutral wind profile (standard log-law).
+        
+        Used when stability corrections are disabled or neutral conditions detected.
+        
+        Parameters:
+            heights: Array of heights above ground [m AGL]
+            reference_speed: Mean wind speed at reference height [m/s]
+            reference_height: Reference height [m]
+        
+        Returns:
+            Dictionary with neutral profile data
+        """
+        z0 = self.z0
+        kappa = 0.41
+        
+        heights = np.maximum(heights, z0 + 0.01)
+        reference_height = np.maximum(reference_height, z0 + 0.01)
+        reference_speed = np.maximum(reference_speed, 0.1)
+        
+        # Compute friction velocity for neutral case
+        ln_ref = np.log(reference_height / z0)
+        u_star = reference_speed * kappa / ln_ref
+        
+        # Compute wind speed profile (standard log-law)
+        ln_z = np.log(heights / z0)
+        wind_speeds = (u_star / kappa) * ln_z
+        
+        # Compute wind shear
+        wind_shear = u_star / (kappa * heights)
+        
+        # Compute turbulence intensity profile
+        ti_profile = np.array([self.turbulence_intensity(h) for h in heights])
+        
+        return {
+            "heights": heights,
+            "wind_speed": wind_speeds,
+            "wind_shear": wind_shear,
+            "turbulence_intensity": ti_profile,
+            "friction_velocity": u_star,
+            "reference_speed": reference_speed,
+            "reference_height": reference_height,
+            "obukhov_length": 1e10,  # Large L (neutral approximation)
+            "stability_regime": "neutral",
+            "profile_type": "neutral_loglaw",
+            "roughness_length": z0,
+            "model_type": "NTM",
+        }
 
 
 class ExtremeTurbulenceModel(IEC61400Model):
