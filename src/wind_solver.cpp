@@ -1585,9 +1585,13 @@ int main(int argc, char* argv[])
                 turb_params.intensity_model = IntensityModel::Logarithmic;
             } else if (intensity_model_str == "Constant") {
                 turb_params.intensity_model = IntensityModel::Constant;
+            } else if (intensity_model_str == "IEC61400") {
+                turb_params.intensity_model = IntensityModel::IEC61400;
+            } else if (intensity_model_str == "SmoothProfile") {
+                turb_params.intensity_model = IntensityModel::SmoothProfile;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_intensity_model: " + intensity_model_str + 
-                             " (must be 'PowerLaw', 'Logarithmic', or 'Constant')");
+                             " (must be 'PowerLaw', 'Logarithmic', 'Constant', 'IEC61400', or 'SmoothProfile')");
             }
             
             // Parse coherence model
@@ -1595,16 +1599,27 @@ int main(int argc, char* argv[])
                 turb_params.coherence_model = CoherenceModel::Gaussian;
             } else if (coherence_model_str == "Exponential") {
                 turb_params.coherence_model = CoherenceModel::Exponential;
+            } else if (coherence_model_str == "QuadraticExponential") {
+                turb_params.coherence_model = CoherenceModel::QuadraticExponential;
+            } else if (coherence_model_str == "PowerLaw") {
+                turb_params.coherence_model = CoherenceModel::PowerLaw;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_coherence_model: " + coherence_model_str + 
-                             " (must be 'Gaussian' or 'Exponential')");
+                             " (must be 'Gaussian', 'Exponential', 'QuadraticExponential', or 'PowerLaw')");
             }
             
             // Turbulence intensity parameters
             pp.query("turbulence_intensity_ref", turb_params.intensity_ref);
             pp.query("turbulence_z_intensity_ref", turb_params.z_intensity_ref);
             pp.query("turbulence_intensity_exponent", turb_params.intensity_exponent);
-            
+             
+            // IEC 61400-1 parameters (for IntensityModel::IEC61400 and SmoothProfile)
+            pp.query("turbulence_hub_height", turb_params.hub_height);
+            pp.query("turbulence_iec_category", turb_params.iec_turbulence_category);
+             
+            // Power-law coherence exponent (for CoherenceModel::PowerLaw)
+            pp.query("turbulence_coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent);
+             
             // Integral length scales
             pp.query("turbulence_length_scale_u", turb_params.length_scale_u);
             pp.query("turbulence_length_scale_v", turb_params.length_scale_v);
