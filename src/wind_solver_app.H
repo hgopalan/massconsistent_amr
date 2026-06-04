@@ -1,0 +1,458 @@
+#ifndef WIND_SOLVER_APP_H
+#define WIND_SOLVER_APP_H
+
+#include <AMReX.H>
+#include <AMReX_Geometry.H>
+#include <AMReX_MultiFab.H>
+#include <vector>
+#include <string>
+#include <memory>
+
+#include "synthetic_turbulence.H"
+
+class WindSolverApp {
+public:
+    WindSolverApp() = default;
+    ~WindSolverApp() = default;
+
+    void initialize();
+    void execute();
+
+private:
+    void parse_inputs();
+    void setup_geometry_and_mesh();
+    void allocate_data_fields();
+    void initialize_wind_fields(int time_step);
+    void execute_poisson_solve(int time_step);
+    void apply_divergence_corrections(int time_step);
+    void compute_diagnostics_and_output(int time_step);
+
+    // Timing
+    amrex::Real t_total = 0.0;
+    amrex::Real t_phase = 0.0;
+
+    // --- INPUT PARAMETERS ---
+    std::string terrain_file = "terrain.csv";
+    std::string init_mode = "loglaw";
+    amrex::Real U_ref = 10.0;
+    amrex::Real V_ref =  0.0;
+    amrex::Real z_ref = 10.0;
+    amrex::Real z0    =  0.1;
+
+    // Canopy
+    bool enable_canopy = false;
+    amrex::Real canopy_height = 0.0;
+    amrex::Real frontal_area_index = 0.0;
+    amrex::Real plan_area_index = 0.0;
+    amrex::Real canopy_drag_coeff = 0.2;
+    amrex::Real canopy_attenuation = 2.5;
+    bool use_exponential_profile = false;
+    int canopy_profile_type = 0;
+
+    // Windbreaks
+    bool enable_windbreaks = false;
+    std::string windbreaks_file = "";
+
+    // Wake
+    bool enable_wake = false;
+    std::string wake_model_type = "rockle";
+    amrex::Real wake_c1 = 0.9;
+    amrex::Real wake_c2 = 0.3;
+    amrex::Real wake_separation_length = 3.0;
+    bool wake_superposition = true;
+
+    // Street canyon
+    bool enable_street_canyon = false;
+    amrex::Real street_canyon_reduction = 0.3;
+
+    // Uniform mode
+    amrex::Real uniform_U = 10.0;
+    amrex::Real uniform_V = 0.0;
+
+    // Power-law
+    amrex::Real powerlaw_exponent = 0.143;
+    std::string landuse_file = "";
+    bool use_landuse_powerlaw = false;
+
+    // RAWS
+    std::string velocity_file = "velocity.csv";
+
+    // Surface data
+    std::string surface_data_file = "surface_data.csv";
+
+    // Roughness file
+    std::string z0_file = "";
+    bool use_z0_file = false;
+
+    // Vegetation
+    bool enable_vegetation_roughness = false;
+    amrex::Real vegetation_state = 1.0;
+    int vegetation_state_type = 0;
+
+    // Spacings
+    amrex::Real dx_req = 30.0;
+    amrex::Real dy_req = 30.0;
+    amrex::Real dz_req = 30.0;
+    amrex::Real domain_height = 300.0;
+
+    // Anisotropy
+    amrex::Real alpha_h = 1.0;
+    amrex::Real alpha_v = 1.0;
+    bool use_height_dependent_alpha_v = false;
+    amrex::Real alpha_v_surface = 1.0;
+    amrex::Real alpha_v_top = 1.0;
+
+    // Stability
+    bool enable_stability_correction = false;
+    amrex::Real stability_length = 1000.0;
+    bool use_holtslag_stability = false;
+
+    // Elevation scaling
+    bool enable_elevation_scaling = false;
+    amrex::Real elevation_scaling_factor = 0.0;
+    amrex::Real elevation_height_scale = 1000.0;
+
+    // Orographic speedup
+    bool enable_orographic_speedup = false;
+    amrex::Real orographic_hill_length_scale = 100.0;
+    amrex::Real orographic_speedup_factor_max = 2.0;
+    amrex::Real orographic_separation_factor = 0.3;
+    amrex::Real orographic_smoothing_factor = 0.5;
+
+    // Thermal circulation
+    bool enable_thermal_circulation = false;
+    amrex::Real thermal_temperature_contrast = 0.0;
+    amrex::Real thermal_reference_temperature = 300.0;
+    amrex::Real thermal_coefficient = 1.0;
+    amrex::Real thermal_vertical_decay_height = 1000.0;
+    amrex::Real thermal_distance_scale = 5000.0;
+    amrex::Real thermal_coastline_x = 0.0;
+    amrex::Real thermal_coastline_y = 0.0;
+    amrex::Real thermal_coast_normal_x = 1.0;
+    amrex::Real thermal_coast_normal_y = 0.0;
+    std::string land_sea_mask_file = "";
+
+    // Terrain blocking
+    bool enable_terrain_blocking = false;
+    amrex::Real terrain_blocking_brunt_vaisala_frequency = 0.01;
+    amrex::Real terrain_blocking_reduction_factor = 0.5;
+    amrex::Real terrain_blocking_transition_froude = 1.0;
+    amrex::Real terrain_blocking_flank_enhancement = 1.2;
+    amrex::Real terrain_blocking_lapse_rate = 0.0065;
+    amrex::Real terrain_blocking_reference_temperature = 288.0;
+
+    // Slope flows
+    bool enable_slope_flows = false;
+    amrex::Real slope_flow_temperature_diff = 0.0;
+    amrex::Real slope_flow_reference_temperature = 300.0;
+    amrex::Real slope_flow_empirical_coefficient = 2.5;
+    amrex::Real slope_flow_vertical_decay_height = 50.0;
+    amrex::Real slope_flow_min_slope = 0.05;
+
+    // Valley channeling
+    bool enable_valley_channeling = false;
+    amrex::Real valley_axis_angle_deg = 0.0;
+    amrex::Real valley_width = 1000.0;
+    amrex::Real valley_depth = 300.0;
+    amrex::Real valley_channeling_strength_max = 0.8;
+    amrex::Real valley_speedup_factor_narrow = 1.3;
+    amrex::Real valley_slowdown_factor_wide = 0.85;
+
+    // Gap flow
+    bool enable_gap_flow = false;
+    amrex::Real gap_flow_orientation = 0.0;
+    amrex::Real gap_flow_width = 1000.0;
+    amrex::Real gap_flow_depth = 500.0;
+    amrex::Real gap_flow_pressure_coefficient = 1.0;
+    amrex::Real gap_flow_speedup_max = 3.0;
+    amrex::Real gap_flow_center_x = 0.0;
+    amrex::Real gap_flow_center_y = 0.0;
+    amrex::Real gap_flow_transition_width = 500.0;
+    amrex::Real gap_flow_vertical_extent = 1000.0;
+
+    // Time-varying
+    bool enable_time_varying = false;
+    std::string time_series_file = "time_series.csv";
+
+    // Building porosity
+    bool enable_building_porosity = false;
+    std::string building_porosity_file = "";
+    amrex::Real default_building_porosity = 0.0;
+    amrex::Real porosity_drag_coefficient = 0.2;
+
+    // Wall functions
+    bool enable_wall_functions = false;
+    bool enable_terrain_wall_function = false;
+    bool enable_flat_surface_wall_function = false;
+    bool enable_building_wall_function = false;
+    amrex::Real wall_function_z0_building = 0.001;
+    amrex::Real wall_function_z0_flat = 0.01;
+    amrex::Real wall_function_blend_height = 2.0;
+    amrex::Real wall_function_max_distance = 3.0;
+    amrex::Real wall_function_flat_surface_elevation = 0.0;
+    bool wall_function_enable_flat_surface = false;
+    amrex::Real wall_function_min_wall_distance = 0.1;
+    bool wall_function_enable_stability = false;
+    amrex::Real wall_function_stability_length = 1.0e10;
+    bool wall_function_enable_adaptive = false;
+    amrex::Real wall_function_adaptive_threshold = 30.0;
+    amrex::Real wall_function_adaptive_min_cells = 3.0;
+
+    // Thermal Stratification with Buoyancy
+    bool enable_buoyancy_stratification = false;
+    std::string temperature_file = "temperature.csv";
+    amrex::Real temperature_reference = 300.0;
+    amrex::Real buoyancy_coefficient = 1.0;
+    amrex::Real buoyancy_timescale = 10.0;
+    std::string buoyancy_method = "velocity";
+
+    // Simple Diurnal Temperature
+    bool enable_diurnal_temperature = false;
+    amrex::Real diurnal_temperature_amplitude = 5.0;
+    amrex::Real diurnal_time_of_day = 12.0;
+    amrex::Real diurnal_phase_hour = 14.0;
+    amrex::Real diurnal_period = 24.0;
+
+    // Kinematic BC
+    bool enable_terrain_kinematic_bc = false;
+    amrex::Real terrain_bc_relaxation = 1.0;
+
+    // Ekman Veer
+    bool enable_ekman_veer = false;
+    amrex::Real latitude = 45.0;
+    amrex::Real ekman_veer_total = 20.0;
+    amrex::Real ekman_veer_height = 200.0;
+    amrex::Real ekman_veer_total_rad = 0.0;
+
+    // Wind Direction Gradient
+    bool enable_wind_direction_gradient = false;
+    amrex::Real wind_direction_shear_rate = 0.0;
+    amrex::Real wind_direction_shear_rate_rad = 0.0;
+
+    // Spatial Alpha
+    bool use_spatial_alpha_coefficients = false;
+    std::string alpha_coefficients_file = "";
+
+    // Fetch dependent
+    bool enable_fetch_roughness_transition = false;
+    amrex::Real fetch_transition_blending_height = 100.0;
+
+    // Divergence source
+    bool enable_divergence_source = false;
+    std::string divergence_source_file = "";
+    amrex::Real divergence_source_constant = 0.0;
+
+    // Diurnal roughness
+    bool enable_diurnal_roughness = false;
+    amrex::Real roughness_amplitude = 0.3;
+    amrex::Real roughness_phase_offset = 0.0;
+
+    // BL decay
+    bool enable_bl_decay = false;
+    amrex::Real bl_depth_param = 1000.0;
+    amrex::Real decay_height_scale = 1000.0;
+    amrex::Real bl_transition_height = 200.0;
+
+    // BL depth diagnostic
+    bool enable_bl_depth_diagnostic = false;
+    amrex::Real richardson_critical = 0.25;
+    amrex::Real richardson_min_wind_shear = 0.001;
+
+    // Froude scaling
+    bool enable_froude_height_scaling = false;
+
+    // Ageostrophic balance
+    bool enable_ageostrophic_balance = false;
+    amrex::Real ageostrophic_latitude = 45.0;
+    amrex::Real ageostrophic_pressure_grad_x = 0.0;
+    amrex::Real ageostrophic_pressure_grad_y = 0.0;
+    amrex::Real ageostrophic_air_density = 1.225;
+    amrex::Real ageostrophic_fraction = 0.1;
+
+    // Time-varying thermal circulation
+    bool enable_time_varying_thermal_amplitude = false;
+    std::string thermal_amplitude_file = "";
+    amrex::Real thermal_amplitude_time_of_day = 12.0;
+
+    // MLMG solver
+    int mlmg_verbose = 1;
+    amrex::Real tol_rel = 1.e-8;
+    int mlmg_max_iter = 200;
+    int mlmg_max_fmg_iter = 20;
+    int mlmg_pre_smooth = 16;
+    int mlmg_post_smooth = 16;
+    std::string mlmg_bottom_solver = "default";
+    int max_grid_size = 32;
+    std::string plot_file = "plt_wind";
+
+    // Flux diagnostics
+    bool enable_flux_diagnostics = false;
+    bool flux_compute_sensible_heat = false;
+    bool flux_compute_latent_heat = false;
+    amrex::Real flux_theta_star = 1.0;
+    amrex::Real flux_q_star = 1.0e-3;
+
+    // Landuse classification
+    bool enable_landuse_roughness = false;
+    std::string landuse_file_class = "";
+
+    // Directional bias
+    bool enable_directional_bias = false;
+    amrex::Real bias_direction_offset = 0.0;
+    amrex::Real bias_speed_factor = 1.0;
+    bool bias_periodic_enabled = false;
+    amrex::Real bias_periodic_amplitude = 0.0;
+
+    // Simplified Richardson
+    bool enable_simplified_richardson = false;
+
+    // Roughness blocking
+    bool enable_roughness_blocking = false;
+    amrex::Real building_roughness_factor = 0.04;
+
+    // Coriolis latitude scaling
+    bool enable_coriolis_latitude = false;
+    amrex::Real domain_latitude = 45.0;
+
+    // Power-law profile above BL
+    bool enable_power_law_profile = false;
+    amrex::Real power_law_exponent = 0.15;
+
+    // Heat flux diagnostic
+    bool enable_heat_flux_diagnostics = false;
+    amrex::Real heat_flux_theta_star = 0.1;
+
+    // Divergence damping filter
+    bool enable_divergence_damping = false;
+    amrex::Real damping_coefficient = -1.0;
+    int damping_iterations = 1;
+
+    // Perturbation pressure gradient
+    bool enable_perturbation_pressure = false;
+    amrex::Real pressure_tol_rel = 1.0e-6;
+    int pressure_max_iter = 100;
+    amrex::Real pressure_scale = 0.5;
+
+    // Multi-scale terrain analysis
+    bool enable_terrain_analysis = false;
+    amrex::Real slope_threshold_moderate = 0.1;
+    amrex::Real slope_threshold_steep = 0.3;
+    amrex::Real roughness_factor_moderate = 0.2;
+    amrex::Real roughness_factor_steep = 0.8;
+    amrex::Real transition_zone_width = 0.02;
+
+    // Surface-to-mixed transition smoothing
+    bool enable_transition_smoothing = false;
+    amrex::Real transition_height_scale = 100.0;
+    amrex::Real transition_layer_height = 300.0;
+
+    // Extraction
+    std::vector<amrex::Real> extract_agl_list;
+    std::vector<int>  extract_k_list;
+    std::string extract_file = "wind_extract.csv";
+
+    // Derivative method
+    std::string deriv_method = "central";
+    int deriv_method_int = 0;
+
+    // Synthetic Turbulence
+    bool enable_synthetic_turbulence = false;
+    TurbulenceParams turb_params;
+    std::string turbulence_export_format = "bts";
+    std::string turbulence_output_file = "turbulence.bts";
+
+    // --- COMPUTED & STATE VARIABLES ---
+    std::vector<amrex::Real> x_terr, y_terr, z_terr;
+    amrex::Real x_lo = 0.0, x_hi = 0.0, y_lo = 0.0, y_hi = 0.0;
+    int nx = 0, ny = 0, nz = 0;
+    amrex::Real dx = 0.0, dy = 0.0, dz = 0.0;
+
+    // Buildings
+    std::vector<amrex::Real> building_xmin, building_xmax;
+    std::vector<amrex::Real> building_ymin, building_ymax;
+    std::vector<amrex::Real> building_zmin, building_zmax;
+    std::vector<amrex::Real> building_rotation;
+
+    std::vector<amrex::Real> porous_building_xmin, porous_building_xmax;
+    std::vector<amrex::Real> porous_building_ymin, porous_building_ymax;
+    std::vector<amrex::Real> porous_building_zmin, porous_building_zmax;
+    std::vector<amrex::Real> porous_building_porosity;
+    std::vector<amrex::Real> porous_building_rotation;
+
+    std::vector<amrex::Real> windbreak_x1, windbreak_y1;
+    std::vector<amrex::Real> windbreak_x2, windbreak_y2;
+    std::vector<amrex::Real> windbreak_height, windbreak_blockage, windbreak_drag_coeff;
+
+    // Time-varying timeseries data
+    std::vector<amrex::Real> time_series_times;
+    std::vector<amrex::Real> time_series_U_refs;
+    std::vector<amrex::Real> time_series_V_refs;
+    int num_time_steps = 1;
+
+    // Spatially-varying alpha data
+    std::vector<amrex::Real> x_alpha, y_alpha, alpha_h_data, alpha_v_data;
+
+    // Divergence source data
+    std::vector<amrex::Real> x_div_src, y_alpha_div_src, z_alpha_div_src, div_src_data;
+
+    // Temperature profile data
+    std::vector<amrex::Real> z_temp, T_temp;
+
+    // Coastal data for thermal circulation
+    std::vector<amrex::Real> x_mask, y_mask, mask_val;
+
+    // Host terrain heights
+    std::vector<amrex::Real> terrain_h;
+    amrex::Real zs_min = 0.0, zs_max = 0.0;
+
+    // Host building heights/obstacle heights
+    std::vector<amrex::Real> obstacle_h;
+    amrex::Real obs_max = 0.0;
+
+    // AMReX Objects
+    std::unique_ptr<amrex::Geometry> geom_ptr;
+    std::unique_ptr<amrex::BoxArray> ba_ptr;
+    std::unique_ptr<amrex::DistributionMapping> dm_ptr;
+
+    // Field MultiFabs (Layer 1 & 2)
+    std::unique_ptr<amrex::MultiFab> vel0_ptr;
+    std::unique_ptr<amrex::MultiFab> vel_c_ptr;
+    std::unique_ptr<amrex::MultiFab> lam_ptr;
+    std::unique_ptr<amrex::MultiFab> rhs_ptr;
+    std::unique_ptr<amrex::MultiFab> alpha_h_field_ptr;
+    std::unique_ptr<amrex::MultiFab> alpha_v_field_ptr;
+
+    std::unique_ptr<amrex::MultiFab> lambda_damped_ptr;
+    std::unique_ptr<amrex::MultiFab> p_prime_ptr;
+    std::unique_ptr<amrex::MultiFab> terrain_type_ptr;
+    std::unique_ptr<amrex::MultiFab> terrain_slope_ptr;
+    std::unique_ptr<amrex::MultiFab> terrain_curvature_ptr;
+    std::unique_ptr<amrex::MultiFab> terrain_aspect_ptr;
+    std::unique_ptr<amrex::MultiFab> adaptive_roughness_ptr;
+    std::unique_ptr<amrex::MultiFab> adaptive_stability_ptr;
+    std::unique_ptr<amrex::MultiFab> temp_ptr;
+
+    // Diagnostics & Output fields
+    std::unique_ptr<amrex::MultiFab> synthetic_turbulence_fluc_ptr;
+    bool has_synthetic_turbulence = false;
+    std::unique_ptr<amrex::MultiFab> u_star_ptr;
+    std::unique_ptr<amrex::MultiFab> tau_flux_ptr;
+    std::unique_ptr<amrex::MultiFab> cd_ptr;
+    std::unique_ptr<amrex::MultiFab> shf_ptr;
+    std::unique_ptr<amrex::MultiFab> lhf_ptr;
+    std::unique_ptr<amrex::MultiFab> z_bl_diag_ptr;
+    std::unique_ptr<amrex::MultiFab> p_pert_ptr;
+
+    // GPU-compatible Device arrays
+    amrex::Gpu::DeviceVector<amrex::Real> d_terrain_h;
+    amrex::Gpu::DeviceVector<amrex::Real> d_obstacle_h;
+    amrex::Gpu::DeviceVector<amrex::Real> d_z0_pos;
+    
+    // RAWS
+    amrex::Gpu::DeviceVector<amrex::Real> d_raws_x, d_raws_y, d_raws_z, d_raws_u, d_raws_v;
+    
+    // Surface Data
+    amrex::Gpu::DeviceVector<amrex::Real> d_surf_x, d_raws_surf_y, d_surf_z, d_surf_ustar, d_surf_z0, d_surf_u10, d_surf_v10;
+};
+
+#endif // WIND_SOLVER_APP_H

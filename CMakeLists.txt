@@ -119,7 +119,7 @@ if(MASSCONSISTENT_ENABLE_EXPERIMENTAL_GPU_TURBULENCE)
   endif()
 endif()
 
-add_executable(wind_solver src/wind_solver.cpp ${GPU_KERNEL_SOURCES})
+add_executable(wind_solver src/wind_solver.cpp src/wind_io_helpers.cpp src/wind_solver_app.cpp ${GPU_KERNEL_SOURCES})
 add_executable(puff_solver src/puff_solver.cpp ${GPU_KERNEL_SOURCES})
 add_library(wind_solver_api STATIC src/wind_solver_api.cpp ${GPU_KERNEL_SOURCES})
 
@@ -129,6 +129,8 @@ add_library(wind_solver_api STATIC src/wind_solver_api.cpp ${GPU_KERNEL_SOURCES}
 if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   set_source_files_properties(
     src/wind_solver.cpp
+    src/wind_io_helpers.cpp
+    src/wind_solver_app.cpp
     src/puff_solver.cpp
     src/wind_solver_api.cpp
     PROPERTIES LANGUAGE CUDA
