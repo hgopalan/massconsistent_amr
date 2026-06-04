@@ -1463,6 +1463,188 @@ class NormalTurbulenceModel(IEC61400Model):
             "mean_wind_speed": mean_wind_speed,
             "base_length_scale_u": length_scale_u,
         }
+    
+    def adjust_obukhov_length_for_terrain(
+        self,
+        monin_obukhov_length: float,
+        terrain_slope: float = 0.0,
+        terrain_aspect: float = 0.0,
+        surface_heat_flux: float = 0.0,
+    ) -> float:
+        """
+        Adjust Obukhov length based on terrain properties and orographic effects.
+        
+        This method modifies the Obukhov length to account for:
+        - Terrain slope effects on stability
+        - Terrain aspect (slope direction) relative to wind direction
+        - Orographic heat flux modifications
+        - Terrain-induced pressure gradient effects
+        
+        Terrain Modifications (Priority 4):
+            - Slope effect: L_adjusted = L * (1 + k_slope * slope)
+            - Aspect effect: Modulation by cos(aspect - wind_dir)
+            - Heat flux amplification on sun-facing slopes
+            - Stable regions amplified on shaded lee slopes
+        
+        Theoretical Basis:
+            Terrain slope effects on stability are significant in complex terrain.
+            Upwind slopes enhance unstable conditions (more solar heating).
+            Lee slopes enhance stable conditions (reduced mixing, cooler air).
+            Aspect relative to wind direction modulates these effects.
+        
+        Parameters:
+            monin_obukhov_length: Base Obukhov length [m] (before terrain adjustment)
+            terrain_slope: Terrain slope angle [degrees], positive upwind
+            terrain_aspect: Terrain aspect angle [degrees from north], 0-360
+            surface_heat_flux: Surface sensible heat flux [W/m²] (optional amplification)
+        
+        Returns:
+            Adjusted Obukhov length [m] accounting for terrain effects
+        
+        Example:
+            >>> ntm = NormalTurbulenceModel("II", terrain_category=2)
+            >>> L_base = 50.0  # Slightly stable
+            >>> L_adj = ntm.adjust_obukhov_length_for_terrain(
+            ...     L_base, terrain_slope=10.0, terrain_aspect=180.0
+            ... )
+            >>> # Upwind slope would enhance stability (larger L, weaker effect)
+            >>> print(f"Base L: {L_base}, Adjusted L: {L_adj}")
+        """
+        L = monin_obukhov_length
+        
+        # Terrain slope effect (positive slope = upwind, negative = lee)
+        # Slopes amplify instability upwind, amplify stability lee
+        if terrain_slope != 0.0:
+            slope_rad = np.radians(terrain_slope)
+            # Slope parameter: typical magnitude 0.5-1.0 per 10 degrees
+            k_slope = 0.01  # Per degree
+            slope_factor = 1.0 + k_slope * terrain_slope
+            
+            # Upwind slopes (positive slope) reduce |L| - enhance instability
+            # Lee slopes (negative slope) increase |L| - enhance stability
+            L = L / slope_factor if slope_factor > 0 else L
+        
+        # Terrain aspect effect relative to wind direction
+        # Wind is from 180°, so aspect relative to wind = terrain_aspect - 180
+        if terrain_aspect != 0.0:
+            aspect_mod = np.cos(np.radians(terrain_aspect - 180.0))
+            # Windward slopes (aspect_mod ≈ 1): enhance given stability
+            # Leeward slopes (aspect_mod ≈ -1): reverse stability effect
+            # Aspect modulation factor: -0.3 to +0.3
+            aspect_factor = 1.0 + 0.3 * aspect_mod
+            L = L * aspect_factor if aspect_factor > 0 else L
+        
+        # Surface heat flux amplification (typically for daytime instability)
+        if surface_heat_flux > 0.0:
+            # Positive heat flux strengthens unstable conditions
+            # Typical modulation: +50% instability per 100 W/m²
+            heat_factor = 1.0 + 0.005 * surface_heat_flux
+            L = L / heat_factor  # Decrease |L| to enhance instability
+        elif surface_heat_flux < 0.0:
+            # Negative heat flux strengthens stable conditions
+            heat_factor = 1.0 - 0.005 * surface_heat_flux  # |surface_heat_flux|
+            L = L * heat_factor  # Increase |L| to enhance stability
+        
+        return L
+    
+    def compute_terrain_adjusted_spectrum(
+        self,
+        frequencies: np.ndarray,
+        heights: np.ndarray,
+        mean_wind_speed: float,
+        terrain_slope: float = 0.0,
+        terrain_aspect: float = 0.0,
+        surface_heat_flux: float = 0.0,
+        spectrum_type: str = "Kaimal",
+        length_scale_u: float = 300.0,
+    ) -> Dict[str, Union[np.ndarray, Dict]]:
+        """
+        Compute spectral tensors with terrain-adjusted stability.
+        
+        This method extends compute_height_dependent_spectrum by incorporating
+        terrain-dependent stability adjustments, providing more physically
+        accurate turbulence representation for complex terrain sites.
+        
+        Terrain Effects Modeled:
+            1. Slope-induced changes in stability (upwind vs. lee slopes)
+            2. Aspect-dependent modulation (windward vs. leeward)
+            3. Heat flux amplification (daytime solar heating effects)
+            4. Combined terrain-height-stability coupling
+        
+        Parameters:
+            frequencies: Array of frequencies [Hz]
+            heights: Array of heights above ground [m]
+            mean_wind_speed: Mean wind speed [m/s]
+            terrain_slope: Terrain slope angle [degrees], positive = upwind
+            terrain_aspect: Terrain aspect [degrees], 0-360 from north
+            surface_heat_flux: Surface sensible heat flux [W/m²]
+            spectrum_type: Spectrum type ("VonKarman" or "Kaimal")
+            length_scale_u: Base integral length scale [m]
+        
+        Returns:
+            Dictionary with terrain-adjusted spectral data:
+            {
+                'heights': Height array,
+                'frequencies': Frequency array,
+                'spectra_u': [n_heights × n_frequencies] spectral matrix,
+                'spectra_v': [n_heights × n_frequencies] spectral matrix,
+                'spectra_w': [n_heights × n_frequencies] spectral matrix,
+                'height_scales': Effective length scales,
+                'height_scale_factors': Height-dependent scaling h(z),
+                'terrain_slope': Input slope,
+                'terrain_aspect': Input aspect,
+                'monin_obukhov_length_adjusted': Adjusted L with terrain effects,
+                'spectrum_type': Type used,
+            }
+        
+        Example:
+            >>> ntm = NormalTurbulenceModel("II", terrain_category=3)
+            >>> ntm.enable_stability_correction = True
+            >>> ntm.monin_obukhov_length = 50.0  # Slightly stable
+            >>> result = ntm.compute_terrain_adjusted_spectrum(
+            ...     frequencies=np.logspace(-2, 1, 40),
+            ...     heights=np.array([10, 50, 100]),
+            ...     mean_wind_speed=10.0,
+            ...     terrain_slope=15.0,      # 15° upwind slope
+            ...     terrain_aspect=180.0,    # Terrain facing north, wind from south
+            ...     surface_heat_flux=50.0   # Modest solar heating
+            ... )
+        """
+        frequencies = np.atleast_1d(frequencies)
+        heights = np.atleast_1d(heights)
+        
+        # Save original Obukhov length
+        L_original = self.monin_obukhov_length if self.monin_obukhov_length is not None else 1000.0
+        
+        # Adjust Obukhov length for terrain
+        L_adjusted = self.adjust_obukhov_length_for_terrain(
+            L_original, terrain_slope, terrain_aspect, surface_heat_flux
+        )
+        
+        # Temporarily apply adjusted Obukhov length
+        self.monin_obukhov_length = L_adjusted
+        
+        # Compute height-dependent spectrum with adjusted stability
+        result = self.compute_height_dependent_spectrum(
+            frequencies=frequencies,
+            heights=heights,
+            mean_wind_speed=mean_wind_speed,
+            spectrum_type=spectrum_type,
+            length_scale_u=length_scale_u,
+        )
+        
+        # Restore original Obukhov length
+        self.monin_obukhov_length = L_original
+        
+        # Add terrain adjustment information to result
+        result['terrain_slope'] = terrain_slope
+        result['terrain_aspect'] = terrain_aspect
+        result['surface_heat_flux'] = surface_heat_flux
+        result['monin_obukhov_length_original'] = L_original
+        result['monin_obukhov_length_adjusted'] = L_adjusted
+        result['terrain_category'] = self.terrain_category
+        
+        return result
 
 
 class ExtremeTurbulenceModel(IEC61400Model):
