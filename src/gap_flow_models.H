@@ -112,6 +112,7 @@ amrex::Real compute_gap_influence(
     
     // Distance along gap axis (parallel to gap)
     const amrex::Real dist_along = dx * gap_axis_x + dy * gap_axis_y;
+    (void)dist_along;
     
     // Distance across gap (perpendicular to gap axis)
     const amrex::Real dist_across = std::abs(dx * gap_perp_x + dy * gap_perp_y);

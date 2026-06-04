@@ -18,7 +18,6 @@ public:
     void initialize();
     void execute();
 
-private:
     void parse_inputs();
     void setup_geometry_and_mesh();
     void allocate_data_fields();
@@ -27,6 +26,7 @@ private:
     void apply_divergence_corrections(int time_step);
     void compute_diagnostics_and_output(int time_step);
 
+private:
     // Timing
     amrex::Real t_total = 0.0;
     amrex::Real t_phase = 0.0;
