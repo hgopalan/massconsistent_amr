@@ -228,7 +228,7 @@ amrex::Real distance_to_segment(
         return std::sqrt(wx*wx + wy*wy);
     }
     
-    const amrex::Real t = (wx*vx + vy*vy) / v2;
+    const amrex::Real t = (wx*vx + wy*vy) / v2;
     t_clamped = std::max(amrex::Real(0.0), std::min(amrex::Real(1.0), t));
     
     const amrex::Real closest_x = ax + t_clamped * vx;
