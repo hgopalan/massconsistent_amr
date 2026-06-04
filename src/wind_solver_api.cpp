@@ -44,6 +44,7 @@ bool ensure_amrex_initialized()
         char** argv = nullptr;
         amrex::Initialize(argc, argv, false);
         g_amrex_initialized_here = true;
+        g_parmparse_initialized = true;
     }
     return true;
 }
