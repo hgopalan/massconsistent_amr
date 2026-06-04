@@ -190,7 +190,7 @@ jobs:
       - name: Install ROCm/HIP packages
         run: |
           sudo apt-get install -y --no-install-recommends \
-            rocm-dev rocrand-dev rocprim-dev hiprand-dev rocsparse-dev rocm-cmake
+            rocm-dev rocrand-dev rocprim-dev rocfft-dev hiprand-dev rocsparse-dev rocm-cmake
           echo 'export PATH=/opt/rocm/llvm/bin:/opt/rocm/bin:$PATH' \
             | sudo tee /etc/profile.d/rocm.sh
 
