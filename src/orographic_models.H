@@ -310,6 +310,7 @@ std::pair<amrex::Real, amrex::Real> terrain_adaptive_alpha_coefficients(
     amrex::Real alpha_v_flat = amrex::Real(1.0),
     amrex::Real slope_scale = amrex::Real(0.25))
 {
+    (void)elevation;
     // Horizontal coefficient: typically constant
     amrex::Real alpha_h = alpha_h_base;
     

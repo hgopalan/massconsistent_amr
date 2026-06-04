@@ -88,6 +88,7 @@ amrex::Real detect_valley_axis(
     amrex::Real z_ym, amrex::Real z_yp,
     amrex::Real dx, amrex::Real dy)
 {
+    (void)z_center;
     // Central difference gradients
     const amrex::Real dz_dx = (z_xp - z_xm) / (amrex::Real(2.0) * dx);
     const amrex::Real dz_dy = (z_yp - z_ym) / (amrex::Real(2.0) * dy);

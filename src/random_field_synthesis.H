@@ -420,6 +420,8 @@ public:
         bool coherence_vertical,
         const SyntheticTurbulence::TurbulenceGenerator& gen)
     {
+        (void)coherence_vertical;
+        (void)gen;
         FieldOutput output;
         int total_points = nx * ny * nz;
         

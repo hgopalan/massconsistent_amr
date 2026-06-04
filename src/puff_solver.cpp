@@ -174,6 +174,7 @@ void read_velocity_plotfile(
     amrex::Box& domain,
     int& ng)
 {
+    amrex::ignore_unused(vel_mf, geom, domain, ng);
     // Note: This is simplified. In practice, would use AMReX::VisMF utilities
     amrex::Print() << "puff_solver: reading velocity from " << plotfile_prefix << "\n";
     
