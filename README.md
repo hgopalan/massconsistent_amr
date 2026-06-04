@@ -180,7 +180,12 @@ cmake --build build --parallel
 
 ## Synthetic Turbulence
 
-The solver can synthesize terrain-aware turbulent fluctuations, generate time-resolved velocity fields, export TurbSim ``.bts`` files, and run built-in statistical validation. OpenFAST interoperability is supported through the BTS export path. Detailed configuration, validation, and post-processing guidance is maintained in the documentation rather than this overview page.
+The solver can synthesize terrain-aware turbulent fluctuations using multiple models:
+
+- **Phase 1 (June 2026)**: IEC 61400-1 industry standards, enhanced coherence models (Gaussian, Exponential, QuadraticExponential, PowerLaw), smooth intensity profiles
+- **Phase 2 (June 2026)**: Mann Box anisotropic spectral tensor model with automatic complex terrain adaptation (windward/lee asymmetry, ridge enhancement, slope-dependent scaling)
+
+The solver generates time-resolved velocity fields, exports TurbSim ``.bts`` files, and runs built-in statistical validation. OpenFAST interoperability is supported through the BTS export path. Detailed configuration, validation, and post-processing guidance is maintained in the documentation rather than this overview page.
 
 ## Documentation
 
