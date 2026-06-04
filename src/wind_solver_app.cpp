@@ -1890,18 +1890,26 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         }
     } else if (init_mode == "raws") {
         std::vector<Real> x_vel, y_vel, z_vel, ux_vel, uy_vel;
-        WindIO::read_velocity_file(velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+        if (velocity_file.size() > 4 && velocity_file.substr(velocity_file.find_last_of(".") + 1) == "csv") {
+            WindIO::read_vertical_profile_csv(velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+        } else {
+            WindIO::read_velocity_file(velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+        }
 
-        std::vector<Real> vel_u_h(static_cast<std::size_t>(nx) * ny);
-        std::vector<Real> vel_v_h(static_cast<std::size_t>(nx) * ny);
+        std::vector<Real> vel_u_h(static_cast<std::size_t>(nx) * ny * nz);
+        std::vector<Real> vel_v_h(static_cast<std::size_t>(nx) * ny * nz);
 
-        for (int j = 0; j < ny; ++j) {
-            Real yc = y_lo + (j + 0.5) * dy;
-            for (int i = 0; i < nx; ++i) {
-                Real xc = x_lo + (i + 0.5) * dx;
-                auto [ux_interp, uy_interp] = WindInterpolation::idw_velocity(xc, yc, x_vel, y_vel, ux_vel, uy_vel);
-                vel_u_h[static_cast<std::size_t>(j) * nx + i] = ux_interp;
-                vel_v_h[static_cast<std::size_t>(j) * nx + i] = uy_interp;
+        for (int k = 0; k < nz; ++k) {
+            Real zc = z_lo_cap + (k + Real(0.5)) * dz_cap;
+            for (int j = 0; j < ny; ++j) {
+                Real yc = y_lo + (j + Real(0.5)) * dy;
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + Real(0.5)) * dx;
+                    auto [ux_interp, uy_interp] = WindInterpolation::idw_velocity_3d(xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny + j) * nx + i;
+                    vel_u_h[idx] = ux_interp;
+                    vel_v_h[idx] = uy_interp;
+                }
             }
         }
 
@@ -1927,8 +1935,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     vel(i, j, k, 1) = Real(0.0);
                     vel(i, j, k, 2) = Real(0.0);
                 } else {
-                    vel(i, j, k, 0) = d_vel_u_ptr[j * nx_cap + i];
-                    vel(i, j, k, 1) = d_vel_v_ptr[j * nx_cap + i];
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
+                    vel(i, j, k, 0) = d_vel_u_ptr[idx];
+                    vel(i, j, k, 1) = d_vel_v_ptr[idx];
                     vel(i, j, k, 2) = Real(0.0);
                 }
             });
@@ -3353,6 +3362,8 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const Real cp_air = 1005.0;
     const Real theta_star = 0.1;
     const Real kappa_diag = 0.41;
+    const bool cap_enable_bl_depth_diagnostic = enable_bl_depth_diagnostic;
+    const Real cap_bl_depth_param = bl_depth_param;
 
     for (MFIter mfi(output); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -3415,7 +3426,14 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                     tau_y = tau_magnitude * (v / u_mag);
                     
                     richardson_no = Real(0.0);
-                    bl_depth = Real(1000.0);
+                    if (cap_enable_bl_depth_diagnostic) {
+                        Real f_coriolis = cap_enable_coriolis_latitude 
+                                        ? compute_latitude_dependent_coriolis(cap_y_lo + (j + Real(0.5)) * cap_dy, cap_y_center, cap_domain_latitude)
+                                        : Real(1.0e-4);
+                        bl_depth = compute_spatially_varying_habl(ustar_local, heat_flux, z0_local, Real(300.0), f_coriolis);
+                    } else {
+                        bl_depth = cap_bl_depth_param;
+                    }
                 }
             }
             

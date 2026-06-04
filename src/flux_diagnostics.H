@@ -247,4 +247,65 @@ void compute_all_surface_fluxes(
     }
 }
 
+// ============================================================================
+// Compute spatially-varying ABL height H_abl(x, y)
+//
+// Dynamically computes H_abl based on Monin-Obukhov similarity theory:
+// - Stable: Zilitinkevich (1972) formula: H_abl = C_s * sqrt(u* * L / |f|)
+// - Unstable: Convective scaling: H_abl = 0.2 * u* * |L| / (1 + w* / u*)
+// - Neutral: H_abl = C_n * u* / |f|
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_spatially_varying_habl(
+    amrex::Real ustar,
+    amrex::Real heat_flux,
+    amrex::Real z0,
+    amrex::Real theta_ref = amrex::Real(300.0),
+    amrex::Real f_coriolis = amrex::Real(1.0e-4))
+{
+    using namespace FluxConstants;
+    
+    ustar = std::max(ustar, amrex::Real(0.01));
+    
+    // Obukhov length L_MO = -ustar^3 * theta_ref / (kappa * g * heat_flux / (rho * cp))
+    amrex::Real L = amrex::Real(1.0e6);
+    if (std::abs(heat_flux) > amrex::Real(1.0e-4)) {
+        amrex::Real heat_effect = heat_flux / (rho_air * cp_air * theta_ref);
+        if (std::abs(heat_effect) > amrex::Real(1.0e-10)) {
+            L = -(ustar * ustar * ustar) / (kappa * (g / theta_ref) * heat_effect);
+        }
+    }
+    
+    // Clamp L
+    if (L > amrex::Real(1.0e6)) L = amrex::Real(1.0e6);
+    if (L < amrex::Real(-1.0e6)) L = amrex::Real(-1.0e6);
+    
+    amrex::Real h_abl = amrex::Real(1000.0);
+    amrex::Real abs_f = std::max(std::abs(f_coriolis), amrex::Real(1.0e-5));
+    
+    if (L > amrex::Real(0.0) && L < amrex::Real(1.0e5)) {
+        // Stable conditions: Zilitinkevich (1972) formula
+        h_abl = amrex::Real(0.4) * std::sqrt(ustar * L / abs_f);
+    } else if (L < amrex::Real(0.0) && L > amrex::Real(-1.0e5)) {
+        // Unstable conditions: Convective scaling using w_*
+        // Compute w_* with nominal H_abl of 1000m (delta_0)
+        const amrex::Real delta_0 = amrex::Real(1000.0);
+        amrex::Real w_star = amrex::Real(0.0);
+        amrex::Real numerator = g * heat_flux * delta_0;
+        amrex::Real denominator = rho_air * cp_air * theta_ref;
+        if (denominator > amrex::Real(1.0e-6)) {
+            w_star = std::cbrt(numerator / denominator);
+        }
+        amrex::Real denom = amrex::Real(1.0) + (w_star / ustar);
+        h_abl = amrex::Real(0.2) * ustar * std::abs(L) / denom;
+    } else {
+        // Neutral: H_abl = C_n * u* / |f|
+        h_abl = amrex::Real(0.15) * ustar / abs_f;
+    }
+    
+    // Clamp H_abl to physical bounds
+    h_abl = std::max(amrex::Real(100.0), std::min(h_abl, amrex::Real(3000.0)));
+    return h_abl;
+}
+
 #endif  // FLUX_DIAGNOSTICS_H

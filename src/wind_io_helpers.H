@@ -21,6 +21,13 @@ void read_velocity_file(const std::string& filename,
                         std::vector<Real>& ux,
                         std::vector<Real>& uy);
 
+void read_vertical_profile_csv(const std::string& filename,
+                               std::vector<Real>& xd,
+                               std::vector<Real>& yd,
+                               std::vector<Real>& zd,
+                               std::vector<Real>& ux,
+                               std::vector<Real>& uy);
+
 void read_roughness_file(const std::string& filename,
                          std::vector<Real>& xd,
                          std::vector<Real>& yd,

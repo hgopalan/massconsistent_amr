@@ -387,4 +387,70 @@ void read_time_series_file(const std::string& filename,
                    << " time points from " << filename << "\n";
 }
 
+// Read multi-point vertical profile CSV files of speed/direction.
+// Format: X, Y, Z, Speed, Direction (degrees)
+void read_vertical_profile_csv(const std::string& filename,
+                               std::vector<Real>& xd,
+                               std::vector<Real>& yd,
+                               std::vector<Real>& zd,
+                               std::vector<Real>& ux,
+                               std::vector<Real>& uy)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open vertical profile file: " + filename);
+
+    std::string line;
+    bool is_first = true;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        if (line.empty()) continue;
+
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        
+        // Skip header if it contains text instead of numbers
+        if (is_first) {
+            std::string first_token;
+            if (ss >> first_token) {
+                // If first token is non-numeric, skip the line as header
+                try {
+                    std::stod(first_token);
+                } catch (...) {
+                    is_first = false;
+                    continue;
+                }
+            }
+            is_first = false;
+            // Reset ss
+            ss.clear();
+            ss.str(line);
+        }
+
+        Real x, y, z, speed, direction;
+        if (ss >> x >> y >> z >> speed >> direction) {
+            xd.push_back(x);
+            yd.push_back(y);
+            zd.push_back(z);
+            
+            // Convert speed and direction (degrees) to u and v
+            Real dir_rad = direction * MathConstants::deg_to_rad;
+            // Meteorological convention: u = -spd * sin(dir), v = -spd * cos(dir)
+            Real u_val = -speed * std::sin(dir_rad);
+            Real v_val = -speed * std::cos(dir_rad);
+            ux.push_back(u_val);
+            uy.push_back(v_val);
+        }
+    }
+    if (xd.empty()) {
+        amrex::Abort("wind_solver: no data read from vertical profile file: " + filename);
+    }
+    
+    amrex::Print() << "wind_solver: read " << xd.size()
+                   << " vertical profile points from " << filename << "\n";
+}
+
 } // namespace WindIO

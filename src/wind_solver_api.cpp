@@ -28,6 +28,14 @@ namespace {
 
 constexpr Real DISTANCE_EPSILON = Real(1.0e-12);
 
+std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
+                                      const std::vector<Real>& x,
+                                      const std::vector<Real>& y,
+                                      const std::vector<Real>& z,
+                                      const std::vector<Real>& ux_data,
+                                      const std::vector<Real>& uy_data,
+                                      int k = 6);
+
 struct WindSolverRuntimeData {
     Gpu::DeviceVector<Real> terrain_device;
     std::vector<Real> terrain_host;
@@ -221,13 +229,104 @@ std::pair<Real, Real> idw_velocity(Real xq, Real yq,
     return {ux_val / wsum, uy_val / wsum};
 }
 
-void parse_inputs(WindSolverState& state, const std::string& inputs_file)
+void read_vertical_profile_csv(const std::string& filename,
+                               std::vector<Real>& xd,
+                               std::vector<Real>& yd,
+                               std::vector<Real>& zd,
+                               std::vector<Real>& ux,
+                               std::vector<Real>& uy)
 {
-    if (g_parmparse_initialized) {
-        ParmParse::Finalize();
-        g_parmparse_initialized = false;
+    std::ifstream input(filename);
+    if (!input.is_open()) {
+        throw std::runtime_error("cannot open vertical profile file: " + filename);
     }
 
+    std::string line;
+    bool is_first = true;
+    while (std::getline(input, line)) {
+        auto comment_pos = line.find('#');
+        if (comment_pos != std::string::npos) {
+            line = line.substr(0, comment_pos);
+        }
+        if (line.empty()) continue;
+
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream iss(line);
+
+        if (is_first) {
+            std::string first_token;
+            if (iss >> first_token) {
+                try {
+                    std::stod(first_token);
+                } catch (...) {
+                    is_first = false;
+                    continue;
+                }
+            }
+            is_first = false;
+            iss.clear();
+            iss.str(line);
+        }
+
+        Real x, y, z, speed, direction;
+        if (iss >> x >> y >> z >> speed >> direction) {
+            xd.push_back(x);
+            yd.push_back(y);
+            zd.push_back(z);
+            
+            Real dir_rad = direction * (M_PI / 180.0);
+            Real u_val = -speed * std::sin(dir_rad);
+            Real v_val = -speed * std::cos(dir_rad);
+            ux.push_back(u_val);
+            uy.push_back(v_val);
+        }
+    }
+
+    if (xd.empty()) {
+        throw std::runtime_error("no vertical profile data read from: " + filename);
+    }
+}
+
+std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
+                                      const std::vector<Real>& x,
+                                      const std::vector<Real>& y,
+                                      const std::vector<Real>& z,
+                                      const std::vector<Real>& ux_data,
+                                      const std::vector<Real>& uy_data,
+                                      int k)
+{
+    const int n = static_cast<int>(x.size());
+    k = std::min(k, n);
+
+    std::vector<std::pair<Real, int>> d2(n);
+    for (int i = 0; i < n; ++i) {
+        const Real dx = x[i] - xq;
+        const Real dy = y[i] - yq;
+        const Real dz = z[i] - zq;
+        d2[i] = {dx * dx + dy * dy + dz * dz, i};
+    }
+    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
+
+    Real wsum = 0.0;
+    Real ux_val = 0.0;
+    Real uy_val = 0.0;
+    for (int i = 0; i < k; ++i) {
+        if (d2[i].first < DISTANCE_EPSILON) {
+            return {ux_data[d2[i].second], uy_data[d2[i].second]};
+        }
+        const Real w = Real(1.0) / d2[i].first;
+        wsum += w;
+        ux_val += w * ux_data[d2[i].second];
+        uy_val += w * uy_data[d2[i].second];
+    }
+    return {ux_val / wsum, uy_val / wsum};
+}
+
+void parse_inputs(WindSolverState& state, const std::string& inputs_file)
+{
+    if (amrex::Initialized()) {
+        ParmParse::Finalize();
+    }
     ParmParse::Initialize(0, nullptr, inputs_file.c_str());
     g_parmparse_initialized = true;
 
@@ -552,17 +651,25 @@ void initialize_wind_field(WindSolverState& state)
         }
     } else {
         std::vector<Real> x_vel, y_vel, z_vel, ux_vel, uy_vel;
-        read_velocity_file(state.velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+        if (state.velocity_file.size() > 4 && state.velocity_file.substr(state.velocity_file.find_last_of(".") + 1) == "csv") {
+            read_vertical_profile_csv(state.velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+        } else {
+            read_velocity_file(state.velocity_file, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+        }
 
-        std::vector<Real> vel_u_host(static_cast<std::size_t>(state.nx) * state.ny);
-        std::vector<Real> vel_v_host(static_cast<std::size_t>(state.nx) * state.ny);
-        for (int j = 0; j < state.ny; ++j) {
-            const Real yc = state.ymin + (j + Real(0.5)) * state.dy;
-            for (int i = 0; i < state.nx; ++i) {
-                const Real xc = state.xmin + (i + Real(0.5)) * state.dx;
-                auto uv = idw_velocity(xc, yc, x_vel, y_vel, ux_vel, uy_vel);
-                vel_u_host[static_cast<std::size_t>(j) * state.nx + i] = uv.first;
-                vel_v_host[static_cast<std::size_t>(j) * state.nx + i] = uv.second;
+        std::vector<Real> vel_u_host(static_cast<std::size_t>(state.nx) * state.ny * state.nz);
+        std::vector<Real> vel_v_host(static_cast<std::size_t>(state.nx) * state.ny * state.nz);
+        for (int k = 0; k < state.nz; ++k) {
+            const Real zc = z_lo + (k + Real(0.5)) * dz;
+            for (int j = 0; j < state.ny; ++j) {
+                const Real yc = state.ymin + (j + Real(0.5)) * state.dy;
+                for (int i = 0; i < state.nx; ++i) {
+                    const Real xc = state.xmin + (i + Real(0.5)) * state.dx;
+                    auto uv = idw_velocity_3d(xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+                    std::size_t idx = (static_cast<std::size_t>(k) * state.ny + j) * state.nx + i;
+                    vel_u_host[idx] = uv.first;
+                    vel_v_host[idx] = uv.second;
+                }
             }
         }
 
@@ -572,20 +679,23 @@ void initialize_wind_field(WindSolverState& state)
         Gpu::copy(Gpu::hostToDevice, vel_v_host.begin(), vel_v_host.end(), vel_v_dev.begin());
         const Real* vel_u_ptr = vel_u_dev.data();
         const Real* vel_v_ptr = vel_v_dev.data();
+        const int nx_val = state.nx;
+        const int ny_val = state.ny;
 
         for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = state.vel0->array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 const Real z_phys = z_lo + (k + Real(0.5)) * dz;
-                const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                const Real z_agl = z_phys - terrain_ptr[j * nx_val + i];
                 if (z_agl <= Real(0.0)) {
                     vel(i, j, k, 0) = Real(0.0);
                     vel(i, j, k, 1) = Real(0.0);
                     vel(i, j, k, 2) = Real(0.0);
                 } else {
-                    vel(i, j, k, 0) = vel_u_ptr[j * nx + i];
-                    vel(i, j, k, 1) = vel_v_ptr[j * nx + i];
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny_val + j) * nx_val + i;
+                    vel(i, j, k, 0) = vel_u_ptr[idx];
+                    vel(i, j, k, 1) = vel_v_ptr[idx];
                     vel(i, j, k, 2) = Real(0.0);
                 }
             });
