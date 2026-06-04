@@ -1573,9 +1573,11 @@ int main(int argc, char* argv[])
                 turb_params.spectrum_model = TurbulenceModel::VonKarman;
             } else if (spectrum_model_str == "Kaimal") {
                 turb_params.spectrum_model = TurbulenceModel::Kaimal;
+            } else if (spectrum_model_str == "MannBox") {
+                turb_params.spectrum_model = TurbulenceModel::MannBox;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_spectrum_model: " + spectrum_model_str + 
-                             " (must be 'VonKarman' or 'Kaimal')");
+                             " (must be 'VonKarman', 'Kaimal', or 'MannBox')");
             }
             
             // Parse intensity model
@@ -1585,9 +1587,13 @@ int main(int argc, char* argv[])
                 turb_params.intensity_model = IntensityModel::Logarithmic;
             } else if (intensity_model_str == "Constant") {
                 turb_params.intensity_model = IntensityModel::Constant;
+            } else if (intensity_model_str == "IEC61400") {
+                turb_params.intensity_model = IntensityModel::IEC61400;
+            } else if (intensity_model_str == "SmoothProfile") {
+                turb_params.intensity_model = IntensityModel::SmoothProfile;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_intensity_model: " + intensity_model_str + 
-                             " (must be 'PowerLaw', 'Logarithmic', or 'Constant')");
+                             " (must be 'PowerLaw', 'Logarithmic', 'Constant', 'IEC61400', or 'SmoothProfile')");
             }
             
             // Parse coherence model
@@ -1595,9 +1601,13 @@ int main(int argc, char* argv[])
                 turb_params.coherence_model = CoherenceModel::Gaussian;
             } else if (coherence_model_str == "Exponential") {
                 turb_params.coherence_model = CoherenceModel::Exponential;
+            } else if (coherence_model_str == "QuadraticExponential") {
+                turb_params.coherence_model = CoherenceModel::QuadraticExponential;
+            } else if (coherence_model_str == "PowerLaw") {
+                turb_params.coherence_model = CoherenceModel::PowerLaw;
             } else {
                 amrex::Abort("wind_solver: invalid turbulence_coherence_model: " + coherence_model_str + 
-                             " (must be 'Gaussian' or 'Exponential')");
+                             " (must be 'Gaussian', 'Exponential', 'QuadraticExponential', or 'PowerLaw')");
             }
             
             // Turbulence intensity parameters
@@ -1617,6 +1627,40 @@ int main(int argc, char* argv[])
             // Anisotropy ratios
             pp.query("turbulence_anisotropy_ratio_v", turb_params.anisotropy_ratio_v);
             pp.query("turbulence_anisotropy_ratio_w", turb_params.anisotropy_ratio_w);
+            
+            // Mann Box Parameters (Phase 2) - only read if using MannBox spectrum model
+            if (turb_params.spectrum_model == TurbulenceModel::MannBox) {
+                // Mann Box integral length scales [m]
+                pp.query("mann_length_scale_u", turb_params.mann_length_scale_u);
+                pp.query("mann_length_scale_v", turb_params.mann_length_scale_v);
+                pp.query("mann_length_scale_w", turb_params.mann_length_scale_w);
+                
+                // Mann Box variance scaling factors
+                pp.query("mann_variance_u", turb_params.mann_variance_u);
+                pp.query("mann_variance_v", turb_params.mann_variance_v);
+                pp.query("mann_variance_w", turb_params.mann_variance_w);
+                
+                // Mann Box asymmetry parameter
+                pp.query("mann_asymmetry_parameter", turb_params.mann_asymmetry_parameter);
+                
+                // Mann Box eddy lifetime parameter [s]
+                pp.query("mann_eddy_lifetime", turb_params.mann_eddy_lifetime);
+                
+                // Terrain adaptation factor for Mann Box
+                pp.query("mann_terrain_adaptation_factor", turb_params.mann_terrain_adaptation_factor);
+            }
+            
+            // IEC 61400 Parameters (Phase 1) - only read if using IEC61400 intensity model
+            if (turb_params.intensity_model == IntensityModel::IEC61400) {
+                // Hub height [m]
+                pp.query("hub_height", turb_params.hub_height);
+                
+                // IEC turbulence category (0=A, 1=B, 2=C)
+                pp.query("iec_turbulence_category", turb_params.iec_turbulence_category);
+            }
+            
+            // Coherence Power-Law Exponent (for PowerLaw coherence and SmoothProfile intensity)
+            pp.query("coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent);
             
             // Random seed for reproducibility
             // Note: ParmParse only supports signed int, so we parse as int then convert
@@ -1664,6 +1708,46 @@ int main(int argc, char* argv[])
                                << " is outside typical range [0.0, 1.0]\n";
             }
             
+            // Validate Mann Box parameters (Phase 2)
+            if (turb_params.spectrum_model == TurbulenceModel::MannBox) {
+                if (turb_params.mann_length_scale_u <= 0.0 || turb_params.mann_length_scale_v <= 0.0 || 
+                    turb_params.mann_length_scale_w <= 0.0) {
+                    amrex::Abort("wind_solver: all Mann Box length scales (u, v, w) must be > 0.0");
+                }
+                
+                if (turb_params.mann_variance_u <= 0.0 || turb_params.mann_variance_v <= 0.0 || 
+                    turb_params.mann_variance_w <= 0.0) {
+                    amrex::Abort("wind_solver: all Mann Box variance scales (u, v, w) must be > 0.0");
+                }
+                
+                if (turb_params.mann_asymmetry_parameter <= 0.0) {
+                    amrex::Abort("wind_solver: mann_asymmetry_parameter must be > 0.0");
+                }
+                
+                if (turb_params.mann_eddy_lifetime <= 0.0) {
+                    amrex::Abort("wind_solver: mann_eddy_lifetime must be > 0.0");
+                }
+                
+                if (turb_params.mann_terrain_adaptation_factor <= 0.0) {
+                    amrex::Abort("wind_solver: mann_terrain_adaptation_factor must be > 0.0");
+                }
+            }
+            
+            // Validate IEC 61400 parameters (Phase 1)
+            if (turb_params.intensity_model == IntensityModel::IEC61400) {
+                if (turb_params.hub_height <= 0.0) {
+                    amrex::Abort("wind_solver: hub_height must be > 0.0 for IEC61400 model");
+                }
+                if (turb_params.iec_turbulence_category < 0 || turb_params.iec_turbulence_category > 2) {
+                    amrex::Abort("wind_solver: iec_turbulence_category must be 0 (A), 1 (B), or 2 (C)");
+                }
+            }
+            
+            if (turb_params.coherence_powerlaw_exponent <= 0.0) {
+                amrex::Print() << "WARNING: coherence_powerlaw_exponent = " << turb_params.coherence_powerlaw_exponent 
+                               << " is outside typical range (0, inf)\n";
+            }
+            
             amrex::Print() << "wind_solver: Synthetic turbulence ENABLED\n"
                            << "  spectrum_model: " << spectrum_model_str << "\n"
                            << "  intensity_model: " << intensity_model_str << "\n"
@@ -1673,8 +1757,36 @@ int main(int argc, char* argv[])
                            << ", v=" << turb_params.length_scale_v 
                            << ", w=" << turb_params.length_scale_w << " [m]\n"
                            << "  anisotropy_ratios: v/u=" << turb_params.anisotropy_ratio_v 
-                           << ", w/u=" << turb_params.anisotropy_ratio_w << "\n"
-                           << "  export_format: " << turbulence_export_format << "\n"
+                           << ", w/u=" << turb_params.anisotropy_ratio_w << "\n";
+            
+            // Print Mann Box parameters if using Mann Box model
+            if (turb_params.spectrum_model == TurbulenceModel::MannBox) {
+                amrex::Print() << "  [Mann Box Model Parameters]\n"
+                               << "    mann_length_scales: u=" << turb_params.mann_length_scale_u 
+                               << ", v=" << turb_params.mann_length_scale_v 
+                               << ", w=" << turb_params.mann_length_scale_w << " [m]\n"
+                               << "    mann_variance_scales: u=" << turb_params.mann_variance_u 
+                               << ", v=" << turb_params.mann_variance_v 
+                               << ", w=" << turb_params.mann_variance_w << "\n"
+                               << "    mann_asymmetry_parameter: " << turb_params.mann_asymmetry_parameter << "\n"
+                               << "    mann_eddy_lifetime: " << turb_params.mann_eddy_lifetime << " [s]\n"
+                               << "    mann_terrain_adaptation_factor: " << turb_params.mann_terrain_adaptation_factor << "\n";
+            }
+            
+            // Print IEC 61400 parameters if using IEC61400 model
+            if (turb_params.intensity_model == IntensityModel::IEC61400) {
+                amrex::Print() << "  [IEC 61400-1 Parameters]\n"
+                               << "    hub_height: " << turb_params.hub_height << " [m]\n"
+                               << "    turbulence_category: " << turb_params.iec_turbulence_category 
+                               << " (0=A, 1=B, 2=C)\n";
+            }
+            
+            // Print Power-Law coherence exponent if using PowerLaw coherence
+            if (turb_params.coherence_model == CoherenceModel::PowerLaw) {
+                amrex::Print() << "  coherence_powerlaw_exponent: " << turb_params.coherence_powerlaw_exponent << "\n";
+            }
+            
+            amrex::Print() << "  export_format: " << turbulence_export_format << "\n"
                            << "  output_file: " << turbulence_output_file << "\n";
         }
         
