@@ -477,6 +477,10 @@ class NormalTurbulenceModel(IEC61400Model):
             "length_scale_u": length_scale_u,
             "length_scale_v": length_scale_v,
             "length_scale_w": length_scale_w,
+            "u_rms": u_rms,
+            "v_rms": v_rms,
+            "w_rms": w_rms,
+            "turbulence_intensity": rms_data["turbulence_intensity"],
         }
     
     def generate_fluctuations(

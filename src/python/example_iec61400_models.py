@@ -251,6 +251,191 @@ def example_comparison_ntm_vs_etm():
         )
 
 
+def example_fluctuations_spectrum():
+    """Example: Generate turbulence spectrum for fluctuations."""
+    print("\n" + "="*70)
+    print("Example 8: Turbulence Spectrum (Von Kármán and Kaimal)")
+    print("="*70)
+    
+    ntm = NormalTurbulenceModel("II", terrain_category=1, z_hub=90.0)
+    
+    # Parameters
+    height = 90.0  # Hub height
+    mean_wind_speed = 12.0  # m/s
+    
+    print(f"\nHeight: {height} m (hub)")
+    print(f"Mean Wind Speed: {mean_wind_speed} m/s")
+    
+    # Generate frequency array
+    frequencies = np.logspace(-2, 1, 100)  # 0.01 to 10 Hz
+    
+    # Compute Von Kármán spectrum
+    spectrum_vk = ntm.compute_spectrum(
+        frequencies, height, mean_wind_speed,
+        spectrum_type="VonKarman", length_scale_u=300.0
+    )
+    
+    # Compute Kaimal spectrum
+    spectrum_kaimal = ntm.compute_spectrum(
+        frequencies, height, mean_wind_speed,
+        spectrum_type="Kaimal", length_scale_u=300.0
+    )
+    
+    print("\nSpectral Densities at Key Frequencies:")
+    print("-" * 70)
+    print("Freq (Hz) | Von Kármán S_u | Kaimal S_u | VK/Kaimal Ratio")
+    print("-" * 70)
+    key_freqs = [0.01, 0.1, 0.5, 1.0, 5.0]
+    for freq in key_freqs:
+        idx = np.argmin(np.abs(frequencies - freq))
+        vk_val = spectrum_vk["S_u"][idx]
+        kaimal_val = spectrum_kaimal["S_u"][idx]
+        ratio = vk_val / kaimal_val if kaimal_val > 0 else 0
+        print(
+            f"  {freq:6.3f}  |  {vk_val:12.6e}  |  {kaimal_val:10.6e}  |  {ratio:6.3f}"
+        )
+
+
+def example_fluctuations_generation():
+    """Example: Generate synthetic turbulent fluctuations."""
+    print("\n" + "="*70)
+    print("Example 9: Synthetic Turbulent Fluctuations Generation")
+    print("="*70)
+    
+    ntm = NormalTurbulenceModel("II", terrain_category=1, z_hub=90.0)
+    
+    # Parameters
+    height = 90.0  # Hub height
+    mean_wind_speed = 12.0  # m/s
+    
+    print(f"\nHeight: {height} m (hub)")
+    print(f"Mean Wind Speed: {mean_wind_speed} m/s")
+    
+    # Generate frequency array
+    frequencies = np.logspace(-2, 0.5, 64)  # 0.01 to ~3 Hz
+    
+    # Generate fluctuations in frequency domain
+    fluct = ntm.generate_fluctuations(
+        frequencies, height, mean_wind_speed,
+        spectrum_type="VonKarman",
+        random_seed=42,
+        length_scale_u=300.0
+    )
+    
+    print("\nFluctuation Amplitudes at Key Frequencies:")
+    print("-" * 60)
+    print("Freq (Hz) | Amplitude_u | Amplitude_v | Amplitude_w")
+    print("-" * 60)
+    key_indices = [0, len(frequencies)//4, len(frequencies)//2, -1]
+    for idx in key_indices:
+        freq = frequencies[idx]
+        print(
+            f"  {freq:6.3f}  |  {fluct['amplitude_u'][idx]:10.6e}  |"
+            f"  {fluct['amplitude_v'][idx]:10.6e}  |  {fluct['amplitude_w'][idx]:10.6e}"
+        )
+    
+    print(f"\nTarget RMS Values:")
+    print(f"  u_rms: {fluct['spectrum_data']['u_rms']:.4f} m/s (from intensity)")
+    print(f"  v_rms: {fluct['spectrum_data']['v_rms']:.4f} m/s")
+    print(f"  w_rms: {fluct['spectrum_data']['w_rms']:.4f} m/s")
+
+
+def example_time_series_generation():
+    """Example: Generate synthetic time series of turbulent fluctuations."""
+    print("\n" + "="*70)
+    print("Example 10: Synthetic Time Series Generation")
+    print("="*70)
+    
+    ntm = NormalTurbulenceModel("II", terrain_category=1, z_hub=90.0)
+    
+    # Parameters
+    height = 90.0  # Hub height
+    mean_wind_speed = 12.0  # m/s
+    duration = 60.0  # 60 seconds for quick demo
+    dt = 0.1  # 10 Hz sampling
+    
+    print(f"\nHeight: {height} m (hub)")
+    print(f"Mean Wind Speed: {mean_wind_speed} m/s")
+    print(f"Duration: {duration} s")
+    print(f"Sampling Rate: {1/dt} Hz")
+    
+    # Generate time series
+    ts = ntm.generate_time_series(
+        duration=duration,
+        dt=dt,
+        height=height,
+        mean_wind_speed=mean_wind_speed,
+        spectrum_type="VonKarman",
+        length_scale_u=300.0,
+        random_seed=42,
+        n_freq_bins=128
+    )
+    
+    print(f"\nTime Series Statistics:")
+    print("-" * 50)
+    print(f"  Number of time steps: {len(ts['time'])}")
+    print(f"  Time range: {ts['time'][0]:.2f} to {ts['time'][-1]:.2f} s")
+    print(f"\n  u-component fluctuations:")
+    print(f"    Mean: {ts['u_mean']:8.4f} m/s")
+    print(f"    RMS:  {ts['u_rms']:8.4f} m/s")
+    print(f"    Min:  {np.min(ts['u_prime']):8.4f} m/s")
+    print(f"    Max:  {np.max(ts['u_prime']):8.4f} m/s")
+    print(f"\n  v-component fluctuations:")
+    print(f"    Mean: {ts['v_mean']:8.4f} m/s")
+    print(f"    RMS:  {ts['v_rms']:8.4f} m/s")
+    print(f"    Min:  {np.min(ts['v_prime']):8.4f} m/s")
+    print(f"    Max:  {np.max(ts['v_prime']):8.4f} m/s")
+    print(f"\n  w-component fluctuations:")
+    print(f"    Mean: {ts['w_mean']:8.4f} m/s")
+    print(f"    RMS:  {ts['w_rms']:8.4f} m/s")
+    print(f"    Min:  {np.min(ts['w_prime']):8.4f} m/s")
+    print(f"    Max:  {np.max(ts['w_prime']):8.4f} m/s")
+    
+    # Show sample of time series
+    print(f"\nSample of Time Series (first 5 time steps):")
+    print("-" * 70)
+    print("Time (s) |  u' (m/s) |  v' (m/s) |  w' (m/s)")
+    print("-" * 70)
+    for i in range(min(5, len(ts['time']))):
+        print(
+            f"  {ts['time'][i]:6.2f}  | {ts['u_prime'][i]:9.4f} | "
+            f"{ts['v_prime'][i]:9.4f} | {ts['w_prime'][i]:9.4f}"
+        )
+    print("  ...")
+    for i in range(max(0, len(ts['time'])-2), len(ts['time'])):
+        print(
+            f"  {ts['time'][i]:6.2f}  | {ts['u_prime'][i]:9.4f} | "
+            f"{ts['v_prime'][i]:9.4f} | {ts['w_prime'][i]:9.4f}"
+        )
+
+
+def example_velocity_rms():
+    """Example: Compute RMS velocities from turbulence intensity."""
+    print("\n" + "="*70)
+    print("Example 11: RMS Velocity Computation")
+    print("="*70)
+    
+    ntm = NormalTurbulenceModel("II", terrain_category=1, z_hub=90.0)
+    
+    # Compute RMS at multiple heights for a given mean wind
+    mean_wind_speed = 12.0  # m/s
+    heights = np.array([10, 40, 90, 150])
+    
+    print(f"\nMean Wind Speed: {mean_wind_speed} m/s")
+    print("\nRMS Velocities at Various Heights:")
+    print("-" * 70)
+    print("Height (m) | Turbulence I | u_rms (m/s) | v_rms (m/s) | w_rms (m/s)")
+    print("-" * 70)
+    
+    for h in heights:
+        rms_data = ntm.compute_velocity_rms(h, mean_wind_speed)
+        ti = rms_data["turbulence_intensity"]
+        print(
+            f"  {h:6.1f}   |    {ti:6.2%}    |    {rms_data['u_rms']:6.4f}   |"
+            f"    {rms_data['v_rms']:6.4f}   |    {rms_data['w_rms']:6.4f}"
+        )
+
+
 def main():
     """Run all examples."""
     print("\n")
@@ -268,6 +453,12 @@ def main():
     example_ecg_gust()
     example_factory_function()
     example_comparison_ntm_vs_etm()
+    
+    # New examples for fluctuation generation
+    example_velocity_rms()
+    example_fluctuations_spectrum()
+    example_fluctuations_generation()
+    example_time_series_generation()
     
     print("\n" + "="*70)
     print("All examples completed successfully!")
