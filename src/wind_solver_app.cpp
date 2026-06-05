@@ -1158,6 +1158,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 }
                 std::sort(d2.begin(), d2.end());
                 
+                // Use up to 6 nearest neighbors for Inverse Distance Weighting (IDW) 
+                // to balance local smoothness with computational efficiency.
                 const int n_pts = std::min(6, static_cast<int>(d2.size()));
                 for (int m = 0; m < n_pts; ++m) {
                     Real dist = std::sqrt(d2[m].first);
