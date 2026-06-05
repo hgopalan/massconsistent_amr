@@ -335,6 +335,16 @@ add_regression_test(puff_buildings puff_buildings)
 add_regression_test(puff_canopy puff_canopy)
 
 # ---------------------------------------------------------------------------
+# puff_deposition/ – Puff dispersion with dry deposition on ground
+# ---------------------------------------------------------------------------
+add_regression_test(puff_deposition puff_deposition)
+
+# ---------------------------------------------------------------------------
+# puff_scavenging_decay/ – Puff wet deposition and dynamic decay
+# ---------------------------------------------------------------------------
+add_regression_test(puff_scavenging_decay puff_scavenging_decay)
+
+# ---------------------------------------------------------------------------
 # puff_coupled_full/ – Fully coupled puff dispersion with all features
 # ---------------------------------------------------------------------------
 add_regression_test(puff_coupled_full puff_coupled_full)
