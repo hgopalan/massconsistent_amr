@@ -111,6 +111,41 @@ void read_roughness_file(const std::string& filename,
                    << " roughness points from " << filename << "\n";
 }
 
+// Read X Y H FAI canopy file (whitespace or comma separated; '#' comments).
+// Format: X Y canopy_height frontal_area_index
+void read_canopy_file(const std::string& filename,
+                      std::vector<Real>& xd,
+                      std::vector<Real>& yd,
+                      std::vector<Real>& canopy_h_d,
+                      std::vector<Real>& frontal_area_index_d)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open canopy file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real x, y, h, fai;
+        if (ss >> x >> y >> h >> fai) {
+            xd.push_back(x);
+            yd.push_back(y);
+            canopy_h_d.push_back(h);
+            frontal_area_index_d.push_back(fai);
+        }
+    }
+    if (xd.empty())
+        amrex::Abort("wind_solver: no data read from canopy file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << xd.size()
+                   << " canopy points from " << filename << "\n";
+}
+
 // Read X Y Z USTAR Z0 U10 V10 surface data file (whitespace or comma separated; '#' comments).
 // Used for HRRR-style surface parameters with per-column friction velocity and roughness.
 // Format: X Y Z USTAR Z0 U10 V10

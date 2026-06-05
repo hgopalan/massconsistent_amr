@@ -88,6 +88,7 @@ void WindSolverApp::parse_inputs() {
 
     // Canopy model parameters
     pp.query("enable_canopy", enable_canopy);
+    pp.query("canopy_file", canopy_file);
     pp.query("canopy_height", canopy_height);
     pp.query("frontal_area_index", frontal_area_index);
     pp.query("plan_area_index", plan_area_index);
@@ -1128,6 +1129,72 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         amrex::Print() << "wind_solver: position-dependent roughness interpolated to grid\n";
     }
 
+    std::vector<Real> canopy_height_h(static_cast<std::size_t>(nx) * ny, canopy_height);
+    std::vector<Real> frontal_area_index_h(static_cast<std::size_t>(nx) * ny, frontal_area_index);
+    const Real* d_canopy_height_ptr = nullptr;
+    const Real* d_frontal_area_index_ptr = nullptr;
+
+    if (enable_canopy && !canopy_file.empty()) {
+        amrex::Print() << "wind_solver: reading position-dependent canopy from " << canopy_file << "\n";
+        std::vector<Real> x_can, y_can, h_can, fai_can;
+        WindIO::read_canopy_file(canopy_file, x_can, y_can, h_can, fai_can);
+        
+        for (int j = 0; j < ny; ++j) {
+            for (int i = 0; i < nx; ++i) {
+                Real xc = x_lo + (i + Real(0.5)) * dx;
+                Real yc = y_lo + (j + Real(0.5)) * dy;
+                
+                Real h_interp = canopy_height;
+                Real fai_interp = frontal_area_index;
+                Real wsum = 0.0;
+                Real h_sum = 0.0;
+                Real fai_sum = 0.0;
+                
+                std::vector<std::pair<Real, int>> d2(x_can.size());
+                for (std::size_t m = 0; m < x_can.size(); ++m) {
+                    Real dx_pt = xc - x_can[m];
+                    Real dy_pt = yc - y_can[m];
+                    d2[m] = {dx_pt * dx_pt + dy_pt * dy_pt, static_cast<int>(m)};
+                }
+                std::sort(d2.begin(), d2.end());
+                
+                // Use up to 6 nearest neighbors for Inverse Distance Weighting (IDW) 
+                // to balance local smoothness with computational efficiency.
+                const int n_pts = std::min(6, static_cast<int>(d2.size()));
+                for (int m = 0; m < n_pts; ++m) {
+                    Real dist = std::sqrt(d2[m].first);
+                    if (dist < Real(1.0e-12)) {
+                        h_interp = h_can[d2[m].second];
+                        fai_interp = fai_can[d2[m].second];
+                        wsum = 1.0;
+                        break;
+                    }
+                    Real w = Real(1.0) / (dist * dist);
+                    wsum += w;
+                    h_sum += w * h_can[d2[m].second];
+                    fai_sum += w * fai_can[d2[m].second];
+                }
+                if (wsum > Real(0.0) && d2[0].first >= Real(1.0e-12)) {
+                    h_interp = h_sum / wsum;
+                    fai_interp = fai_sum / wsum;
+                }
+                
+                canopy_height_h[static_cast<std::size_t>(j) * nx + i] = h_interp;
+                frontal_area_index_h[static_cast<std::size_t>(j) * nx + i] = fai_interp;
+            }
+        }
+        
+        d_canopy_height.resize(canopy_height_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, canopy_height_h.begin(), canopy_height_h.end(), d_canopy_height.begin());
+        d_canopy_height_ptr = d_canopy_height.data();
+        
+        d_frontal_area_index.resize(frontal_area_index_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, frontal_area_index_h.begin(), frontal_area_index_h.end(), d_frontal_area_index.begin());
+        d_frontal_area_index_ptr = d_frontal_area_index.data();
+        
+        amrex::Print() << "wind_solver: position-dependent canopy interpolated to grid\n";
+    }
+
     const int nx_cap = nx;
     const int ny_cap = ny;
     const Real dx_cap = dx;
@@ -1539,13 +1606,20 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         ustar_local *= scale;
                     }
                     
+                    CanopyParams cell_canopy_params = canopy_params;
+                    if (d_canopy_height_ptr) {
+                        cell_canopy_params.height = d_canopy_height_ptr[j * nx_cap + i];
+                    }
+                    if (d_frontal_area_index_ptr) {
+                        cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
+                    }
                     Real speed;
                     if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
                         speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
                                                       kappa_cap, L_obukhov, use_holtslag);
                     } else {
                         speed = canopy_wind_profile(
-                            z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
+                            z_agl, cell_canopy_params, z0_local, ustar_local, kappa_cap);
                     }
                     
                     u_outer = speed * ux_h;
@@ -1591,13 +1665,20 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         ustar_local *= scale;
                     }
                     
+                    CanopyParams cell_canopy_params = canopy_params;
+                    if (d_canopy_height_ptr) {
+                        cell_canopy_params.height = d_canopy_height_ptr[j * nx_cap + i];
+                    }
+                    if (d_frontal_area_index_ptr) {
+                        cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
+                    }
                     Real speed;
                     if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
                         speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
                                                       kappa_cap, L_obukhov, use_holtslag);
                     } else {
                         speed = canopy_wind_profile(
-                            z_agl, canopy_params, z0_local, ustar_local, kappa_cap);
+                            z_agl, cell_canopy_params, z0_local, ustar_local, kappa_cap);
                     }
                     
                     Real u_vel, v_vel;
@@ -2032,8 +2113,15 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     Real ux_hat = (speed_10m > Real(1.0e-10)) ? u10_col / speed_10m : Real(1.0);
                     Real uy_hat = (speed_10m > Real(1.0e-10)) ? v10_col / speed_10m : Real(0.0);
 
+                    CanopyParams cell_canopy_params = canopy_params;
+                    if (d_canopy_height_ptr) {
+                        cell_canopy_params.height = d_canopy_height_ptr[j * nx_cap + i];
+                    }
+                    if (d_frontal_area_index_ptr) {
+                        cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
+                    }
                     Real speed = canopy_wind_profile(
-                        z_agl, canopy_params, z0_col, ustar_col, kappa_cap);
+                        z_agl, cell_canopy_params, z0_col, ustar_col, kappa_cap);
                     
                     Real u_vel, v_vel;
                     if (use_ekman) {

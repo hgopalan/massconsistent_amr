@@ -212,6 +212,11 @@ add_regression_test(combined_thermal_terrain combined_thermal_terrain)
 add_regression_test(canopy_forest canopy_forest)
 
 # ---------------------------------------------------------------------------
+# canopy_spatially_varying/ – Spatially-varying forest canopy parameters
+# ---------------------------------------------------------------------------
+add_regression_test(canopy_spatially_varying canopy_spatially_varying)
+
+# ---------------------------------------------------------------------------
 # canopy_exponential/ – Exponential canopy profile model
 # ---------------------------------------------------------------------------
 add_regression_test(canopy_exponential canopy_exponential)
@@ -545,6 +550,7 @@ message(STATUS "  buoyancy_rhs/          : Buoyancy RHS method (source term in l
 message(STATUS "  terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
 message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
 message(STATUS "  canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
+message(STATUS "  canopy_spatially_varying/: Spatially-varying canopy height and frontal area index")
 message(STATUS "  canopy_exponential/    : Exponential canopy profile model")
 message(STATUS "  canopy_lai_profiles/   : Vertical Leaf Area Index (LAI) profiles (Phase 1)")
 message(STATUS "  coriolis_meridional/   : Coriolis Meridional Beta-Effect and scaled Ekman veer (Phase 1)")

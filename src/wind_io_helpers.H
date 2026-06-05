@@ -33,6 +33,12 @@ void read_roughness_file(const std::string& filename,
                          std::vector<Real>& yd,
                          std::vector<Real>& z0_d);
 
+void read_canopy_file(const std::string& filename,
+                      std::vector<Real>& xd,
+                      std::vector<Real>& yd,
+                      std::vector<Real>& canopy_h_d,
+                      std::vector<Real>& frontal_area_index_d);
+
 void read_surface_data_file(const std::string& filename,
                             std::vector<Real>& xd,
                             std::vector<Real>& yd,

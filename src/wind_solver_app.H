@@ -41,6 +41,7 @@ private:
 
     // Canopy
     bool enable_canopy = false;
+    std::string canopy_file = "";
     amrex::Real canopy_height = 0.0;
     amrex::Real frontal_area_index = 0.0;
     amrex::Real plan_area_index = 0.0;
@@ -450,6 +451,8 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_terrain_h;
     amrex::Gpu::DeviceVector<amrex::Real> d_obstacle_h;
     amrex::Gpu::DeviceVector<amrex::Real> d_z0_pos;
+    amrex::Gpu::DeviceVector<amrex::Real> d_canopy_height;
+    amrex::Gpu::DeviceVector<amrex::Real> d_frontal_area_index;
     
     // RAWS
     amrex::Gpu::DeviceVector<amrex::Real> d_raws_x, d_raws_y, d_raws_z, d_raws_u, d_raws_v;

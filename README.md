@@ -32,14 +32,25 @@ cmake --build build --parallel
 
 Customize the build by passing variables to CMake:
 
+<<<<<<< HEAD
 * **GPU Backends**: `-DMASSCONSISTENT_GPU_BACKEND=CUDA` (or `HIP` / `SYCL`)
 * **MPI Parallelism**: `-DMASSCONSISTENT_ENABLE_MPI=ON`
 * **Python Bindings**: `-DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON`
 * **External AMReX**: `-DMASSCONSISTENT_USE_VENDORED_AMREX=OFF -DAMReX_DIR=/path/to/amrex`
+=======
+* `-DMASSCONSISTENT_GPU_BACKEND=[NONE|CUDA|HIP|SYCL]` — Enable GPU acceleration (default: `NONE`)
+* `-DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=[ON|OFF]` — Build Python API wrapper (default: `OFF`)
+* `-DMASSCONSISTENT_ENABLE_MPI=[ON|OFF]` — Enable MPI multi-node parallelism (default: `OFF`)
+
+Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON`
+>>>>>>> origin/main
 
 ## Features
 
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
+- **Chemical/Physical Properties Database Lookup** — ALOHA / Regulatory dictionary lookup of chemical molecular parameters, boiling points, vapor pressures, and AEGL/ERPG/PAC toxicity thresholds by chemical name from JSON database
+- **Trilinear & Quadrilinear Velocity Interpolation** — High-performance 3D trilinear (spatial) and 4D quadrilinear (spatial + temporal) interpolation of wind fields directly inside GPU kernels in `puff_models.H` and `lpdm_models.H`
+- **Spatially-Varying Canopy & Heterogeneous Surface Roughness** — Supports spatially distributed canopy height, frontal area index, and roughness ($z_0$) from user fields read into 2D AMReX arrays and retrieved cell-locally in solver kernels
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
 - **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file or land-use classification
