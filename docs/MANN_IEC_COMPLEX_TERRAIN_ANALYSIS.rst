@@ -57,7 +57,7 @@ Similarities (Can be unified)
 
 1. Both can use **common terrain masking framework**
    - Both need to respect terrain boundaries
-   - Both can leverage existing smooth masking (IMPLEMENTATION_NOTES.md)
+   - Both can leverage existing smooth masking (IMPLEMENTATION_NOTES.rst)
    - Both need height-above-ground (z_agl) calculations
 
 2. Both follow **similar parameter structure**
@@ -252,7 +252,7 @@ Key Shared Components
 **1. Terrain Mask (EXISTING - reusable)**
 .. code-block:: cpp
 
-    // From IMPLEMENTATION_NOTES.md - EXISTING IMPLEMENTATION
+    // From IMPLEMENTATION_NOTES.rst - EXISTING IMPLEMENTATION
     mask(z_agl) = {
         0.0,                        if z_agl ≤ 0
         (1 - cos(π·z_agl/h_t))/2,  if 0 < z_agl < h_t
@@ -552,7 +552,7 @@ PART 7: KEY FINDINGS & RECOMMENDATIONS
 Finding #1: Unified Terrain Masking is Possible
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Both models can use the **existing smooth terrain masking** from IMPLEMENTATION_NOTES.md:
+Both models can use the **existing smooth terrain masking** from IMPLEMENTATION_NOTES.rst:
 - Mann Box: Apply mask after tensor computation
 - IEC: Apply mask after intensity calculation
 - **Code reuse: 100%**

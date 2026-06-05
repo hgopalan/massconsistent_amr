@@ -159,7 +159,7 @@ Files Modified
    - New method: ``_compute_terrain_mask()``
    - Modified method: ``write_plotfile_with_fluctuations()``
 
-2. ``TERRAIN_AWARE_FLUCTUATIONS.md`` (187 lines)
+2. ``TERRAIN_AWARE_FLUCTUATIONS.rst`` (187 lines)
    - Complete user documentation
    - Physical validation details
    - Usage examples
