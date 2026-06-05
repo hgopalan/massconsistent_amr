@@ -138,26 +138,66 @@ Real interpolate_velocity_component(
     Real dy = cellsize[1];
     Real dz = cellsize[2];
     
-    // Grid indices
-    int i = static_cast<int>((x - problo[0]) / dx);
-    int j = static_cast<int>((y - problo[1]) / dy);
-    int k = static_cast<int>((z - problo[2]) / dz);
+    // Grid indices for lower cell center
+    int i0 = static_cast<int>(std::floor((x - problo[0] - 0.5 * dx) / dx));
+    int j0 = static_cast<int>(std::floor((y - problo[1] - 0.5 * dy) / dy));
+    int k0 = static_cast<int>(std::floor((z - problo[2] - 0.5 * dz) / dz));
     
-    // Clamp to domain
-    i = std::max(domain.smallEnd(0), std::min(domain.bigEnd(0) - 1, i));
-    j = std::max(domain.smallEnd(1), std::min(domain.bigEnd(1) - 1, j));
-    k = std::max(domain.smallEnd(2), std::min(domain.bigEnd(2) - 1, k));
+    int i1 = i0 + 1;
+    int j1 = j0 + 1;
+    int k1 = k0 + 1;
     
-    // Get box owned by this process
+    // Clamp to domain limits
+    int imin = domain.smallEnd(0);
+    int imax = domain.bigEnd(0) - 1;
+    int jmin = domain.smallEnd(1);
+    int jmax = domain.bigEnd(1) - 1;
+    int kmin = domain.smallEnd(2);
+    int kmax = domain.bigEnd(2) - 1;
+    
+    i0 = std::max(imin, std::min(imax, i0));
+    i1 = std::max(imin, std::min(imax, i1));
+    j0 = std::max(jmin, std::min(jmax, j0));
+    j1 = std::max(jmin, std::min(jmax, j1));
+    k0 = std::max(kmin, std::min(kmax, k0));
+    k1 = std::max(kmin, std::min(kmax, k1));
+    
+    Real x0 = problo[0] + (i0 + 0.5) * dx;
+    Real y0 = problo[1] + (j0 + 0.5) * dy;
+    Real z0 = problo[2] + (k0 + 0.5) * dz;
+    
+    Real x_frac = (i0 == i1) ? 0.0 : (x - x0) / dx;
+    Real y_frac = (j0 == j1) ? 0.0 : (y - y0) / dy;
+    Real z_frac = (k0 == k1) ? 0.0 : (z - z0) / dz;
+    
+    x_frac = std::max(0.0, std::min(1.0, x_frac));
+    y_frac = std::max(0.0, std::min(1.0, y_frac));
+    z_frac = std::max(0.0, std::min(1.0, z_frac));
+    
     for (MFIter mfi(vel); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         
-        if (bx.contains(IntVect(i, j, k))) {
+        if (bx.contains(IntVect(i0, j0, k0))) {
             auto vel_array = vel.array(mfi);
             
-            // Simple nearest-neighbor for now (could improve to trilinear)
-            Real val = vel_array(i, j, k, component);
-            return val;
+            Real c000 = vel_array(i0, j0, k0, component);
+            Real c100 = vel_array(i1, j0, k0, component);
+            Real c010 = vel_array(i0, j1, k0, component);
+            Real c110 = vel_array(i1, j1, k0, component);
+            Real c001 = vel_array(i0, j0, k1, component);
+            Real c101 = vel_array(i1, j0, k1, component);
+            Real c011 = vel_array(i0, j1, k1, component);
+            Real c111 = vel_array(i1, j1, k1, component);
+            
+            Real c00 = c000 * (1.0 - x_frac) + c100 * x_frac;
+            Real c10 = c010 * (1.0 - x_frac) + c110 * x_frac;
+            Real c01 = c001 * (1.0 - x_frac) + c101 * x_frac;
+            Real c11 = c011 * (1.0 - x_frac) + c111 * x_frac;
+            
+            Real c0 = c00 * (1.0 - y_frac) + c10 * y_frac;
+            Real c1 = c01 * (1.0 - y_frac) + c11 * y_frac;
+            
+            return c0 * (1.0 - z_frac) + c1 * z_frac;
         }
     }
     

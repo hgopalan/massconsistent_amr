@@ -30,119 +30,20 @@ cmake --build build --parallel
 
 ## Build Options
 
-The CMake build system supports multiple configuration options for customizing the build:
+Customize the build by passing variables to CMake:
 
-### Basic Configuration
+* `-DMASSCONSISTENT_GPU_BACKEND=[NONE|CUDA|HIP|SYCL]` — Enable GPU acceleration (default: `NONE`)
+* `-DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=[ON|OFF]` — Build Python API wrapper (default: `OFF`)
+* `-DMASSCONSISTENT_ENABLE_MPI=[ON|OFF]` — Enable MPI multi-node parallelism (default: `OFF`)
 
-```bash
-# CPU-only Release build (default)
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-
-# CPU-only Debug build (with optimizations disabled for debugging)
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --parallel
-```
-
-### GPU Acceleration
-
-Enable GPU support by specifying the backend:
-
-```bash
-# NVIDIA CUDA (requires CUDA toolkit 12.0+)
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_GPU_BACKEND=CUDA
-cmake --build build --parallel
-
-# AMD HIP/ROCm (requires ROCm 6.0+)
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_GPU_BACKEND=HIP
-cmake --build build --parallel
-
-# Intel SYCL/oneAPI (requires oneAPI 2024.0+)
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_GPU_BACKEND=SYCL
-cmake --build build --parallel
-```
-
-### Python Bindings
-
-Build Python bindings for integration with fire simulation and atmospheric models:
-
-```bash
-# Enable Python bindings (requires pybind11 and Python 3.6+)
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON
-cmake --build build --parallel
-
-# After building, the Python module is available at:
-# build/src/python/pyWindSolver.*.so
-# Can be imported as: from src.python import pyWindSolver
-
-# Or install to Python site-packages:
-pip install -e .
-```
-
-### MPI Parallelism
-
-Enable distributed memory parallelism for large-scale simulations:
-
-```bash
-# Enable MPI support (requires MPI implementation like OpenMPI or MPICH)
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_ENABLE_MPI=ON
-cmake --build build --parallel
-
-# Run with MPI:
-mpirun -np 4 ./build/wind_solver regtest/gaussian_hill/inputs.i
-```
-
-### Combined Options
-
-Example: GPU (CUDA) + Python + MPI:
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_GPU_BACKEND=CUDA \
-  -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON \
-  -DMASSCONSISTENT_ENABLE_MPI=ON
-cmake --build build --parallel
-```
-
-### Documentation Build
-
-Build Sphinx documentation (requires Sphinx and Python):
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_BUILD_DOCS=ON
-cmake --build build --target docs
-# Documentation will be in: build/docs/_build/html/
-```
-
-### Advanced AMReX Options
-
-For custom AMReX builds (e.g., external installation):
-
-```bash
-# Use system-installed AMReX instead of vendored submodule
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DMASSCONSISTENT_USE_VENDORED_AMREX=OFF \
-  -DAMReX_DIR=/path/to/amrex/lib/cmake/AMReX
-cmake --build build --parallel
-```
+Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON`
 
 ## Features
 
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
+- **Chemical/Physical Properties Database Lookup** — ALOHA / Regulatory dictionary lookup of chemical molecular parameters, boiling points, vapor pressures, and AEGL/ERPG/PAC toxicity thresholds by chemical name from JSON database
+- **Trilinear & Quadrilinear Velocity Interpolation** — High-performance 3D trilinear (spatial) and 4D quadrilinear (spatial + temporal) interpolation of wind fields directly inside GPU kernels in `puff_models.H` and `lpdm_models.H`
+- **Spatially-Varying Canopy & Heterogeneous Surface Roughness** — Supports spatially distributed canopy height, frontal area index, and roughness ($z_0$) from user fields read into 2D AMReX arrays and retrieved cell-locally in solver kernels
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
 - **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file or land-use classification

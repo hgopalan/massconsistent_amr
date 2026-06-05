@@ -13,6 +13,10 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_Array4.H>
+#include <AMReX_Box.H>
+#include <AMReX_Algorithm.H>
+#include "dispersion_interpolation.H"
 #include <algorithm>
 #include <cmath>
 

@@ -22,6 +22,7 @@ Example:
 
 import numpy as np
 import os
+import json
 try:
     import pyWindSolver
 except ImportError as e:
@@ -614,3 +615,110 @@ class WindSolver:
             bool: True if initialized
         """
         return pyWindSolver.is_initialized()
+
+
+class ChemicalDatabase:
+    """
+    A lookup database for chemical/physical properties and regulatory thresholds.
+    """
+    def __init__(self, json_path=None):
+        if json_path is None:
+            # Look in the same directory as this file
+            dir_path = os.path.dirname(os.path.abspath(__file__))
+            json_path = os.path.join(dir_path, "chemical_database.json")
+            
+        self.json_path = json_path
+        self.db = {}
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r') as f:
+                    self.db = json.load(f)
+            except Exception:
+                # Fallback to embedded dictionary
+                self._load_fallback_db()
+        else:
+            self._load_fallback_db()
+            # Try to write fallback db to path for future lookups
+            try:
+                with open(json_path, 'w') as f:
+                    json.dump(self.db, f, indent=4)
+            except Exception:
+                pass
+
+    def _load_fallback_db(self):
+        self.db = {
+            "chlorine": {
+                "name": "Chlorine",
+                "molecular_weight": 70.906,
+                "boiling_point": 239.11,
+                "vapor_pressure": 678000.0,
+                "aegl_1_1h": 0.5,
+                "aegl_2_1h": 2.0,
+                "aegl_3_1h": 20.0,
+                "erpg_1": 1.0,
+                "erpg_2": 3.0,
+                "erpg_3": 20.0,
+                "pac_1": 0.5,
+                "pac_2": 2.0,
+                "pac_3": 20.0
+            },
+            "ammonia": {
+                "name": "Ammonia",
+                "molecular_weight": 17.031,
+                "boiling_point": 239.82,
+                "vapor_pressure": 857000.0,
+                "aegl_1_1h": 30.0,
+                "aegl_2_1h": 160.0,
+                "aegl_3_1h": 1100.0,
+                "erpg_1": 25.0,
+                "erpg_2": 150.0,
+                "erpg_3": 750.0,
+                "pac_1": 30.0,
+                "pac_2": 160.0,
+                "pac_3": 1100.0
+            },
+            "sulfur_dioxide": {
+                "name": "Sulfur Dioxide",
+                "molecular_weight": 64.066,
+                "boiling_point": 263.15,
+                "vapor_pressure": 330000.0,
+                "aegl_1_1h": 0.20,
+                "aegl_2_1h": 0.75,
+                "aegl_3_1h": 30.0,
+                "erpg_1": 0.30,
+                "erpg_2": 3.0,
+                "erpg_3": 25.0,
+                "pac_1": 0.20,
+                "pac_2": 0.75,
+                "pac_3": 30.0
+            },
+            "benzene": {
+                "name": "Benzene",
+                "molecular_weight": 78.11,
+                "boiling_point": 353.20,
+                "vapor_pressure": 10000.0,
+                "aegl_1_1h": 52.0,
+                "aegl_2_1h": 800.0,
+                "aegl_3_1h": 4000.0,
+                "erpg_1": 50.0,
+                "erpg_2": 150.0,
+                "erpg_3": 1000.0,
+                "pac_1": 52.0,
+                "pac_2": 800.0,
+                "pac_3": 4000.0
+            }
+        }
+
+    def lookup(self, name):
+        """
+        Lookup chemical properties by name (case-insensitive).
+        
+        Parameters:
+            name (str): Name of the chemical.
+            
+        Returns:
+            dict: Dictionary of chemical properties, or None if not found.
+        """
+        key = name.lower().replace(" ", "_")
+        return self.db.get(key, None)
+
