@@ -49,7 +49,7 @@
 #include <AMReX_GpuQualifiers.H>
 #include <cmath>
 #include <algorithm>
-#include "math_constants.H"
+#include "solver_math_constants.H"
 
 // ============================================================================
 // Time-Lag Correlation Parameters Structure
