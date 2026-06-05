@@ -650,6 +650,7 @@ bool aermod_prime_wake_deficit(
     amrex::Real& dv,
     amrex::Real& dw)
 {
+    (void)params;
     // Initialize deficits to zero
     du = amrex::Real(0.0);
     dv = amrex::Real(0.0);

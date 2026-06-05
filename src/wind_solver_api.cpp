@@ -1,6 +1,7 @@
 #include "wind_solver_api.H"
 #include "canopy_models.H"
 #include "terrain_following_coords.H"
+#include "solver_math_constants.H"
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
@@ -274,7 +275,7 @@ void read_vertical_profile_csv(const std::string& filename,
             yd.push_back(y);
             zd.push_back(z);
             
-            Real dir_rad = direction * (M_PI / 180.0);
+            Real dir_rad = direction * MathConstants::deg_to_rad;
             Real u_val = -speed * std::sin(dir_rad);
             Real v_val = -speed * std::cos(dir_rad);
             ux.push_back(u_val);

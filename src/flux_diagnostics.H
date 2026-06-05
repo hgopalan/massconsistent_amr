@@ -263,6 +263,7 @@ amrex::Real compute_spatially_varying_habl(
     amrex::Real theta_ref = amrex::Real(300.0),
     amrex::Real f_coriolis = amrex::Real(1.0e-4))
 {
+    (void)z0;
     using namespace FluxConstants;
     
     ustar = std::max(ustar, amrex::Real(0.01));

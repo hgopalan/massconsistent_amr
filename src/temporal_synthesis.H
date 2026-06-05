@@ -55,7 +55,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include "synthetic_turbulence.H"
-#include "math_constants.H"
+#include "solver_math_constants.H"
 #include <cmath>
 #include <algorithm>
 #include <vector>

@@ -57,7 +57,7 @@
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Utility.H>
 #include "synthetic_turbulence.H"
-#include "math_constants.H"
+#include "solver_math_constants.H"
 #include <cmath>
 #include <algorithm>
 #include <random>
@@ -420,6 +420,8 @@ public:
         bool coherence_vertical,
         const SyntheticTurbulence::TurbulenceGenerator& gen)
     {
+        (void)coherence_vertical;
+        (void)gen;
         FieldOutput output;
         int total_points = nx * ny * nz;
         

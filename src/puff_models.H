@@ -380,12 +380,14 @@ amrex::Real compute_wake_enhancement_factor(
     amrex::Real K_enhancement_cavity = amrex::Real(3.0),
     amrex::Real K_enhancement_far = amrex::Real(1.5))
 {
+    (void)U_ref;
     // Building center and dimensions
     const amrex::Real bldg_center_x = amrex::Real(0.5) * (building.xmin + building.xmax);
     const amrex::Real bldg_center_y = amrex::Real(0.5) * (building.ymin + building.ymax);
     const amrex::Real H = building.height;
     const amrex::Real W = building.width;
     const amrex::Real L = building.length;
+    (void)L;
     
     // Vector from building center to puff
     const amrex::Real dx = puff_x - bldg_center_x;
@@ -1068,12 +1070,15 @@ CavityZone compute_cavity_zone(
     amrex::Real wind_dir_x = 1.0,
     amrex::Real wind_dir_y = 0.0)
 {
+    (void)wind_dir_x;
+    (void)wind_dir_y;
     CavityZone cavity;
     
     // Cavity dimensions from AERMOD PRIME
     amrex::Real H = building.height;
     amrex::Real W = building.width;
     amrex::Real L = building.length;
+    (void)L;
     
     // Cavity height: 0.67 × H above building base
     cavity.z_bottom = building.zmin;
@@ -1151,6 +1156,7 @@ void apply_cavity_trapping(
     amrex::Real building_center_x,
     amrex::Real cavity_recirculation_strength = 0.8)
 {
+    (void)building_center_x;
     if (!puff_in_cavity_zone(puff, cavity)) {
         return;
     }
@@ -1220,6 +1226,7 @@ void apply_plume_deformation_shear(
     amrex::Real dt,
     amrex::Real max_deformation = 2.0)
 {
+    (void)wind_speed_z;
     if (puff_z <= amrex::Real(0.0) || z_ref <= amrex::Real(0.0)) {
         return;
     }
