@@ -1,0 +1,62 @@
+{
+    "chlorine": {
+        "name": "Chlorine",
+        "molecular_weight": 70.906,
+        "boiling_point": 239.11,
+        "vapor_pressure": 678000.0,
+        "aegl_1_1h": 0.5,
+        "aegl_2_1h": 2.0,
+        "aegl_3_1h": 20.0,
+        "erpg_1": 1.0,
+        "erpg_2": 3.0,
+        "erpg_3": 20.0,
+        "pac_1": 0.5,
+        "pac_2": 2.0,
+        "pac_3": 20.0
+    },
+    "ammonia": {
+        "name": "Ammonia",
+        "molecular_weight": 17.031,
+        "boiling_point": 239.82,
+        "vapor_pressure": 857000.0,
+        "aegl_1_1h": 30.0,
+        "aegl_2_1h": 160.0,
+        "aegl_3_1h": 1100.0,
+        "erpg_1": 25.0,
+        "erpg_2": 150.0,
+        "erpg_3": 750.0,
+        "pac_1": 30.0,
+        "pac_2": 160.0,
+        "pac_3": 1100.0
+    },
+    "sulfur_dioxide": {
+        "name": "Sulfur Dioxide",
+        "molecular_weight": 64.066,
+        "boiling_point": 263.15,
+        "vapor_pressure": 330000.0,
+        "aegl_1_1h": 0.20,
+        "aegl_2_1h": 0.75,
+        "aegl_3_1h": 30.0,
+        "erpg_1": 0.30,
+        "erpg_2": 3.0,
+        "erpg_3": 25.0,
+        "pac_1": 0.20,
+        "pac_2": 0.75,
+        "pac_3": 30.0
+    },
+    "benzene": {
+        "name": "Benzene",
+        "molecular_weight": 78.11,
+        "boiling_point": 353.20,
+        "vapor_pressure": 10000.0,
+        "aegl_1_1h": 52.0,
+        "aegl_2_1h": 800.0,
+        "aegl_3_1h": 4000.0,
+        "erpg_1": 50.0,
+        "erpg_2": 150.0,
+        "erpg_3": 1000.0,
+        "pac_1": 52.0,
+        "pac_2": 800.0,
+        "pac_3": 4000.0
+    }
+}
