@@ -32,18 +32,12 @@ cmake --build build --parallel
 
 Customize the build by passing variables to CMake:
 
-<<<<<<< HEAD
-* **GPU Backends**: `-DMASSCONSISTENT_GPU_BACKEND=CUDA` (or `HIP` / `SYCL`)
-* **MPI Parallelism**: `-DMASSCONSISTENT_ENABLE_MPI=ON`
-* **Python Bindings**: `-DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON`
-* **External AMReX**: `-DMASSCONSISTENT_USE_VENDORED_AMREX=OFF -DAMReX_DIR=/path/to/amrex`
-=======
 * `-DMASSCONSISTENT_GPU_BACKEND=[NONE|CUDA|HIP|SYCL]` — Enable GPU acceleration (default: `NONE`)
 * `-DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=[ON|OFF]` — Build Python API wrapper (default: `OFF`)
 * `-DMASSCONSISTENT_ENABLE_MPI=[ON|OFF]` — Enable MPI multi-node parallelism (default: `OFF`)
+* `-DMASSCONSISTENT_USE_VENDORED_AMREX=[ON|OFF]` — Use vendored or external AMReX (default: `ON`). For external, set `-DAMReX_DIR=/path/to/amrex`.
 
 Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON`
->>>>>>> origin/main
 
 ## Features
 
