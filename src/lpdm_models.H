@@ -22,6 +22,15 @@
 // ============================================================================
 // Trilinear and Quadrilinear Velocity Interpolation
 // ============================================================================
+#ifndef PUFF_LPDM_INTERP_DEFINED
+#define PUFF_LPDM_INTERP_DEFINED
+
+template<typename T>
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+T clamp_val(T val, T low, T high) {
+    return (val < low) ? low : ((val > high) ? high : val);
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 amrex::Real interpolate_trilinear_3d(
     amrex::Real x, amrex::Real y, amrex::Real z,
@@ -47,12 +56,12 @@ amrex::Real interpolate_trilinear_3d(
     int kmin = domain.smallEnd(2);
     int kmax = domain.bigEnd(2) - 1;
     
-    i0 = amrex::clamp(i0, imin, imax);
-    i1 = amrex::clamp(i1, imin, imax);
-    j0 = amrex::clamp(j0, jmin, jmax);
-    j1 = amrex::clamp(j1, jmin, jmax);
-    k0 = amrex::clamp(k0, kmin, kmax);
-    k1 = amrex::clamp(k1, kmin, kmax);
+    i0 = clamp_val(i0, imin, imax);
+    i1 = clamp_val(i1, imin, imax);
+    j0 = clamp_val(j0, jmin, jmax);
+    j1 = clamp_val(j1, jmin, jmax);
+    k0 = clamp_val(k0, kmin, kmax);
+    k1 = clamp_val(k1, kmin, kmax);
     
     amrex::Real x0 = problo[0] + (i0 + amrex::Real(0.5)) * dx[0];
     amrex::Real y0 = problo[1] + (j0 + amrex::Real(0.5)) * dx[1];
@@ -62,9 +71,9 @@ amrex::Real interpolate_trilinear_3d(
     amrex::Real y_frac = (j0 == j1) ? amrex::Real(0.0) : (y - y0) / dx[1];
     amrex::Real z_frac = (k0 == k1) ? amrex::Real(0.0) : (z - z0) / dx[2];
     
-    x_frac = amrex::clamp(x_frac, amrex::Real(0.0), amrex::Real(1.0));
-    y_frac = amrex::clamp(y_frac, amrex::Real(0.0), amrex::Real(1.0));
-    z_frac = amrex::clamp(z_frac, amrex::Real(0.0), amrex::Real(1.0));
+    x_frac = clamp_val(x_frac, amrex::Real(0.0), amrex::Real(1.0));
+    y_frac = clamp_val(y_frac, amrex::Real(0.0), amrex::Real(1.0));
+    z_frac = clamp_val(z_frac, amrex::Real(0.0), amrex::Real(1.0));
     
     amrex::Real c000 = vel_arr(i0, j0, k0, component);
     amrex::Real c100 = vel_arr(i1, j0, k0, component);
@@ -103,9 +112,10 @@ amrex::Real interpolate_quadrilinear_4d(
         return val_t0;
     }
     amrex::Real t_frac = (t - t0) / (t1 - t0);
-    t_frac = amrex::clamp(t_frac, amrex::Real(0.0), amrex::Real(1.0));
+    t_frac = clamp_val(t_frac, amrex::Real(0.0), amrex::Real(1.0));
     return val_t0 * (amrex::Real(1.0) - t_frac) + val_t1 * t_frac;
 }
+#endif
 
 // ============================================================================
 // LPD Particle Structure
