@@ -29,7 +29,7 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
-#include "math_constants.H"
+#include "solver_math_constants.H"
 #include <cmath>
 
 // ============================================================================

@@ -58,7 +58,7 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
-#include "math_constants.H"
+#include "solver_math_constants.H"
 
 // ============================================================================
 // Terrain Scale Enumeration

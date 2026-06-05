@@ -1,7 +1,7 @@
 #include "wind_solver_api.H"
 #include "canopy_models.H"
 #include "terrain_following_coords.H"
-#include "math_constants.H"
+#include "solver_math_constants.H"
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>

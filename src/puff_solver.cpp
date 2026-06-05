@@ -23,7 +23,7 @@
 
 #include "puff_models.H"
 #include "lpdm_models.H"
-#include "math_constants.H"
+#include "solver_math_constants.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>

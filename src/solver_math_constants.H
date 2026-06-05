@@ -1,5 +1,5 @@
-#ifndef MATH_CONSTANTS_H
-#define MATH_CONSTANTS_H
+#ifndef SOLVER_MATH_CONSTANTS_H
+#define SOLVER_MATH_CONSTANTS_H
 
 #include <AMReX_REAL.H>
 
@@ -13,4 +13,4 @@ namespace MathConstants {
     constexpr amrex::Real deg_to_rad = pi / amrex::Real(180.0);
 }
 
-#endif // MATH_CONSTANTS_H
+#endif // SOLVER_MATH_CONSTANTS_H

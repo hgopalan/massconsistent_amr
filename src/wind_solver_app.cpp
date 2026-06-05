@@ -1,7 +1,7 @@
 #include "wind_solver_app.H"
 #include "canopy_models.H"
 #include "wake_models.H"
-#include "math_constants.H"
+#include "solver_math_constants.H"
 #include "stability_models.H"
 #include "porosity_models.H"
 #include "wall_functions.H"
