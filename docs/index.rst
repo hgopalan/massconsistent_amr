@@ -14,6 +14,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    overview
    building
    usage
+   walkthrough
    physics
    advanced_solver_features
    wind_solver
