@@ -326,7 +326,7 @@ Support
 
 For issues or questions:
 
-1. Check the Mann Box documentation: ``MANN_BOX_PYTHON_BINDINGS.md``
+1. Check the Mann Box documentation: ``MANN_BOX_PYTHON_BINDINGS.rst``
 2. Review the Python test suite: ``test_mann_box_inputs.py``
 3. See the configuration guide in ``inputs_mann_box.i`` comments
 4. Run the verification tests to validate your configuration

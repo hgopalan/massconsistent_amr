@@ -314,6 +314,6 @@ The IEC 61400 implementation enables a complete workflow:
 ## Contact & Issues
 
 For questions about these tests or IEC 61400 implementation, refer to:
-- Main documentation: `docs/IEC61400_FLUCTUATION_GENERATION.md`
+- Main documentation: `docs/IEC61400_FLUCTUATION_GENERATION.rst`
 - Implementation files: `src/python/iec61400_models.py`, `src/wind_solver.cpp`
 - Example code: `src/python/example_iec61400_models.py`

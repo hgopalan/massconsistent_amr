@@ -31,7 +31,7 @@
 //   - IEC 61400-1:2019 intensity model for wind turbine certification
 //   - QuadraticExponential and PowerLaw coherence models for complex terrain
 //   - Smooth user-defined intensity profiles with C-infinity continuity
-//   - See docs/PHASE1_TURBULENCE_ENHANCEMENTS.md for detailed documentation
+//   - See docs/iec61400_synthesis.rst for detailed documentation
 //
 // References:
 //   - von Kármán, T. (1948). Progress in the statistical theory of turbulence.
@@ -154,7 +154,7 @@ struct TurbulenceParams {
     
     // ---- Mann Box Parameters (NEW - Phase 2) ----
     // Mann Box is an anisotropic spectral tensor model for complex terrain
-    // See docs/PHASE2_MANN_BOX_INTEGRATION.md for detailed documentation
+    // See docs/mann_model.rst for detailed documentation
     
     // Mann Box integral length scales [m]
     // These are typically different from Von Kármán scales for better complex terrain representation
@@ -182,7 +182,7 @@ struct TurbulenceParams {
     
     // ---- Phase 3+ Enhancements: Non-neutral Stability Corrections ----
     // Monin-Obukhov similarity theory for non-neutral atmospheric conditions
-    // See docs/PHASE3_STABILITY_CORRECTIONS.md for detailed documentation
+    // See docs/mann_model.rst or docs/iec61400_synthesis.rst for detailed documentation
     
     // Enable/disable non-neutral stability corrections
     bool enable_stability_correction = false;

@@ -232,11 +232,11 @@ AMReX plotfiles containing:
    - Describes tensor formulation and anisotropy ratios
 
 2. **Phase 2 Documentation** - Comprehensive reference
-   - docs/PHASE2_MANN_BOX_INTEGRATION.md
+   - docs/mann_model.rst
    - API reference, usage examples, validation
 
 3. **Phase 1 Documentation** - Coherence and intensity models
-   - docs/PHASE1_TURBULENCE_ENHANCEMENTS.md
+   - docs/iec61400_synthesis.rst
    - IEC 61400-1, smooth profiles, coherence models
 
 ## Integration with Other Tools
@@ -277,7 +277,7 @@ Mann Box wind → WindNinja/QUIC-PLUME → Fire spread model
 ## Contact & Support
 
 For issues or questions about the Mann Box implementation:
-1. Review Phase 2 documentation: `docs/PHASE2_MANN_BOX_INTEGRATION.md`
+1. Review Phase 2 documentation: `docs/mann_model.rst`
 2. Check unit tests: `test/mann_box_test.py` for validation examples
 3. Examine inputs.i for parameter reference
 

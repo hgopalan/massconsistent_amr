@@ -235,7 +235,7 @@ Terrain Integration
 -------------------
 
 
-**Good News**: Recent work on terrain-aware fluctuations (IMPLEMENTATION_NOTES.md) provides solid foundation:
+**Good News**: Recent work on terrain-aware fluctuations (IMPLEMENTATION_NOTES.rst) provides solid foundation:
 - Masking approach turns off fluctuations inside terrain
 - Smooth blending maintains mass conservation
 - All new models can leverage existing masking
