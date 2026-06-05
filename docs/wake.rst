@@ -382,6 +382,8 @@ Limitations
   Wake-wake interactions and wake merging are handled by sequential application
   but may not capture complex interference patterns.
 
+* **Street Canyons**: The empirical Oke (1988) street canyon parameterization is a simplified flow-regime detector based purely on 2D height-to-width ($H/W$) ratios and grid cell dimensions. It does not resolve full 3D corner vortices, channeling angles, or asymmetric building heights, and assumes a homogeneous street canyon width represented by twice the cell spacing ($2\Delta x$).
+
 Future Extensions
 -----------------
 
