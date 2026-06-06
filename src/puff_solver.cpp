@@ -382,6 +382,54 @@ int main(int argc, char* argv[])
         pp.query("enable_canopy_deposition", enable_canopy_deposition);
         pp.query("deposition_velocity", deposition_velocity);
         
+        // Gravitational settling parameters
+        bool enable_settling = false;
+        Real particle_density = 1000.0;
+        Real particle_diameter = 10.0e-6;
+        Real air_viscosity = 1.8e-5;
+        Real gravity = 9.81;
+        pp.query("enable_settling", enable_settling);
+        pp.query("particle_density", particle_density);
+        pp.query("particle_diameter", particle_diameter);
+        pp.query("air_viscosity", air_viscosity);
+        pp.query("gravity", gravity);
+
+        // Ground Dry deposition parameter
+        bool enable_puff_deposition = false;
+        pp.query("enable_puff_deposition", enable_puff_deposition);
+
+        // Wet deposition / Precipitation scavenging parameters
+        bool enable_wet_deposition = false;
+        Real scavenging_coeff_base = 1.0e-4;
+        Real precipitation_rate = 1.0;
+        Real scavenging_exponent = 0.8;
+        pp.query("enable_wet_deposition", enable_wet_deposition);
+        pp.query("scavenging_coeff_base", scavenging_coeff_base);
+        pp.query("precipitation_rate", precipitation_rate);
+        pp.query("scavenging_exponent", scavenging_exponent);
+
+        // Ambient-condition-driven chemical decay parameters
+        bool enable_dynamic_decay = false;
+        Real temp_ref = 298.15;
+        Real temp_coeff = 0.04;
+        Real rh_ref = 50.0;
+        Real rh_coeff = 0.005;
+        Real solar_ref = 500.0;
+        Real solar_coeff = 1.0;
+        Real ambient_temp = 298.15;
+        Real ambient_rh = 50.0;
+        Real ambient_solar = 500.0;
+        pp.query("enable_dynamic_decay", enable_dynamic_decay);
+        pp.query("temp_ref", temp_ref);
+        pp.query("temp_coeff", temp_coeff);
+        pp.query("rh_ref", rh_ref);
+        pp.query("rh_coeff", rh_coeff);
+        pp.query("solar_ref", solar_ref);
+        pp.query("solar_coeff", solar_coeff);
+        pp.query("ambient_temp", ambient_temp);
+        pp.query("ambient_rh", ambient_rh);
+        pp.query("ambient_solar", ambient_solar);
+        
         // Domain parameters
         Real xmin = 0.0, xmax = 300.0;
         Real ymin = 0.0, ymax = 300.0;
@@ -476,12 +524,45 @@ int main(int argc, char* argv[])
         if (enable_canopy_deposition) {
             amrex::Print() << "  Canopy deposition: ENABLED (v_d = " << deposition_velocity << " m/s)\n";
         }
+        if (enable_settling) {
+            amrex::Print() << "  Gravitational settling: ENABLED\n";
+            amrex::Print() << "    Particle density: " << particle_density << " kg/m³\n";
+            amrex::Print() << "    Particle diameter: " << particle_diameter << " m\n";
+            amrex::Print() << "    Air viscosity: " << air_viscosity << " Pa·s\n";
+        }
+        if (enable_puff_deposition) {
+            amrex::Print() << "  Ground dry deposition: ENABLED (v_d = " << deposition_velocity << " m/s)\n";
+        }
+        if (enable_wet_deposition) {
+            amrex::Print() << "  Wet deposition (precip scavenging): ENABLED\n";
+            amrex::Print() << "    Scavenging coeff base: " << scavenging_coeff_base << " 1/s\n";
+            amrex::Print() << "    Precipitation rate: " << precipitation_rate << " mm/hr\n";
+            amrex::Print() << "    Scavenging exponent: " << scavenging_exponent << "\n";
+        }
+        if (enable_dynamic_decay) {
+            amrex::Print() << "  Ambient-condition-driven chemical decay: ENABLED\n";
+            amrex::Print() << "    Reference Temp: " << temp_ref << " K, Coeff: " << temp_coeff << "\n";
+            amrex::Print() << "    Reference RH: " << rh_ref << " %, Coeff: " << rh_coeff << "\n";
+            amrex::Print() << "    Reference Solar: " << solar_ref << " W/m², Coeff: " << solar_coeff << "\n";
+            amrex::Print() << "    Ambient conditions: Temp=" << ambient_temp << " K, RH=" << ambient_rh << " %, Solar=" << ambient_solar << " W/m²\n";
+        }
         
         // Wind direction for wake calculations
         Real wind_speed = std::sqrt(U_wind*U_wind + V_wind*V_wind);
         Real wind_dir_x = (wind_speed > 1.0e-10) ? U_wind / wind_speed : 1.0;
         Real wind_dir_y = (wind_speed > 1.0e-10) ? V_wind / wind_speed : 0.0;
         
+        Real v_s = 0.0;
+        if (enable_settling) {
+            v_s = compute_settling_velocity(particle_density, particle_diameter, gravity, air_viscosity);
+        }
+
+        Real wet_decay_factor = 1.0;
+        if (enable_wet_deposition) {
+            Real Lambda = scavenging_coeff_base * std::pow(precipitation_rate, scavenging_exponent);
+            wet_decay_factor = std::exp(-Lambda * dt_puff);
+        }
+
         // ====================================================================
         // Time-stepping loop
         // ====================================================================
@@ -585,9 +666,25 @@ int main(int argc, char* argv[])
                         p.mass *= std::exp(-decay_rate * dt_puff);
                     }
                 }
+
+                // Apply ground dry deposition for particle
+                if (enable_puff_deposition && z_agl >= 0.0) {
+                    apply_particle_deposition(p, dt_puff, z_agl, deposition_velocity, dz);
+                }
+
+                // Apply wet deposition
+                if (enable_wet_deposition) {
+                    p.mass *= wet_decay_factor;
+                }
                     
-                // Apply first-order decay
-                if (enable_decay && decay_constant > 0.0) {
+                // Apply chemical decay
+                if (enable_dynamic_decay && decay_constant > 0.0) {
+                    Real lambda_dynamic = compute_dynamic_decay_constant(
+                        z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
+                        temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
+                        enable_canopy_effects, canopy_height, frontal_area_index);
+                    p.mass *= std::exp(-lambda_dynamic * dt_puff);
+                } else if (enable_decay && decay_constant > 0.0) {
                     p.mass *= std::exp(-decay_constant * dt_puff);
                 }
                     
@@ -605,10 +702,10 @@ int main(int argc, char* argv[])
                 if (enable_terrain_reflection) {
                     advect_particle_with_terrain(p, U_wind, V_wind, W_wind, 
                                                 rand_dx, rand_dy, rand_dz,
-                                                dt_puff, terrain_height, true);
+                                                dt_puff, terrain_height, true, v_s);
                 } else {
                     advect_particle(p, U_wind, V_wind, W_wind, 
-                                    rand_dx, rand_dy, rand_dz, dt_puff);
+                                    rand_dx, rand_dy, rand_dz, dt_puff, v_s);
                 }
                     
                 // Check bounds with terrain awareness
@@ -666,9 +763,9 @@ int main(int argc, char* argv[])
                 // Advection with terrain reflection
                 if (enable_terrain_reflection) {
                     advect_puff_with_terrain(puff, U_wind, V_wind, W_wind, 
-                                            dt_puff, terrain_height, true);
+                                            dt_puff, terrain_height, true, v_s);
                 } else {
-                    advect_puff(puff, U_wind, V_wind, W_wind, dt_puff);
+                    advect_puff(puff, U_wind, V_wind, W_wind, dt_puff, v_s);
                 }
                     
                 // Compute effective diffusivities
@@ -721,12 +818,28 @@ int main(int argc, char* argv[])
                     apply_canopy_deposition(puff, dt_puff, z_agl, canopy_height,
                                           frontal_area_index, deposition_velocity);
                 }
+
+                // Apply ground dry deposition
+                if (enable_puff_deposition) {
+                    apply_puff_deposition(puff, dt_puff, terrain_height, deposition_velocity);
+                }
+
+                // Apply wet deposition
+                if (enable_wet_deposition) {
+                    puff.mass *= wet_decay_factor;
+                }
                     
                 // Update age
                 update_puff_age(puff, dt_puff);
                     
-                // Apply first-order decay
-                if (enable_decay && decay_constant > 0.0) {
+                // Apply chemical decay
+                if (enable_dynamic_decay && decay_constant > 0.0) {
+                    Real lambda_dynamic = compute_dynamic_decay_constant(
+                        z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
+                        temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
+                        enable_canopy_effects, canopy_height, frontal_area_index);
+                    apply_puff_decay(puff, dt_puff, lambda_dynamic);
+                } else if (enable_decay && decay_constant > 0.0) {
                     apply_puff_decay(puff, dt_puff, decay_constant);
                 }
                     

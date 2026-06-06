@@ -105,6 +105,34 @@ struct PuffParams {
     bool enable_plume_deformation = false;   // Enable plume deformation under shear
     amrex::Real aermod_prime_cavity_factor = 0.67;  // Cavity height factor (fraction of H)
     amrex::Real cavity_recirculation_strength = 0.8;  // Recirculation intensity [0-1]
+
+    // Gravitational settling parameters
+    bool enable_settling = false;            // Enable terminal settling velocity
+    amrex::Real particle_density = 1000.0;   // Particle density [kg/m³]
+    amrex::Real particle_diameter = 10.0e-6; // Particle diameter [m]
+    amrex::Real air_viscosity = 1.8e-5;      // Air dynamic viscosity [Pa·s]
+    amrex::Real gravity = 9.81;              // Acceleration of gravity [m/s²]
+
+    // Ground Dry deposition parameter (for both puffs and particles)
+    bool enable_puff_deposition = false;     // Enable ground dry deposition
+    
+    // Wet deposition / Precipitation scavenging parameters
+    bool enable_wet_deposition = false;      // Enable wet deposition
+    amrex::Real scavenging_coeff_base = 1.0e-4; // Base scavenging coefficient Lambda0 [s^-1]
+    amrex::Real precipitation_rate = 1.0;    // Precipitation rate P [mm/hr]
+    amrex::Real scavenging_exponent = 0.8;   // Scavenging exponent a
+
+    // Ambient-condition-driven chemical decay parameters
+    bool enable_dynamic_decay = false;       // Replace constant decay with ambient-driven decay
+    amrex::Real temp_ref = 298.15;           // Reference temperature [K] (25 C)
+    amrex::Real temp_coeff = 0.04;           // Temperature sensitivity coefficient (e.g. 0.04 K^-1)
+    amrex::Real rh_ref = 50.0;               // Reference relative humidity [%]
+    amrex::Real rh_coeff = 0.005;            // Relative humidity sensitivity coefficient
+    amrex::Real solar_ref = 500.0;           // Reference solar radiation [W/m^2]
+    amrex::Real solar_coeff = 1.0;           // Solar radiation sensitivity coefficient
+    amrex::Real ambient_temp = 298.15;       // Ambient temperature [K]
+    amrex::Real ambient_rh = 50.0;           // Ambient relative humidity [%]
+    amrex::Real ambient_solar = 500.0;       // Ambient solar radiation [W/m^2]
 };
 
 // ============================================================================
@@ -600,6 +628,7 @@ void apply_canopy_deposition(
 //   dt                 - Time step [s]
 //   terrain_height     - Ground elevation at puff location [m]
 //   enable_reflection  - Enable ground reflection
+//   v_s                - Terminal settling velocity [m/s]
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void advect_puff_with_terrain(
@@ -609,7 +638,8 @@ void advect_puff_with_terrain(
     amrex::Real w,
     amrex::Real dt,
     amrex::Real terrain_height,
-    bool enable_reflection = false)
+    bool enable_reflection = false,
+    amrex::Real v_s = amrex::Real(0.0))
 {
     if (!puff.active || dt < amrex::Real(0.0)) {
         return;
@@ -618,7 +648,7 @@ void advect_puff_with_terrain(
     // Advect puff
     puff.x += u * dt;
     puff.y += v * dt;
-    puff.z += w * dt;
+    puff.z += (w - v_s) * dt;
     
     // Ground reflection
     if (enable_reflection && puff.z < terrain_height) {
@@ -641,6 +671,7 @@ void advect_puff_with_terrain(
 //   puff             - Puff to advect
 //   u, v, w          - Wind velocity components [m/s]
 //   dt               - Time step [s]
+//   v_s              - Terminal settling velocity [m/s]
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void advect_puff(
@@ -648,7 +679,8 @@ void advect_puff(
     amrex::Real u,
     amrex::Real v,
     amrex::Real w,
-    amrex::Real dt)
+    amrex::Real dt,
+    amrex::Real v_s = amrex::Real(0.0))
 {
     if (!puff.active || dt < amrex::Real(0.0)) {
         return;
@@ -656,7 +688,7 @@ void advect_puff(
     
     puff.x += u * dt;
     puff.y += v * dt;
-    puff.z += w * dt;
+    puff.z += (w - v_s) * dt;
 }
 
 // ============================================================================
@@ -727,6 +759,81 @@ amrex::Real compute_K_height_dependent(
     const amrex::Real K_height = K_base * std::pow(ratio, exponent);
     
     return K_height;
+}
+
+// ============================================================================
+// Compute terminal settling velocity via Stokes' Law
+//
+// Formula: v_s = (rho_p * d_p^2 * g) / (18 * mu)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_settling_velocity(
+    amrex::Real particle_density,
+    amrex::Real particle_diameter,
+    amrex::Real gravity,
+    amrex::Real air_viscosity)
+{
+    if (air_viscosity <= amrex::Real(0.0)) {
+        return amrex::Real(0.0);
+    }
+    return (particle_density * particle_diameter * particle_diameter * gravity) / 
+           (amrex::Real(18.0) * air_viscosity);
+}
+
+// ============================================================================
+// Compute dynamic chemical decay constant
+//
+// Updates decay constant based on temperature (lapse rate), relative humidity,
+// and solar radiation (canopy attenuation).
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_dynamic_decay_constant(
+    amrex::Real z_agl,
+    amrex::Real base_decay,
+    amrex::Real ambient_temp,
+    amrex::Real ambient_rh,
+    amrex::Real ambient_solar,
+    amrex::Real temp_ref,
+    amrex::Real temp_coeff,
+    amrex::Real rh_ref,
+    amrex::Real rh_coeff,
+    amrex::Real solar_ref,
+    amrex::Real solar_coeff,
+    bool enable_canopy_effects = false,
+    amrex::Real canopy_height = 0.0,
+    amrex::Real frontal_area_index = 0.0)
+{
+    if (base_decay <= amrex::Real(0.0)) {
+        return amrex::Real(0.0);
+    }
+
+    // 1. Temperature height adjustment (standard lapse rate 0.0065 K/m)
+    amrex::Real T_z = ambient_temp;
+    if (z_agl > amrex::Real(0.0)) {
+        T_z = std::max(amrex::Real(200.0), ambient_temp - amrex::Real(0.0065) * z_agl);
+    }
+
+    // 2. Solar radiation canopy attenuation
+    amrex::Real I_z = ambient_solar;
+    if (enable_canopy_effects && canopy_height > amrex::Real(0.0) && z_agl < canopy_height) {
+        amrex::Real z_safe = std::max(amrex::Real(0.0), z_agl);
+        amrex::Real attenuation = std::exp(-amrex::Real(0.5) * frontal_area_index * (amrex::Real(1.0) - z_safe / canopy_height));
+        I_z *= attenuation;
+    }
+
+    // 3. Compute scaling factors
+    // Temperature factor (exponential Arrhenius-like scaling)
+    amrex::Real f_T = std::exp(temp_coeff * (T_z - temp_ref));
+
+    // Humidity factor (linear scaling around reference RH, clamped to be positive)
+    amrex::Real f_RH = amrex::Real(1.0) + rh_coeff * (ambient_rh - rh_ref);
+    if (f_RH < amrex::Real(0.1)) f_RH = amrex::Real(0.1);
+
+    // Solar radiation factor (photolysis increases decay rate, proportional to light intensity)
+    amrex::Real f_solar = amrex::Real(1.0) + solar_coeff * (I_z / std::max(solar_ref, amrex::Real(1.0e-3)));
+    if (f_solar < amrex::Real(0.0)) f_solar = amrex::Real(0.0);
+
+    return base_decay * f_T * f_RH * f_solar;
 }
 
 // ============================================================================

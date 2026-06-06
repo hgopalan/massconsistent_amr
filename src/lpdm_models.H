@@ -53,7 +53,7 @@ LpdParticle create_particle(
 }
 
 // ============================================================================
-// Advect particle with wind velocity and stochastic random walk
+// Advect particle with wind velocity, terminal settling velocity, and stochastic random walk
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void advect_particle_with_terrain(
@@ -66,16 +66,17 @@ void advect_particle_with_terrain(
     amrex::Real rand_dz,
     amrex::Real dt,
     amrex::Real terrain_height,
-    bool enable_reflection = false)
+    bool enable_reflection = false,
+    amrex::Real v_s = amrex::Real(0.0))
 {
     if (!p.active || dt < amrex::Real(0.0)) {
         return;
     }
     
-    // Advect with wind + stochastic random walk
+    // Advect with wind, terminal settling velocity, + stochastic random walk
     p.x += u * dt + rand_dx;
     p.y += v * dt + rand_dy;
-    p.z += w * dt + rand_dz;
+    p.z += (w - v_s) * dt + rand_dz;
     
     // Ground reflection
     if (enable_reflection && p.z < terrain_height) {
@@ -85,7 +86,7 @@ void advect_particle_with_terrain(
 }
 
 // ============================================================================
-// Advect particle with wind velocity and stochastic random walk (no terrain)
+// Advect particle with wind velocity, terminal settling velocity, and stochastic random walk (no terrain)
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void advect_particle(
@@ -96,7 +97,8 @@ void advect_particle(
     amrex::Real rand_dx,
     amrex::Real rand_dy,
     amrex::Real rand_dz,
-    amrex::Real dt)
+    amrex::Real dt,
+    amrex::Real v_s = amrex::Real(0.0))
 {
     if (!p.active || dt < amrex::Real(0.0)) {
         return;
@@ -104,7 +106,35 @@ void advect_particle(
     
     p.x += u * dt + rand_dx;
     p.y += v * dt + rand_dy;
-    p.z += w * dt + rand_dz;
+    p.z += (w - v_s) * dt + rand_dz;
+}
+
+// ============================================================================
+// Apply ground dry deposition to particle
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_particle_deposition(
+    LpdParticle& p,
+    amrex::Real dt,
+    amrex::Real z_agl,
+    amrex::Real deposition_velocity,
+    amrex::Real height_scale = amrex::Real(1.0))
+{
+    if (!p.active || p.mass <= amrex::Real(0.0)) {
+        return;
+    }
+    if (deposition_velocity <= amrex::Real(0.0) || dt <= amrex::Real(0.0)) {
+        return;
+    }
+    // Deposition occurs close to the ground (within 2 meters as a representative surface layer)
+    if (z_agl >= amrex::Real(0.0) && z_agl < amrex::Real(2.0)) {
+        amrex::Real decay_rate = deposition_velocity / std::max(height_scale, amrex::Real(0.1));
+        p.mass *= std::exp(-decay_rate * dt);
+        
+        if (p.mass < amrex::Real(1.0e-12)) {
+            p.active = false;
+        }
+    }
 }
 
 // ============================================================================
