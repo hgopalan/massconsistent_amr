@@ -61,6 +61,11 @@ endfunction()
 add_regression_test(flat_terrain flat_terrain)
 
 # ===========================================================================
+# flatirons_turbines/ – Sloping Flatirons NREL terrain with wind turbines
+# ===========================================================================
+add_regression_test(flatirons_turbines flatirons_turbines)
+
+# ===========================================================================
 # gaussian_hill/ – Gaussian hill terrain, terrain-following log-law wind
 # ===========================================================================
 add_regression_test(gaussian_hill gaussian_hill)

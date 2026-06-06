@@ -1,0 +1,4 @@
+# x, y, hub_height, rotor_diameter, default_ct, power_curve_file
+200.0, 500.0, 80.0, 100.0, 0.8, nrel_5mw.csv
+500.0, 500.0, 80.0, 100.0, 0.8, nrel_5mw.csv
+800.0, 500.0, 80.0, 100.0, 0.8, nrel_5mw.csv
