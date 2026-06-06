@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "synthetic_turbulence.H"
+#include "turbine_wake_models.H"
 
 class WindSolverApp {
 public:
@@ -61,6 +62,15 @@ private:
     amrex::Real wake_c2 = 0.3;
     amrex::Real wake_separation_length = 3.0;
     bool wake_superposition = true;
+
+    // Analytical Turbine Wake
+    bool enable_turbine_wake = false;
+    std::string turbine_file = "";
+    std::string turbine_wake_model_type = "jensen";
+    std::string turbine_wake_superposition = "quadratic";
+    amrex::Real jensen_kw = 0.075;
+    amrex::Real gaussian_ka = 0.05;
+    std::vector<TurbineWake::Turbine> turbines;
 
     // Street canyon
     bool enable_street_canyon = false;

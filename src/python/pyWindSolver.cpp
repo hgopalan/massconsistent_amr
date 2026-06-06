@@ -378,6 +378,22 @@ bool wind_solver_is_initialized_py() {
     return wind_solver_is_initialized();
 }
 
+bool wind_solver_add_turbine_py(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file) {
+    return wind_solver_add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file);
+}
+
+void wind_solver_clear_turbines_py() {
+    wind_solver_clear_turbines();
+}
+
+std::vector<double> wind_solver_get_turbine_power_outputs_py() {
+    return wind_solver_get_turbine_power_outputs();
+}
+
+std::vector<double> wind_solver_get_turbine_inflow_speeds_py() {
+    return wind_solver_get_turbine_inflow_speeds();
+}
+
 // ============================================================================
 // Module definition
 // ============================================================================
@@ -616,5 +632,27 @@ PYBIND11_MODULE(pyWindSolver, m) {
         -------
         bool
             True if initialized, False otherwise
+      )pbdoc");
+
+    // Turbine API
+    m.def("add_turbine", &wind_solver_add_turbine_py,
+          py::arg("x"), py::arg("y"), py::arg("hub_height"), py::arg("rotor_diameter"), py::arg("default_ct") = 0.8, py::arg("power_curve_file") = "",
+          R"pbdoc(
+        Add a wind turbine to the solver.
+      )pbdoc");
+
+    m.def("clear_turbines", &wind_solver_clear_turbines_py,
+          R"pbdoc(
+        Clear all wind turbines.
+      )pbdoc");
+
+    m.def("get_turbine_power_outputs", &wind_solver_get_turbine_power_outputs_py,
+          R"pbdoc(
+        Get power output of all turbines.
+      )pbdoc");
+
+    m.def("get_turbine_inflow_speeds", &wind_solver_get_turbine_inflow_speeds_py,
+          R"pbdoc(
+        Get inflow wind speed at all turbines.
       )pbdoc");
 }

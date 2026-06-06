@@ -389,3 +389,105 @@ Future Extensions
 
 * Improved rooftop vortex models based on building aspect ratio
 * Two-counter-rotating vortex pair (CFD-based parameterizations)
+
+Analytical Turbine Wake Models
+==============================
+
+The solver also supports analytical wind turbine wake deficit models applied directly within the initial wind field computation phase before the mass-consistent projection solver is executed. This is particularly useful for wind energy applications (such as coupled FLORIS-type microscale flow simulations).
+
+Supported Turbine Wake Models
+-----------------------------
+
+1. **Jensen (Park) Wake Model**:
+   Uses the classic linear expansion formulation to determine the wake radius as a function of downstream distance and a wake decay constant. A uniform wind speed reduction is applied across the wake cross-section.
+
+   .. math::
+
+      R_w(x_{down}) = R_0 + k_w \cdot x_{down}
+
+      \Delta U = U_0 \cdot \frac{1 - \sqrt{1 - C_T}}{(1 + 2 \cdot k_w \cdot x_{down} / D)^2}
+
+   where :math:`R_0 = D / 2` is the rotor radius, :math:`D` is the rotor diameter, :math:`C_T` is the thrust coefficient, :math:`k_w` is the wake decay constant, and :math:`U_0` is the inflow wind speed at the turbine hub.
+
+2. **Bastankhah (Gaussian) Wake Model**:
+   Implements a self-similar Gaussian velocity deficit profile, where the wake expansion scales linearly with downwind distance, providing a smoother, more physical radial deficit distribution.
+
+   .. math::
+
+      \sigma_w(x_{down}) = k_a \cdot x_{down} + \epsilon \cdot D
+
+      \frac{\Delta U}{U_0} = \left( 1 - \sqrt{1 - \frac{C_T}{8 \cdot (\sigma_w / D)^2}} \right) \cdot \exp\left( - \frac{r^2}{2 \cdot \sigma_w^2} \right)
+
+   where :math:`\epsilon = 0.2 \cdot \sqrt{\frac{1 + \sqrt{1-C_T}}{2\sqrt{1-C_T}}}` and :math:`k_a` is the wake expansion coefficient.
+
+Terrain Awareness
+-----------------
+
+To make the wake models fully terrain-aware, the wake centerline is formulated to follow the local terrain profile perfectly. At any downwind coordinate, the local height of the centerline is computed relative to the local terrain height:
+
+.. math::
+
+   z_{vertical} = z_{agl} - H_T = (z - Z_{terrain}(x, y)) - H_T
+
+where :math:`z_{agl}` is the height above local terrain, and :math:`H_T` is the turbine's hub height above local terrain. The radial distance :math:`r` is computed as:
+
+.. math::
+
+   r = \sqrt{y_{cross}^2 + z_{vertical}^2}
+
+This ensures that the wake bends and conforms to arbitrary complex topography, maintaining a constant height above local ground level.
+
+Atmospheric Stability Influence
+--------------------------------
+
+If atmospheric stability correction is enabled (using the Obukhov length :math:`L`), the turbine wake decay constant :math:`k_w` (for Jensen) or expansion rate :math:`k_a` (for Bastankhah) is scaled dynamically based on local stability:
+
+.. math::
+
+   F_{stability} = \begin{cases} 
+      1 - 0.4 \cdot \tanh(\zeta_{hub}) & \text{if stable } (\zeta_{hub} > 0) \\
+      1 + 0.6 \cdot \tanh(-\zeta_{hub}) & \text{if unstable } (\zeta_{hub} < 0) \\
+      1 & \text{if neutral } (\zeta_{hub} = 0)
+   \end{cases}
+
+where :math:`\zeta_{hub} = H_{hub} / L`. In stable conditions, reduced ambient turbulence suppresses mixing, leading to a smaller wake expansion rate and a slower wake recovery. In unstable conditions, convective mixing accelerates wake recovery, resulting in a larger expansion rate.
+
+Enabling Analytical Turbine Wakes
+---------------------------------
+
+To enable turbine wake modeling, configure the following parameters in your inputs file:
+
+.. code-block:: text
+
+   enable_turbine_wake = true
+   turbine_file = turbines.csv
+   turbine_wake_model_type = jensen           # or "bastankhah_gaussian"
+   turbine_wake_superposition = quadratic     # or "linear"
+   jensen_kw = 0.075                          # Base Jensen wake decay constant
+   gaussian_ka = 0.05                         # Base Bastankhah expansion rate
+
+The turbines CSV file should contain turbine locations, characteristics, and optional power/thrust curve file path:
+
+.. code-block:: text
+
+   # x, y, hub_height, rotor_diameter, default_ct, [power_curve_file]
+   100.0, 200.0, 90.0, 120.0, 0.8, nrel_5mw.csv
+
+Power Curve CSV Format
+----------------------
+
+The optional power curve CSV specifies discrete wind speeds, electrical power (kW), and thrust coefficient (:math:`C_T`):
+
+.. code-block:: text
+
+   # wind_speed, power_kw, ct
+   3.0, 0.0, 0.8
+   5.0, 1000.0, 0.78
+   10.0, 5000.0, 0.5
+   25.0, 5000.0, 0.1
+
+Output Reporting
+----------------
+
+At each simulated time step, computed turbine states (including inflow hub wind speeds, meteorological directions, and power output) are logged in FLORIS-compatible format into a dedicated CSV file named ``turbine_power_output.csv``.
+

@@ -324,6 +324,38 @@ class WindSolver:
         print(f"✓ Solver parameters updated")
         return success
     
+    def add_turbine(self, x, y, hub_height, rotor_diameter, default_ct=0.8, power_curve_file=""):
+        """
+        Add a wind turbine to the solver.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file)
+    
+    def clear_turbines(self):
+        """
+        Clear all wind turbines from the solver.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        pyWindSolver.clear_turbines()
+    
+    def get_turbine_power_outputs(self):
+        """
+        Get the computed power outputs from all wind turbines.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.get_turbine_power_outputs()
+    
+    def get_turbine_inflow_speeds(self):
+        """
+        Get the computed inflow wind speeds at all wind turbines.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.get_turbine_inflow_speeds()
+    
     def write_plotfile(self, plotfile_name="plt_wind"):
         """
         Write AMReX plotfile.

@@ -108,6 +108,18 @@ void WindSolverApp::parse_inputs() {
     pp.query("wake_c2", wake_c2);
     pp.query("wake_separation_length", wake_separation_length);
     pp.query("wake_superposition", wake_superposition);
+
+    // Analytical Turbine Wake parameters
+    pp.query("enable_turbine_wake", enable_turbine_wake);
+    pp.query("turbine_file", turbine_file);
+    pp.query("turbine_wake_model_type", turbine_wake_model_type);
+    pp.query("turbine_wake_superposition", turbine_wake_superposition);
+    pp.query("jensen_kw", jensen_kw);
+    pp.query("gaussian_ka", gaussian_ka);
+    
+    if (enable_turbine_wake && !turbine_file.empty()) {
+        TurbineWake::read_turbines_file(turbine_file, turbines);
+    }
     
     // Street canyon parameters
     pp.query("enable_street_canyon", enable_street_canyon);
@@ -2702,6 +2714,33 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             });
         }
         vel0_ptr->FillBoundary(geom_ptr->periodicity());
+    }
+
+    if (enable_turbine_wake && !turbines.empty()) {
+        TurbineWake::TurbineWakeModelType tw_model_type = TurbineWake::TurbineWakeModelType::JENSEN;
+        if (turbine_wake_model_type == "bastankhah_gaussian" || turbine_wake_model_type == "gaussian") {
+            tw_model_type = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
+        }
+        TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
+        if (turbine_wake_superposition == "linear") {
+            tw_superposition = TurbineWake::SuperpositionType::LINEAR;
+        }
+        
+        TurbineWake::apply_turbine_wakes_to_multifab(
+            *vel0_ptr,
+            terrain_h,
+            turbines,
+            tw_model_type,
+            tw_superposition,
+            jensen_kw,
+            gaussian_ka,
+            enable_stability_correction,
+            stability_length,
+            x_lo, y_lo, zs_min,
+            dx, dy, dz,
+            nx, ny, nz,
+            time_step
+        );
     }
 
     amrex::Print() << "wind_solver: wind initialization time = " 
