@@ -420,6 +420,29 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("ekman_veer_total", state.ekman_veer_total);
     pp.query("ekman_veer_height", state.ekman_veer_height);
 
+    // Analytical Turbine Wake parameters
+    state.enable_turbine_wake = false;
+    state.turbine_file = "";
+    state.turbine_wake_model_type = "jensen";
+    state.turbine_wake_superposition = "quadratic";
+    state.jensen_kw = 0.075;
+    state.gaussian_ka = 0.05;
+    state.enable_stability_correction = false;
+    state.stability_length = 1000.0;
+
+    pp.query("enable_turbine_wake", state.enable_turbine_wake);
+    pp.query("turbine_file", state.turbine_file);
+    pp.query("turbine_wake_model_type", state.turbine_wake_model_type);
+    pp.query("turbine_wake_superposition", state.turbine_wake_superposition);
+    pp.query("jensen_kw", state.jensen_kw);
+    pp.query("gaussian_ka", state.gaussian_ka);
+    pp.query("enable_stability_correction", state.enable_stability_correction);
+    pp.query("stability_length", state.stability_length);
+
+    if (state.enable_turbine_wake && !state.turbine_file.empty()) {
+        TurbineWake::read_turbines_file(state.turbine_file, state.turbines);
+    }
+
     // Terrain-following (streamline) coordinates parameters
     state.enable_terrain_following = false;
     state.terrain_decay_height = -1.0;  // Default: auto-set to domain_height / 3
@@ -704,6 +727,34 @@ void initialize_wind_field(WindSolverState& state)
     }
 
     state.vel0->FillBoundary(state.geom->periodicity());
+
+    if (state.enable_turbine_wake && !state.turbines.empty()) {
+        TurbineWake::TurbineWakeModelType tw_model_type = TurbineWake::TurbineWakeModelType::JENSEN;
+        if (state.turbine_wake_model_type == "bastankhah_gaussian" || state.turbine_wake_model_type == "gaussian") {
+            tw_model_type = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
+        }
+        TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
+        if (state.turbine_wake_superposition == "linear") {
+            tw_superposition = TurbineWake::SuperpositionType::LINEAR;
+        }
+        
+        TurbineWake::apply_turbine_wakes_to_multifab(
+            *state.vel0,
+            g_wind_solver_runtime->terrain_host,
+            state.turbines,
+            tw_model_type,
+            tw_superposition,
+            state.jensen_kw,
+            state.gaussian_ka,
+            state.enable_stability_correction,
+            state.stability_length,
+            state.xmin, state.ymin, state.zmin,
+            state.dx, state.dy, state.dz,
+            state.nx, state.ny, state.nz,
+            0 // time_step
+        );
+    }
+
     MultiFab::Copy(*state.vel, *state.vel0, 0, 0, 3, 1);
     state.vel->FillBoundary(state.geom->periodicity());
 }
@@ -1478,3 +1529,62 @@ bool wind_solver_is_initialized()
 {
     return g_wind_solver_state && g_wind_solver_state->initialized;
 }
+
+bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file)
+{
+    try {
+        require_initialized();
+        WindSolverState& state = *g_wind_solver_state;
+        
+        TurbineWake::Turbine t;
+        t.id = static_cast<int>(state.turbines.size());
+        t.x = static_cast<Real>(x);
+        t.y = static_cast<Real>(y);
+        t.hub_height = static_cast<Real>(hub_height);
+        t.rotor_diameter = static_cast<Real>(rotor_diameter);
+        t.ct_curve.default_ct = static_cast<Real>(default_ct);
+        t.power_curve_file = power_curve_file;
+        
+        if (!power_curve_file.empty()) {
+            TurbineWake::read_power_curve_file(power_curve_file, t.power_curve, t.ct_curve);
+        }
+        
+        state.turbines.push_back(t);
+        amrex::Print() << "wind_solver: Added turbine " << t.id << " at (" << t.x << ", " << t.y << ")\n";
+        return true;
+    } catch (const std::exception& e) {
+        amrex::Print() << "Error adding turbine: " << e.what() << "\n";
+        return false;
+    }
+}
+
+void wind_solver_clear_turbines()
+{
+    if (g_wind_solver_state) {
+        g_wind_solver_state->turbines.clear();
+        amrex::Print() << "wind_solver: Cleared all turbines\n";
+    }
+}
+
+std::vector<double> wind_solver_get_turbine_power_outputs()
+{
+    std::vector<double> power;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            power.push_back(static_cast<double>(t.power_output));
+        }
+    }
+    return power;
+}
+
+std::vector<double> wind_solver_get_turbine_inflow_speeds()
+{
+    std::vector<double> speed;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            speed.push_back(static_cast<double>(t.inflow_wind_speed));
+        }
+    }
+    return speed;
+}
+

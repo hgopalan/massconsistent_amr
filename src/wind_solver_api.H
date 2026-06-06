@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "turbine_wake_models.H"
 
 // ============================================================================
 // WindSolverState
@@ -143,6 +144,17 @@ struct WindSolverState {
     amrex::Real uniform_V;
     std::string velocity_file;
     
+    // Analytical Turbine Wake
+    bool enable_turbine_wake;
+    std::string turbine_file;
+    std::string turbine_wake_model_type;
+    std::string turbine_wake_superposition;
+    amrex::Real jensen_kw;
+    amrex::Real gaussian_ka;
+    bool enable_stability_correction;
+    amrex::Real stability_length;
+    std::vector<TurbineWake::Turbine> turbines;
+
     // Solver status
     bool solved;
     int mlmg_iters;
@@ -238,5 +250,11 @@ void wind_solver_finalize();
 
 // Check if solver is initialized
 bool wind_solver_is_initialized();
+
+// Turbine API functions
+bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file);
+void wind_solver_clear_turbines();
+std::vector<double> wind_solver_get_turbine_power_outputs();
+std::vector<double> wind_solver_get_turbine_inflow_speeds();
 
 #endif // WIND_SOLVER_API_H
