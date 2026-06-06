@@ -13,6 +13,10 @@ set_property(CACHE MASSCONSISTENT_GPU_BACKEND PROPERTY STRINGS NONE CUDA HIP SYC
 
 project(MassConsistentAMR LANGUAGES CXX C)
 
+if(WIN32)
+  add_compile_definitions(_USE_MATH_DEFINES)
+endif()
+
 # Require C++17 (AMReX supports C++17+)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
