@@ -44,6 +44,10 @@ if(MASSCONSISTENT_ENABLE_MPI)
   message(STATUS "MPI parallelism enabled (${MPI_CXX_COMPILER})")
 endif()
 
+# Find nlohmann/json library (header-only)
+find_package(nlohmann_json REQUIRED CONFIG)
+message(STATUS "Found nlohmann_json")
+
 if(MASSCONSISTENT_USE_VENDORED_AMREX AND EXISTS "${AMREX_SUBMODULE_DIR}/CMakeLists.txt")
   message(STATUS "Using vendored AMReX from ${AMREX_SUBMODULE_DIR}")
 
@@ -167,9 +171,9 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA" AND WIN32)
   target_compile_definitions(wind_solver_api PRIVATE ${_cuda_windows_compile_defs})
 endif()
 
-target_link_libraries(wind_solver PRIVATE AMReX::amrex)
-target_link_libraries(puff_solver PRIVATE AMReX::amrex)
-target_link_libraries(wind_solver_api PUBLIC AMReX::amrex)
+target_link_libraries(wind_solver PRIVATE AMReX::amrex nlohmann_json::nlohmann_json)
+target_link_libraries(puff_solver PRIVATE AMReX::amrex nlohmann_json::nlohmann_json)
+target_link_libraries(wind_solver_api PUBLIC AMReX::amrex nlohmann_json::nlohmann_json)
 target_include_directories(wind_solver_api PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 if(MASSCONSISTENT_ENABLE_MPI)

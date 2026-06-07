@@ -170,7 +170,7 @@ Parameter Reference
      - Turbine wake model: ``jensen`` (classic linear), ``bastankhah_gaussian`` (Gaussian deficit), or ``turbopark`` (self-similar Gaussian with local TI).
    * - ``turbine_wake_superposition``
      - ``quadratic``
-     - Wake deficit superposition method: ``quadratic`` (RSS) or ``linear``.
+     - Wake deficit superposition method: ``quadratic`` (RSS), ``linear``, or ``max`` (maximum deficit).
    * - ``jensen_kw``
      - ``0.075``
      - Jensen wake decay constant (typically 0.05 for offshore, 0.075 for onshore).
@@ -227,26 +227,37 @@ Turbines are defined in a CSV layout file. Columns represent coordinate location
 5. **default_ct** (required): Default thrust coefficient.
 6. **yaw** (optional): Wake deflection angle relative to incoming wind [degrees].
 7. **orientation** (optional): Turbine rotor alignment angle relative to grid x-axis [degrees].
-8. **power_curve_file** (optional): Filename of the CSV power curve.
+8. **tilt** (optional): Rotor tilt angle [degrees], used to calculate vertical wake deflection.
+9. **power_curve_file** (optional): Filename of the CSV or JSON power curve.
 
-**Yaw** defines the active aerodynamic misalignment of the rotor disk relative to the incoming wind direction. This is used to calculate lateral wake deflection and secondary steering. In contrast, **orientation** specifies the fixed absolute physical heading of the rotor face relative to the grid coordinate system.
+**Yaw** defines the active aerodynamic misalignment of the rotor disk relative to the incoming wind direction. This is used to calculate lateral wake deflection and secondary steering. In contrast, **orientation** specifies the fixed absolute physical heading of the rotor face relative to the grid coordinate system. **Tilt** defines the backward/upward rotation of the rotor disk around the crosswind axis, used to model vertical wake deflection.
 
 Example::
 
-   # x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file
-   100.0, 200.0, 90.0, 120.0, 0.8, 15.0, 45.0, nrel_5mw.csv
+   # x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, tilt, power_curve_file
+   100.0, 200.0, 90.0, 120.0, 0.8, 15.0, 45.0, 10.0, test_turbine.json
 
-Power Curve CSV Format
-~~~~~~~~~~~~~~~~~~~~~~
-Discrete electrical power outputs and thrust coefficients are mapped in an optional power curve file:
+Power Curve Format (CSV/JSON)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Discrete electrical power outputs and thrust coefficients are mapped in an optional power curve file, which can be either a flat CSV or a standard JSON specification file (facilitating interoperability with FLORIS and PyWake):
 
-.. code-block:: csv
+* **CSV Format**::
 
-   # wind_speed, power_kw, ct
-   3.0, 0.0, 0.8
-   5.0, 1000.0, 0.78
-   10.0, 5000.0, 0.5
-   25.0, 5000.0, 0.1
+     # wind_speed, power_kw, ct
+     3.0, 0.0, 0.8
+     5.0, 1000.0, 0.78
+     10.0, 5000.0, 0.5
+     25.0, 5000.0, 0.1
+
+* **JSON Format** (FLORIS and PyWake compatible)::
+
+     {
+       "power_thrust_table": {
+         "wind_speed": [3.0, 5.0, 10.0, 25.0],
+         "power": [0.0, 1000.0, 5000.0, 5000.0],
+         "thrust_coefficient": [0.8, 0.78, 0.5, 0.1]
+       }
+     }
 
 3D Meteorological Ingestion (NetCDF)
 ------------------------------------

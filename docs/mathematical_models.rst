@@ -313,8 +313,33 @@ The solver supports analytical turbine wake deficits for wind energy application
 
    These induced crosswind velocities steer downstream turbine wakes directly within the 3D velocity grid, fully capturing multi-turbine secondary steering without the computational expense of full CFD.
 
+Wake Deficit Superposition Methods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To combine velocity deficits from multiple overlapping upstream turbine wakes at a grid point, the solver supports three superposition options:
+
+1. **Quadratic Superposition (RSS)** (default):
+   The combined deficit :math:`\Delta u_{\text{comb}}` is the root-sum-squares of the individual deficits:
+
+   .. math::
+
+      \Delta u_{\text{comb}} = \sqrt{\sum_{i} \Delta u_i^2}
+
+2. **Linear Superposition**:
+   The combined deficit is the linear sum of individual deficits (applied as a direct product of speed reduction factors):
+
+   .. math::
+
+      \Delta u_{\text{comb}} = \sum_{i} \Delta u_i
+
+3. **Maximum Deficit Superposition (MAX)**:
+   The combined deficit is the maximum of the individual deficits:
+
+   .. math::
+
+      \Delta u_{\text{comb}} = \max_i(\Delta u_i)
+
 Wake Centerline Deflection Models
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 1. **Jimenez Model**:
 To model yawed wind turbine wakes, the Jimenez wake deflection model computes the wake centerline deflection :math:`y_{\text{offset}}(x_{\text{down}})` due to thrust-induced lateral force components:
@@ -359,6 +384,20 @@ The deflection :math:`\delta(x_{\text{down}})` is computed separately for near a
      \delta(x_{\text{down}}) = \tan(\theta_{c0}) \cdot x_0 + \theta_{c0} \frac{E_0}{5.2} \sqrt{\frac{\sigma_{y0} \sigma_{z0}}{k^2 M_0}} \ln \left[ \frac{(1.6 + \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} - \sqrt{M_0})}{(1.6 - \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} + \sqrt{M_0})} \right]
 
 where :math:`M_0 = C_0(2 - C_0)`, :math:`C_0 = 1 - \sqrt{1 - C_T}`, and :math:`E_0 = C_0^2 - 3 e^{1/12} C_0 + 3 e^{1/3}`.
+
+Vertical Wake Deflection (Tilt Model)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Rotor tilt angle :math:`\theta_{\text{tilt}}` (tilting the rotor disk backwards or upwards) is supported to calculate basic vertical wake deflection, which is particularly relevant for floating offshore wind turbines. The vertical wake deflection :math:`z_{\text{offset}}(x_{\text{down}})` is computed using a vertical formulation analogous to the Jimenez deflection model:
+
+.. math::
+
+   \theta_{v0} = \frac{C_T}{2} \cos^2(\theta_{\text{tilt}}) \sin(\theta_{\text{tilt}})
+
+The resulting vertical deflection offset at downstream distance :math:`x_{\text{down}}` is:
+
+.. math::
+
+   z_{\text{offset}}(x_{\text{down}}) = D \cdot \theta_{v0} \cdot \frac{1}{2 \beta_{\text{def}}} \left( 1 - \frac{1}{1 + 2 \beta_{\text{def}} \frac{x_{\text{down}}}{D}} \right)
 
 Height-Varying (Veered) Wake Orientation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
