@@ -53,6 +53,7 @@ def test_initialization():
         wind.initialize(str(inputs_file))
         
         # Verify grid parameters
+        # 21x21 terrain points correspond to 20x20 cell-centered grid columns
         expected_nx, expected_ny = 20, 20
         
         if wind.nx != expected_nx or wind.ny != expected_ny:
@@ -102,7 +103,9 @@ def test_wind_solution():
             return False
         
         print(f"  ✓ Wind solve succeeded")
-        iters = result.get('iters', result.get('mlmg_iterations', 'N/A'))
+        iters = result.get('iters')
+        if iters is None:
+            iters = result.get('mlmg_iterations', 'N/A')
         print(f"  ✓ MLMG iterations: {iters}")
         max_div = result.get('max_divergence')
         if max_div is not None and isinstance(max_div, (int, float)):
@@ -113,6 +116,10 @@ def test_wind_solution():
         # Extract wind velocity at hub height
         z_agl = 50.0  # 50m above ground
         vel_dict = wind.get_velocity_at_agl(z_agl)
+        if not vel_dict or 'u' not in vel_dict or 'v' not in vel_dict or 'w' not in vel_dict:
+            print("  ERROR: Failed to extract velocity dictionary or keys are missing")
+            return False
+            
         u_mean = vel_dict['u'].mean()
         v_mean = vel_dict['v'].mean()
         w_mean = vel_dict['w'].mean()
