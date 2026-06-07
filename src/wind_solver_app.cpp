@@ -120,6 +120,7 @@ void WindSolverApp::parse_inputs() {
     pp.query("turbopark_c1", turbopark_c1);
     pp.query("ambient_ti", ambient_ti);
     pp.query("enable_jimenez_deflection", enable_jimenez_deflection);
+    pp.query("enable_bastankhah_deflection", enable_bastankhah_deflection);
     pp.query("jimenez_kd", jimenez_kd);
     pp.query("wake_added_turbulence_model", wake_added_turbulence_model);
     pp.query("enable_wake_ground_interaction", enable_wake_ground_interaction);
@@ -2815,6 +2816,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             ambient_ti,
             enable_jimenez_deflection,
             jimenez_kd,
+            enable_bastankhah_deflection,
             added_turb_model,
             time_step,
             enable_wake_ground_interaction,
