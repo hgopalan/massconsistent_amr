@@ -11,6 +11,16 @@
 #include "synthetic_turbulence.H"
 #include "turbine_wake_models.H"
 
+struct StreetCanyon {
+    amrex::Real xmin, xmax;
+    amrex::Real ymin, ymax;
+    amrex::Real zmin, zmax;
+    amrex::Real aspect_ratio;
+    int direction; // 0 for Y-aligned (separated in X), 1 for X-aligned (separated in Y)
+    amrex::Real h_canyon;
+    amrex::Real w_canyon;
+};
+
 class WindSolverApp {
 public:
     WindSolverApp() = default;
@@ -28,6 +38,12 @@ public:
     void compute_diagnostics_and_output(int time_step);
 
 private:
+    std::vector<StreetCanyon> detect_street_canyons(
+        const std::vector<amrex::Real>& b_xmin, const std::vector<amrex::Real>& b_xmax,
+        const std::vector<amrex::Real>& b_ymin, const std::vector<amrex::Real>& b_ymax,
+        const std::vector<amrex::Real>& b_zmin, const std::vector<amrex::Real>& b_zmax,
+        const std::vector<amrex::Real>& b_rotation);
+
     // Timing
     amrex::Real t_total = 0.0;
     amrex::Real t_phase = 0.0;
