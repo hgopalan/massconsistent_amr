@@ -370,6 +370,11 @@ add_regression_test(puff_downwash_single_time puff_downwash_single_time)
 add_regression_test(puff_downwash_multi_time puff_downwash_multi_time)
 
 # ---------------------------------------------------------------------------
+# puff_aloha_features/ – ALOHA-style Infiltration, TV emissions, and Threat Zones
+# ---------------------------------------------------------------------------
+add_regression_test(puff_aloha_features puff_aloha_features)
+
+# ---------------------------------------------------------------------------
 # lpdm_terrain/ – Lagrangian Particle Dispersion Model on terrain
 # ---------------------------------------------------------------------------
 add_regression_test(lpdm_terrain lpdm_terrain)
