@@ -371,6 +371,30 @@ class WindSolver:
         if not self.initialized:
             raise RuntimeError("Solver not initialized.")
         return pyWindSolver.get_turbine_orientations()
+
+    def get_turbine_u_hubs(self):
+        """
+        Get the u_hub components of all wind turbines.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.get_turbine_u_hubs()
+
+    def get_turbine_v_hubs(self):
+        """
+        Get the v_hub components of all wind turbines.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.get_turbine_v_hubs()
+
+    def get_turbine_z_terrains(self):
+        """
+        Get the terrain elevations under all wind turbines.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.get_turbine_z_terrains()
     
     def write_plotfile(self, plotfile_name="plt_wind"):
         """
