@@ -127,7 +127,7 @@ The solver includes optional advanced physics parameterizations:
 * **Canopy drag** — Forest canopy parameterization (MacDonald et al. 2000)
 * **Building wakes** — Röckle (1990) wake model for urban flows
 
-See :ref:`physics` for detailed physics documentation.
+See :ref:`mathematical_models` for detailed physics documentation.
 
 Comparison with Related Tools
 ------------------------------
@@ -198,12 +198,4 @@ AMReX Integration
 References
 ----------
 
-* Sherman, C.A. (1978). A mass-consistent model for wind fields over complex
-  terrain.  *Journal of Applied Meteorology*, 17(3), 312–319.
-* Mathiesen, M. (1987). Simulation of wind fields in complex terrain.
-  *Boundary-Layer Meteorology*, 38, 213–226.
-* Röckle, R. (1990). *Bestimmung der Strömungsverhältnisse im Bereich
-  komplexer Bebauungsstrukturen*.  PhD thesis, TH Darmstadt.
-* Pardyjak, E.R. & Brown, M.J. (2001). *QUIC-URB v. 1.1: Theory and User's Guide*.
-  Los Alamos National Laboratory, LA-UR-01-4228.
-* AMReX: https://github.com/AMReX-Codes/amrex
+Please see the complete list of scientific publications and frameworks on the :ref:`references` page.

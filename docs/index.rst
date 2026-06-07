@@ -12,23 +12,15 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    :caption: Contents:
 
    overview
+   mathematical_models
+   code_structure
    building
    usage
-   walkthrough
-   physics
-   advanced_solver_features
-   wind_solver
-   iec61400
-   canopy
-   wake
-   puff
    python_api
-   floris
-   netcdf_ingestion
+   tools
    regtests
-   mann_model
-   iec61400_synthesis
    validation_optimization
+   references
 
 Overview
 ========

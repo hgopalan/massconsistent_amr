@@ -3,194 +3,60 @@
 Python API
 ==========
 
-Summary
--------
+The Mass-Consistent AMR Wind Solver provides robust, high-performance Python bindings through pybind11 and high-level object-oriented wrappers. This enables complete programmatic control, real-time data extraction, coupled wind-fire dispersion simulations, and synthetic turbulence studies directly from Python.
 
-This implementation adds Python bindings to the massconsistent_amr wind solver to support **complete solver control from Python**, enabling coupled wind-fire simulations with external fire solvers like wildfire_levelset.
+.. contents:: Topics
+   :local:
+   :depth: 2
 
-What Was Implemented
---------------------
-
-1. Wind Solver State Management (``wind_solver_api.H`` / ``.cpp``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**New C++ API functions:**
-
-* ``wind_solver_initialize(inputs_file)`` — Initialize from inputs file
-* ``wind_solver_solve()`` — Solve for mass-consistent wind field
-* ``wind_solver_get_velocity()`` — Extract 3D velocity field
-* ``wind_solver_get_velocity_at_agl(height)`` — Extract velocity at specific AGL
-* ``wind_solver_get_terrain()`` — Extract terrain elevation
-* ``wind_solver_update_reference_wind()`` — Update wind and re-initialize
-* ``wind_solver_write_plotfile()`` — Write AMReX plotfile
-* ``wind_solver_finalize()`` — Clean up
-
-**Key Features:**
-
-* Global state singleton persists between Python calls
-* Stores all MultiFabs, geometry, terrain, and solver parameters
-* Handles AMReX initialization automatically
-* Supports multiple solve cycles with parameter updates
-
-2. Enhanced Python Bindings (``pyWindSolver.cpp``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Extended pybind11 module with:**
-
-* ``pyWindSolver.initialize()`` — Initialize wind solver
-* ``pyWindSolver.solve()`` — Solve for mass-consistent wind
-* ``pyWindSolver.get_velocity()`` — Extract 3D velocity as numpy arrays
-* ``pyWindSolver.get_velocity_at_agl()`` — Extract velocity at AGL height
-* ``pyWindSolver.get_terrain()`` — Extract terrain elevation
-* ``pyWindSolver.update_reference_wind()`` — Update wind parameters
-* ``pyWindSolver.write_plotfile()`` — Write AMReX plotfile
-* ``pyWindSolver.finalize()`` — Cleanup
-
-**Data Conversion:**
-
-* Automatic conversion between C++ MultiFabs and numpy arrays
-* Fortran order (column-major) for compatibility with numpy
-* Proper shape handling: (nz, ny, nx) for 3D fields, (ny, nx) for 2D fields
-
-3. High-Level Python Wrapper (``wind_solver.py``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Object-oriented API:**
-
-.. code-block:: python
-
-    wind = WindSolver("inputs.i")
-    wind.solve()
-    velocity = wind.get_velocity()
-    wind.write_plotfile("plt_wind")
-    wind.finalize()
-
-**Features:**
-
-* Clean, Pythonic interface
-* Context manager support (``with WindSolver(...) as wind:``)
-* Automatic error checking and validation
-* Comprehensive docstrings
-* Property accessors for solver state
-
-4. Coupled Simulation Example (``coupled_wind_fire_example.py``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Demonstrates:**
-
-* Initialization of both wind and fire solvers
-* Solving mass-consistent wind field
-* Passing 3D wind data to fire solver
-* Time loop with periodic wind updates
-* Plotfile writing for both solvers
-* Statistics reporting
-
-5. Comprehensive Test Suite (``test_wind_solver_api.py``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Three test cases:**
-
-1. Basic initialization from inputs file
-2. Solve and extract wind fields
-3. High-level WindSolver class usage
-
-**Validates:**
-
-* Initialization success
-* MLMG solver convergence
-* Velocity extraction correctness
-* Terrain data accuracy
-* API error handling
-
-6. Updated Build System (``CMakeLists.txt``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**CMake changes:**
-
-* Added ``MASSCONSISTENT_BUILD_PYTHON_BINDINGS`` option
-* Python3 and pybind11 detection/fetching
-* pyWindSolver module compilation
-* wind_solver_api library target
-* Position-independent code for Python bindings
-* Python file installation
-
-Usage Examples
---------------
-
-Simple Wind Solve
-~~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-    from wind_solver import WindSolver
-
-    wind = WindSolver("inputs.i")
-    wind.solve()
-
-    # Extract velocity at 10m AGL
-    vel_agl = wind.get_velocity_at_agl(10.0)
-    print(f"Mean wind at 10m: U={vel_agl['u'].mean():.2f} m/s")
-
-    wind.finalize()
-
-Coupled Wind-Fire
-~~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-    from wind_solver import WindSolver
-    from wildfire_solver import WildfireSolver  # from wildfire_levelset
-
-    # Initialize solvers
-    wind = WindSolver("wind_inputs.i")
-    fire = WildfireSolver("fire_inputs.i")
-
-    # Solve wind
-    wind.solve()
-
-    # Get 3D wind and pass to fire
-    vel = wind.get_velocity()
-    fire.update_wind_3d(vel['u'], vel['v'], vel['w'], 
-                        wind.nz, wind.zmin, wind.zmax)
-
-    # Run fire simulation
-    for n in range(num_steps):
-        fire.step()
-        state = fire.get_state()
-        print(f"t={state['time']:.1f}s")
-
-    # Cleanup
-    wind.finalize()
-    fire.finalize()
-
-Build Instructions
-------------------
-
-Configure with Python bindings::
-
-    cmake -S . -B build \
-      -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON
-
-Build::
-
-    cmake --build build -j
-
-Set PYTHONPATH::
-
-    export PYTHONPATH=$PWD/build/python:$PYTHONPATH
-
-Run tests::
-
-    python3 src/python/test_wind_solver_api.py
-
-Run coupled example (requires wildfire_levelset)::
-
-    python3 src/python/coupled_wind_fire_example.py
-
-Integration with wildfire_levelset
+Wind Solver Bindings (pyWindSolver)
 -----------------------------------
 
-Once both solvers have Python bindings (as implemented in PR #230 for wildfire_levelset), the coupled workflow becomes:
+The primary binding layer is compiled as a shared library and wrapped in an object-oriented Python module called ``wind_solver``.
+
+Basic Usage
+~~~~~~~~~~~
+To initialize, solve, and extract velocities at specific altitudes:
+
+.. code-block:: python
+
+    from wind_solver import WindSolver
+
+    # Initialize the solver from an input file
+    wind = WindSolver("inputs.i")
+
+    # Run the mass-consistent Poisson solve
+    wind.solve()
+
+    # Extract the 3D velocity field as a dictionary of NumPy arrays
+    vel_3d = wind.get_velocity()
+    u_field = vel_3d['u']  # NumPy array with shape (nz, ny, nx)
+
+    # Extract 2D terrain-aligned velocity plane at 30 meters AGL
+    vel_30m = wind.get_velocity_at_agl(30.0)
+    u_30m = vel_30m['u']   # NumPy array with shape (ny, nx)
+
+    # Clean up memory
+    wind.finalize()
+
+WindSolver Class Reference
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Constructor**:
+* ``__init__(inputs_file)``: Initializes the C++ solver state and parses the ParmParse input deck.
+
+**Methods**:
+* ``solve()``: Triggers the mass-consistent Poisson adjustment.
+* ``get_velocity()``: Returns a dictionary with keys ``'u', 'v', 'w'`` containing 3D velocity components.
+* ``get_velocity_at_agl(height)``: Extracts the 2D horizontal plane of velocity at a given height above ground level (AGL). Returns a dictionary of 2D NumPy arrays.
+* ``get_terrain()``: Returns a 2D NumPy array representing the interpolated terrain elevation.
+* ``update_reference_wind(U_ref, V_ref)``: Re-evaluates friction velocities and updates reference flow parameters.
+* ``write_plotfile(name)``: Writes the standard MultiFab cell-centered outputs in VisIt/ParaView compatible AMReX plotfile format.
+* ``finalize()``: Destroys the C++ state singleton and cleans up AMReX runtime resources.
+
+Coupled Wind-Fire Simulation Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Python bindings enable tight integration with external community fire spread solvers (such as ``wildfire_levelset``):
 
 .. code-block:: python
 
@@ -201,138 +67,91 @@ Once both solvers have Python bindings (as implemented in PR #230 for wildfire_l
     fire = WildfireSolver("fire_inputs.i")
 
     while fire.time < final_time:
-        # Solve wind
+        # 1. Update wind solver with latest atmospheric conditions
         wind.solve()
         vel_3d = wind.get_velocity()
         
-        # Update fire wind
+        # 2. Feed wind field directly into the fire spread solver
         fire.update_wind_3d(vel_3d['u'], vel_3d['v'], vel_3d['w'],
-                           wind.nz, wind.zmin, wind.zmax)
+                            wind.nz, wind.zmin, wind.zmax)
         
-        # Advance fire
+        # 3. Step fire front propagation
         fire.step()
         
-        # Optional: two-way coupling
-        state = fire.get_state()
-        heat = compute_heat_release(state)
-        # wind.add_heat_source(heat)  # Future feature
-
     wind.finalize()
     fire.finalize()
 
-Key Design Decisions
---------------------
+Mann Box Spectral Turbulence Bindings
+-------------------------------------
 
-1. Global State Singleton
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+A specialized Python wrapper (``mann_box.py``) is provided for the Mann Box spectral tensor implementation, allowing for quick atmospheric stability studies and turbulence synthesis.
 
-* Simplifies Python interface (no need to pass C++ objects)
-* Matches scientific computing patterns
-* Easy cleanup and re-initialization
+Basic Usage
+~~~~~~~~~~~
+To instantiate a Mann Box and compute spectral density components:
 
-2. Fortran Order Arrays
-~~~~~~~~~~~~~~~~~~~~~~~~
+.. code-block:: python
 
-* MultiFab data is naturally column-major (Fortran order)
-* Numpy defaults to row-major (C order) for display
-* We store in Fortran order and let numpy handle indexing
-* Ensures correct data layout for coupled simulations
+    import numpy as np
+    from mann_box import MannBox, create_mann_box_preset
 
-3. Separation of Concerns
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Create a Mann Box instance utilizing a stable atmosphere preset
+    mann = create_mann_box_preset('stable')
 
-* ``wind_solver_api.cpp``: Core C++ implementation
-* ``pyWindSolver.cpp``: pybind11 bindings layer
-* ``wind_solver.py``: High-level Python wrapper
-* Each layer has clear responsibilities
+    # Compute spectral components at a set of frequencies
+    freqs = np.logspace(-2, 1, 100)
+    spectrum = mann.compute_spectrum(
+        frequencies=freqs,
+        height=90.0,
+        mean_wind_speed=12.0
+    )
 
-4. Conservative Data Copies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Validate physical realizability (checks positive semi-definiteness)
+    if mann.validate_realizability(spectrum):
+        print("Synthesized spectra are physically realizable!")
 
-* Data is copied from MultiFab to std::vector to numpy
-* Ensures Python owns its data (no lifetime issues)
-* Small overhead acceptable for coupling frequency
+MannBox Class Reference
+~~~~~~~~~~~~~~~~~~~~~~~
 
-API Reference
--------------
+**Constructor**:
+* ``__init__(parameters=None)``: Initializes the spectral synthesis tensor. Takes an optional ``MannBoxParameters`` dataclass.
 
-WindSolver Class
-~~~~~~~~~~~~~~~~
+**Presets**:
+* ``'neutral'``: Standard neutral atmospheric boundary layer.
+* ``'stable'``: Nighttime stable layer with suppressed vertical fluctuations.
+* ``'unstable'``: Daytime convective layer with enhanced mixing.
+* ``'wind_farm'``: High shear, reduced length scales.
+* ``'complex_terrain'``: High anisotropy, large length scales.
 
-**Methods:**
+**Methods**:
+* ``compute_spectrum(frequencies, height, mean_wind_speed)``: Computes the spectral tensor matrix. Returns a dictionary of spectral density components (``'S_uu', 'S_vv', 'S_ww', 'S_uw'``).
+* ``validate_realizability(spectrum)``: Evaluates positive semi-definiteness and the Cauchy-Schwarz inequalities:
+  
+  .. math::
+  
+     |S_{uw}(f)|^2 \le S_{uu}(f) \cdot S_{ww}(f)
 
-* ``__init__(inputs_file)`` — Initialize solver
-* ``solve()`` — Solve for mass-consistent wind
-* ``get_velocity()`` — Get 3D velocity dict {'u', 'v', 'w'}
-* ``get_velocity0()`` — Get initial (uncorrected) velocity
-* ``get_lambda()`` — Get Lagrange multiplier field
-* ``get_div0()`` — Get initial divergence field
-* ``get_terrain()`` — Get terrain elevation
-* ``get_velocity_at_agl(height)`` — Get velocity at AGL height
-* ``get_velocity_at_k(k)`` — Get velocity at k-index
-* ``update_reference_wind(U_ref, V_ref)`` — Update reference wind
-* ``update_parameters(...)`` — Update solver parameters
-* ``write_plotfile(name)`` — Write AMReX plotfile
-* ``write_extract(filename, agl)`` — Write CSV extract
-* ``finalize()`` — Cleanup
+* ``update_parameters(**kwargs)``: Dynamically updates Monin-Obukhov parameters (length scales, intensities, coherence decay).
 
-**Properties:**
+Build and Installation
+----------------------
 
-* ``initialized``, ``solved`` — Status flags
-* ``nx``, ``ny``, ``nz`` — Grid dimensions
-* ``xmin``, ``xmax``, ``ymin``, ``ymax``, ``zmin``, ``zmax`` — Domain bounds
-* ``dx``, ``dy``, ``dz`` — Cell sizes
-* ``zs_min``, ``zs_max`` — Terrain elevation bounds
-* ``iters``, ``residual`` — Last solve statistics
+To build the Python bindings locally, configure CMake with the ``MASSCONSISTENT_BUILD_PYTHON_BINDINGS`` option turned on:
 
-Testing
--------
+.. code-block:: bash
 
-Run all API tests::
+    cmake -S . -B build -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON
+    cmake --build build --parallel
+
+This compiles the ``pyWindSolver`` shared library into ``build/python/``. To make the module importable, append this folder to your python path:
+
+.. code-block:: bash
+
+    export PYTHONPATH=$PWD/build/python:$PYTHONPATH
+
+To verify your installation, run the test suites:
+
+.. code-block:: bash
 
     python3 src/python/test_wind_solver_api.py
-
-Expected output::
-
-    Test 1: Basic initialization - PASSED
-    Test 2: Solve and extract - PASSED  
-    Test 3: High-level API - PASSED
-    Passed: 3/3
-
-Performance Notes
------------------
-
-* Data extraction is relatively fast (< 1ms for typical grids)
-* MLMG solve dominates runtime (seconds for large grids)
-* Coupling overhead is negligible compared to solve time
-* Recommended coupling frequency: every 1-10 fire timesteps
-
-Planned Enhancements
---------------------
-
-Potential additions for future development:
-
-1. **Time-varying wind**: Support temporal wind evolution
-2. **Heat feedback**: Add fire heat source to wind solver
-3. **Adaptive parameters**: Auto-tune alpha_h, alpha_v based on conditions
-4. **Parallel coupling**: MPI-aware data exchange
-5. **Checkpointing**: Save/restore solver state
-6. **Visualization**: Built-in plotting utilities
-
-Related Files
--------------
-
-* ``src/wind_solver_api.H`` — C++ API header
-* ``src/wind_solver_api.cpp`` — C++ API implementation
-* ``src/python/pyWindSolver.cpp`` — pybind11 bindings
-* ``src/python/wind_solver.py`` — Python wrapper
-* ``src/python/test_wind_solver_api.py`` — Test suite
-* ``src/python/coupled_wind_fire_example.py`` — Coupling example
-* ``src/python/CMakeLists.txt`` — Python build configuration
-
-References
-----------
-
-* **wildfire_levelset PR #230**: Fire solver Python API (reference implementation)
-* **AMReX Documentation**: https://amrex-codes.github.io/amrex/
-* **pybind11 Documentation**: https://pybind11.readthedocs.io/
+    python3 test/test_gaussian_hill_mann_box.py
