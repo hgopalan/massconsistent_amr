@@ -1076,6 +1076,7 @@ int main(int argc, char* argv[])
 
             // Apply indoor infiltration model if enabled
             if (enable_indoor_infiltration && !buildings.empty()) {
+                Real ach_per_sec = ach / 3600.0;
                 for (int k = 0; k < nz; ++k) {
                     for (int j = 0; j < ny; ++j) {
                         for (int i = 0; i < nx; ++i) {
@@ -1084,7 +1085,7 @@ int main(int argc, char* argv[])
                             Real z = zmin + (k + 0.5) * dz;
                             int idx = i + j * nx + k * nx * ny;
                             if (point_in_any_building(x, y, z, buildings)) {
-                                C_in[idx] += dt_puff * (ach / 3600.0) * (concentration[idx] - C_in[idx]);
+                                C_in[idx] += dt_puff * ach_per_sec * (concentration[idx] - C_in[idx]);
                                 concentration[idx] = C_in[idx];
                             }
                         }
