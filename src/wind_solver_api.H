@@ -252,9 +252,11 @@ void wind_solver_finalize();
 bool wind_solver_is_initialized();
 
 // Turbine API functions
-bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file);
+bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw = 0.0, double orientation = 0.0);
 void wind_solver_clear_turbines();
 std::vector<double> wind_solver_get_turbine_power_outputs();
 std::vector<double> wind_solver_get_turbine_inflow_speeds();
+std::vector<double> wind_solver_get_turbine_yaws();
+std::vector<double> wind_solver_get_turbine_orientations();
 
 #endif // WIND_SOLVER_API_H
