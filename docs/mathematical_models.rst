@@ -386,7 +386,7 @@ where:
 
 * :math:`P_t` is the turbine power in kW.
 * :math:`8760` is the total number of hours in a non-leap year.
-* Wind direction is defined using standard meteorological conventions where :math:`\theta` represents the direction from which the wind blows (0° = North, 90° = East, 180° = South, 270° = West).
+* Wind direction is defined using standard meteorological conventions. Here, :math:`\theta` represents the direction from which the wind blows (0° = North, 90° = East, 180° = South, 270° = West).
 * The solver automatically rotates the inflow velocity vector to align with this meteorological convention before executing the mass-consistent Poisson solve on the Cartesian computational grid.
 
 Gaussian Puff Dispersion Model

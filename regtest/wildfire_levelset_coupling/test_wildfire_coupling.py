@@ -59,7 +59,7 @@ class TestWildfireCouplingIntegration(unittest.TestCase):
                 self.w = None
                 self.nz = 0
                 self.zmin = 0.0
-                self.zmax = 0.0
+                self.zmax = 100.0
                 
             def update_wind_3d(self, u, v, w, nz, zmin, zmax):
                 """
