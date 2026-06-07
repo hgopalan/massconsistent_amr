@@ -2952,7 +2952,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                             
                             if (vortex_strength_factor > Real(1.0e-6)) {
                                 // Find local ambient velocity at canyon top
-                                int k_top = std::min(std::max(0, static_cast<int>((canyon.zmax - z_lo_c)/dz_c - Real(0.5))), nz_c - 1);
+                                int k_top = std::min(std::max(0, static_cast<int>(std::round((canyon.zmax - z_lo_c)/dz_c - Real(0.5)))), nz_c - 1);
                                 Real U_amb = vel(i, j, k_top, 0);
                                 Real V_amb = vel(i, j, k_top, 1);
                                 
@@ -2974,7 +2974,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                                     vel(i, j, k, 0) = Real(0.0); // Suppressed cross-wind
                                 }
                             }
-                            break; // Stop checking other canyons once we've processed this cell
+                            // Stop checking other canyons once we've processed this cell (canyons are disjoint in this model)
+                            break; 
                         }
                     }
                 });
