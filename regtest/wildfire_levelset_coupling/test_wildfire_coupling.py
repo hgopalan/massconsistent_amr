@@ -72,6 +72,9 @@ class TestWildfireCouplingIntegration(unittest.TestCase):
                     nz (int): Number of vertical levels.
                     zmin (float): Minimum physical vertical height.
                     zmax (float): Maximum physical vertical height.
+                
+                Returns:
+                    None
                 """
                 # Verify passed parameter types and structures
                 assert isinstance(u, np.ndarray), "u must be a numpy array"

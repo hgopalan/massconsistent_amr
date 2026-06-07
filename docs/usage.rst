@@ -226,6 +226,8 @@ Turbines are defined in a CSV layout file. Columns represent coordinate location
 7. **orientation** (optional): Turbine rotor alignment angle relative to grid x-axis [degrees].
 8. **power_curve_file** (optional): Filename of the CSV power curve.
 
+While **yaw** defines the active aerodynamic misalignment of the rotor disk relative to the incoming wind direction (used to calculate lateral wake deflection and secondary steering), **orientation** specifies the fixed absolute physical heading of the rotor face relative to the grid coordinate system.
+
 Example::
 
    # x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file

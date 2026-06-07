@@ -267,7 +267,7 @@ The solver supports analytical turbine wake deficits for wind energy application
    The spanwise and vertical vortices are resolved in a right-handed Cartesian coordinate system with:
 
    * :math:`x_{\text{down}}` positive in the downstream/streamwise direction.
-   * :math:`y` positive in the spanwise direction (extending to the left side when facing downstream).
+   * :math:`y` positive in the spanwise direction (extending to the observer's left when looking downstream, equivalent to the port side of the turbine).
    * :math:`z` positive vertically upwards.
 
    The initial strength of the counter-rotating vortex pair :math:`\Gamma_0` is computed as:
