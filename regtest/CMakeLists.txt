@@ -513,8 +513,11 @@ add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
   add_python_regression_test(phase2_analytical_wake_extensions phase2_analytical_wake_extensions
                             test_phase2_analytical_wake_extensions.py)
+  add_python_regression_test(phase4_aep_dispersion phase4_aep_dispersion
+                            test_phase4_aep_dispersion.py)
 else()
   message(STATUS "  phase2_analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  phase4_aep_dispersion: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
 endif()
 
 # ===========================================================================
