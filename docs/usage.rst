@@ -226,7 +226,7 @@ Turbines are defined in a CSV layout file. Columns represent coordinate location
 7. **orientation** (optional): Turbine rotor alignment angle relative to grid x-axis [degrees].
 8. **power_curve_file** (optional): Filename of the CSV power curve.
 
-While **yaw** defines the active aerodynamic misalignment of the rotor disk relative to the incoming wind direction (used to calculate lateral wake deflection and secondary steering), **orientation** specifies the fixed absolute physical heading of the rotor face relative to the grid coordinate system.
+**Yaw** defines the active aerodynamic misalignment of the rotor disk relative to the incoming wind direction. This is used to calculate lateral wake deflection and secondary steering. In contrast, **orientation** specifies the fixed absolute physical heading of the rotor face relative to the grid coordinate system.
 
 Example::
 
@@ -287,7 +287,7 @@ Wind Farm & Coupling Integration
 
 PyWake Integration and Site Export
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The solver integrates directly with DTU's PyWake wind farm simulation library, allowing users to format and extract mass-consistent wind fields as native PyWake ``Site`` or ``WAsPGridSite`` structures. Additionally, grid maps of terrain, roughness, wind speed, and wind direction can be exported to Surfer ASCII ``.grd`` formats compatible with WAsP.
+The solver integrates directly with DTU's PyWake wind farm simulation library. This integration allows users to format and extract mass-consistent wind fields as native PyWake ``Site`` or ``WAsPGridSite`` structures. Additionally, grid maps of terrain, roughness, wind speed, and wind direction can be exported to Surfer ASCII ``.grd`` formats compatible with WAsP.
 
 .. code-block:: python
 

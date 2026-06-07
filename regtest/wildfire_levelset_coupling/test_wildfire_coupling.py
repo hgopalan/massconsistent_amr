@@ -111,7 +111,34 @@ class TestWildfireCouplingIntegration(unittest.TestCase):
         # Try real WildfireSolver import and run if levelset bindings are present in Python path
         try:
             from wildfire_solver import WildfireSolver
-            print("✓ Real wildfire_solver bindings found! Verifying real integration.")
+            real_fire_inputs = str(SCRIPT_DIR / "coupled_fire.i")
+            with open(real_fire_inputs, "w") as f:
+                f.write("""# Fire solver inputs
+n_cell_x = 20
+n_cell_y = 20
+max_grid = 16
+plo_x = 0.0
+plo_y = 0.0
+phi_x = 1000.0
+phi_y = 1000.0
+ignition.type = circle
+ignition.x0 = 200.0
+ignition.y0 = 200.0
+ignition.radius = 50.0
+ignition.time = 0.0
+cfl = 0.5
+nsteps = 1
+max_time = 10.0
+propagation_method = levelset
+rothermel.model_number = 1
+plot_interval = 10
+""")
+            fire_real = WildfireSolver(real_fire_inputs)
+            fire_real.update_wind_3d(u_3d, v_3d, w_3d, wind.nz, wind.zmin, wind.zmax)
+            fire_real.finalize()
+            if os.path.exists(real_fire_inputs):
+                os.remove(real_fire_inputs)
+            print("✓ Real wildfire_solver bindings found! Successfully instantiated and verified real integration.")
         except ImportError:
             print("✓ Real wildfire_solver bindings not present. Verified contract using robust MockWildfireSolver.")
             
