@@ -3599,11 +3599,12 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const Real kappa_diag = 0.41;
     const bool cap_enable_bl_depth_diagnostic = enable_bl_depth_diagnostic;
     const Real cap_bl_depth_param = bl_depth_param;
-    const int nz_cap_div = khi + 1;
     const Real richardson_critical = this->richardson_critical;
 
     for (MFIter mfi(output); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
+        const int k_lo_box = bx.smallEnd(2);
+        const int k_hi_box = bx.bigEnd(2) + 1;
         const auto vc   = vel_c_ptr->const_array(mfi);
         const auto v0a  = vel0_ptr->const_array(mfi);
         const auto la   = lam_ptr->const_array(mfi);
@@ -3667,19 +3668,19 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             Real bl_depth = cap_bl_depth_param;
             Real terrain_elev = d_terr_ptr[j * nx_cap_out + i];
             
-            int k_start = 0;
-            while (k_start < nz_cap_div && (z_lo_cap_div + (Real(k_start) + Real(0.5)) * dz_cap_div - terrain_elev <= Real(0.0))) {
+            int k_start = k_lo_box;
+            while (k_start < k_hi_box && (z_lo_cap_div + (Real(k_start) + Real(0.5)) * dz_cap_div - terrain_elev <= Real(0.0))) {
                 k_start++;
             }
 
-            if (k_start < nz_cap_div && z_agl > Real(0.0)) {
+            if (k_start < k_hi_box && z_agl > Real(0.0)) {
                 Real theta_s = temp_arr(i, j, k_start);
                 richardson_no = compute_bulk_richardson_number(theta_s, temp_arr(i, j, k), z_agl, u_mag, theta_s);
 
                 if (cap_enable_bl_depth_diagnostic) {
                     Real diagnosed_bl_depth = RichardsonNumberConstants::MAX_BL_DEPTH;
                     bool found = false;
-                    for (int kp = k_start + 1; kp < nz_cap_div; ++kp) {
+                    for (int kp = k_start + 1; kp < k_hi_box; ++kp) {
                         Real z_agl_kp = z_lo_cap_div + (Real(kp) + Real(0.5)) * dz_cap_div - terrain_elev;
                         Real u_kp = vc(i, j, kp, 0);
                         Real v_kp = vc(i, j, kp, 1);
