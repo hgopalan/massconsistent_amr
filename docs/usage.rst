@@ -252,6 +252,26 @@ The solver can export wind speeds in formats compatible with NREL's FLORIS (Wind
         --reference-speed 10.0 \
         --output wind_data.csv
 
+PyWake Integration
+------------------
+
+The solver also integrates with DTU's PyWake wind farm simulation library. It supports extracting converged wind fields as PyWake ``Site`` or ``WAsPGridSite`` compatible structures. You can export terrain, roughness, and wind maps directly to WAsP ASCII Surfer ``.grd`` grid format:
+
+.. code-block:: python
+
+    from wind_solver import WindSolver
+    from pywake_coupling import MassConsistentSite, to_wasp_grid_site
+
+    # Solved WindSolver instance
+    wind = WindSolver("inputs.i")
+    wind.solve()
+
+    # Format resolved wind fields as a PyWake Site object
+    site = MassConsistentSite(wind)
+
+    # Or export to WAsP GRD files and load as a WAsPGridSite
+    wasp_site = to_wasp_grid_site(wind, height_agl=90.0, output_dir="wasp_grids")
+
 Step-by-Step Walkthrough Tutorials
 ----------------------------------
 
