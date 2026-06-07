@@ -2895,6 +2895,96 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         amrex::Gpu::streamSynchronize();
     }
 
+    if (enable_street_canyon && !building_xmin.empty()) {
+        std::vector<StreetCanyon> host_canyons = detect_street_canyons(
+            building_xmin, building_xmax, building_ymin, building_ymax,
+            building_zmin, building_zmax, building_rotation);
+        
+        if (!host_canyons.empty()) {
+            amrex::Print() << "wind_solver: applying Building Street Canyon Vortex Parameterization to initial wind field\n";
+            for (size_t c = 0; c < host_canyons.size(); ++c) {
+                amrex::Print() << "  Canyon " << c << ": direction=" << (host_canyons[c].direction == 0 ? "Y-aligned" : "X-aligned")
+                               << ", width=" << host_canyons[c].w_canyon << " m, height=" << host_canyons[c].h_canyon << " m"
+                               << ", aspect_ratio=" << host_canyons[c].aspect_ratio << "\n";
+            }
+            int n_canyons = static_cast<int>(host_canyons.size());
+            Gpu::DeviceVector<StreetCanyon> d_canyons(n_canyons);
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, host_canyons.begin(), host_canyons.end(), d_canyons.begin());
+            StreetCanyon const* d_canyons_ptr = d_canyons.data();
+            
+            const Real dx_c = dx;
+            const Real dy_c = dy;
+            const Real dz_c = dz;
+            const Real x_lo_c = x_lo;
+            const Real y_lo_c = y_lo;
+            const Real z_lo_c = zs_min;
+            const int nz_c = nz;
+            
+            for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto vel = vel0_ptr->array(mfi);
+                
+                amrex::ParallelFor(bx,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real x = x_lo_c + (i + Real(0.5)) * dx_c;
+                    Real y = y_lo_c + (j + Real(0.5)) * dy_c;
+                    Real z = z_lo_c + (k + Real(0.5)) * dz_c;
+                    
+                    for (int c = 0; c < n_canyons; ++c) {
+                        const auto& canyon = d_canyons_ptr[c];
+                        
+                        // Check if point is inside this canyon
+                        if (x >= canyon.xmin && x <= canyon.xmax &&
+                            y >= canyon.ymin && y <= canyon.ymax &&
+                            z >= canyon.zmin && z <= canyon.zmax)
+                        {
+                            // Calculate aspect ratio
+                            Real aspect = canyon.aspect_ratio;
+                            
+                            // Calculate vortex strength factor
+                            Real vortex_strength_factor = Real(0.0);
+                            if (aspect > Real(0.7)) {
+                                vortex_strength_factor = Real(0.25);
+                            } else if (aspect > Real(0.3)) {
+                                vortex_strength_factor = Real(0.25) * (aspect - Real(0.3)) / Real(0.4);
+                            }
+                            
+                            if (vortex_strength_factor > Real(1.0e-6)) {
+                                // Find local ambient velocity at canyon top
+                                int k_top = std::min(std::max(0, static_cast<int>(std::round((canyon.zmax - z_lo_c)/dz_c - Real(0.5)))), nz_c - 1);
+                                Real U_amb = vel(i, j, k_top, 0);
+                                Real V_amb = vel(i, j, k_top, 1);
+                                
+                                Real z_ratio = (z - canyon.zmin) / canyon.h_canyon;
+                                
+                                if (canyon.direction == 0) { // Y-aligned (separated in X)
+                                    Real x_ratio = (x - canyon.xmin) / canyon.w_canyon;
+                                    
+                                    // Overwrite initial wind field (u0) with parameterized vortex profile
+                                    vel(i, j, k, 0) = -vortex_strength_factor * U_amb * std::cos(MathConstants::pi * z_ratio) * std::sin(MathConstants::pi * x_ratio);
+                                    vel(i, j, k, 2) = vortex_strength_factor * U_amb * (canyon.h_canyon / canyon.w_canyon) * std::sin(MathConstants::pi * z_ratio) * std::cos(MathConstants::pi * x_ratio);
+                                    vel(i, j, k, 1) = Real(0.0); // Suppressed cross-wind
+                                } else { // X-aligned (separated in Y)
+                                    Real y_ratio = (y - canyon.ymin) / canyon.w_canyon;
+                                    
+                                    // Overwrite initial wind field (v0) with parameterized vortex profile
+                                    vel(i, j, k, 1) = -vortex_strength_factor * V_amb * std::cos(MathConstants::pi * z_ratio) * std::sin(MathConstants::pi * y_ratio);
+                                    vel(i, j, k, 2) = vortex_strength_factor * V_amb * (canyon.h_canyon / canyon.w_canyon) * std::sin(MathConstants::pi * z_ratio) * std::cos(MathConstants::pi * y_ratio);
+                                    vel(i, j, k, 0) = Real(0.0); // Suppressed cross-wind
+                                }
+                            }
+                            // Stop checking other canyons once we've processed this cell (canyons are disjoint in this model)
+                            break; 
+                        }
+                    }
+                });
+            }
+            amrex::Gpu::streamSynchronize();
+            vel0_ptr->FillBoundary(geom_ptr->periodicity());
+        }
+    }
+
     amrex::Print() << "wind_solver: wind initialization time = " 
                    << (amrex::second() - t_phase) << " s\n";
 }
@@ -4036,4 +4126,100 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                            << output_file << "  (" << (nx * ny) << " points)\n";
         }
     }
+}
+
+std::vector<StreetCanyon> WindSolverApp::detect_street_canyons(
+    const std::vector<amrex::Real>& b_xmin, const std::vector<amrex::Real>& b_xmax,
+    const std::vector<amrex::Real>& b_ymin, const std::vector<amrex::Real>& b_ymax,
+    const std::vector<amrex::Real>& b_zmin, const std::vector<amrex::Real>& b_zmax,
+    const std::vector<amrex::Real>& b_rotation)
+{
+    amrex::ignore_unused(b_rotation);
+    std::vector<StreetCanyon> canyons;
+    int n_bldgs = static_cast<int>(b_xmin.size());
+    if (n_bldgs < 2) return canyons;
+
+    // Detect Y-aligned canyons (separated in X, overlap in Y)
+    for (int i = 0; i < n_bldgs; ++i) {
+        for (int j = 0; j < n_bldgs; ++j) {
+            if (i == j) continue;
+
+            // Check if building i is to the left of building j in X
+            if (b_xmax[i] <= b_xmin[j]) {
+                // Check if they overlap in Y
+                amrex::Real y_overlap_min = std::max(b_ymin[i], b_ymin[j]);
+                amrex::Real y_overlap_max = std::min(b_ymax[i], b_ymax[j]);
+                if (y_overlap_max > y_overlap_min) {
+                    // Check if there is any building k in between them
+                    bool blocked = false;
+                    for (int k = 0; k < n_bldgs; ++k) {
+                        if (k == i || k == j) continue;
+                        // Does k overlap in Y with the overlap region?
+                        amrex::Real k_overlap_min = std::max(b_ymin[k], y_overlap_min);
+                        amrex::Real k_overlap_max = std::min(b_ymax[k], y_overlap_max);
+                        if (k_overlap_max > k_overlap_min) {
+                            // Is k strictly between i and j in X?
+                            if (b_xmax[i] <= b_xmin[k] && b_xmax[k] <= b_xmin[j]) {
+                                blocked = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!blocked) {
+                        StreetCanyon canyon;
+                        canyon.xmin = b_xmax[i];
+                        canyon.xmax = b_xmin[j];
+                        canyon.ymin = y_overlap_min;
+                        canyon.ymax = y_overlap_max;
+                        canyon.zmin = 0.0; // canyons start from ground
+                        canyon.h_canyon = 0.5 * ((b_zmax[i] - b_zmin[i]) + (b_zmax[j] - b_zmin[j]));
+                        canyon.zmax = canyon.h_canyon;
+                        canyon.w_canyon = canyon.xmax - canyon.xmin;
+                        canyon.aspect_ratio = canyon.h_canyon / canyon.w_canyon;
+                        canyon.direction = 0; // Y-aligned
+                        canyons.push_back(canyon);
+                    }
+                }
+            }
+
+            // Check if building i is below building j in Y (X-aligned canyon)
+            if (b_ymax[i] <= b_ymin[j]) {
+                // Check if they overlap in X
+                amrex::Real x_overlap_min = std::max(b_xmin[i], b_xmin[j]);
+                amrex::Real x_overlap_max = std::min(b_xmax[i], b_xmax[j]);
+                if (x_overlap_max > x_overlap_min) {
+                    // Check if there is any building k in between them
+                    bool blocked = false;
+                    for (int k = 0; k < n_bldgs; ++k) {
+                        if (k == i || k == j) continue;
+                        // Does k overlap in X with the overlap region?
+                        amrex::Real k_overlap_min = std::max(b_xmin[k], x_overlap_min);
+                        amrex::Real k_overlap_max = std::min(b_xmax[k], x_overlap_max);
+                        if (k_overlap_max > k_overlap_min) {
+                            // Is k strictly between i and j in Y?
+                            if (b_ymax[i] <= b_ymin[k] && b_ymax[k] <= b_ymin[j]) {
+                                blocked = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!blocked) {
+                        StreetCanyon canyon;
+                        canyon.xmin = x_overlap_min;
+                        canyon.xmax = x_overlap_max;
+                        canyon.ymin = b_ymax[i];
+                        canyon.ymax = b_ymin[j];
+                        canyon.zmin = 0.0;
+                        canyon.h_canyon = 0.5 * ((b_zmax[i] - b_zmin[i]) + (b_zmax[j] - b_zmin[j]));
+                        canyon.zmax = canyon.h_canyon;
+                        canyon.w_canyon = canyon.ymax - canyon.ymin;
+                        canyon.aspect_ratio = canyon.h_canyon / canyon.w_canyon;
+                        canyon.direction = 1; // X-aligned
+                        canyons.push_back(canyon);
+                    }
+                }
+            }
+        }
+    }
+    return canyons;
 }

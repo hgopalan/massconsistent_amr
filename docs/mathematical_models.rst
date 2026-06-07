@@ -222,6 +222,25 @@ Instead of exclusive zone assignments, overlapping wakes from multiple buildings
 
 where :math:`d_i` is distance to building :math:`i`'s wake boundary, and :math:`L_{\text{blend}} \approx 0.5 H`.
 
+Building Street Canyon Vortex Parameterization (QUIC-URB Style)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When parallel buildings are aligned perpendicular to the ambient wind direction, the solver identifies street canyons geometrically, computes their aspect ratio (:math:`H/W`), and overwrites the initial wind field inside the canyon with a parameterized, solenoidal (divergence-free) recirculating vortex profile before the Poisson solve:
+
+* **Solenoidal Vortex Velocity Components**:
+  
+  .. math::
+
+     u_{\text{vortex}}(x, z) = -C_{\text{vortex}} \cdot U_{\text{ambient}} \cdot \cos\left(\pi \frac{z}{H}\right) \cdot \sin\left(\pi \frac{x - x_{\text{up}}}{W}\right)
+
+  .. math::
+
+     w_{\text{vortex}}(x, z) = C_{\text{vortex}} \cdot U_{\text{ambient}} \cdot \left(\frac{H}{W}\right) \cdot \sin\left(\pi \frac{z}{H}\right) \cdot \cos\left(\pi \frac{x - x_{\text{up}}}{W}\right)
+
+* **Regime-Dependent Vortex Strength**:
+  * For skimming flow (:math:`H/W > 0.7`): :math:`C_{\text{vortex}} = 0.25` (full recirculation).
+  * For wake interference flow (:math:`0.3 < H/W \le 0.7`): :math:`C_{\text{vortex}}` scales linearly from 0 to 0.25.
+  * For isolated roughness flow (:math:`H/W \le 0.3`): :math:`C_{\text{vortex}} = 0.0`.
+
 Analytical Wind Turbine Wake Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The solver supports analytical turbine wake deficits for wind energy applications:
@@ -619,7 +638,7 @@ Limitations
 
 1. **Physics**:
    * **Diagnostic Nature**: The solver assumes steady-state mass consistency. Time-dependent fluctuations and transient atmospheric dynamics are parameterized rather than solved prognostically.
-   * **Simplified Street Canyon & Obstacles**: Canopy drag and Oke (1988) building street canyon algorithms assume homogeneous cell sizes and simplified wind angles, omitting full 3D recirculation vortices.
+   * **Simplified Street Canyon & Obstacles**: While we now explicitly model recirculating street canyon vortices using geometric detection and parameterized solenoidal vortex profiles, canopy drag and basic Oke (1988) algorithms assume homogeneous cell sizes.
    * **Uncoupled Fire-Wind Feedback**: Currently, there is no direct thermal or buoyant feedback from fire fronts (e.g. from wildfire_levelset) back to the wind field.
 
 2. **Numerics**:
