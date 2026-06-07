@@ -282,41 +282,41 @@ add_regression_test(elevation_scaling elevation_scaling)
 add_regression_test(time_varying time_varying)
 
 # ===========================================================================
-# New Features (Very Easy 1-5)
+# Advanced Diagnostic and Physical Parameterization Features
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# divergence_source/ – Feature 1: Divergence source terms for convective plumes
+# divergence_source/ – Divergence source terms for convective plumes
 # ---------------------------------------------------------------------------
 add_regression_test(divergence_source divergence_source)
 
 # ---------------------------------------------------------------------------
-# holtslag_stability/ – Feature 2: Holtslag-De Bruin stability functions
+# holtslag_stability/ – Holtslag-De Bruin stability functions
 # ---------------------------------------------------------------------------
 add_regression_test(holtslag_stability holtslag_stability)
 
 # ---------------------------------------------------------------------------
-# landuse_powerlaw/ – Feature 3: Land use-based power-law exponents
+# landuse_powerlaw/ – Land use-based power-law exponents
 # ---------------------------------------------------------------------------
 add_regression_test(landuse_powerlaw landuse_powerlaw)
 
 # ---------------------------------------------------------------------------
-# diurnal_temperature/ – Feature 4: Diurnal temperature profile
+# diurnal_temperature/ – Diurnal temperature profile
 # ---------------------------------------------------------------------------
 add_regression_test(diurnal_temperature diurnal_temperature)
 
 # ---------------------------------------------------------------------------
-# vegetation_roughness/ – Feature 5: Vegetation attenuation factor for roughness
+# vegetation_roughness/ – Vegetation attenuation factor for roughness
 # ---------------------------------------------------------------------------
 add_regression_test(vegetation_roughness vegetation_roughness)
 
 # ---------------------------------------------------------------------------
-# katabatic_flow/ – Feature 6: Katabatic/anabatic slope flows parameterization
+# katabatic_flow/ – Katabatic/anabatic slope flows parameterization
 # ---------------------------------------------------------------------------
 add_regression_test(katabatic_flow katabatic_flow)
 
 # ---------------------------------------------------------------------------
-# wake_huber_snyder/ – Feature 7: Huber-Snyder wake model (alternative to Röckle)
+# wake_huber_snyder/ – Huber-Snyder wake model (alternative to Röckle)
 # ---------------------------------------------------------------------------
 add_regression_test(wake_huber_snyder wake_huber_snyder)
 
@@ -490,31 +490,34 @@ add_python_regression_test(iec61400_categories_regtest iec61400_categories
                           test_iec61400_categories.py)
 
 # ===========================================================================
-# field_output_test/ – Phase 5: Unified field output (21 diagnostic fields)
+# field_output_test/ – Unified field output (21 diagnostic fields)
 # ===========================================================================
 add_regression_test(field_output_test field_output_test)
 
 # ===========================================================================
-# Phase 1: High-Yield, Low-Effort Parameterizations (New Features)
+# High-Yield Parameterizations (Surface Roughness, Coriolis, Windbreaks)
 # ===========================================================================
 add_regression_test(canopy_lai_profiles canopy_lai_profiles)
 add_regression_test(coriolis_meridional coriolis_meridional)
 add_regression_test(subgrid_windbreaks subgrid_windbreaks)
 
 # ===========================================================================
-# parameter_sensitivity_test/ – Phase 5: Parameter sensitivity sweep tool
+# parameter_sensitivity_test/ – Parameter sensitivity sweep tool
 # ===========================================================================
 add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test 
                           test_parameter_sensitivity.py)
 
 # ===========================================================================
-# Phase 2: Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
+# Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
 # ===========================================================================
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
-  add_python_regression_test(phase2_analytical_wake_extensions phase2_analytical_wake_extensions
+  add_python_regression_test(analytical_wake_extensions analytical_wake_extensions
                             test_phase2_analytical_wake_extensions.py)
+  add_python_regression_test(aep_dispersion aep_dispersion
+                            test_aep_dispersion.py)
 else()
-  message(STATUS "  phase2_analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  aep_dispersion: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
 endif()
 
 # ===========================================================================
@@ -567,9 +570,9 @@ message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC 
 message(STATUS "  canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
 message(STATUS "  canopy_spatially_varying/: Spatially-varying canopy height and frontal area index")
 message(STATUS "  canopy_exponential/    : Exponential canopy profile model")
-message(STATUS "  canopy_lai_profiles/   : Vertical Leaf Area Index (LAI) profiles (Phase 1)")
-message(STATUS "  coriolis_meridional/   : Coriolis Meridional Beta-Effect and scaled Ekman veer (Phase 1)")
-message(STATUS "  subgrid_windbreaks/    : Sub-grid windbreaks and directional barrier drag (Phase 1)")
+message(STATUS "  canopy_lai_profiles/   : Vertical Leaf Area Index (LAI) profiles")
+message(STATUS "  coriolis_meridional/   : Coriolis Meridional Beta-Effect and scaled Ekman veer")
+message(STATUS "  subgrid_windbreaks/    : Sub-grid windbreaks and directional barrier drag")
 message(STATUS "  drag_diagnostic/       : Drag coefficient and heat flux diagnostics")
 message(STATUS "  stability_stable/      : Non-neutral stability (stable conditions, L > 0)")
 message(STATUS "  stability_unstable/    : Non-neutral stability (unstable conditions, L < 0)")
@@ -577,11 +580,11 @@ message(STATUS "  ekman_veer/            : Ekman spiral wind veer correction (Co
 message(STATUS "  alphav_height/         : Height-dependent vertical anisotropy coefficient")
 message(STATUS "  elevation_scaling/     : Terrain elevation effects on wind speed")
 message(STATUS "  time_varying/          : Time-varying wind boundary conditions")
-message(STATUS "  divergence_source/     : Divergence source terms for convective plumes (Feature 1)")
-message(STATUS "  holtslag_stability/    : Holtslag-De Bruin stability functions (Feature 2)")
-message(STATUS "  landuse_powerlaw/      : Land use-based power-law exponents (Feature 3)")
-message(STATUS "  diurnal_temperature/   : Diurnal temperature profile (Feature 4)")
-message(STATUS "  vegetation_roughness/  : Vegetation attenuation factor for roughness (Feature 5)")
+message(STATUS "  divergence_source/     : Divergence source terms for convective plumes")
+message(STATUS "  holtslag_stability/    : Holtslag-De Bruin stability functions")
+message(STATUS "  landuse_powerlaw/      : Land use-based power-law exponents")
+message(STATUS "  diurnal_temperature/   : Diurnal temperature profile")
+message(STATUS "  vegetation_roughness/  : Vegetation attenuation factor for roughness")
 message(STATUS "  puff_gaussian/         : Basic Gaussian puff dispersion on uniform wind")
 message(STATUS "  puff_terrain/          : Puff dispersion on terrain-following wind field")
 message(STATUS "  puff_buildings/        : Puff dispersion with building wake effects")
@@ -590,7 +593,7 @@ message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with al
 message(STATUS "  puff_downwash_single_time/ : Single time step cavity trapping (AERMOD PRIME)")
 message(STATUS "  puff_downwash_multi_time/  : Multiple time steps wake recirculation and plume deformation")
 message(STATUS "  lpdm_terrain/          : Lagrangian Particle Dispersion Model on terrain")
-message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain (Feature 17)")
+message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain")
 message(STATUS "  diurnal_roughness/     : Diurnal roughness length variations z₀(t)")
 message(STATUS "  bl_decay/              : Exponential boundary layer wind decay above BL depth")
 message(STATUS "  momentum_flux/         : Momentum flux output fields (τ_x, τ_y, u*)")
@@ -616,6 +619,6 @@ message(STATUS "  iec61400_category_c/            : IEC 61400-1:2019 Category C 
 message(STATUS "  iec61400_categories_regtest/    : Python unit tests for IEC 61400 spectral models (20 tests)")
 message(STATUS "  field_output_test/              : Unified field output with 21 diagnostic fields")
 message(STATUS "  parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
-message(STATUS "  phase2_analytical_wake_extensions: Analytical turbine wake deficit, deflection, and added turbulence models")
+message(STATUS "  analytical_wake_extensions: Analytical turbine wake deficit, deflection, and added turbulence models")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

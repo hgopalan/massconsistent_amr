@@ -23,6 +23,7 @@
 
 #include "puff_models.H"
 #include "lpdm_models.H"
+#include "turbine_wake_models.H"
 #include "solver_math_constants.H"
 
 #include <AMReX.H>
@@ -226,6 +227,70 @@ void read_velocity_plotfile(
 }
 
 // ============================================================================
+// Compute turbine wake-added turbulence intensity (TI) at a given point
+// ============================================================================
+Real compute_turbine_wake_added_ti(
+    Real px, Real py, Real pz,
+    const std::vector<TurbineWake::Turbine>& turbines,
+    TurbineWake::TurbineWakeModelType model_type,
+    TurbineWake::WakeAddedTurbulenceModelType added_turb_model,
+    Real wind_dir_x, Real wind_dir_y,
+    Real ambient_ti_base = 0.075)
+{
+    if (added_turb_model == TurbineWake::WakeAddedTurbulenceModelType::NONE || turbines.empty()) {
+        return 0.0;
+    }
+
+    Real added_ti_sq = 0.0;
+    for (const auto& t : turbines) {
+        Real dx_pt = px - t.x;
+        Real dy_pt = py - t.y;
+
+        // Downwind distance relative to turbine
+        Real x_down = dx_pt * wind_dir_x + dy_pt * wind_dir_y;
+        if (x_down <= Real(1.0e-3)) continue;
+
+        // Crosswind distance
+        Real y_cross = std::abs(-dx_pt * wind_dir_y + dy_pt * wind_dir_x);
+        Real z_vertical = pz - (t.hub_height + t.z_terrain); // hub height relative to terrain
+
+        Real r = std::sqrt(y_cross * y_cross + z_vertical * z_vertical);
+
+        // Peak added TI on centerline
+        Real delta_I_peak = 0.0;
+        Real s_dist = std::max(Real(1.0), x_down / t.rotor_diameter);
+        Real ct = t.ct_curve.interpolate(10.0); // Use representative 10 m/s speed or thrust of 0.8
+        Real ct_clamped = std::max(Real(1e-4), std::min(ct, Real(0.99)));
+
+        if (added_turb_model == TurbineWake::WakeAddedTurbulenceModelType::CRESPO_HERNANDEZ) {
+            Real a = (Real(1.0) - std::sqrt(Real(1.0) - ct_clamped)) / Real(2.0);
+            delta_I_peak = Real(0.73) * std::pow(a, Real(0.832)) * std::pow(ambient_ti_base, Real(0.0325)) * std::pow(s_dist, Real(-0.32));
+        } else if (added_turb_model == TurbineWake::WakeAddedTurbulenceModelType::FRANDSEN) {
+            delta_I_peak = Real(1.0) / (Real(1.5) + Real(0.8) * s_dist / std::sqrt(ct_clamped));
+        }
+
+        // Radial spreading factor
+        Real factor = 0.0;
+        if (model_type == TurbineWake::TurbineWakeModelType::JENSEN) {
+            Real kw = 0.075; // Default kw
+            Real r_wake = t.rotor_diameter / Real(2.0) + kw * x_down;
+            if (r <= r_wake) {
+                factor = Real(1.0);
+            }
+        } else { // Gaussian or TurbOPark
+            Real ka = 0.04; // Default ka
+            Real sigma = ka * x_down + Real(0.2) * t.rotor_diameter;
+            factor = std::exp(-r * r / (Real(2.0) * sigma * sigma));
+        }
+
+        Real delta_I_local = delta_I_peak * factor;
+        added_ti_sq += delta_I_local * delta_I_local;
+    }
+
+    return std::sqrt(added_ti_sq);
+}
+
+// ============================================================================
 // Main puff solver
 // ============================================================================
 int main(int argc, char* argv[])
@@ -363,6 +428,41 @@ int main(int argc, char* argv[])
         if (!building_file.empty()) {
             read_building_file(building_file, buildings);
             enable_building_masking = true;  // Auto-enable if file provided
+        }
+
+        // Turbine parameters for dispersion
+        std::string turbine_file = "";
+        bool enable_turbine_wake_diffusivity = false;
+        std::string turbine_wake_model_type = "jensen";
+        std::string wake_added_turb_model = "crespo_hernandez";
+        Real turbine_wake_diffusivity_factor = 2.0;
+
+        pp.query("turbine_file", turbine_file);
+        pp.query("enable_turbine_wake_diffusivity", enable_turbine_wake_diffusivity);
+        pp.query("turbine_wake_model_type", turbine_wake_model_type);
+        pp.query("wake_added_turb_model", wake_added_turb_model);
+        pp.query("turbine_wake_diffusivity_factor", turbine_wake_diffusivity_factor);
+
+        std::vector<TurbineWake::Turbine> turbines;
+        if (!turbine_file.empty()) {
+            TurbineWake::read_turbines_file(turbine_file, turbines);
+            enable_turbine_wake_diffusivity = true;  // Auto-enable if file provided
+        }
+
+        TurbineWake::TurbineWakeModelType turb_wake_model = TurbineWake::TurbineWakeModelType::JENSEN;
+        if (turbine_wake_model_type == "bastankhah_gaussian" || turbine_wake_model_type == "gaussian") {
+            turb_wake_model = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
+        } else if (turbine_wake_model_type == "turbopark") {
+            turb_wake_model = TurbineWake::TurbineWakeModelType::TURBOPARK;
+        } else if (turbine_wake_model_type == "gch" || turbine_wake_model_type == "gauss_curl_hybrid") {
+            turb_wake_model = TurbineWake::TurbineWakeModelType::GAUSS_CURL_HYBRID;
+        }
+
+        TurbineWake::WakeAddedTurbulenceModelType added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::CRESPO_HERNANDEZ;
+        if (wake_added_turb_model == "frandsen") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::FRANDSEN;
+        } else if (wake_added_turb_model == "none") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::NONE;
         }
         
         // Canopy parameters
@@ -506,6 +606,13 @@ int main(int argc, char* argv[])
             amrex::Print() << "  Wake diffusivity: ENABLED\n";
             amrex::Print() << "    Cavity enhancement: " << wake_enhancement_cavity << "x\n";
             amrex::Print() << "    Far wake enhancement: " << wake_enhancement_far << "x\n";
+        }
+        if (enable_turbine_wake_diffusivity) {
+            amrex::Print() << "  Turbine Wake diffusivity: ENABLED\n";
+            amrex::Print() << "    Turbine file: " << turbine_file << " (" << turbines.size() << " turbines)\n";
+            amrex::Print() << "    Turbine wake model: " << turbine_wake_model_type << "\n";
+            amrex::Print() << "    Wake added turbulence model: " << wake_added_turb_model << "\n";
+            amrex::Print() << "    Diffusivity factor: " << turbine_wake_diffusivity_factor << "\n";
         }
         if (enable_cavity_trapping) {
             amrex::Print() << "  Cavity trapping (AERMOD PRIME): ENABLED\n";
@@ -658,6 +765,16 @@ int main(int argc, char* argv[])
                 // Enhance diffusivities based on wake factor
                 K_h_eff *= wake_factor;
                 K_v_eff *= wake_factor;
+
+                // Apply turbine wake diffusivity enhancement
+                if (enable_turbine_wake_diffusivity && !turbines.empty()) {
+                    Real added_ti = compute_turbine_wake_added_ti(
+                        p.x, p.y, p.z, turbines,
+                        turb_wake_model, added_turb_model,
+                        wind_dir_x, wind_dir_y);
+                    K_h_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
+                    K_v_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
+                }
                     
                 // Apply canopy deposition
                 if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
@@ -804,6 +921,16 @@ int main(int argc, char* argv[])
                             wake_params, wake_enhancement_cavity, wake_enhancement_far);
                         wake_factor = std::max(wake_factor, bldg_factor);
                     }
+                }
+
+                // Apply turbine wake diffusivity enhancement
+                if (enable_turbine_wake_diffusivity && !turbines.empty()) {
+                    Real added_ti = compute_turbine_wake_added_ti(
+                        puff.x, puff.y, puff.z, turbines,
+                        turb_wake_model, added_turb_model,
+                        wind_dir_x, wind_dir_y);
+                    K_h_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
+                    K_v_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
                 }
                     
                 // Growth with combined effects
