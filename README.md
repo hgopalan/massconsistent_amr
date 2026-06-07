@@ -46,7 +46,9 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Trilinear & Quadrilinear Velocity Interpolation** — High-performance 3D trilinear (spatial) and 4D quadrilinear (spatial + temporal) interpolation of wind fields directly inside GPU kernels in `puff_models.H` and `lpdm_models.H`
 - **Spatially-Varying Canopy & Heterogeneous Surface Roughness** — Supports spatially distributed canopy height, frontal area index, and roughness ($z_0$) from user fields read into 2D AMReX arrays and retrieved cell-locally in solver kernels
 - **Terrain-following** — Log-law wind profiles over complex topography
-- **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, or power-law profiles
+- **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, power-law profiles, Deaves-Harris profiles, or log-law/power-law above boundary layer profiles
+- **Pasquill-Gifford-Turner (PGT) Atmospheric Stability Diagnostics** — Decision-tree lookup matching ground wind speed, solar radiation (daytime), and cloud cover (nighttime) to A-F stability categories to compute dispersion coefficients when flux measurements are unavailable
+- **Atmospheric Inversion Capping Lid (CALMET/CALPUFF-style)** — A defined mixing depth ($z_i$) acting as a physical boundary, enforcing $w = 0$ in the wind solver during Poisson solve, and reflecting dispersing pollutants downwards in the puff/particle dispersion solver
 - **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file or land-use classification
 - **Building support** — Wake modeling with Röckle (1990), Huber-Snyder (EPA), and AERMOD PRIME (EPA regulatory) parameterizations; adaptive wake superposition with distance-weighted blending
 - **Canopy modeling** — Forest canopy drag effects

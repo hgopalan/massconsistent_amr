@@ -541,6 +541,12 @@ int main(int argc, char* argv[])
         pp.query("terrain_file", terrain_file);
         pp.query("enable_terrain_reflection", enable_terrain_reflection);
         pp.query("use_image_source", use_image_source);
+
+        // Atmospheric Inversion Capping Lid
+        bool enable_capping_lid = false;
+        Real capping_lid_height = 1000.0;
+        pp.query("enable_capping_lid", enable_capping_lid);
+        pp.query("capping_lid_height", capping_lid_height);
         
         std::vector<Real> x_terr, y_terr, z_terr;
         if (!terrain_file.empty()) {
@@ -989,10 +995,12 @@ int main(int argc, char* argv[])
                 if (enable_terrain_reflection) {
                     advect_particle_with_terrain(p, U_wind, V_wind, W_wind, 
                                                 rand_dx, rand_dy, rand_dz,
-                                                dt_puff, terrain_height, true, v_s);
+                                                dt_puff, terrain_height, true, v_s,
+                                                enable_capping_lid, capping_lid_height);
                 } else {
                     advect_particle(p, U_wind, V_wind, W_wind, 
-                                    rand_dx, rand_dy, rand_dz, dt_puff, v_s);
+                                    rand_dx, rand_dy, rand_dz, dt_puff, v_s,
+                                    enable_capping_lid, capping_lid_height);
                 }
                     
                 // Check bounds with terrain awareness
@@ -1050,9 +1058,11 @@ int main(int argc, char* argv[])
                 // Advection with terrain reflection
                 if (enable_terrain_reflection) {
                     advect_puff_with_terrain(puff, U_wind, V_wind, W_wind, 
-                                            dt_puff, terrain_height, true, v_s);
+                                            dt_puff, terrain_height, true, v_s,
+                                            enable_capping_lid, capping_lid_height);
                 } else {
-                    advect_puff(puff, U_wind, V_wind, W_wind, dt_puff, v_s);
+                    advect_puff(puff, U_wind, V_wind, W_wind, dt_puff, v_s,
+                                enable_capping_lid, capping_lid_height);
                 }
                     
                 // Compute effective diffusivities
@@ -1187,9 +1197,10 @@ int main(int argc, char* argv[])
                             // Sum concentration from all puffs
                             Real C = 0.0;
                             for (const auto& puff : puffs) {
-                                if (enable_terrain_reflection && use_image_source) {
+                                if ((enable_terrain_reflection || enable_capping_lid) && use_image_source) {
                                     C += gaussian_puff_concentration_with_reflection(
-                                        x, y, z, puff, terrain_height, true);
+                                        x, y, z, puff, terrain_height, true,
+                                        enable_capping_lid, capping_lid_height);
                                 } else {
                                     C += gaussian_puff_concentration(x, y, z, puff);
                                 }

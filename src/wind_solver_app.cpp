@@ -76,9 +76,10 @@ void WindSolverApp::parse_inputs() {
     pp.query("init_mode", init_mode);
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
-        init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield") {
+        init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield" &&
+        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', or 'windfield')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', or 'powerlaw_above_bl')");
     }
 
     pp.query("U_ref", U_ref);
@@ -186,6 +187,22 @@ void WindSolverApp::parse_inputs() {
     
     // Alternative Stability Functions
     pp.query("use_holtslag_stability", use_holtslag_stability);
+
+    // Pasquill-Gifford Stability
+    pp.query("enable_pg_stability", enable_pg_stability);
+    pp.query("solar_radiation", solar_radiation);
+    pp.query("is_nighttime", is_nighttime);
+    pp.query("cloud_cover", cloud_cover);
+    if (enable_pg_stability) {
+        Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+        PGStabilityClass pg_class = pasquill_gifford_class(speed_ref, solar_radiation, is_nighttime, cloud_cover);
+        stability_length = pg_class_to_obukhov_length(pg_class);
+        enable_stability_correction = true;
+    }
+
+    // Atmospheric Inversion Capping Lid
+    pp.query("enable_capping_lid", enable_capping_lid);
+    pp.query("capping_lid_height", capping_lid_height);
 
     // Elevation-Dependent Wind Speed Scaling
     pp.query("enable_elevation_scaling", enable_elevation_scaling);
@@ -1368,13 +1385,23 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
     Real const* d_vel_v_ptr = nullptr;
     Real const* d_vel_w_ptr = nullptr;
 
-    if (init_mode == "loglaw") {
+    if (init_mode == "loglaw" || init_mode == "deaves_harris" || init_mode == "powerlaw_above_bl") {
         Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
         const Real kappa = 0.41;
 
-        Real ustar = (speed_ref > Real(1.0e-10))
-                   ? kappa * speed_ref / std::log((z_ref + z0) / z0)
-                   : Real(0.0);
+        Real ustar = 0.0;
+        if (init_mode == "deaves_harris") {
+            Real zg = bl_depth_param;
+            Real ratio = z_ref / zg;
+            Real term = std::log((z_ref + z0) / z0) + Real(5.75) * ratio - Real(1.88) * ratio * ratio - Real(1.33) * std::pow(ratio, 3) + Real(0.25) * std::pow(ratio, 4);
+            ustar = (speed_ref > Real(1.0e-10) && std::abs(term) > Real(1.0e-10))
+                  ? kappa * speed_ref / term
+                  : Real(0.0);
+        } else {
+            ustar = (speed_ref > Real(1.0e-10))
+                  ? kappa * speed_ref / std::log((z_ref + z0) / z0)
+                  : Real(0.0);
+        }
 
         Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
         Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
@@ -1525,6 +1552,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             amrex::Print() << "  vertical_extent = " << gap_flow_vertical_extent << " m\n";
         }
 
+        const int init_mode_val = (init_mode == "deaves_harris") ? 1 : ((init_mode == "powerlaw_above_bl") ? 2 : 0);
+        const Real zg_val = bl_depth_param;
+        const Real powerlaw_exp_val = powerlaw_exponent;
+
         const Real ustar_cap = ustar;
         const Real kappa_cap = kappa;
         const Real z_ref_cap = z_ref;
@@ -1633,7 +1664,19 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
                     }
                     Real speed;
-                    if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
+                    if (init_mode_val == 1) { // Deaves-Harris
+                        Real ratio = z_agl / zg_val;
+                        ratio = (ratio > Real(1.0)) ? Real(1.0) : ((ratio < Real(0.0)) ? Real(0.0) : ratio);
+                        Real term = std::log((z_agl + z0_local) / z0_local) + Real(5.75) * ratio - Real(1.88) * ratio * ratio - Real(1.33) * std::pow(ratio, 3) + Real(0.25) * std::pow(ratio, 4);
+                        speed = (ustar_local / kappa_cap) * term;
+                    } else if (init_mode_val == 2) { // Power-Law above BL
+                        if (z_agl <= zg_val) {
+                            speed = (ustar_local / kappa_cap) * std::log((z_agl + z0_local) / z0_local);
+                        } else {
+                            Real speed_bl = (ustar_local / kappa_cap) * std::log((zg_val + z0_local) / z0_local);
+                            speed = speed_bl * std::pow(z_agl / zg_val, powerlaw_exp_val);
+                        }
+                    } else if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
                         speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
                                                       kappa_cap, L_obukhov, use_holtslag);
                     } else {
@@ -1692,7 +1735,19 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
                     }
                     Real speed;
-                    if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
+                    if (init_mode_val == 1) { // Deaves-Harris
+                        Real ratio = z_agl / zg_val;
+                        ratio = (ratio > Real(1.0)) ? Real(1.0) : ((ratio < Real(0.0)) ? Real(0.0) : ratio);
+                        Real term = std::log((z_agl + z0_local) / z0_local) + Real(5.75) * ratio - Real(1.88) * ratio * ratio - Real(1.33) * std::pow(ratio, 3) + Real(0.25) * std::pow(ratio, 4);
+                        speed = (ustar_local / kappa_cap) * term;
+                    } else if (init_mode_val == 2) { // Power-Law above BL
+                        if (z_agl <= zg_val) {
+                            speed = (ustar_local / kappa_cap) * std::log((z_agl + z0_local) / z0_local);
+                        } else {
+                            Real speed_bl = (ustar_local / kappa_cap) * std::log((zg_val + z0_local) / z0_local);
+                            speed = speed_bl * std::pow(z_agl / zg_val, powerlaw_exp_val);
+                        }
+                    } else if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
                         speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
                                                       kappa_cap, L_obukhov, use_holtslag);
                     } else {
@@ -2815,6 +2870,31 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         temp_ptr->setVal(temperature_reference);
     }
 
+    if (enable_capping_lid) {
+        amrex::Print() << "wind_solver: enforcing capping lid boundary condition (w = 0) at z = " << capping_lid_height << " m\n";
+        const Real lid_height = capping_lid_height;
+        const Real z_lo_cap_lid = zs_min;
+        const Real dz_cap_lid = dz;
+        const int nx_cap_lid = nx;
+        const Real* d_terr_ptr = d_obstacle_h.data();
+
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap_lid + (k + Real(0.5)) * dz_cap_lid;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_lid + i];
+                if (z_agl >= lid_height) {
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+        amrex::Gpu::streamSynchronize();
+    }
+
     amrex::Print() << "wind_solver: wind initialization time = " 
                    << (amrex::second() - t_phase) << " s\n";
 }
@@ -3206,6 +3286,9 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
     const Real bh = alpha_h * alpha_h;
     const Real bv = alpha_v * alpha_v;
 
+    const bool cap_enable_capping_lid = enable_capping_lid;
+    const Real cap_capping_lid_height = capping_lid_height;
+
     for (MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         const auto v0  = vel0_ptr->const_array(mfi);
@@ -3301,6 +3384,10 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
             vc(i, j, k, 0) = v0(i, j, k, 0) - bh * dlx;
             vc(i, j, k, 1) = v0(i, j, k, 1) - bh * dly;
             vc(i, j, k, 2) = v0(i, j, k, 2) - bv * dlz;
+            
+            if (cap_enable_capping_lid && z_agl >= cap_capping_lid_height) {
+                vc(i, j, k, 2) = Real(0.0);
+            }
         });
     }
 

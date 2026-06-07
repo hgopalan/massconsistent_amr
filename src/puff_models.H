@@ -90,6 +90,8 @@ struct PuffParams {
     
     bool enable_terrain_reflection = false;  // Enable ground reflection
     bool use_image_source = true;            // Use image source method for concentration
+    bool enable_capping_lid = false;         // Enable atmospheric inversion capping lid
+    amrex::Real capping_lid_height = 1000.0; // Inversion capping lid height [m]
     bool enable_building_masking = false;    // Enable building collision detection
     bool enable_wake_diffusivity = false;    // Enable wake-enhanced diffusivity
     amrex::Real wake_enhancement_cavity = 3.0;  // Cavity zone K enhancement factor
@@ -321,22 +323,35 @@ amrex::Real gaussian_puff_concentration_with_reflection(
     amrex::Real x, amrex::Real y, amrex::Real z,
     const Puff& puff,
     amrex::Real terrain_height,
-    bool use_image_source = true)
+    bool use_image_source = true,
+    bool enable_capping_lid = false,
+    amrex::Real capping_lid_height = 1000.0)
 {
     // Concentration from the actual puff
     amrex::Real conc_real = gaussian_puff_concentration(x, y, z, puff);
     
-    if (!use_image_source) {
-        return conc_real;
+    amrex::Real conc_image = amrex::Real(0.0);
+    
+    if (use_image_source) {
+        // Create image puff (mirror below ground)
+        // Image puff position: z_image = 2*terrain_height - z_puff
+        Puff image_puff = puff;
+        image_puff.z = amrex::Real(2.0) * terrain_height - puff.z;
+        
+        // Concentration from the image puff
+        conc_image += gaussian_puff_concentration(x, y, z, image_puff);
     }
     
-    // Create image puff (mirror below ground)
-    // Image puff position: z_image = 2*terrain_height - z_puff
-    Puff image_puff = puff;
-    image_puff.z = amrex::Real(2.0) * terrain_height - puff.z;
-    
-    // Concentration from the image puff
-    amrex::Real conc_image = gaussian_puff_concentration(x, y, z, image_puff);
+    if (enable_capping_lid && use_image_source) {
+        // Create image puff (mirror above capping lid)
+        // Physical height of capping lid = terrain_height + capping_lid_height
+        amrex::Real z_lid = terrain_height + capping_lid_height;
+        Puff image_puff_lid = puff;
+        image_puff_lid.z = amrex::Real(2.0) * z_lid - puff.z;
+        
+        // Concentration from the capping lid image puff
+        conc_image += gaussian_puff_concentration(x, y, z, image_puff_lid);
+    }
     
     return conc_real + conc_image;
 }
@@ -639,7 +654,9 @@ void advect_puff_with_terrain(
     amrex::Real dt,
     amrex::Real terrain_height,
     bool enable_reflection = false,
-    amrex::Real v_s = amrex::Real(0.0))
+    amrex::Real v_s = amrex::Real(0.0),
+    bool enable_capping_lid = false,
+    amrex::Real capping_lid_height = 1000.0)
 {
     if (!puff.active || dt < amrex::Real(0.0)) {
         return;
@@ -658,6 +675,14 @@ void advect_puff_with_terrain(
         // Note: In a full implementation, we would also reverse the vertical
         // velocity component. For the simple puff model with prescribed wind,
         // the reflection of position is sufficient.
+    }
+
+    // Capping lid reflection
+    if (enable_capping_lid) {
+        amrex::Real z_lid = terrain_height + capping_lid_height;
+        if (puff.z > z_lid) {
+            puff.z = amrex::Real(2.0) * z_lid - puff.z;
+        }
     }
 }
 
@@ -680,7 +705,9 @@ void advect_puff(
     amrex::Real v,
     amrex::Real w,
     amrex::Real dt,
-    amrex::Real v_s = amrex::Real(0.0))
+    amrex::Real v_s = amrex::Real(0.0),
+    bool enable_capping_lid = false,
+    amrex::Real capping_lid_height = 1000.0)
 {
     if (!puff.active || dt < amrex::Real(0.0)) {
         return;
@@ -689,6 +716,14 @@ void advect_puff(
     puff.x += u * dt;
     puff.y += v * dt;
     puff.z += (w - v_s) * dt;
+
+    // Capping lid reflection (with terrain_height = 0.0)
+    if (enable_capping_lid) {
+        amrex::Real z_lid = capping_lid_height;
+        if (puff.z > z_lid) {
+            puff.z = amrex::Real(2.0) * z_lid - puff.z;
+        }
+    }
 }
 
 // ============================================================================

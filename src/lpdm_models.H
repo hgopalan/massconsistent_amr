@@ -67,7 +67,9 @@ void advect_particle_with_terrain(
     amrex::Real dt,
     amrex::Real terrain_height,
     bool enable_reflection = false,
-    amrex::Real v_s = amrex::Real(0.0))
+    amrex::Real v_s = amrex::Real(0.0),
+    bool enable_capping_lid = false,
+    amrex::Real capping_lid_height = 1000.0)
 {
     if (!p.active || dt < amrex::Real(0.0)) {
         return;
@@ -82,6 +84,14 @@ void advect_particle_with_terrain(
     if (enable_reflection && p.z < terrain_height) {
         // Reflect particle above ground: z_new = 2*terrain_height - z_old
         p.z = amrex::Real(2.0) * terrain_height - p.z;
+    }
+
+    // Capping lid reflection
+    if (enable_capping_lid) {
+        amrex::Real z_lid = terrain_height + capping_lid_height;
+        if (p.z > z_lid) {
+            p.z = amrex::Real(2.0) * z_lid - p.z;
+        }
     }
 }
 
@@ -98,7 +108,9 @@ void advect_particle(
     amrex::Real rand_dy,
     amrex::Real rand_dz,
     amrex::Real dt,
-    amrex::Real v_s = amrex::Real(0.0))
+    amrex::Real v_s = amrex::Real(0.0),
+    bool enable_capping_lid = false,
+    amrex::Real capping_lid_height = 1000.0)
 {
     if (!p.active || dt < amrex::Real(0.0)) {
         return;
@@ -107,6 +119,14 @@ void advect_particle(
     p.x += u * dt + rand_dx;
     p.y += v * dt + rand_dy;
     p.z += (w - v_s) * dt + rand_dz;
+
+    // Capping lid reflection (with terrain_height = 0.0)
+    if (enable_capping_lid) {
+        amrex::Real z_lid = capping_lid_height;
+        if (p.z > z_lid) {
+            p.z = amrex::Real(2.0) * z_lid - p.z;
+        }
+    }
 }
 
 // ============================================================================
