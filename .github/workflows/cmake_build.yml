@@ -45,11 +45,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             cmake \
-            ninja-build
+            ninja-build \
+            nlohmann-json3-dev
 
       - name: Install build dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install ninja
+        run: brew install ninja nlohmann-json
 
       # Install Python dependencies needed for regression tests
       # (both Linux and macOS run parameter_sensitivity_test)
@@ -139,7 +140,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             cmake \
-            ninja-build
+            ninja-build \
+            nlohmann-json3-dev
 
       - name: Configure (3D, CUDA)
         shell: bash
@@ -173,7 +175,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build wget gnupg
+            build-essential cmake ninja-build wget gnupg \
+            nlohmann-json3-dev
 
       - name: Add ROCm apt repository (Ubuntu 22.04 / jammy)
         run: |
@@ -232,7 +235,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build wget gnupg
+            build-essential cmake ninja-build wget gnupg \
+            nlohmann-json3-dev
 
       - name: Add Intel oneAPI apt repository
         run: |
