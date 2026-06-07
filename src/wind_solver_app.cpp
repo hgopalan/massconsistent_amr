@@ -2790,6 +2790,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
         if (turbine_wake_superposition == "linear") {
             tw_superposition = TurbineWake::SuperpositionType::LINEAR;
+        } else if (turbine_wake_superposition == "max") {
+            tw_superposition = TurbineWake::SuperpositionType::MAX;
         }
         TurbineWake::WakeAddedTurbulenceModelType added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::NONE;
         if (wake_added_turbulence_model == "crespo_hernandez") {

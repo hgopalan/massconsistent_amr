@@ -40,8 +40,8 @@ function(add_python_regression_test TEST_NAME TEST_DIR TEST_SCRIPT)
     set(TEST_WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${TEST_DIR}")
     file(MAKE_DIRECTORY ${TEST_WORK_DIR})
 
-    # Copy terrain/data CSV files to the test working directory
-    file(GLOB _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.csv")
+    # Copy terrain/data CSV and JSON files to the test working directory
+    file(GLOB _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.csv" "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.json")
     foreach(_df ${_DATA_FILES})
         file(COPY "${_df}" DESTINATION ${TEST_WORK_DIR})
     endforeach()
@@ -526,6 +526,8 @@ add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
   add_python_regression_test(analytical_wake_extensions analytical_wake_extensions
                             test_phase2_analytical_wake_extensions.py)
+  add_python_regression_test(analytical_wake_new_features analytical_wake_new_features
+                            test_analytical_wake_new_features.py)
   add_python_regression_test(aep_dispersion aep_dispersion
                             test_aep_dispersion.py)
   add_python_regression_test(phase3_advanced_wake_models phase3_advanced_wake_models

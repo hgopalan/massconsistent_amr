@@ -378,8 +378,8 @@ bool wind_solver_is_initialized_py() {
     return wind_solver_is_initialized();
 }
 
-bool wind_solver_add_turbine_py(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw, double orientation) {
-    return wind_solver_add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file, yaw, orientation);
+bool wind_solver_add_turbine_py(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw, double orientation, double tilt) {
+    return wind_solver_add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file, yaw, orientation, tilt);
 }
 
 void wind_solver_clear_turbines_py() {
@@ -400,6 +400,10 @@ std::vector<double> wind_solver_get_turbine_yaws_py() {
 
 std::vector<double> wind_solver_get_turbine_orientations_py() {
     return wind_solver_get_turbine_orientations();
+}
+
+std::vector<double> wind_solver_get_turbine_tilts_py() {
+    return wind_solver_get_turbine_tilts();
 }
 
 std::vector<double> wind_solver_get_turbine_u_hubs_py() {
@@ -658,7 +662,7 @@ PYBIND11_MODULE(pyWindSolver, m) {
     m.def("add_turbine", &wind_solver_add_turbine_py,
           py::arg("x"), py::arg("y"), py::arg("hub_height"), py::arg("rotor_diameter"),
           py::arg("default_ct") = 0.8, py::arg("power_curve_file") = "",
-          py::arg("yaw") = 0.0, py::arg("orientation") = 0.0,
+          py::arg("yaw") = 0.0, py::arg("orientation") = 0.0, py::arg("tilt") = 0.0,
           R"pbdoc(
         Add a wind turbine to the solver.
       )pbdoc");
@@ -686,6 +690,11 @@ PYBIND11_MODULE(pyWindSolver, m) {
     m.def("get_turbine_orientations", &wind_solver_get_turbine_orientations_py,
           R"pbdoc(
         Get orientation of all turbines.
+      )pbdoc");
+
+    m.def("get_turbine_tilts", &wind_solver_get_turbine_tilts_py,
+          R"pbdoc(
+        Get tilt angle of all turbines.
       )pbdoc");
 
     m.def("get_turbine_u_hubs", &wind_solver_get_turbine_u_hubs_py,

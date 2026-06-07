@@ -754,6 +754,8 @@ void initialize_wind_field(WindSolverState& state)
         TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
         if (state.turbine_wake_superposition == "linear") {
             tw_superposition = TurbineWake::SuperpositionType::LINEAR;
+        } else if (state.turbine_wake_superposition == "max") {
+            tw_superposition = TurbineWake::SuperpositionType::MAX;
         }
         TurbineWake::WakeAddedTurbulenceModelType added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::NONE;
         if (state.wake_added_turbulence_model == "crespo_hernandez") {
@@ -1561,7 +1563,7 @@ bool wind_solver_is_initialized()
     return g_wind_solver_state && g_wind_solver_state->initialized;
 }
 
-bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw, double orientation)
+bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw, double orientation, double tilt)
 {
     try {
         require_initialized();
@@ -1577,13 +1579,14 @@ bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor
         t.power_curve_file = power_curve_file;
         t.yaw = static_cast<Real>(yaw);
         t.orientation = static_cast<Real>(orientation);
+        t.tilt = static_cast<Real>(tilt);
         
         if (!power_curve_file.empty()) {
             TurbineWake::read_power_curve_file(power_curve_file, t.power_curve, t.ct_curve);
         }
         
         state.turbines.push_back(t);
-        amrex::Print() << "wind_solver: Added turbine " << t.id << " at (" << t.x << ", " << t.y << ") with yaw=" << yaw << ", orientation=" << orientation << "\n";
+        amrex::Print() << "wind_solver: Added turbine " << t.id << " at (" << t.x << ", " << t.y << ") with yaw=" << yaw << ", orientation=" << orientation << ", tilt=" << tilt << "\n";
         return true;
     } catch (const std::exception& e) {
         amrex::Print() << "Error adding turbine: " << e.what() << "\n";
@@ -1641,6 +1644,17 @@ std::vector<double> wind_solver_get_turbine_orientations()
         }
     }
     return orientations;
+}
+
+std::vector<double> wind_solver_get_turbine_tilts()
+{
+    std::vector<double> tilts;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            tilts.push_back(static_cast<double>(t.tilt));
+        }
+    }
+    return tilts;
 }
 
 std::vector<double> wind_solver_get_turbine_u_hubs()

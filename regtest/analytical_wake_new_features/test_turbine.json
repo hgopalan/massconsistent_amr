@@ -1,0 +1,11 @@
+{
+  "turbine_type": "test_turbine",
+  "generator_efficiency": 1.0,
+  "hub_height": 40.0,
+  "rotor_diameter": 30.0,
+  "power_thrust_table": {
+    "wind_speed": [0.0, 5.0, 10.0, 15.0, 20.0, 25.0],
+    "power": [0.0, 150.0, 1000.0, 2000.0, 2000.0, 0.0],
+    "thrust_coefficient": [0.8, 0.8, 0.7, 0.5, 0.3, 0.0]
+  }
+}

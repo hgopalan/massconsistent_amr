@@ -16,6 +16,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include "json.hpp"
 
 namespace TurbineWake {
 
@@ -36,7 +37,8 @@ enum class WakeAddedTurbulenceModelType {
 
 enum class SuperpositionType {
     LINEAR,
-    QUADRATIC // Sum of squares
+    QUADRATIC, // Sum of squares
+    MAX
 };
 
 struct PowerCurve {
@@ -91,6 +93,7 @@ struct Turbine {
     std::string power_curve_file = "";
     Real yaw = 0.0;        // yaw angle in degrees
     Real orientation = 0.0; // orientation angle in degrees
+    Real tilt = 0.0;       // tilt angle in degrees
 
     // Outputs computed during simulation
     Real inflow_wind_speed = 0.0;
@@ -103,7 +106,90 @@ struct Turbine {
     Real local_ti = 0.0;
 };
 
+inline void read_power_curve_json(const std::string& filename, PowerCurve& pc, CtCurve& cc) {
+    std::ifstream f(filename);
+    if (!f.is_open()) {
+        amrex::Print() << "Warning: Could not open JSON power curve file: " << filename << "\n";
+        return;
+    }
+    try {
+        nlohmann::json j;
+        f >> j;
+
+        auto get_array = [](const nlohmann::json& node, const std::vector<std::string>& keys) -> std::vector<Real> {
+            for (const auto& key : keys) {
+                if (node.contains(key) && node[key].is_array()) {
+                    std::vector<Real> res;
+                    for (const auto& val : node[key]) {
+                        if (val.is_number()) {
+                            res.push_back(val.get<Real>());
+                        }
+                    }
+                    if (!res.empty()) return res;
+                }
+            }
+            return {};
+        };
+
+        std::vector<std::string> ws_keys = {"wind_speed", "wind_speeds", "speed", "speeds", "ws"};
+        std::vector<std::string> p_keys = {"power", "power_values", "power_curve", "powers", "p"};
+        std::vector<std::string> ct_keys = {"thrust_coefficient", "thrust_coefficients", "ct", "ct_values", "ct_curve", "thrust"};
+
+        std::vector<Real> ws_power, p_vals, ws_ct, ct_vals;
+
+        // 1. Try FLORIS v3 format with nested "power_thrust_table"
+        if (j.contains("power_thrust_table") && j["power_thrust_table"].is_object()) {
+            auto table = j["power_thrust_table"];
+            ws_power = get_array(table, ws_keys);
+            p_vals = get_array(table, p_keys);
+            ct_vals = get_array(table, ct_keys);
+            ws_ct = ws_power;
+        }
+
+        // 2. Try nested power_curve / ct_curve objects
+        if (ws_power.empty() && j.contains("power_curve") && j["power_curve"].is_object()) {
+            auto pc_node = j["power_curve"];
+            ws_power = get_array(pc_node, ws_keys);
+            p_vals = get_array(pc_node, p_keys);
+            if (p_vals.empty()) p_vals = get_array(pc_node, {"values", "power_values"});
+        }
+        if (ws_ct.empty() && j.contains("ct_curve") && j["ct_curve"].is_object()) {
+            auto cc_node = j["ct_curve"];
+            ws_ct = get_array(cc_node, ws_keys);
+            ct_vals = get_array(cc_node, ct_keys);
+            if (ct_vals.empty()) ct_vals = get_array(cc_node, {"values", "ct_values"});
+        }
+
+        // 3. Fallback to top-level arrays
+        if (ws_power.empty()) ws_power = get_array(j, ws_keys);
+        if (p_vals.empty()) p_vals = get_array(j, p_keys);
+        if (ws_ct.empty()) ws_ct = ws_power;
+        if (ct_vals.empty()) ct_vals = get_array(j, ct_keys);
+
+        if (!ws_power.empty() && !p_vals.empty()) {
+            pc.wind_speeds = ws_power;
+            pc.power_values = p_vals;
+        }
+        if (!ws_ct.empty() && !ct_vals.empty()) {
+            cc.wind_speeds = ws_ct;
+            cc.ct_values = ct_vals;
+        }
+
+        amrex::Print() << "wind_solver: loaded power curve (" << pc.wind_speeds.size() 
+                       << " points) and thrust curve (" << cc.wind_speeds.size() 
+                       << " points) from JSON: " << filename << "\n";
+
+    } catch (const std::exception& e) {
+        amrex::Print() << "Warning: Error parsing JSON power curve file: " << filename 
+                       << ". Exception: " << e.what() << "\n";
+    }
+}
+
 inline void read_power_curve_file(const std::string& filename, PowerCurve& pc, CtCurve& cc) {
+    if (filename.size() >= 5 && filename.substr(filename.size() - 5) == ".json") {
+        read_power_curve_json(filename, pc, cc);
+        return;
+    }
     std::ifstream f(filename);
     if (!f.is_open()) {
         amrex::Print() << "Warning: Could not open power curve file: " << filename 
@@ -174,10 +260,12 @@ inline void read_turbines_file(const std::string& filename, std::vector<Turbine>
             t.ct_curve.default_ct = default_ct;
             t.yaw = 0.0;
             t.orientation = 0.0;
+            t.tilt = 0.0;
             t.power_curve_file = "";
             
             bool parsed_yaw = false;
             bool parsed_orientation = false;
+            bool parsed_tilt = false;
             for (std::size_t i = 5; i < tokens.size(); ++i) {
                 const std::string& tok = tokens[i];
                 if (is_numeric(tok)) {
@@ -187,6 +275,9 @@ inline void read_turbines_file(const std::string& filename, std::vector<Turbine>
                     } else if (!parsed_orientation) {
                         t.orientation = std::stod(tok);
                         parsed_orientation = true;
+                    } else if (!parsed_tilt) {
+                        t.tilt = std::stod(tok);
+                        parsed_tilt = true;
                     } else {
                         amrex::Print() << "Warning: Unexpected extra numeric column in turbines file: " << tok << "\n";
                     }
@@ -375,6 +466,7 @@ inline void apply_analytical_turbine_wakes(
     std::vector<Real> u_bg = u_host;
     std::vector<Real> v_bg = v_host;
     std::vector<Real> cum_deficit_sq(u_host.size(), 0.0);
+    std::vector<Real> max_deficit_vec(u_host.size(), 0.0);
     std::vector<Real> cum_u_vortex(u_host.size(), 0.0);
     std::vector<Real> cum_v_vortex(u_host.size(), 0.0);
 
@@ -428,8 +520,17 @@ inline void apply_analytical_turbine_wakes(
                     y_offset_up = t_up->rotor_diameter * theta_0 * (Real(1.0) / (Real(2.0) * beta_def)) * 
                                   (Real(1.0) - Real(1.0) / (Real(1.0) + Real(2.0) * beta_def * x_down_up / t_up->rotor_diameter));
                 }
+                Real z_offset_up = 0.0;
+                if (std::abs(t_up->tilt) > 1e-5) {
+                    Real tilt_rad = t_up->tilt * M_PI / 180.0;
+                    Real theta_v0 = (ct_up / Real(2.0)) * std::cos(tilt_rad) * std::cos(tilt_rad) * std::sin(tilt_rad);
+                    Real beta_def = jimenez_kd_base;
+                    if (beta_def < Real(1e-5)) beta_def = Real(1e-5);
+                    z_offset_up = t_up->rotor_diameter * theta_v0 * (Real(1.0) / (Real(2.0) * beta_def)) * 
+                                  (Real(1.0) - Real(1.0) / (Real(1.0) + Real(2.0) * beta_def * x_down_up / t_up->rotor_diameter));
+                }
                 Real y_cross_up = std::abs(y_cross_signed_up - y_offset_up);
-                Real z_vertical_up = t.hub_height - t_up->hub_height;
+                Real z_vertical_up = t.hub_height - (t_up->hub_height + z_offset_up);
                 Real r_up = std::sqrt(y_cross_up * y_cross_up + z_vertical_up * z_vertical_up);
 
                 // Peak added TI on centerline
@@ -550,7 +651,16 @@ inline void apply_analytical_turbine_wakes(
                     // centerline follows terrain keeping height t.hub_height above local terrain
                     Real cell_terrain = terrain_host[static_cast<std::size_t>(j) * nx + i];
                     Real z_agl = z_phys - cell_terrain;
-                    Real z_vertical = z_agl - t.hub_height;
+                    Real z_offset = 0.0;
+                    if (std::abs(t.tilt) > 1e-5) {
+                        Real tilt_rad = t.tilt * M_PI / 180.0;
+                        Real theta_v0 = (ct / Real(2.0)) * std::cos(tilt_rad) * std::cos(tilt_rad) * std::sin(tilt_rad);
+                        Real beta_def = jimenez_kd_base;
+                        if (beta_def < Real(1e-5)) beta_def = Real(1e-5);
+                        z_offset = t.rotor_diameter * theta_v0 * (Real(1.0) / (Real(2.0) * beta_def)) * 
+                                      (Real(1.0) - Real(1.0) / (Real(1.0) + Real(2.0) * beta_def * x_down / t.rotor_diameter));
+                    }
+                    Real z_vertical = z_agl - (t.hub_height + z_offset);
 
                     Real r = std::sqrt(y_cross * y_cross + z_vertical * z_vertical);
 
@@ -606,7 +716,7 @@ inline void apply_analytical_turbine_wakes(
                     deficit_real = compute_deficit_for_r(r);
                     
                     if (enable_wake_ground_interaction) {
-                        Real r_mirror = std::sqrt(y_cross * y_cross + (z_agl + t.hub_height) * (z_agl + t.hub_height));
+                        Real r_mirror = std::sqrt(y_cross * y_cross + (z_agl + t.hub_height + z_offset) * (z_agl + t.hub_height + z_offset));
                         deficit_mirror = compute_deficit_for_r(r_mirror);
 
                         Real d_scale = wake_ground_damping_scale * t.rotor_diameter;
@@ -630,6 +740,8 @@ inline void apply_analytical_turbine_wakes(
 
                     if (superposition == SuperpositionType::QUADRATIC) {
                         cum_deficit_sq[idx] += deficit * deficit;
+                    } else if (superposition == SuperpositionType::MAX) {
+                        max_deficit_vec[idx] = std::max(max_deficit_vec[idx], deficit);
                     } else {
                         // Linear superposition: direct speed reduction
                         u_host[idx] *= (Real(1.0) - deficit);
@@ -715,10 +827,15 @@ inline void apply_analytical_turbine_wakes(
             }
         }
 
-        // If using quadratic superposition, update immediately after each turbine
-        if (superposition == SuperpositionType::QUADRATIC) {
+        // If using quadratic/max superposition, update immediately after each turbine
+        if (superposition == SuperpositionType::QUADRATIC || superposition == SuperpositionType::MAX) {
             for (std::size_t idx = 0; idx < u_host.size(); ++idx) {
-                Real comb_deficit = std::sqrt(cum_deficit_sq[idx]);
+                Real comb_deficit = 0.0;
+                if (superposition == SuperpositionType::QUADRATIC) {
+                    comb_deficit = std::sqrt(cum_deficit_sq[idx]);
+                } else {
+                    comb_deficit = max_deficit_vec[idx];
+                }
                 comb_deficit = std::min(comb_deficit, Real(0.99));
                 u_host[idx] = u_bg[idx] * (Real(1.0) - comb_deficit) + cum_u_vortex[idx];
                 v_host[idx] = v_bg[idx] * (Real(1.0) - comb_deficit) + cum_v_vortex[idx];
