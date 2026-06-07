@@ -16,7 +16,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 namespace TurbineWake {
 
