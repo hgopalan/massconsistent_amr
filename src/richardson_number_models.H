@@ -196,8 +196,10 @@ amrex::Real diagnose_bl_depth(
                 const amrex::Real h_mix = z_k + frac * (z_kp1 - z_k);
                 
                 // Clamp to reasonable values
-                return std::max(RichardsonNumberConstants::MIN_BL_DEPTH,
-                               std::min(h_mix, RichardsonNumberConstants::MAX_BL_DEPTH));
+                const amrex::Real min_bl_depth_local = RichardsonNumberConstants::MIN_BL_DEPTH;
+                const amrex::Real max_bl_depth_local = RichardsonNumberConstants::MAX_BL_DEPTH;
+                return std::max(min_bl_depth_local,
+                               std::min(h_mix, max_bl_depth_local));
             }
         }
     }

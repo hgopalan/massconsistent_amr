@@ -95,7 +95,7 @@ struct ValidationResult {
 // ============================================================================
 
 /// Compute RMS (root-mean-square) of data
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_FORCE_INLINE
 amrex::Real ComputeRMS(const std::vector<amrex::Real>& data)
 {
     if (data.empty()) return 0.0;
@@ -108,7 +108,7 @@ amrex::Real ComputeRMS(const std::vector<amrex::Real>& data)
 }
 
 /// Compute mean of data
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_FORCE_INLINE
 amrex::Real ComputeMean(const std::vector<amrex::Real>& data)
 {
     if (data.empty()) return 0.0;
@@ -121,7 +121,7 @@ amrex::Real ComputeMean(const std::vector<amrex::Real>& data)
 }
 
 /// Compute autocorrelation at lag k
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_FORCE_INLINE
 amrex::Real ComputeAutocorrelation(
     const std::vector<amrex::Real>& data,
     int lag)
