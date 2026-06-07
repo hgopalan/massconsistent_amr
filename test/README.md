@@ -1,6 +1,6 @@
 # Mass-Consistent Wind Solver Test Cases
 
-This directory contains three comprehensive test cases for the mass-consistent wind solver with time-varying winds, log-law initialization, and synthetic turbulence fluctuation generation.
+This directory contains four comprehensive test cases for the mass-consistent wind solver with time-varying winds, log-law initialization, and synthetic turbulence fluctuation generation.
 
 ## Test Case 1: Gaussian Hill (Synthetic Terrain)
 
@@ -146,6 +146,45 @@ python3 test_case3.py
 - Wind shear profile in alpine environment
 - Velocity extraction at 50m AGL
 - Strong wind speeds at high elevation
+
+---
+
+## Test Case 4: Turbine Wake (Flat Terrain)
+
+**Location**: `mass_consistent_case4_turbine_wake/`
+
+**Terrain**: Flat terrain
+- Domain: 100m × 100m
+- Grid: 10×10 points (10m spacing)
+- Flat surface at elevation 0m
+
+**Key Features**:
+- ✓ Analytical wind turbine wake modeling (Jensen / Park model)
+- ✓ Upstream and downstream turbine placement (wake alignment)
+- ✓ Power output calculations using reference power curves (`nrel_5mw.csv`)
+- ✓ Inflow wind speed extraction and wake velocity deficit validation
+- ✓ Automated logging of turbine power outputs to CSV
+
+**Files**:
+- `test_case4.py` - Main test script
+- `terrain.csv` - Flat terrain file
+- `turbines.csv` - Turbine placement and parameter specification
+- `nrel_5mw.csv` - NREL 5MW turbine power curve definition
+- `inputs.i` - Wind solver configuration with turbine wake enabled
+
+**Running the Test**:
+```bash
+cd mass_consistent_case4_turbine_wake
+python3 test_case4.py
+```
+
+**Expected Output**:
+- Grid dimensions: 10×10×10
+- Successful wind field solution with wake effects incorporated
+- Turbine 0 (Upstream at x=20): Inflow speed = 12.97 m/s, Power = 5000.00 kW
+- Turbine 1 (Downstream at x=80): Inflow speed = 11.13 m/s, Power = 5000.00 kW
+- Downstream turbine experiences clear wake velocity deficit
+- Power output CSV logging generated successfully
 
 ---
 
