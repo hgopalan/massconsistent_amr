@@ -82,7 +82,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Advanced physics features** — Simplified Richardson number stability classification, roughness blocking from buildings, latitude-dependent Coriolis parameter, power-law wind profile option above boundary layer, enhanced heat flux diagnostics
 - **Python API** — Coupling with fire and atmospheric models
 - **Turbine wake models** — Analytical wind turbine wake modeling (Jensen, Bastankhah Gaussian, TurbOPark, and Gauss-Curl Hybrid formulations) with quadratic/linear superposition, Jimenez wake deflection, analytical wake-added turbulence (Crespo-Hernández and Frandsen models), and wake-ground interaction using mirroring and shear-damping techniques.
-- **Phase 4: Environmental Dispersion and Multi-Scenario AEP Calculator** — Adds full-year wind farm assessment, pre-computed lookups, and environmental dispersion within wakes:
+- **Environmental Dispersion and Multi-Scenario AEP Calculator** — Adds full-year wind farm assessment, pre-computed lookups, and environmental dispersion within wakes:
   - **Annual Energy Production (AEP) Calculator** — Python-based automated batch runner across a joint wind speed and direction distribution (wind rose), supporting sector-wise tracking and layout-level yaw sweep optimization.
   - **Fuga-style Linearized Wake Lookup** — Pre-computed 3D deficit look-up table (LUT) mapped onto the AMReX terrain mesh to bypass local analytical calculations in large wind farms.
   - **Integrated Turbine Wake-Induced Dispersion** — Couples analytical turbine wake-added turbulence (Crespo-Hernández, Frandsen) with both built-in Gaussian Puff and LPDM models to study pollutant or chemical transport and deposition within and around wind farms.

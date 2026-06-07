@@ -116,61 +116,6 @@ class FugaWakeLookup:
         
         return c0 * (1 - fz) + c1 * fz
 
-    def map_wakes_to_mesh(self, wind_solver, superposition: str = "quadratic") -> Dict[str, np.ndarray]:
-        """
-        Extract the background wind field from AMReX terrain mesh and superimpose pre-computed
-        Fuga deficits at every grid point based on turbine locations.
-        
-        Parameters:
-            wind_solver: An initialized and solved WindSolver instance.
-            superposition: "linear" or "quadratic" (sum of squares) superposition of deficits.
-            
-        Returns:
-            dict: Modified velocity components 'u', 'v', 'w' (shape: nz, ny, nx).
-        """
-        if not wind_solver.initialized:
-            raise RuntimeError("Wind solver not initialized")
-            
-        # Get background/corrected velocities and geometry
-        vel = wind_solver.get_velocity0()  # Use initial or un-waked velocity field
-        u_field = np.copy(vel['u'])
-        v_field = np.copy(vel['v'])
-        w_field = np.copy(vel['w'])
-        
-        nx, ny, nz = wind_solver.nx, wind_solver.ny, wind_solver.nz
-        dx, dy, dz = wind_solver.dx, wind_solver.dy, wind_solver.dz
-        xmin, ymin, zmin = wind_solver.xmin, wind_solver.ymin, wind_solver.zmin
-        
-        terrain = wind_solver.get_terrain()  # shape: (ny, nx)
-        
-        # Fetch configured turbines
-        # To bypass solver-side analytical wakes, we retrieve turbine locations and specs
-        try:
-            inflow_speeds = wind_solver.get_turbine_inflow_speeds()
-            yaws = wind_solver.get_turbine_yaws()
-            orientations = wind_solver.get_turbine_orientations()
-            u_hubs = wind_solver.get_turbine_u_hubs()
-            v_hubs = wind_solver.get_turbine_v_hubs()
-            z_terrains = wind_solver.get_turbine_z_terrains()
-        except Exception:
-            # Fallback if no turbines configured
-            return {'u': u_field, 'v': v_field, 'w': w_field}
-            
-        num_turbines = len(inflow_speeds)
-        if num_turbines == 0:
-            return {'u': u_field, 'v': v_field, 'w': w_field}
-            
-        # Construct actual coordinates for each turbine
-        # Since the API doesn't expose list of Turbine objects directly, we reconstruct from solver properties.
-        # But we can assume the turbines are mapped or we can pass their configuration list if known,
-        # or find turbine locations. Wait, let's find if we can query turbine positions!
-        # Ah, let's check what functions are exposed. Oh, `wind_solver` doesn't have a direct `get_turbine_x()`!
-        # Wait, how does `example_floris_export.py` find turbine positions? It passes a list of positions!
-        # So we can pass a list of turbine dictionaries containing 'x', 'y', 'hub_height', and 'rotor_diameter'.
-        # Let's support an optional `turbines_list` argument or extract from files.
-        # Let's add an optional `turbines_list` parameter to map_wakes_to_mesh.
-        pass
-
     def map_wakes_to_mesh_explicit(
         self,
         wind_solver,

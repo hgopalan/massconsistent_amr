@@ -252,7 +252,8 @@ class AEPCalculator:
         
         # Baseline AEP
         baseline_res = self.run_wind_rose(wind_speeds, wind_directions, probabilities, turbines, yaw_offsets=best_yaw_offsets)
-        best_aep = baseline_res["results"]["total_aep_kwh"]
+        baseline_aep = baseline_res["results"]["total_aep_kwh"]
+        best_aep = baseline_aep
         print(f"Baseline AEP: {best_aep / 1e3:.2f} MWh")
         
         # Sequential optimization sweep (for simplicity and speed in multi-turbine layout)
@@ -276,6 +277,6 @@ class AEPCalculator:
             
         print(f"\n✓ Optimization Complete!")
         print(f"  Optimized Yaw Offsets: {best_yaw_offsets}")
-        print(f"  Optimized AEP:         {best_aep / 1e3:.2f} MWh (Gain: {((best_aep - best_aep)/best_aep)*100:.2f}%)")
+        print(f"  Optimized AEP:         {best_aep / 1e3:.2f} MWh (Gain: {((best_aep - baseline_aep)/baseline_aep)*100:.2f}%)")
         
         return best_yaw_offsets, best_aep

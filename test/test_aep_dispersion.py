@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_phase4_aep_dispersion.py - Comprehensive tests for Phase 4:
+test_aep_dispersion.py - Comprehensive tests for:
 1. Annual Energy Production (AEP) Calculator
 2. Fuga-style linearized wake lookup mapped onto AMReX mesh
 3. Turbine wake-induced turbulence integration with Puff/LPDM dispersion
@@ -15,12 +15,18 @@ import subprocess
 import unittest
 
 # Ensure we can import modules from src/python
-TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_PYTHON_DIR = os.path.join(os.path.dirname(TEST_DIR), 'src', 'python')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+repo_root = current_dir
+for _ in range(5):
+    if os.path.exists(os.path.join(repo_root, "CMakeLists.txt")):
+        break
+    repo_root = os.path.dirname(repo_root)
+
+SRC_PYTHON_DIR = os.path.join(repo_root, 'src', 'python')
 sys.path.insert(0, SRC_PYTHON_DIR)
 
 # Set PYTHONPATH for tests to load build/python
-BUILD_PYTHON_DIR = os.path.join(os.path.dirname(TEST_DIR), 'build', 'python')
+BUILD_PYTHON_DIR = os.path.join(repo_root, 'build', 'python')
 sys.path.insert(0, BUILD_PYTHON_DIR)
 
 try:
@@ -32,7 +38,7 @@ except ImportError:
     BINDINGS_AVAILABLE = False
 
 
-class TestPhase4AEPAndDispersion(unittest.TestCase):
+class TestAEPAndDispersion(unittest.TestCase):
     
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
