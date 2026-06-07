@@ -153,6 +153,12 @@ struct WindSolverState {
     amrex::Real gaussian_ka;
     bool enable_stability_correction;
     amrex::Real stability_length;
+    // Phase 2 Analytical Wake Extensions
+    amrex::Real turbopark_c1;
+    amrex::Real ambient_ti;
+    bool enable_jimenez_deflection;
+    amrex::Real jimenez_kd;
+    std::string wake_added_turbulence_model;
     std::vector<TurbineWake::Turbine> turbines;
 
     // Solver status

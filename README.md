@@ -81,7 +81,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields, momentum flux, boundary layer depth
 - **Advanced physics features** — Simplified Richardson number stability classification, roughness blocking from buildings, latitude-dependent Coriolis parameter, power-law wind profile option above boundary layer, enhanced heat flux diagnostics
 - **Python API** — Coupling with fire and atmospheric models
-- **Turbine wake models** — Analytical wind turbine wake modeling (Jensen and Bastankhah Gaussian formulations) with quadratic/linear superposition and atmospheric-stability-scaled wake expansion
+- **Turbine wake models** — Analytical wind turbine wake modeling (Jensen, Bastankhah Gaussian, and TurbOPark formulations) with quadratic/linear superposition, Jimenez wake deflection, and analytical wake-added turbulence (Crespo-Hernández and Frandsen models).
 - **FLORIS & PyWake integration** — Export wind data to FLORIS wind farm simulation format, and format resolved wind fields as PyWake Site or WAsPGridSite objects
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 
