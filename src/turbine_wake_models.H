@@ -327,10 +327,15 @@ inline void apply_analytical_turbine_wakes(
 {
     if (turbines.empty()) return;
 
+    std::string model_name = "Jensen";
+    if (model_type == TurbineWakeModelType::BASTANKHAH_GAUSSIAN) {
+        model_name = "Bastankhah Gaussian";
+    } else if (model_type == TurbineWakeModelType::TURBOPARK) {
+        model_name = "TurbOPark";
+    }
+
     amrex::Print() << "wind_solver: applying analytical turbine wake models ("
-                   << (model_type == TurbineWakeModelType::JENSEN ? "Jensen" : 
-                       (model_type == TurbineWakeModelType::BASTANKHAH_GAUSSIAN ? "Bastankhah Gaussian" : "TurbOPark"))
-                   << ")\n";
+                   << model_name << ")\n";
 
     // 1. Determine wind direction and sort turbines from upwind to downwind
     Real sum_u = 0.0, sum_v = 0.0;
