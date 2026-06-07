@@ -159,6 +159,9 @@ struct WindSolverState {
     bool enable_jimenez_deflection;
     amrex::Real jimenez_kd;
     std::string wake_added_turbulence_model;
+    // Phase 3 Advanced Wake Models
+    bool enable_wake_ground_interaction;
+    amrex::Real wake_ground_damping_scale;
     std::vector<TurbineWake::Turbine> turbines;
 
     // Solver status
@@ -264,5 +267,8 @@ std::vector<double> wind_solver_get_turbine_power_outputs();
 std::vector<double> wind_solver_get_turbine_inflow_speeds();
 std::vector<double> wind_solver_get_turbine_yaws();
 std::vector<double> wind_solver_get_turbine_orientations();
+std::vector<double> wind_solver_get_turbine_u_hubs();
+std::vector<double> wind_solver_get_turbine_v_hubs();
+std::vector<double> wind_solver_get_turbine_z_terrains();
 
 #endif // WIND_SOLVER_API_H

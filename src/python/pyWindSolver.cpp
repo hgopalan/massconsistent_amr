@@ -402,6 +402,18 @@ std::vector<double> wind_solver_get_turbine_orientations_py() {
     return wind_solver_get_turbine_orientations();
 }
 
+std::vector<double> wind_solver_get_turbine_u_hubs_py() {
+    return wind_solver_get_turbine_u_hubs();
+}
+
+std::vector<double> wind_solver_get_turbine_v_hubs_py() {
+    return wind_solver_get_turbine_v_hubs();
+}
+
+std::vector<double> wind_solver_get_turbine_z_terrains_py() {
+    return wind_solver_get_turbine_z_terrains();
+}
+
 // ============================================================================
 // Module definition
 // ============================================================================
@@ -674,5 +686,20 @@ PYBIND11_MODULE(pyWindSolver, m) {
     m.def("get_turbine_orientations", &wind_solver_get_turbine_orientations_py,
           R"pbdoc(
         Get orientation of all turbines.
+      )pbdoc");
+
+    m.def("get_turbine_u_hubs", &wind_solver_get_turbine_u_hubs_py,
+          R"pbdoc(
+        Get turbine u_hub components.
+      )pbdoc");
+
+    m.def("get_turbine_v_hubs", &wind_solver_get_turbine_v_hubs_py,
+          R"pbdoc(
+        Get turbine v_hub components.
+      )pbdoc");
+
+    m.def("get_turbine_z_terrains", &wind_solver_get_turbine_z_terrains_py,
+          R"pbdoc(
+        Get turbine terrain elevations.
       )pbdoc");
 }

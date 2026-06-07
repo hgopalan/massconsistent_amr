@@ -121,6 +121,8 @@ void WindSolverApp::parse_inputs() {
     pp.query("enable_jimenez_deflection", enable_jimenez_deflection);
     pp.query("jimenez_kd", jimenez_kd);
     pp.query("wake_added_turbulence_model", wake_added_turbulence_model);
+    pp.query("enable_wake_ground_interaction", enable_wake_ground_interaction);
+    pp.query("wake_ground_damping_scale", wake_ground_damping_scale);
     
     if (enable_turbine_wake && !turbine_file.empty()) {
         TurbineWake::read_turbines_file(turbine_file, turbines);
@@ -2727,6 +2729,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             tw_model_type = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
         } else if (turbine_wake_model_type == "turbopark") {
             tw_model_type = TurbineWake::TurbineWakeModelType::TURBOPARK;
+        } else if (turbine_wake_model_type == "gch" || turbine_wake_model_type == "gauss_curl_hybrid") {
+            tw_model_type = TurbineWake::TurbineWakeModelType::GAUSS_CURL_HYBRID;
         }
         TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
         if (turbine_wake_superposition == "linear") {
@@ -2757,7 +2761,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             enable_jimenez_deflection,
             jimenez_kd,
             added_turb_model,
-            time_step
+            time_step,
+            enable_wake_ground_interaction,
+            wake_ground_damping_scale
         );
     }
 

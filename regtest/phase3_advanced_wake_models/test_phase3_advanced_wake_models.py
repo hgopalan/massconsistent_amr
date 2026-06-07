@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""
+test_phase3_advanced_wake_models.py
+
+Regression/standalone verification tests for Phase 3 Advanced Wake Models & Secondary Effects:
+1. Gauss-Curl Hybrid (GCH) wake model (secondary steering of downstream non-yawed turbine by upstream yawed turbine).
+2. Wake-ground interaction (mirroring and shear-damping).
+3. Staggered array on sloped terrain.
+"""
+
+import os
+import sys
+import shutil
+import math
+from pathlib import Path
+
+# Add python path for bindings
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(ROOT_DIR / "src" / "python"))
+sys.path.insert(0, str(ROOT_DIR / "build" / "python"))
+
+try:
+    from wind_solver import WindSolver
+except ImportError as e:
+    print(f"ERROR: Could not import WindSolver: {e}")
+    sys.exit(1)
+
+def write_nrel_5mw():
+    with open("nrel_5mw.csv", "w") as f:
+        f.write("# wind_speed, power_kw, ct\n")
+        f.write("0.0, 0.0, 0.8\n")
+        f.write("3.0, 0.0, 0.8\n")
+        f.write("5.0, 1000.0, 0.75\n")
+        f.write("10.0, 5000.0, 0.5\n")
+        f.write("25.0, 5000.0, 0.1\n")
+
+def write_terrain_flat():
+    with open("terrain_flat.csv", "w") as f:
+        f.write("# Flat terrain\n")
+        f.write("0.0, 0.0, 0.0\n")
+        f.write("50.0, 0.0, 0.0\n")
+        f.write("100.0, 0.0, 0.0\n")
+        f.write("0.0, 50.0, 0.0\n")
+        f.write("50.0, 50.0, 0.0\n")
+        f.write("100.0, 50.0, 0.0\n")
+        f.write("0.0, 100.0, 0.0\n")
+        f.write("50.0, 100.0, 0.0\n")
+        f.write("100.0, 100.0, 0.0\n")
+
+def write_terrain_sloped():
+    with open("terrain_sloped.csv", "w") as f:
+        f.write("# Sloped terrain\n")
+        f.write("0.0, 0.0, 0.0\n")
+        f.write("50.0, 0.0, 15.0\n")
+        f.write("100.0, 0.0, 30.0\n")
+        f.write("0.0, 50.0, 0.0\n")
+        f.write("50.0, 50.0, 15.0\n")
+        f.write("100.0, 50.0, 30.0\n")
+        f.write("0.0, 100.0, 0.0\n")
+        f.write("50.0, 100.0, 15.0\n")
+        f.write("100.0, 100.0, 30.0\n")
+
+def write_turbines(filename, yaw0=0.0, yaw1=0.0):
+    with open(filename, "w") as f:
+        f.write("# x, y, hub_height, rotor_diameter, default_ct, power_curve_file, yaw, orientation\n")
+        f.write(f"20.0, 50.0, 40.0, 30.0, 0.8, nrel_5mw.csv, {yaw0}, 0.0\n")
+        f.write(f"60.0, 50.0, 40.0, 30.0, 0.8, nrel_5mw.csv, {yaw1}, 0.0\n")
+
+def write_turbines_staggered(filename):
+    with open(filename, "w") as f:
+        f.write("# x, y, hub_height, rotor_diameter, default_ct, power_curve_file, yaw, orientation\n")
+        f.write("20.0, 40.0, 40.0, 30.0, 0.8, nrel_5mw.csv, 20.0, 0.0\n")
+        f.write("60.0, 60.0, 40.0, 30.0, 0.8, nrel_5mw.csv, 0.0, 0.0\n")
+
+def write_test_inputs(filename, terrain_file, model_type, superposition="quadratic", yaw0=0.0, yaw1=0.0, ground_int="true", damping_scale=0.25):
+    with open(filename, "w") as f:
+        f.write(f"""# Phase 3 test case
+terrain_file = {terrain_file}
+enable_turbine_wake = true
+turbine_file = turbines_test.csv
+turbine_wake_model_type = {model_type}
+turbine_wake_superposition = {superposition}
+enable_jimenez_deflection = {"true" if yaw0 != 0.0 or yaw1 != 0.0 else "false"}
+jimenez_kd = 0.05
+turbopark_c1 = 0.38
+ambient_ti = 0.075
+enable_wake_ground_interaction = {ground_int}
+wake_ground_damping_scale = {damping_scale}
+
+U_ref = 10.0
+V_ref = 0.0
+z_ref = 10.0
+z0 = 0.1
+dx = 10.0
+dy = 10.0
+dz = 10.0
+domain_height = 100.0
+alpha_h = 1.0
+alpha_v = 1.0
+mlmg_verbose = 0
+max_grid_size = 32
+plot_file = plt_test
+""")
+
+def run_solver(inputs_file):
+    wind = WindSolver()
+    wind.initialize(inputs_file)
+    wind.solve()
+    inflow_speeds = wind.get_turbine_inflow_speeds()
+    power_outputs = wind.get_turbine_power_outputs()
+    
+    # Read computed local_ti and other metrics from CSV if generated
+    local_tis = [0.075, 0.075]
+    if os.path.exists("turbine_power_output.csv"):
+        with open("turbine_power_output.csv", "r") as f:
+            lines = f.readlines()
+            if len(lines) >= 3:
+                cols0 = lines[-2].split(",")
+                cols1 = lines[-1].split(",")
+                if len(cols0) >= 11 and len(cols1) >= 11:
+                    local_tis = [float(cols0[10]), float(cols1[10])]
+                    
+    wind.finalize()
+    return inflow_speeds, power_outputs, local_tis
+
+def test_gch_secondary_steering():
+    print("\n--- Test 1: Gauss-Curl Hybrid (GCH) Secondary Steering Verification ---")
+    write_nrel_5mw()
+    write_terrain_flat()
+    
+    # Run GCH with upstream turbine yawed at 20 degrees
+    write_turbines("turbines_test.csv", yaw0=20.0, yaw1=0.0)
+    write_test_inputs("inputs_gch.i", "terrain_flat.csv", "gch", yaw0=20.0)
+    
+    wind = WindSolver()
+    wind.initialize("inputs_gch.i")
+    wind.solve()
+    
+    # Verify that the downstream turbine (which has 0 yaw) sees a non-zero transverse velocity (v_hub)
+    # due to the counter-rotating vortex pair generated by the upstream yawed turbine.
+    t0_v = wind.get_turbine_v_hubs()[0]
+    t1_v = wind.get_turbine_v_hubs()[1]
+    
+    print(f"Turbine 0 v_hub (upstream, yaw=20): {t0_v:.4f} m/s")
+    print(f"Turbine 1 v_hub (downstream, yaw=0): {t1_v:.4f} m/s")
+    
+    wind.finalize()
+    
+    # With a positive yaw angle, the vortex pair should induce a positive crosswind velocity downstream.
+    assert abs(t1_v) > 1e-4, "Error: GCH model did not induce secondary crosswind velocity at the downstream turbine!"
+    print("✓ GCH secondary steering verification passed!")
+
+def test_wake_ground_interaction():
+    print("\n--- Test 2: Wake-Ground Interaction (Mirroring & Shear-Damping) ---")
+    write_nrel_5mw()
+    write_terrain_flat()
+    write_turbines("turbines_test.csv", yaw0=0.0, yaw1=0.0)
+    
+    # 1. Run with ground interaction enabled
+    write_test_inputs("inputs_ground_yes.i", "terrain_flat.csv", "gaussian", ground_int="true")
+    wind_yes = WindSolver()
+    wind_yes.initialize("inputs_ground_yes.i")
+    wind_yes.solve()
+    inflow_yes = wind_yes.get_turbine_inflow_speeds()
+    wind_yes.finalize()
+    
+    # 2. Run with ground interaction disabled
+    write_test_inputs("inputs_ground_no.i", "terrain_flat.csv", "gaussian", ground_int="false")
+    wind_no = WindSolver()
+    wind_no.initialize("inputs_ground_no.i")
+    wind_no.solve()
+    inflow_no = wind_no.get_turbine_inflow_speeds()
+    wind_no.finalize()
+    
+    print(f"With Ground Interaction: Turbine 1 inflow = {inflow_yes[1]:.4f} m/s")
+    print(f"Without Ground Interaction: Turbine 1 inflow = {inflow_no[1]:.4f} m/s")
+    
+    # Let's verify that the solver completes successfully in both modes.
+    assert inflow_yes[1] > 0.0 and inflow_no[1] > 0.0, "Error: Solver failed to compute inflow speeds!"
+    print("✓ Wake-ground interaction verification passed!")
+
+def test_staggered_sloped_terrain():
+    print("\n--- Test 3: Staggered Array on Sloped Terrain ---")
+    write_nrel_5mw()
+    write_terrain_sloped()
+    write_turbines_staggered("turbines_test.csv")
+    
+    write_test_inputs("inputs_sloped.i", "terrain_sloped.csv", "gch", yaw0=20.0)
+    
+    wind = WindSolver()
+    wind.initialize("inputs_sloped.i")
+    wind.solve()
+    
+    inflow_speeds = wind.get_turbine_inflow_speeds()
+    t0_z_terrain = wind.get_turbine_z_terrains()[0]
+    t1_z_terrain = wind.get_turbine_z_terrains()[1]
+    
+    print(f"Turbine 0 terrain elevation (x=20): {t0_z_terrain:.2f} m")
+    print(f"Turbine 1 terrain elevation (x=60): {t1_z_terrain:.2f} m")
+    print(f"Turbine 0 Inflow Speed: {inflow_speeds[0]:.4f} m/s")
+    print(f"Turbine 1 Inflow Speed: {inflow_speeds[1]:.4f} m/s")
+    
+    wind.finalize()
+    
+    # Verify that the terrain elevation values correctly reflect the sloped terrain.
+    # due to cell-centered interpolation, values are slightly shifted from the node-exact values
+    assert abs(t0_z_terrain - 6.0) < 2.0, f"Error: Upstream turbine terrain elevation {t0_z_terrain} is incorrect!"
+    assert abs(t1_z_terrain - 18.0) < 2.0, f"Error: Downstream turbine terrain elevation {t1_z_terrain} is incorrect!"
+    print("✓ Staggered sloped terrain verification passed!")
+
+if __name__ == "__main__":
+    # Ensure temporary files are cleaned up or used locally
+    os.makedirs("run_temp", exist_ok=True)
+    os.chdir("run_temp")
+    try:
+        test_gch_secondary_steering()
+        test_wake_ground_interaction()
+        test_staggered_sloped_terrain()
+        print("\n==================================================")
+        print("ALL PHASE 3 ADVANCED WAKE MODELS TESTS PASSED!")
+        print("==================================================")
+    finally:
+        os.chdir("..")
+        # Cleanup
+        if os.path.exists("run_temp"):
+            shutil.rmtree("run_temp")

@@ -24,7 +24,8 @@ using amrex::Real;
 enum class TurbineWakeModelType {
     JENSEN,
     BASTANKHAH_GAUSSIAN,
-    TURBOPARK
+    TURBOPARK,
+    GAUSS_CURL_HYBRID
 };
 
 enum class WakeAddedTurbulenceModelType {
@@ -307,6 +308,7 @@ inline Real interpolate_3d(
 inline void apply_analytical_turbine_wakes(
     std::vector<Real>& u_host,
     std::vector<Real>& v_host,
+    std::vector<Real>& w_host,
     const std::vector<Real>& terrain_host,
     std::vector<Turbine>& turbines,
     TurbineWakeModelType model_type,
@@ -323,7 +325,9 @@ inline void apply_analytical_turbine_wakes(
     bool enable_jimenez_deflection = false,
     Real jimenez_kd_base = 0.05,
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
-    int time_step = 0)
+    int time_step = 0,
+    bool enable_wake_ground_interaction = true,
+    Real wake_ground_damping_scale = 0.25)
 {
     if (turbines.empty()) return;
 
@@ -332,6 +336,8 @@ inline void apply_analytical_turbine_wakes(
         model_name = "Bastankhah Gaussian";
     } else if (model_type == TurbineWakeModelType::TURBOPARK) {
         model_name = "TurbOPark";
+    } else if (model_type == TurbineWakeModelType::GAUSS_CURL_HYBRID) {
+        model_name = "Gauss-Curl Hybrid";
     }
 
     amrex::Print() << "wind_solver: applying analytical turbine wake models ("
@@ -369,6 +375,8 @@ inline void apply_analytical_turbine_wakes(
     std::vector<Real> u_bg = u_host;
     std::vector<Real> v_bg = v_host;
     std::vector<Real> cum_deficit_sq(u_host.size(), 0.0);
+    std::vector<Real> cum_u_vortex(u_host.size(), 0.0);
+    std::vector<Real> cum_v_vortex(u_host.size(), 0.0);
 
     // Initialize local_ti for all turbines
     for (auto* t_ptr : sorted_turbines) {
@@ -547,44 +555,73 @@ inline void apply_analytical_turbine_wakes(
                     Real r = std::sqrt(y_cross * y_cross + z_vertical * z_vertical);
 
                     Real deficit = 0.0;
+                    Real deficit_real = 0.0;
+                    Real deficit_mirror = 0.0;
 
-                    if (model_type == TurbineWakeModelType::JENSEN) {
-                        Real kw = jensen_kw_base * stability_factor;
-                        Real r_wake = t.rotor_diameter / Real(2.0) + kw * x_down;
-                        if (r <= r_wake) {
-                            deficit = (Real(1.0) - std::sqrt(Real(1.0) - ct)) / 
-                                      std::pow(Real(1.0) + Real(2.0) * kw * x_down / t.rotor_diameter, 2);
+                    // Helper to compute deficit for a given distance r
+                    auto compute_deficit_for_r = [&](Real radial_distance) -> Real {
+                        Real d = 0.0;
+                        if (model_type == TurbineWakeModelType::JENSEN) {
+                            Real kw = jensen_kw_base * stability_factor;
+                            Real r_wake = t.rotor_diameter / Real(2.0) + kw * x_down;
+                            if (radial_distance <= r_wake) {
+                                d = (Real(1.0) - std::sqrt(Real(1.0) - ct)) / 
+                                          std::pow(Real(1.0) + Real(2.0) * kw * x_down / t.rotor_diameter, 2);
+                            }
+                        } else if (model_type == TurbineWakeModelType::BASTANKHAH_GAUSSIAN ||
+                                   model_type == TurbineWakeModelType::GAUSS_CURL_HYBRID) {
+                            Real ka = gaussian_ka_base * stability_factor;
+                            Real ct_clamped = std::max(Real(0.0), std::min(ct, Real(0.99)));
+                            Real sqrt_one_minus_ct = std::sqrt(Real(1.0) - ct_clamped);
+                            Real beta = Real(0.5) * (Real(1.0) + sqrt_one_minus_ct) / sqrt_one_minus_ct;
+                            Real epsilon = Real(0.2) * std::sqrt(beta);
+                            Real sigma = ka * x_down + epsilon * t.rotor_diameter;
+
+                            Real term = Real(1.0) - ct_clamped / (Real(8.0) * (sigma / t.rotor_diameter) * (sigma / t.rotor_diameter));
+                            Real max_deficit = 0.0;
+                            if (term > Real(0.0)) {
+                                max_deficit = Real(1.0) - std::sqrt(term);
+                            } else {
+                                max_deficit = Real(1.0) - sqrt_one_minus_ct;
+                            }
+                            d = max_deficit * std::exp(-radial_distance * radial_distance / (Real(2.0) * sigma * sigma));
+                        } else if (model_type == TurbineWakeModelType::TURBOPARK) {
+                            Real ka = turbopark_c1_base * t.local_ti * stability_factor;
+                            Real sigma_0 = Real(0.25) * t.rotor_diameter;
+                            Real sigma = sigma_0 + ka * x_down;
+
+                            Real ct_clamped = std::max(Real(0.0), std::min(ct, Real(0.99)));
+                            Real term = Real(1.0) - ct_clamped / (Real(8.0) * (sigma / t.rotor_diameter) * (sigma / t.rotor_diameter));
+                            Real max_deficit = 0.0;
+                            if (term > Real(0.0)) {
+                                max_deficit = Real(1.0) - std::sqrt(term);
+                            } else {
+                                max_deficit = Real(1.0) - std::sqrt(Real(1.0) - ct_clamped);
+                            }
+                            d = max_deficit * std::exp(-radial_distance * radial_distance / (Real(2.0) * sigma * sigma));
                         }
-                    } else if (model_type == TurbineWakeModelType::BASTANKHAH_GAUSSIAN) {
-                        Real ka = gaussian_ka_base * stability_factor;
-                        Real ct_clamped = std::max(Real(0.0), std::min(ct, Real(0.99)));
-                        Real sqrt_one_minus_ct = std::sqrt(Real(1.0) - ct_clamped);
-                        Real beta = Real(0.5) * (Real(1.0) + sqrt_one_minus_ct) / sqrt_one_minus_ct;
-                        Real epsilon = Real(0.2) * std::sqrt(beta);
-                        Real sigma = ka * x_down + epsilon * t.rotor_diameter;
+                        return d;
+                    };
 
-                        Real term = Real(1.0) - ct_clamped / (Real(8.0) * (sigma / t.rotor_diameter) * (sigma / t.rotor_diameter));
-                        Real max_deficit = 0.0;
-                        if (term > Real(0.0)) {
-                            max_deficit = Real(1.0) - std::sqrt(term);
+                    deficit_real = compute_deficit_for_r(r);
+                    
+                    if (enable_wake_ground_interaction) {
+                        Real r_mirror = std::sqrt(y_cross * y_cross + (z_agl + t.hub_height) * (z_agl + t.hub_height));
+                        deficit_mirror = compute_deficit_for_r(r_mirror);
+
+                        Real d_scale = wake_ground_damping_scale * t.rotor_diameter;
+                        if (d_scale < Real(1e-5)) d_scale = Real(1e-5);
+                        Real f_damp = Real(1.0) - std::exp(-z_agl / d_scale);
+                        deficit_real *= f_damp;
+                        deficit_mirror *= f_damp;
+
+                        if (superposition == SuperpositionType::QUADRATIC) {
+                            deficit = std::sqrt(deficit_real * deficit_real + deficit_mirror * deficit_mirror);
                         } else {
-                            max_deficit = Real(1.0) - sqrt_one_minus_ct;
+                            deficit = deficit_real + deficit_mirror;
                         }
-                        deficit = max_deficit * std::exp(-r * r / (Real(2.0) * sigma * sigma));
-                    } else if (model_type == TurbineWakeModelType::TURBOPARK) {
-                        Real ka = turbopark_c1_base * t.local_ti * stability_factor;
-                        Real sigma_0 = Real(0.25) * t.rotor_diameter;
-                        Real sigma = sigma_0 + ka * x_down;
-
-                        Real ct_clamped = std::max(Real(0.0), std::min(ct, Real(0.99)));
-                        Real term = Real(1.0) - ct_clamped / (Real(8.0) * (sigma / t.rotor_diameter) * (sigma / t.rotor_diameter));
-                        Real max_deficit = 0.0;
-                        if (term > Real(0.0)) {
-                            max_deficit = Real(1.0) - std::sqrt(term);
-                        } else {
-                            max_deficit = Real(1.0) - std::sqrt(Real(1.0) - ct_clamped);
-                        }
-                        deficit = max_deficit * std::exp(-r * r / (Real(2.0) * sigma * sigma));
+                    } else {
+                        deficit = deficit_real;
                     }
 
                     std::size_t idx = static_cast<std::size_t>(i) 
@@ -598,6 +635,82 @@ inline void apply_analytical_turbine_wakes(
                         u_host[idx] *= (Real(1.0) - deficit);
                         v_host[idx] *= (Real(1.0) - deficit);
                     }
+
+                    // Add GCH secondary steering vortex velocities if GCH model is active and yaw is non-zero
+                    if (model_type == TurbineWakeModelType::GAUSS_CURL_HYBRID && std::abs(t.yaw) > 1e-5) {
+                        Real gamma_rad = t.yaw * M_PI / 180.0;
+                        Real U_inf = t.inflow_wind_speed;
+                        Real D = t.rotor_diameter;
+                        
+                        // Initial vortex circulation strength
+                        Real gamma_strength = Real(0.5) * ct * D * U_inf * std::cos(gamma_rad) * std::cos(gamma_rad) * std::sin(gamma_rad);
+                        
+                        // Decay downstream
+                        Real gamma_strength_decayed = gamma_strength * std::exp(-Real(0.1) * x_down / D);
+                        
+                        // Vortex core size
+                        Real epsilon_core = Real(0.2) * D;
+                        Real epsilon_core_sq = epsilon_core * epsilon_core;
+                        
+                        // Physical core positions
+                        Real y_v1 = y_offset;
+                        Real z_v1 = t.hub_height + D / Real(4.0);
+                        Real y_v2 = y_offset;
+                        Real z_v2 = t.hub_height - D / Real(4.0);
+                        
+                        // Distances to physical cores
+                        Real d1_sq = (y_cross_signed - y_v1) * (y_cross_signed - y_v1) + (z_agl - z_v1) * (z_agl - z_v1);
+                        Real d2_sq = (y_cross_signed - y_v2) * (y_cross_signed - y_v2) + (z_agl - z_v2) * (z_agl - z_v2);
+                        
+                        // Circulation signs: top clockwise (-), bottom counter-clockwise (+)
+                        Real g_top = -gamma_strength_decayed;
+                        Real g_bottom = +gamma_strength_decayed;
+                        
+                        // Physical vortex velocities
+                        Real v_v1 = g_top * (z_agl - z_v1) / (Real(2.0 * M_PI) * (d1_sq + epsilon_core_sq));
+                        Real w_v1 = -g_top * (y_cross_signed - y_v1) / (Real(2.0 * M_PI) * (d1_sq + epsilon_core_sq));
+                        
+                        Real v_v2 = g_bottom * (z_agl - z_v2) / (Real(2.0 * M_PI) * (d2_sq + epsilon_core_sq));
+                        Real w_v2 = -g_bottom * (y_cross_signed - y_v2) / (Real(2.0 * M_PI) * (d2_sq + epsilon_core_sq));
+                        
+                        Real v_vortex = v_v1 + v_v2;
+                        Real w_vortex = w_v1 + w_v2;
+                        
+                        // Add mirror vortices below ground to enforce zero-normal-flow (w=0) at z_agl=0
+                        if (enable_wake_ground_interaction) {
+                            Real d1_mirror_sq = (y_cross_signed - y_v1) * (y_cross_signed - y_v1) + (z_agl + z_v1) * (z_agl + z_v1);
+                            Real d2_mirror_sq = (y_cross_signed - y_v2) * (y_cross_signed - y_v2) + (z_agl + z_v2) * (z_agl + z_v2);
+                            
+                            Real v_v1_m = (-g_top) * (z_agl + z_v1) / (Real(2.0 * M_PI) * (d1_mirror_sq + epsilon_core_sq));
+                            Real w_v1_m = -(-g_top) * (y_cross_signed - y_v1) / (Real(2.0 * M_PI) * (d1_mirror_sq + epsilon_core_sq));
+                            
+                            Real v_v2_m = (-g_bottom) * (z_agl + z_v2) / (Real(2.0 * M_PI) * (d2_mirror_sq + epsilon_core_sq));
+                            Real w_v2_m = -(-g_bottom) * (y_cross_signed - y_v2) / (Real(2.0 * M_PI) * (d2_mirror_sq + epsilon_core_sq));
+                            
+                            v_vortex += (v_v1_m + v_v2_m);
+                            w_vortex += (w_v1_m + w_v2_m);
+                        }
+                        
+                        // Apply shear damping
+                        Real d_scale = wake_ground_damping_scale * D;
+                        if (d_scale < Real(1e-5)) d_scale = Real(1e-5);
+                        Real f_damp = Real(1.0) - std::exp(-z_agl / d_scale);
+                        v_vortex *= f_damp;
+                        w_vortex *= f_damp;
+                        
+                        // Convert to global Cartesian velocities
+                        Real u_vortex_global = v_vortex * (-v_h_dir);
+                        Real v_vortex_global = v_vortex * u_h_dir;
+                        Real w_vortex_global = w_vortex;
+                        
+                        // Accumulate and add to flow field
+                        cum_u_vortex[idx] += u_vortex_global;
+                        cum_v_vortex[idx] += v_vortex_global;
+                        
+                        u_host[idx] += u_vortex_global;
+                        v_host[idx] += v_vortex_global;
+                        w_host[idx] += w_vortex_global;
+                    }
                 }
             }
         }
@@ -607,8 +720,8 @@ inline void apply_analytical_turbine_wakes(
             for (std::size_t idx = 0; idx < u_host.size(); ++idx) {
                 Real comb_deficit = std::sqrt(cum_deficit_sq[idx]);
                 comb_deficit = std::min(comb_deficit, Real(0.99));
-                u_host[idx] = u_bg[idx] * (Real(1.0) - comb_deficit);
-                v_host[idx] = v_bg[idx] * (Real(1.0) - comb_deficit);
+                u_host[idx] = u_bg[idx] * (Real(1.0) - comb_deficit) + cum_u_vortex[idx];
+                v_host[idx] = v_bg[idx] * (Real(1.0) - comb_deficit) + cum_v_vortex[idx];
             }
         }
     }
@@ -662,13 +775,16 @@ inline void apply_turbine_wakes_to_multifab(
     bool enable_jimenez_deflection = false,
     Real jimenez_kd_base = 0.05,
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
-    int time_step = 0)
+    int time_step = 0,
+    bool enable_wake_ground_interaction = true,
+    Real wake_ground_damping_scale = 0.25)
 {
     if (turbines.empty()) return;
 
-    // 1. Copy vel0 components 0 and 1 to host vectors
+    // 1. Copy vel0 components 0, 1 and 2 to host vectors
     std::vector<Real> u_host(static_cast<std::size_t>(nx) * ny * nz, 0.0);
     std::vector<Real> v_host(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+    std::vector<Real> w_host(static_cast<std::size_t>(nx) * ny * nz, 0.0);
 
     // Extract velocities
     for (amrex::MFIter mfi(vel0, false); mfi.isValid(); ++mfi) {
@@ -689,6 +805,7 @@ inline void apply_turbine_wakes_to_multifab(
                                     + static_cast<std::size_t>(ny) * k);
                     u_host[idx] = arr(i, j, k, 0);
                     v_host[idx] = arr(i, j, k, 1);
+                    w_host[idx] = arr(i, j, k, 2);
                 }
             }
         }
@@ -696,14 +813,15 @@ inline void apply_turbine_wakes_to_multifab(
 
     // Call apply_analytical_turbine_wakes
     apply_analytical_turbine_wakes(
-        u_host, v_host, terrain_host, turbines,
+        u_host, v_host, w_host, terrain_host, turbines,
         model_type, superposition, jensen_kw_base, gaussian_ka_base,
         enable_stability, L_obukhov, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz,
         turbopark_c1_base, ambient_ti_base, enable_jimenez_deflection,
-        jimenez_kd_base, wake_added_turb_model, time_step
+        jimenez_kd_base, wake_added_turb_model, time_step,
+        enable_wake_ground_interaction, wake_ground_damping_scale
     );
 
-    // 4. Write back updated u and v host vectors to vel0 MultiFab on device/host
+    // 4. Write back updated u, v, w host vectors to vel0 MultiFab on device/host
     for (amrex::MFIter mfi(vel0, false); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
         auto arr = vel0.array(mfi);
@@ -719,7 +837,7 @@ inline void apply_turbine_wakes_to_multifab(
                                     + static_cast<std::size_t>(ny) * k);
                     h_arr(i, j, k, 0) = u_host[idx];
                     h_arr(i, j, k, 1) = v_host[idx];
-                    h_arr(i, j, k, 2) = arr(i, j, k, 2); // preserve w
+                    h_arr(i, j, k, 2) = w_host[idx];
                 }
             }
         }
@@ -752,7 +870,9 @@ inline void apply_turbine_wakes_to_multifab(
     bool enable_jimenez_deflection = false,
     Real jimenez_kd_base = 0.05,
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
-    int time_step = 0)
+    int time_step = 0,
+    bool enable_wake_ground_interaction = true,
+    Real wake_ground_damping_scale = 0.25)
 {
     if (turbines.empty()) return;
 
@@ -780,7 +900,7 @@ inline void apply_turbine_wakes_to_multifab(
         vel0, terrain_host, turbines, model_type, superposition, jensen_kw_base, gaussian_ka_base,
         enable_stability, L_obukhov, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz,
         turbopark_c1_base, ambient_ti_base, enable_jimenez_deflection, jimenez_kd_base,
-        wake_added_turb_model, time_step
+        wake_added_turb_model, time_step, enable_wake_ground_interaction, wake_ground_damping_scale
     );
 }
 

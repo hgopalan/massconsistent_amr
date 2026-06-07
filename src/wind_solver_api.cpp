@@ -434,6 +434,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.enable_jimenez_deflection = false;
     state.jimenez_kd = 0.05;
     state.wake_added_turbulence_model = "none";
+    state.enable_wake_ground_interaction = true;
+    state.wake_ground_damping_scale = 0.25;
 
     pp.query("enable_turbine_wake", state.enable_turbine_wake);
     pp.query("turbine_file", state.turbine_file);
@@ -448,6 +450,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("enable_jimenez_deflection", state.enable_jimenez_deflection);
     pp.query("jimenez_kd", state.jimenez_kd);
     pp.query("wake_added_turbulence_model", state.wake_added_turbulence_model);
+    pp.query("enable_wake_ground_interaction", state.enable_wake_ground_interaction);
+    pp.query("wake_ground_damping_scale", state.wake_ground_damping_scale);
 
     if (state.enable_turbine_wake && !state.turbine_file.empty()) {
         TurbineWake::read_turbines_file(state.turbine_file, state.turbines);
@@ -744,6 +748,8 @@ void initialize_wind_field(WindSolverState& state)
             tw_model_type = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
         } else if (state.turbine_wake_model_type == "turbopark") {
             tw_model_type = TurbineWake::TurbineWakeModelType::TURBOPARK;
+        } else if (state.turbine_wake_model_type == "gch" || state.turbine_wake_model_type == "gauss_curl_hybrid") {
+            tw_model_type = TurbineWake::TurbineWakeModelType::GAUSS_CURL_HYBRID;
         }
         TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
         if (state.turbine_wake_superposition == "linear") {
@@ -774,7 +780,9 @@ void initialize_wind_field(WindSolverState& state)
             state.enable_jimenez_deflection,
             state.jimenez_kd,
             added_turb_model,
-            0 // time_step
+            0, // time_step
+            state.enable_wake_ground_interaction,
+            state.wake_ground_damping_scale
         );
     }
 
@@ -1633,5 +1641,38 @@ std::vector<double> wind_solver_get_turbine_orientations()
         }
     }
     return orientations;
+}
+
+std::vector<double> wind_solver_get_turbine_u_hubs()
+{
+    std::vector<double> u_hubs;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            u_hubs.push_back(static_cast<double>(t.u_hub));
+        }
+    }
+    return u_hubs;
+}
+
+std::vector<double> wind_solver_get_turbine_v_hubs()
+{
+    std::vector<double> v_hubs;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            v_hubs.push_back(static_cast<double>(t.v_hub));
+        }
+    }
+    return v_hubs;
+}
+
+std::vector<double> wind_solver_get_turbine_z_terrains()
+{
+    std::vector<double> z_terrains;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            z_terrains.push_back(static_cast<double>(t.z_terrain));
+        }
+    }
+    return z_terrains;
 }
 

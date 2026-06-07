@@ -1,0 +1,3 @@
+# x, y, hub_height, rotor_diameter, default_ct, power_curve_file, yaw, orientation
+20.0, 50.0, 40.0, 30.0, 0.8, nrel_5mw.csv, 0.0, 0.0
+80.0, 50.0, 40.0, 30.0, 0.8, nrel_5mw.csv, 0.0, 0.0
