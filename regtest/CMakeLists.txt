@@ -510,8 +510,12 @@ add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test
 # ===========================================================================
 # Phase 2: Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
 # ===========================================================================
-add_python_regression_test(phase2_analytical_wake_extensions phase2_analytical_wake_extensions
-                          test_phase2_analytical_wake_extensions.py)
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_python_regression_test(phase2_analytical_wake_extensions phase2_analytical_wake_extensions
+                            test_phase2_analytical_wake_extensions.py)
+else()
+  message(STATUS "  phase2_analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+endif()
 
 # ===========================================================================
 # netcdf_ingestion/ – NetCDF 3D wind parsing and ingestion regtests
