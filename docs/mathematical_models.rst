@@ -227,10 +227,51 @@ The solver supports analytical turbine wake deficits for wind energy application
    .. math::
    
       \sigma_w(x_{\text{down}}) = k_a \cdot x_{\text{down}} + \epsilon \cdot D
-
+ 
    .. math::
    
       \frac{\Delta U}{U_0} = \left( 1 - \sqrt{1 - \frac{C_T}{8 (\sigma_w / D)^2}} \right) \cdot \exp\left( - \frac{r^2}{2 \sigma_w^2} \right)
+
+3. **TurbOPark Model**:
+   A self-similar Gaussian deficit model that uses a wake expansion parameter based on local turbulence intensity:
+   
+   .. math::
+   
+      \sigma_w(x_{\text{down}}) = \sigma_0 + k_w \cdot x_{\text{down}}
+      
+   where :math:`\sigma_0 = 0.25 D` and :math:`k_w = c_1 \cdot TI_{\text{local}}`.
+
+Wake Centerline Deflection (Jimenez Model)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To model yawed wind turbine wakes, the Jimenez wake deflection model computes the wake centerline deflection :math:`y_{\text{offset}}(x_{\text{down}})` due to thrust-induced lateral force components:
+
+.. math::
+
+   \theta_0 = \frac{C_T}{2} \cos^2(\gamma) \sin(\gamma)
+
+.. math::
+
+   y_{\text{offset}}(x_{\text{down}}) = D \cdot \theta_0 \cdot \frac{1}{2 \beta_{\text{def}}} \left( 1 - \frac{1}{1 + 2 \beta_{\text{def}} \frac{x_{\text{down}}}{D}} \right)
+
+where :math:`\gamma` is the yaw angle and :math:`\beta_{\text{def}} = k_d`.
+
+Analytical Wake-Added Turbulence Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Turbines increase local downstream turbulence intensity :math:`TI_{\text{local}} = \sqrt{TI_{\text{ambient}}^2 + \sum \Delta I_{+}^2}` via:
+
+1. **Crespo-Hernández Model**:
+   
+   .. math::
+   
+      \Delta I_{+} = 0.73 \cdot a^{0.832} \cdot TI_{\text{ambient}}^{0.0325} \cdot \left( \frac{x_{\text{down}}}{D} \right)^{-0.32}
+
+   where :math:`a = \frac{1 - \sqrt{1 - C_T}}{2}` is the axial induction factor.
+
+2. **Frandsen (STF) Model**:
+   
+   .. math::
+   
+      \Delta I_{+} = \frac{1}{1.5 + 0.8 \cdot \frac{x_{\text{down}}}{D} / \sqrt{C_T}}
 
 The wake centerline conforms perfectly to local terrain height, bending over hills:
 

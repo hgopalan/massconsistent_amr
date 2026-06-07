@@ -70,6 +70,12 @@ private:
     std::string turbine_wake_superposition = "quadratic";
     amrex::Real jensen_kw = 0.075;
     amrex::Real gaussian_ka = 0.05;
+    // Phase 2 Analytical Wake Extensions
+    amrex::Real turbopark_c1 = 0.38;
+    amrex::Real ambient_ti = 0.075;
+    bool enable_jimenez_deflection = false;
+    amrex::Real jimenez_kd = 0.05;
+    std::string wake_added_turbulence_model = "none";
     std::vector<TurbineWake::Turbine> turbines;
 
     // Street canyon

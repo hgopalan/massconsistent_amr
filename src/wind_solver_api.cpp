@@ -429,6 +429,11 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.gaussian_ka = 0.05;
     state.enable_stability_correction = false;
     state.stability_length = 1000.0;
+    state.turbopark_c1 = 0.38;
+    state.ambient_ti = 0.075;
+    state.enable_jimenez_deflection = false;
+    state.jimenez_kd = 0.05;
+    state.wake_added_turbulence_model = "none";
 
     pp.query("enable_turbine_wake", state.enable_turbine_wake);
     pp.query("turbine_file", state.turbine_file);
@@ -438,6 +443,11 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("gaussian_ka", state.gaussian_ka);
     pp.query("enable_stability_correction", state.enable_stability_correction);
     pp.query("stability_length", state.stability_length);
+    pp.query("turbopark_c1", state.turbopark_c1);
+    pp.query("ambient_ti", state.ambient_ti);
+    pp.query("enable_jimenez_deflection", state.enable_jimenez_deflection);
+    pp.query("jimenez_kd", state.jimenez_kd);
+    pp.query("wake_added_turbulence_model", state.wake_added_turbulence_model);
 
     if (state.enable_turbine_wake && !state.turbine_file.empty()) {
         TurbineWake::read_turbines_file(state.turbine_file, state.turbines);
@@ -732,10 +742,18 @@ void initialize_wind_field(WindSolverState& state)
         TurbineWake::TurbineWakeModelType tw_model_type = TurbineWake::TurbineWakeModelType::JENSEN;
         if (state.turbine_wake_model_type == "bastankhah_gaussian" || state.turbine_wake_model_type == "gaussian") {
             tw_model_type = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
+        } else if (state.turbine_wake_model_type == "turbopark") {
+            tw_model_type = TurbineWake::TurbineWakeModelType::TURBOPARK;
         }
         TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
         if (state.turbine_wake_superposition == "linear") {
             tw_superposition = TurbineWake::SuperpositionType::LINEAR;
+        }
+        TurbineWake::WakeAddedTurbulenceModelType added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::NONE;
+        if (state.wake_added_turbulence_model == "crespo_hernandez") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::CRESPO_HERNANDEZ;
+        } else if (state.wake_added_turbulence_model == "frandsen" || state.wake_added_turbulence_model == "stf") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::FRANDSEN;
         }
         
         TurbineWake::apply_turbine_wakes_to_multifab(
@@ -751,6 +769,11 @@ void initialize_wind_field(WindSolverState& state)
             state.xmin, state.ymin, state.zmin,
             state.dx, state.dy, state.dz,
             state.nx, state.ny, state.nz,
+            state.turbopark_c1,
+            state.ambient_ti,
+            state.enable_jimenez_deflection,
+            state.jimenez_kd,
+            added_turb_model,
             0 // time_step
         );
     }

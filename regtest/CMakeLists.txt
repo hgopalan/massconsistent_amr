@@ -508,6 +508,16 @@ add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test
                           test_parameter_sensitivity.py)
 
 # ===========================================================================
+# Phase 2: Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
+# ===========================================================================
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_python_regression_test(phase2_analytical_wake_extensions phase2_analytical_wake_extensions
+                            test_phase2_analytical_wake_extensions.py)
+else()
+  message(STATUS "  phase2_analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+endif()
+
+# ===========================================================================
 # netcdf_ingestion/ – NetCDF 3D wind parsing and ingestion regtests
 # ===========================================================================
 add_regression_test(netcdf_cpp_ingestion netcdf_cpp_ingestion)
@@ -606,5 +616,6 @@ message(STATUS "  iec61400_category_c/            : IEC 61400-1:2019 Category C 
 message(STATUS "  iec61400_categories_regtest/    : Python unit tests for IEC 61400 spectral models (20 tests)")
 message(STATUS "  field_output_test/              : Unified field output with 21 diagnostic fields")
 message(STATUS "  parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
+message(STATUS "  phase2_analytical_wake_extensions: Analytical turbine wake deficit, deflection, and added turbulence models")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

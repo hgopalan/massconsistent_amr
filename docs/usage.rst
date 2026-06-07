@@ -167,7 +167,7 @@ Parameter Reference
      - Path to turbines CSV layout file.
    * - ``turbine_wake_model_type``
      - ``jensen``
-     - Turbine wake model: ``jensen`` (classic linear) or ``bastankhah_gaussian`` (Gaussian deficit).
+     - Turbine wake model: ``jensen`` (classic linear), ``bastankhah_gaussian`` (Gaussian deficit), or ``turbopark`` (self-similar Gaussian with local TI).
    * - ``turbine_wake_superposition``
      - ``quadratic``
      - Wake deficit superposition method: ``quadratic`` (RSS) or ``linear``.
@@ -177,6 +177,21 @@ Parameter Reference
    * - ``gaussian_ka``
      - ``0.05``
      - Bastankhah wake expansion coefficient.
+   * - ``turbopark_c1``
+     - ``0.38``
+     - TurbOPark expansion coefficient.
+   * - ``ambient_ti``
+     - ``0.075``
+     - Ambient turbulence intensity.
+   * - ``enable_jimenez_deflection``
+     - ``false``
+     - Enable Jimenez wake centerline deflection model.
+   * - ``jimenez_kd``
+     - ``0.05``
+     - Jimenez deflection calibration constant.
+   * - ``wake_added_turbulence_model``
+     - ``none``
+     - Analytical wake-added turbulence model: ``none``, ``crespo_hernandez``, or ``frandsen`` (STF).
 
 File Formats
 ------------
