@@ -43,6 +43,138 @@
 
 using namespace amrex;
 
+struct EmissionPoint {
+    Real time;
+    Real rate;
+};
+
+static std::vector<EmissionPoint> read_emissions_file(const std::string& filename) {
+    std::vector<EmissionPoint> profile;
+    if (filename.empty()) return profile;
+    std::ifstream infile(filename);
+    if (!infile.is_open()) {
+        amrex::Print() << "Warning: Could not open emissions file " << filename << "\n";
+        return profile;
+    }
+    std::string line;
+    // Skip header line if present
+    if (std::getline(infile, line)) {
+        if (!line.empty() && (std::isdigit(line[0]) || line[0] == '-' || line[0] == '.')) {
+            // First line starts with a digit/sign, so it's probably data
+            std::istringstream iss(line);
+            std::string t_str, r_str;
+            if (std::getline(iss, t_str, ',') && std::getline(iss, r_str, ',')) {
+                try {
+                    EmissionPoint ep;
+                    ep.time = std::stod(t_str);
+                    ep.rate = std::stod(r_str);
+                    profile.push_back(ep);
+                } catch (...) {}
+            }
+        }
+    }
+    while (std::getline(infile, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream iss(line);
+        std::string t_str, r_str;
+        if (std::getline(iss, t_str, ',') && std::getline(iss, r_str, ',')) {
+            try {
+                EmissionPoint ep;
+                ep.time = std::stod(t_str);
+                ep.rate = std::stod(r_str);
+                profile.push_back(ep);
+            } catch (...) {}
+        }
+    }
+    // Sort profile by time to be safe
+    std::sort(profile.begin(), profile.end(), [](const EmissionPoint& a, const EmissionPoint& b) {
+        return a.time < b.time;
+    });
+    return profile;
+}
+
+static Real interpolate_emission_rate(Real time, const std::vector<EmissionPoint>& profile, Real default_rate) {
+    if (profile.empty()) return default_rate;
+    if (time <= profile.front().time) return profile.front().rate;
+    if (time >= profile.back().time) return profile.back().rate;
+    
+    // Find interval
+    for (size_t i = 0; i < profile.size() - 1; ++i) {
+        if (time >= profile[i].time && time <= profile[i + 1].time) {
+            Real t0 = profile[i].time;
+            Real t1 = profile[i + 1].time;
+            Real r0 = profile[i].rate;
+            Real r1 = profile[i + 1].rate;
+            if (std::abs(t1 - t0) < 1.0e-10) return r0;
+            return r0 + (r1 - r0) * (time - t0) / (t1 - t0);
+        }
+    }
+    return default_rate;
+}
+
+static void write_hazard_boundaries(
+    const std::string& filename,
+    const std::vector<Real>& concentration,
+    int nx, int ny, int nz,
+    Real xmin, Real ymin, Real dx, Real dy,
+    Real threshold_red, Real threshold_orange, Real threshold_yellow, Real threshold_lfl)
+{
+    std::ofstream outf(filename);
+    if (!outf.is_open()) {
+        return;
+    }
+    outf << "# Hazard Threat Zone Boundaries\n";
+    outf << "zone,x,y\n";
+    outf << std::scientific << std::setprecision(6);
+
+    auto check_boundary = [&](Real T, const std::string& zone_name) {
+        if (T <= 0.0) return;
+        // Use ground-level (k = 0) or maximum concentration over height (k)
+        // Let's do max over height as it is most conservative for threat zones
+        for (int j = 0; j < ny; ++j) {
+            for (int i = 0; i < nx; ++i) {
+                // Find max concentration in column (i, j)
+                Real max_C = 0.0;
+                for (int k = 0; k < nz; ++k) {
+                    max_C = std::max(max_C, concentration[i + j * nx + k * nx * ny]);
+                }
+                
+                if (max_C >= T) {
+                    // Check if on boundary of threshold
+                    bool is_bnd = false;
+                    if (i == 0 || i == nx - 1 || j == 0 || j == ny - 1) {
+                        is_bnd = true;
+                    } else {
+                        // Check 4-neighbors
+                        Real n_left = 0.0, n_right = 0.0, n_down = 0.0, n_up = 0.0;
+                        for (int k = 0; k < nz; ++k) {
+                            n_left = std::max(n_left, concentration[(i - 1) + j * nx + k * nx * ny]);
+                            n_right = std::max(n_right, concentration[(i + 1) + j * nx + k * nx * ny]);
+                            n_down = std::max(n_down, concentration[i + (j - 1) * nx + k * nx * ny]);
+                            n_up = std::max(n_up, concentration[i + (j + 1) * nx + k * nx * ny]);
+                        }
+                        if (n_left < T || n_right < T || n_down < T || n_up < T) {
+                            is_bnd = true;
+                        }
+                    }
+                    if (is_bnd) {
+                        Real x = xmin + (i + 0.5) * dx;
+                        Real y = ymin + (j + 0.5) * dy;
+                        outf << zone_name << "," << x << "," << y << "\n";
+                    }
+                }
+            }
+        }
+    };
+
+    check_boundary(threshold_red, "red");
+    check_boundary(threshold_orange, "orange");
+    check_boundary(threshold_yellow, "yellow");
+    check_boundary(threshold_lfl, "lfl");
+
+    outf.close();
+}
+
 // ============================================================================
 // Read terrain data from CSV file (similar to wind_solver.cpp)
 // ============================================================================
@@ -264,6 +396,27 @@ int main(int argc, char* argv[])
         pp.query("emission_rate", emission_rate);
         pp.query("emission_duration", emission_duration);
         
+        // Indoor infiltration, time-varying emissions, and hazard threat zone parameters
+        bool enable_indoor_infiltration = false;
+        Real ach = 1.5;
+        std::string emissions_file = "";
+        Real threshold_red = 0.0;
+        Real threshold_orange = 0.0;
+        Real threshold_yellow = 0.0;
+        Real threshold_lfl = 0.0;
+        std::string threat_zones_output = "";
+
+        pp.query("enable_indoor_infiltration", enable_indoor_infiltration);
+        pp.query("ach", ach);
+        pp.query("emissions_file", emissions_file);
+        pp.query("threshold_red", threshold_red);
+        pp.query("threshold_orange", threshold_orange);
+        pp.query("threshold_yellow", threshold_yellow);
+        pp.query("threshold_lfl", threshold_lfl);
+        pp.query("threat_zones_output", threat_zones_output);
+
+        std::vector<EmissionPoint> emissions_profile = read_emissions_file(emissions_file);
+        
         // Diffusivity and initial puff size
         Real K_h = 1.0;
         Real K_v = 0.5;
@@ -466,6 +619,17 @@ int main(int argc, char* argv[])
         amrex::Print() << "  Source: (" << source_x << ", " << source_y 
                        << ", " << source_z << ")\n";
         amrex::Print() << "  Emission rate: " << emission_rate << " units/s\n";
+        if (!emissions_profile.empty()) {
+            amrex::Print() << "  Time-varying emissions enabled (" << emissions_profile.size() << " points from " << emissions_file << ")\n";
+        }
+        if (enable_indoor_infiltration) {
+            amrex::Print() << "  Indoor infiltration model enabled (ACH = " << ach << ")\n";
+        }
+        if (threshold_red > 0.0 || threshold_orange > 0.0 || threshold_yellow > 0.0 || threshold_lfl > 0.0) {
+            amrex::Print() << "  Threat zones detection enabled: Red=" << threshold_red 
+                           << ", Orange=" << threshold_orange << ", Yellow=" << threshold_yellow 
+                           << ", LFL=" << threshold_lfl << "\n";
+        }
         amrex::Print() << "  Emission duration: " << emission_duration << " s\n";
         amrex::Print() << "  K_h = " << K_h << " m²/s, K_v = " << K_v << " m²/s\n";
         if (enable_height_dependent_K) {
@@ -569,6 +733,7 @@ int main(int argc, char* argv[])
         
         std::vector<Puff> puffs;
         std::vector<LpdParticle> particles;
+        std::vector<Real> C_in(nx * ny * nz, 0.0);
         
         std::mt19937 gen(lpdm_random_seed);
         std::normal_distribution<Real> normal_dist(0.0, 1.0);
@@ -576,10 +741,15 @@ int main(int argc, char* argv[])
         for (int step = 0; step < n_steps_puff; ++step) {
             Real time = step * dt_puff;
             
+            Real current_emission_rate = emission_rate;
+            if (!emissions_profile.empty()) {
+                current_emission_rate = interpolate_emission_rate(time, emissions_profile, emission_rate);
+            }
+            
             if (enable_lpdm) {
                 // Emit new particles if still within emission duration
                 if (time < emission_duration) {
-                Real step_emitted_mass = emission_rate * dt_puff;
+                Real step_emitted_mass = current_emission_rate * dt_puff;
                 Real particle_mass = step_emitted_mass / particles_per_step;
                     
                 // Compute effective source height with plume rise
@@ -722,7 +892,7 @@ int main(int argc, char* argv[])
             } else {
                 // Emit new puff if still within emission duration
                 if (time < emission_duration) {
-                Real puff_mass = emission_rate * dt_puff;
+                Real puff_mass = current_emission_rate * dt_puff;
                     
                 // Compute effective source height with plume rise
                 Real effective_source_z = source_z;
@@ -853,23 +1023,9 @@ int main(int argc, char* argv[])
                 }
             }
             
-            // Output concentration field at specified frequency
-            if (step % output_freq_puff == 0) {
-                if (enable_lpdm) {
-                amrex::Print() << "  Step " << step << " (t = " << time 
-                               << " s): " << particles.size() << " particles\n";
-                } else {
-                amrex::Print() << "  Step " << step << " (t = " << time 
-                               << " s): " << puffs.size() << " puffs\n";
-                }
-                
-                // Compute and write concentration field
-                std::string step_file = puff_output + "_step" + std::to_string(step);
-                
-                // Create concentration grid
-                std::vector<Real> concentration(nx * ny * nz, 0.0);
-                
-                if (enable_lpdm) {
+            // Compute concentration field (C_out) at every step
+            std::vector<Real> concentration(nx * ny * nz, 0.0);
+            if (enable_lpdm) {
                 for (const auto& p : particles) {
                     if (!p.active) continue;
                         
@@ -886,7 +1042,7 @@ int main(int argc, char* argv[])
                 for (auto& val : concentration) {
                     val /= cell_vol;
                 }
-                } else {
+            } else {
                 for (int k = 0; k < nz; ++k) {
                     for (int j = 0; j < ny; ++j) {
                         for (int i = 0; i < nx; ++i) {
@@ -916,7 +1072,38 @@ int main(int argc, char* argv[])
                         }
                     }
                 }
+            }
+
+            // Apply indoor infiltration model if enabled
+            if (enable_indoor_infiltration && !buildings.empty()) {
+                for (int k = 0; k < nz; ++k) {
+                    for (int j = 0; j < ny; ++j) {
+                        for (int i = 0; i < nx; ++i) {
+                            Real x = xmin + (i + 0.5) * dx;
+                            Real y = ymin + (j + 0.5) * dy;
+                            Real z = zmin + (k + 0.5) * dz;
+                            int idx = i + j * nx + k * nx * ny;
+                            if (point_in_any_building(x, y, z, buildings)) {
+                                C_in[idx] += dt_puff * (ach / 3600.0) * (concentration[idx] - C_in[idx]);
+                                concentration[idx] = C_in[idx];
+                            }
+                        }
+                    }
                 }
+            }
+
+            // Output concentration field at specified frequency
+            if (step % output_freq_puff == 0) {
+                if (enable_lpdm) {
+                    amrex::Print() << "  Step " << step << " (t = " << time 
+                                   << " s): " << particles.size() << " particles\n";
+                } else {
+                    amrex::Print() << "  Step " << step << " (t = " << time 
+                                   << " s): " << puffs.size() << " puffs\n";
+                }
+                
+                // Compute and write concentration field
+                std::string step_file = puff_output + "_step" + std::to_string(step);
                 
                 // Write to file (simple ASCII format)
                 std::ofstream outf(step_file);
@@ -925,20 +1112,29 @@ int main(int argc, char* argv[])
                 outf << std::scientific << std::setprecision(6);
                 
                 for (int k = 0; k < nz; ++k) {
-                for (int j = 0; j < ny; ++j) {
-                    for (int i = 0; i < nx; ++i) {
-                        Real x = xmin + (i + 0.5) * dx;
-                        Real y = ymin + (j + 0.5) * dy;
-                        Real z = zmin + (k + 0.5) * dz;
-                        Real C = concentration[i + j * nx + k * nx * ny];
-                            
-                        outf << x << "," << y << "," << z << "," << C << "\n";
+                    for (int j = 0; j < ny; ++j) {
+                        for (int i = 0; i < nx; ++i) {
+                            Real x = xmin + (i + 0.5) * dx;
+                            Real y = ymin + (j + 0.5) * dy;
+                            Real z = zmin + (k + 0.5) * dz;
+                            Real C = concentration[i + j * nx + k * nx * ny];
+                                
+                            outf << x << "," << y << "," << z << "," << C << "\n";
+                        }
                     }
-                }
                 }
                 outf.close();
                 
                 amrex::Print() << "    Wrote concentration to " << step_file << "\n";
+
+                // Write threat zones boundaries if enabled
+                if (!threat_zones_output.empty() && 
+                    (threshold_red > 0.0 || threshold_orange > 0.0 || threshold_yellow > 0.0 || threshold_lfl > 0.0)) {
+                    std::string tz_file = threat_zones_output + "_step" + std::to_string(step) + ".csv";
+                    write_hazard_boundaries(tz_file, concentration, nx, ny, nz, xmin, ymin, dx, dy,
+                                            threshold_red, threshold_orange, threshold_yellow, threshold_lfl);
+                    amrex::Print() << "    Wrote threat zones to " << tz_file << "\n";
+                }
             }
         }
         
