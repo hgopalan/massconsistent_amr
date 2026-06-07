@@ -197,7 +197,7 @@ void read_velocity_file(const std::string& filename,
     }
 }
 
-std::pair<Real, Real> idw_velocity(Real xq, Real yq,
+[[maybe_unused]] std::pair<Real, Real> idw_velocity(Real xq, Real yq,
                                    const std::vector<Real>& x,
                                    const std::vector<Real>& y,
                                    const std::vector<Real>& ux_data,

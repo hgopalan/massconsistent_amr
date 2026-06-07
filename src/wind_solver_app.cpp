@@ -2767,6 +2767,54 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         );
     }
 
+    // Populate temp_ptr with interpolated local temperature for diagnostics
+    if (!z_temp.empty()) {
+        const int n_temp_pts = static_cast<int>(z_temp.size());
+        amrex::Gpu::DeviceVector<Real> d_temp_z(n_temp_pts), d_temp_T(n_temp_pts);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, z_temp.begin(), z_temp.end(), d_temp_z.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, T_temp.begin(), T_temp.end(), d_temp_T.begin());
+        Real const* d_temp_z_ptr = d_temp_z.data();
+        Real const* d_temp_T_ptr = d_temp_T.data();
+        const Real T_ref = temperature_reference;
+        const Real z_lo_cap = zs_min;
+        const Real dz_cap = dz;
+
+        for (MFIter mfi(*temp_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto temp_arr = temp_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real T_local = T_ref;
+                
+                if (n_temp_pts == 1) {
+                    T_local = d_temp_T_ptr[0];
+                } else if (z_physical <= d_temp_z_ptr[0]) {
+                    T_local = d_temp_T_ptr[0];
+                } else if (z_physical >= d_temp_z_ptr[n_temp_pts - 1]) {
+                    T_local = d_temp_T_ptr[n_temp_pts - 1];
+                } else {
+                    for (int m = 0; m < n_temp_pts - 1; ++m) {
+                        if (z_physical >= d_temp_z_ptr[m] && 
+                            z_physical <= d_temp_z_ptr[m + 1]) {
+                            T_local = temperature_linear_interp(
+                                z_physical,
+                                d_temp_z_ptr[m], d_temp_T_ptr[m],
+                                d_temp_z_ptr[m + 1], d_temp_T_ptr[m + 1]);
+                            break;
+                        }
+                    }
+                }
+                temp_arr(i, j, k) = T_local;
+            });
+        }
+        amrex::Gpu::streamSynchronize();
+    } else {
+        temp_ptr->setVal(temperature_reference);
+    }
+
     amrex::Print() << "wind_solver: wind initialization time = " 
                    << (amrex::second() - t_phase) << " s\n";
 }
@@ -3575,9 +3623,12 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const Real kappa_diag = 0.41;
     const bool cap_enable_bl_depth_diagnostic = enable_bl_depth_diagnostic;
     const Real cap_bl_depth_param = bl_depth_param;
+    const Real richardson_critical = this->richardson_critical;
 
     for (MFIter mfi(output); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
+        const int k_lo_box = bx.smallEnd(2);
+        const int k_hi_box = bx.bigEnd(2) + 1;
         const auto vc   = vel_c_ptr->const_array(mfi);
         const auto v0a  = vel0_ptr->const_array(mfi);
         const auto la   = lam_ptr->const_array(mfi);
@@ -3587,6 +3638,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
         const auto ttype_arr = terrain_type_ptr->const_array(mfi);
         const auto tslope_arr = terrain_slope_ptr->const_array(mfi);
         const auto adap_rough_arr = adaptive_roughness_ptr->const_array(mfi);
+        const auto temp_arr = temp_ptr->const_array(mfi);
         
         auto out = output.array(mfi);
         
@@ -3619,8 +3671,6 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             Real Cd = Real(0.0);
             Real tau_x = Real(0.0);
             Real tau_y = Real(0.0);
-            Real richardson_no = Real(0.0);
-            Real bl_depth = Real(0.0);
             
             if (z_agl > Real(0.0) && u_mag > Real(1.0e-6)) {
                 Real z0_local = use_pos_z0 ? d_z0_pos_ptr_diag[j * nx_cap_out + i] : z0_cap;
@@ -3635,17 +3685,60 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                     Real tau_magnitude = rho_air * ustar_local * ustar_local;
                     tau_x = tau_magnitude * (u / u_mag);
                     tau_y = tau_magnitude * (v / u_mag);
-                    
-                    richardson_no = Real(0.0);
-                    if (cap_enable_bl_depth_diagnostic) {
-                        Real f_coriolis = cap_enable_coriolis_latitude 
-                                        ? compute_latitude_dependent_coriolis(cap_y_lo + (j + Real(0.5)) * cap_dy, cap_y_center, cap_domain_latitude)
-                                        : Real(1.0e-4);
-                        bl_depth = compute_spatially_varying_habl(ustar_local, heat_flux, z0_local, Real(300.0), f_coriolis);
-                    } else {
-                        bl_depth = cap_bl_depth_param;
-                    }
                 }
+            }
+
+            Real richardson_no = Real(0.0);
+            Real bl_depth = cap_bl_depth_param;
+            Real terrain_elev = d_terr_ptr[j * nx_cap_out + i];
+            
+            int k_start = k_lo_box;
+            while (k_start < k_hi_box && (z_lo_cap_div + (Real(k_start) + Real(0.5)) * dz_cap_div - terrain_elev <= Real(0.0))) {
+                k_start++;
+            }
+
+            if (k_start < k_hi_box && z_agl > Real(0.0)) {
+                Real theta_s = temp_arr(i, j, k_start);
+                richardson_no = compute_bulk_richardson_number(theta_s, temp_arr(i, j, k), z_agl, u_mag, theta_s);
+
+                if (cap_enable_bl_depth_diagnostic) {
+                    Real diagnosed_bl_depth = RichardsonNumberConstants::MAX_BL_DEPTH;
+                    bool found = false;
+                    for (int kp = k_start + 1; kp < k_hi_box; ++kp) {
+                        Real z_agl_kp = z_lo_cap_div + (Real(kp) + Real(0.5)) * dz_cap_div - terrain_elev;
+                        Real u_kp = vc(i, j, kp, 0);
+                        Real v_kp = vc(i, j, kp, 1);
+                        Real u_mag_kp = std::sqrt(u_kp * u_kp + v_kp * v_kp);
+                        Real ri_b_kp = compute_bulk_richardson_number(theta_s, temp_arr(i, j, kp), z_agl_kp, u_mag_kp, theta_s);
+
+                        if (ri_b_kp > richardson_critical) {
+                            Real z_agl_kpm1 = z_lo_cap_div + (Real(kp - 1) + Real(0.5)) * dz_cap_div - terrain_elev;
+                            Real u_kpm1 = vc(i, j, kp - 1, 0);
+                            Real v_kpm1 = vc(i, j, kp - 1, 1);
+                            Real u_mag_kpm1 = std::sqrt(u_kpm1 * u_kpm1 + v_kpm1 * v_kpm1);
+                            Real ri_b_kpm1 = compute_bulk_richardson_number(theta_s, temp_arr(i, j, kp - 1), z_agl_kpm1, u_mag_kpm1, theta_s);
+
+                            if (std::abs(ri_b_kp - ri_b_kpm1) > Real(1.0e-10)) {
+                                Real frac = (richardson_critical - ri_b_kpm1) / (ri_b_kp - ri_b_kpm1);
+                                diagnosed_bl_depth = z_agl_kpm1 + frac * (z_agl_kp - z_agl_kpm1);
+                            } else {
+                                diagnosed_bl_depth = z_agl_kpm1;
+                            }
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        diagnosed_bl_depth = RichardsonNumberConstants::MAX_BL_DEPTH;
+                    }
+                    const Real min_bl_depth_local = RichardsonNumberConstants::MIN_BL_DEPTH;
+                    const Real max_bl_depth_local = RichardsonNumberConstants::MAX_BL_DEPTH;
+                    bl_depth = std::max(min_bl_depth_local,
+                                        std::min(diagnosed_bl_depth, max_bl_depth_local));
+                }
+            } else {
+                richardson_no = Real(0.0);
+                bl_depth = cap_bl_depth_param;
             }
             
             out(i,j,k,11) = heat_flux;

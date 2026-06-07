@@ -78,7 +78,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
   - **Gravitational Settling & Dry Deposition** — Terminal settling velocity via Stokes' Law ($v_s = \frac{\rho_p d_p^2 g}{18\mu}$) and mass removal upon ground/vegetation contact
   - **Wet Deposition / Precipitation Scavenging** — Mass depletion of puffs or particles due to rain/snow washout via first-order scavenging ($\Lambda = \Lambda_0 \cdot P^a$)
   - **Ambient-Condition-Driven Chemical Decay** — Dynamic chemical half-lives affected by temperature (lapse rate), humidity, and photolysis/sunlight intensity
-- **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields, momentum flux, boundary layer depth
+- **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields, momentum flux, and spatially-varying boundary layer depth diagnosed via column-scanning bulk Richardson number ($Ri_b$) profile methods
 - **Advanced physics features** — Simplified Richardson number stability classification, roughness blocking from buildings, latitude-dependent Coriolis parameter, power-law wind profile option above boundary layer, enhanced heat flux diagnostics
 - **Python API** — Coupling with fire and atmospheric models
 - **Turbine wake models** — Analytical wind turbine wake modeling (Jensen, Bastankhah Gaussian, TurbOPark, and Gauss-Curl Hybrid formulations) with quadratic/linear superposition, Jimenez wake deflection, analytical wake-added turbulence (Crespo-Hernández and Frandsen models), and wake-ground interaction using mirroring and shear-damping techniques.
