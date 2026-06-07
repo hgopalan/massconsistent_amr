@@ -149,9 +149,9 @@ class TestPyWakeCoupling(unittest.TestCase):
             lines = [f.readline().strip() for _ in range(5)]
             
         self.assertEqual(lines[0], "DSAA")
-        self.assertEqual(lines[1], "10 10") # nx ny
-        self.assertEqual(lines[2], "0.0 100.0") # xmin xmax
-        self.assertEqual(lines[3], "0.0 100.0") # ymin ymax
+        self.assertEqual(lines[1], f"{wind.nx} {wind.ny}") # nx ny
+        self.assertEqual(lines[2], f"{wind.xmin:.1f} {wind.xmax:.1f}") # xmin xmax
+        self.assertEqual(lines[3], f"{wind.ymin:.1f} {wind.ymax:.1f}") # ymin ymax
         
         # site should be either WAsPGridSite or MockWAsPGridSite
         self.assertIsNotNone(site)

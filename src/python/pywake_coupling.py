@@ -229,10 +229,10 @@ class MassConsistentSite(Site):
         num_turbines = len(x)
         
         # Get reference values
-        ref_u = getattr(self.wind_solver, 'U_ref', 10.0)
-        ref_v = getattr(self.wind_solver, 'V_ref', 0.0)
-        ref_speed = np.sqrt(ref_u**2 + ref_v**2)
-        ref_dir = np.degrees(np.arctan2(ref_u, ref_v)) % 360.0
+        reference_u = getattr(self.wind_solver, 'U_ref', 10.0)
+        reference_v = getattr(self.wind_solver, 'V_ref', 0.0)
+        ref_speed = np.sqrt(reference_u**2 + reference_v**2)
+        ref_dir = np.degrees(np.arctan2(reference_u, reference_v)) % 360.0
         
         if wd is None:
             wd = np.atleast_1d(ref_dir)

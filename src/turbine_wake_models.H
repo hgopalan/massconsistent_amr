@@ -125,7 +125,8 @@ inline bool is_numeric(const std::string& s) {
     if (s.empty()) return false;
     char* p;
     strtod(s.c_str(), &p);
-    return *p == 0;
+    if (p == s.c_str()) return false;
+    return *p == '\0';
 }
 
 inline void read_turbines_file(const std::string& filename, std::vector<Turbine>& turbines) {
@@ -167,17 +168,25 @@ inline void read_turbines_file(const std::string& filename, std::vector<Turbine>
             t.power_curve_file = "";
             
             bool parsed_yaw = false;
+            bool parsed_orientation = false;
             for (std::size_t i = 5; i < tokens.size(); ++i) {
                 const std::string& tok = tokens[i];
                 if (is_numeric(tok)) {
                     if (!parsed_yaw) {
                         t.yaw = std::stod(tok);
                         parsed_yaw = true;
-                    } else {
+                    } else if (!parsed_orientation) {
                         t.orientation = std::stod(tok);
+                        parsed_orientation = true;
+                    } else {
+                        amrex::Print() << "Warning: Unexpected extra numeric column in turbines file: " << tok << "\n";
                     }
                 } else {
-                    t.power_curve_file = tok;
+                    if (t.power_curve_file.empty()) {
+                        t.power_curve_file = tok;
+                    } else {
+                        amrex::Print() << "Warning: Unexpected extra non-numeric column in turbines file: " << tok << "\n";
+                    }
                 }
             }
             
