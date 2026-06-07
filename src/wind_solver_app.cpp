@@ -3707,8 +3707,10 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                     if (!found) {
                         diagnosed_bl_depth = RichardsonNumberConstants::MAX_BL_DEPTH;
                     }
-                    bl_depth = std::max(RichardsonNumberConstants::MIN_BL_DEPTH,
-                                        std::min(diagnosed_bl_depth, RichardsonNumberConstants::MAX_BL_DEPTH));
+                    const Real min_bl_depth_local = RichardsonNumberConstants::MIN_BL_DEPTH;
+                    const Real max_bl_depth_local = RichardsonNumberConstants::MAX_BL_DEPTH;
+                    bl_depth = std::max(min_bl_depth_local,
+                                        std::min(diagnosed_bl_depth, max_bl_depth_local));
                 }
             } else {
                 richardson_no = Real(0.0);

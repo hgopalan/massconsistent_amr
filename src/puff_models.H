@@ -259,7 +259,7 @@ amrex::Real gaussian_puff_concentration(
 // Returns:
 //   Interpolated terrain elevation [m]
 // ============================================================================
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
+AMREX_INLINE
 amrex::Real interpolate_terrain_height(
     amrex::Real x, amrex::Real y,
     const std::vector<amrex::Real>& x_terr,
@@ -371,7 +371,7 @@ bool point_in_building(
 // Returns:
 //   True if point is inside any building volume
 // ============================================================================
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
+AMREX_INLINE
 bool point_in_any_building(
     amrex::Real x, amrex::Real y, amrex::Real z,
     const std::vector<Building>& buildings)

@@ -265,7 +265,7 @@ inline void apply_analytical_turbine_wakes(
     Real xmin, Real ymin, Real zmin,
     Real dx, Real dy, Real dz,
     int nx, int ny, int nz,
-    int time_step = 0)
+    [[maybe_unused]] int time_step = 0)
 {
     if (turbines.empty()) return;
 
@@ -466,7 +466,7 @@ inline void apply_turbine_wakes_to_multifab(
     Real xmin, Real ymin, Real zmin,
     Real dx, Real dy, Real dz,
     int nx, int ny, int nz,
-    int time_step = 0)
+    [[maybe_unused]] int time_step = 0)
 {
     if (turbines.empty()) return;
 
@@ -711,7 +711,7 @@ inline void apply_turbine_wakes_to_multifab(
     Real xmin, Real ymin, Real zmin,
     Real dx, Real dy, Real dz,
     int nx, int ny, int nz,
-    int time_step = 0)
+    [[maybe_unused]] int time_step = 0)
 {
     if (turbines.empty()) return;
 
