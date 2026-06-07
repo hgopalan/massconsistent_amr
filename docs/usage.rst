@@ -189,6 +189,9 @@ Parameter Reference
    * - ``jimenez_kd``
      - ``0.05``
      - Jimenez deflection calibration constant.
+   * - ``enable_bastankhah_deflection``
+     - ``false``
+     - Enable Bastankhah & Porté-Agel (2016) wake deflection model.
    * - ``wake_added_turbulence_model``
      - ``none``
      - Analytical wake-added turbulence model: ``none``, ``crespo_hernandez``, or ``frandsen`` (STF).
@@ -336,8 +339,9 @@ To configure wake deflection and secondary steering via yaw, specify the active 
        enable_turbine_wake = true
        turbine_file = turbines.csv
        turbine_wake_model_type = gch            # Gauss-Curl Hybrid (secondary steering)
-       enable_jimenez_deflection = true         # Deflection model for yawed turbines
-       jimenez_kd = 0.05                        # Deflection decay rate
+       enable_jimenez_deflection = false        # Jimenez model for yawed turbines
+       enable_bastankhah_deflection = true      # Bastankhah & Porté-Agel (2016) deflection model
+       jimenez_kd = 0.05                        # Jimenez deflection decay rate
        wake_added_turbulence_model = frandsen   # Wake-added turbulence model
 
 2. **Specify layout and yaw values in turbines.csv**:

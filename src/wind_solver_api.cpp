@@ -432,6 +432,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.turbopark_c1 = 0.38;
     state.ambient_ti = 0.075;
     state.enable_jimenez_deflection = false;
+    state.enable_bastankhah_deflection = false;
     state.jimenez_kd = 0.05;
     state.wake_added_turbulence_model = "none";
     state.enable_wake_ground_interaction = true;
@@ -448,6 +449,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("turbopark_c1", state.turbopark_c1);
     pp.query("ambient_ti", state.ambient_ti);
     pp.query("enable_jimenez_deflection", state.enable_jimenez_deflection);
+    pp.query("enable_bastankhah_deflection", state.enable_bastankhah_deflection);
     pp.query("jimenez_kd", state.jimenez_kd);
     pp.query("wake_added_turbulence_model", state.wake_added_turbulence_model);
     pp.query("enable_wake_ground_interaction", state.enable_wake_ground_interaction);
@@ -781,6 +783,7 @@ void initialize_wind_field(WindSolverState& state)
             state.ambient_ti,
             state.enable_jimenez_deflection,
             state.jimenez_kd,
+            state.enable_bastankhah_deflection,
             added_turb_model,
             0, // time_step
             state.enable_wake_ground_interaction,

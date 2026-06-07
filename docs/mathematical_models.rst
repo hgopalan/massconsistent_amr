@@ -222,6 +222,25 @@ Instead of exclusive zone assignments, overlapping wakes from multiple buildings
 
 where :math:`d_i` is distance to building :math:`i`'s wake boundary, and :math:`L_{\text{blend}} \approx 0.5 H`.
 
+Building Street Canyon Vortex Parameterization (QUIC-URB Style)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When parallel buildings are aligned perpendicular to the ambient wind direction, the solver identifies street canyons geometrically, computes their aspect ratio (:math:`H/W`), and overwrites the initial wind field inside the canyon with a parameterized, solenoidal (divergence-free) recirculating vortex profile before the Poisson solve:
+
+* **Solenoidal Vortex Velocity Components**:
+  
+  .. math::
+
+     u_{\text{vortex}}(x, z) = -C_{\text{vortex}} \cdot U_{\text{ambient}} \cdot \cos\left(\pi \frac{z}{H}\right) \cdot \sin\left(\pi \frac{x - x_{\text{up}}}{W}\right)
+
+  .. math::
+
+     w_{\text{vortex}}(x, z) = C_{\text{vortex}} \cdot U_{\text{ambient}} \cdot \left(\frac{H}{W}\right) \cdot \sin\left(\pi \frac{z}{H}\right) \cdot \cos\left(\pi \frac{x - x_{\text{up}}}{W}\right)
+
+* **Regime-Dependent Vortex Strength**:
+  * For skimming flow (:math:`H/W > 0.7`): :math:`C_{\text{vortex}} = 0.25` (full recirculation).
+  * For wake interference flow (:math:`0.3 < H/W \le 0.7`): :math:`C_{\text{vortex}}` scales linearly from 0 to 0.25.
+  * For isolated roughness flow (:math:`H/W \le 0.3`): :math:`C_{\text{vortex}} = 0.0`.
+
 Analytical Wind Turbine Wake Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The solver supports analytical turbine wake deficits for wind energy applications:
@@ -319,8 +338,10 @@ To combine velocity deficits from multiple overlapping upstream turbine wakes at
 
       \Delta u_{\text{comb}} = \max_i(\Delta u_i)
 
-Wake Centerline Deflection (Jimenez Model)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Wake Centerline Deflection Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. **Jimenez Model**:
 To model yawed wind turbine wakes, the Jimenez wake deflection model computes the wake centerline deflection :math:`y_{\text{offset}}(x_{\text{down}})` due to thrust-induced lateral force components:
 
 .. math::
@@ -341,6 +362,29 @@ Integrating the deflection angle along the downstream path yields the transverse
 
 where :math:`\gamma` is the yaw angle and :math:`\beta_{\text{def}} = k_d` is the deflection decay coefficient (configured via `jimenez_kd`, defaulting to 0.05).
 
+2. **Bastankhah & Porté-Agel Model (2016)**:
+The Bastankhah & Porté-Agel wake deflection model is a closed-form mass-and-momentum-conserving analytical formulation for Gaussian wakes in yawed conditions. The initial skew angle at the rotor is given by:
+
+.. math::
+
+   \theta_{c0} = \frac{0.3 \gamma}{\cos \gamma} \left(1 - \sqrt{1 - C_T \cos \gamma}\right)
+
+The deflection :math:`\delta(x_{\text{down}})` is computed separately for near and far wake regions bounded by the near-wake length :math:`x_0`:
+
+* For :math:`x_{\text{down}} \le x_0` (near-wake):
+
+  .. math::
+
+     \delta(x_{\text{down}}) = \tan(\theta_{c0}) \cdot x_{\text{down}}
+
+* For :math:`x_{\text{down}} > x_0` (far-wake):
+
+  .. math::
+
+     \delta(x_{\text{down}}) = \tan(\theta_{c0}) \cdot x_0 + \theta_{c0} \frac{E_0}{5.2} \sqrt{\frac{\sigma_{y0} \sigma_{z0}}{k^2 M_0}} \ln \left[ \frac{(1.6 + \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} - \sqrt{M_0})}{(1.6 - \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} + \sqrt{M_0})} \right]
+
+where :math:`M_0 = C_0(2 - C_0)`, :math:`C_0 = 1 - \sqrt{1 - C_T}`, and :math:`E_0 = C_0^2 - 3 e^{1/12} C_0 + 3 e^{1/3}`.
+
 Vertical Wake Deflection (Tilt Model)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Rotor tilt angle :math:`\theta_{\text{tilt}}` (tilting the rotor disk backwards or upwards) is supported to calculate basic vertical wake deflection, which is particularly relevant for floating offshore wind turbines. The vertical wake deflection :math:`z_{\text{offset}}(x_{\text{down}})` is computed using a vertical formulation analogous to the Jimenez deflection model:
@@ -354,6 +398,10 @@ The resulting vertical deflection offset at downstream distance :math:`x_{\text{
 .. math::
 
    z_{\text{offset}}(x_{\text{down}}) = D \cdot \theta_{v0} \cdot \frac{1}{2 \beta_{\text{def}}} \left( 1 - \frac{1}{1 + 2 \beta_{\text{def}} \frac{x_{\text{down}}}{D}} \right)
+
+Height-Varying (Veered) Wake Orientation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Under veered atmospheric conditions, the wind direction changes continuously with height. The coordinate projection used to define "downwind" and "crosswind" directions is modified dynamically to use the local wind direction at each vertical grid level :math:`z` rather than strictly the wind direction at hub height. This is a pure algebraic coordinate transformation that captures wake twisting under atmospheric wind veer.
 
 Analytical Wake-Added Turbulence Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -658,7 +706,7 @@ Limitations
 
 1. **Physics**:
    * **Diagnostic Nature**: The solver assumes steady-state mass consistency. Time-dependent fluctuations and transient atmospheric dynamics are parameterized rather than solved prognostically.
-   * **Simplified Street Canyon & Obstacles**: Canopy drag and Oke (1988) building street canyon algorithms assume homogeneous cell sizes and simplified wind angles, omitting full 3D recirculation vortices.
+   * **Simplified Street Canyon & Obstacles**: While we now explicitly model recirculating street canyon vortices using geometric detection and parameterized solenoidal vortex profiles, canopy drag and basic Oke (1988) algorithms assume homogeneous cell sizes.
    * **Uncoupled Fire-Wind Feedback**: Currently, there is no direct thermal or buoyant feedback from fire fronts (e.g. from wildfire_levelset) back to the wind field.
 
 2. **Numerics**:

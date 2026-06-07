@@ -11,6 +11,23 @@
 #include "synthetic_turbulence.H"
 #include "turbine_wake_models.H"
 
+/**
+ * @brief Representation of a detected urban street canyon.
+ * 
+ * Defines the physical boundaries and characteristics of a street canyon formed
+ * between two parallel buildings.
+ */
+struct StreetCanyon {
+    amrex::Real xmin, xmax;   ///< Coordinates of the canyon width/span boundaries [m]
+    amrex::Real ymin, ymax;   ///< Coordinates of the canyon length boundaries [m]
+    amrex::Real zmin, zmax;   ///< Height limits of the canyon [m]
+    amrex::Real aspect_ratio; ///< Aspect ratio of the canyon (height / width)
+    int direction;            ///< Orientation: 0 for Y-aligned (parallel buildings separated in X, wind along X), 
+                              ///<              1 for X-aligned (parallel buildings separated in Y, wind along Y)
+    amrex::Real h_canyon;     ///< Height of the canyon walls [m]
+    amrex::Real w_canyon;     ///< Width of the canyon street [m]
+};
+
 class WindSolverApp {
 public:
     WindSolverApp() = default;
@@ -28,6 +45,12 @@ public:
     void compute_diagnostics_and_output(int time_step);
 
 private:
+    std::vector<StreetCanyon> detect_street_canyons(
+        const std::vector<amrex::Real>& b_xmin, const std::vector<amrex::Real>& b_xmax,
+        const std::vector<amrex::Real>& b_ymin, const std::vector<amrex::Real>& b_ymax,
+        const std::vector<amrex::Real>& b_zmin, const std::vector<amrex::Real>& b_zmax,
+        const std::vector<amrex::Real>& b_rotation);
+
     // Timing
     amrex::Real t_total = 0.0;
     amrex::Real t_phase = 0.0;
@@ -74,6 +97,7 @@ private:
     amrex::Real turbopark_c1 = 0.38;
     amrex::Real ambient_ti = 0.075;
     bool enable_jimenez_deflection = false;
+    bool enable_bastankhah_deflection = false;
     amrex::Real jimenez_kd = 0.05;
     std::string wake_added_turbulence_model = "none";
     // Phase 3 Advanced Wake Models

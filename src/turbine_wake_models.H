@@ -304,6 +304,66 @@ inline void read_turbines_file(const std::string& filename, std::vector<Turbine>
     amrex::Print() << "wind_solver: loaded " << turbines.size() << " turbines from " << filename << "\n";
 }
 
+inline Real compute_bastankhah_deflection(
+    Real yaw,
+    Real rotor_diameter,
+    Real inflow_wind_speed,
+    Real ct,
+    Real local_ti,
+    Real x_down,
+    Real gaussian_ka_base,
+    Real stability_factor,
+    Real L_obukhov,
+    bool enable_stability)
+{
+    Real gamma_rad = yaw * M_PI / 180.0;
+    Real cos_yaw = std::cos(gamma_rad);
+    Real ct_clamped = std::max(Real(0.0), std::min(ct, Real(0.99)));
+    Real ct_cos_yaw = std::max(Real(1e-4), std::min(ct_clamped * cos_yaw, Real(0.99)));
+    Real uR = inflow_wind_speed * ct_cos_yaw / (Real(2.0) * (Real(1.0) - std::sqrt(Real(1.0) - ct_cos_yaw)));
+    Real u0 = inflow_wind_speed * std::sqrt(Real(1.0) - ct_clamped);
+
+    Real alpha_param = Real(0.58);
+    Real beta_param = Real(0.077);
+    Real denom = std::sqrt(Real(2.0)) * (Real(4.0) * alpha_param * local_ti + Real(2.0) * beta_param * (Real(1.0) - std::sqrt(Real(1.0) - ct_clamped)));
+    if (denom < Real(1e-5)) denom = Real(1e-5);
+    Real x0 = rotor_diameter * std::abs(cos_yaw) * (Real(1.0) + std::sqrt(Real(1.0) - ct_cos_yaw)) / denom;
+
+    Real k = gaussian_ka_base * stability_factor;
+    if (k < Real(1e-5)) k = Real(1e-5);
+
+    Real sigma_z0 = rotor_diameter * Real(0.5) * std::sqrt(uR / (inflow_wind_speed + u0));
+    Real sigma_y0 = sigma_z0 * std::abs(cos_yaw);
+
+    Real theta_c0 = Real(0.3) * (gamma_rad / cos_yaw) * (Real(1.0) - std::sqrt(Real(1.0) - ct_cos_yaw));
+    Real delta0 = std::tan(theta_c0) * x0;
+
+    if (x_down <= x0) {
+        return delta0 * (x_down / x0);
+    } else {
+        Real sigma_y = k * (x_down - x0) + sigma_y0;
+        Real sigma_z = k * (x_down - x0) + sigma_z0;
+
+        Real C0 = Real(1.0) - std::sqrt(Real(1.0) - ct_clamped);
+        Real M0 = C0 * (Real(2.0) - C0);
+        if (M0 < Real(1e-5)) M0 = Real(1e-5);
+        Real exp_1_12 = std::exp(Real(1.0)/Real(12.0));
+        Real exp_1_3 = std::exp(Real(1.0)/Real(3.0));
+        Real E0 = C0 * C0 - Real(3.0) * exp_1_12 * C0 + Real(3.0) * exp_1_3;
+
+        Real mid = std::sqrt((sigma_y * sigma_z) / (sigma_y0 * sigma_z0));
+        Real sqrt_M0 = std::sqrt(M0);
+        Real ln_num = (Real(1.6) + sqrt_M0) * (Real(1.6) * mid - sqrt_M0);
+        Real ln_den = (Real(1.6) - sqrt_M0) * (Real(1.6) * mid + sqrt_M0);
+        if (ln_num < Real(1e-5)) ln_num = Real(1e-5);
+        if (ln_den < Real(1e-5)) ln_den = Real(1e-5);
+        Real log_t = std::log(ln_num / ln_den);
+
+        Real mult = theta_c0 * (E0 / Real(5.2)) * std::sqrt((sigma_y0 * sigma_z0) / (k * k * M0));
+        return delta0 + mult * log_t;
+    }
+}
+
 inline Real interpolate_2d(
     const std::vector<Real>& field,
     Real xq, Real yq,
@@ -415,6 +475,7 @@ inline void apply_analytical_turbine_wakes(
     Real ambient_ti_base = 0.075,
     bool enable_jimenez_deflection = false,
     Real jimenez_kd_base = 0.05,
+    bool enable_bastankhah_deflection = false,
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
     int time_step = 0,
     bool enable_wake_ground_interaction = true,
@@ -512,13 +573,28 @@ inline void apply_analytical_turbine_wakes(
                 Real y_cross_signed_up = -dx_pt * v_h_dir_up + dy_pt * u_h_dir_up;
                 Real y_offset_up = 0.0;
                 Real ct_up = t_up->ct_curve.interpolate(t_up->inflow_wind_speed);
-                if (enable_jimenez_deflection && std::abs(t_up->yaw) > 1e-5) {
-                    Real gamma_rad = t_up->yaw * M_PI / 180.0;
-                    Real theta_0 = (ct_up / Real(2.0)) * std::cos(gamma_rad) * std::cos(gamma_rad) * std::sin(gamma_rad);
-                    Real beta_def = jimenez_kd_base;
-                    if (beta_def < Real(1e-5)) beta_def = Real(1e-5);
-                    y_offset_up = t_up->rotor_diameter * theta_0 * (Real(1.0) / (Real(2.0) * beta_def)) * 
-                                  (Real(1.0) - Real(1.0) / (Real(1.0) + Real(2.0) * beta_def * x_down_up / t_up->rotor_diameter));
+                if (enable_bastankhah_deflection && std::abs(t_up->yaw) > 1e-5) {
+                   Real up_stability_factor = Real(1.0);
+                   if (enable_stability && std::abs(L_obukhov) > Real(1.0e-5)) {
+                       Real zeta = t_up->hub_height / L_obukhov;
+                       if (zeta > Real(0.0)) {
+                           up_stability_factor = Real(1.0) - Real(0.4) * std::tanh(zeta);
+                       } else if (zeta < Real(0.0)) {
+                           up_stability_factor = Real(1.0) + Real(0.6) * std::tanh(-zeta);
+                       }
+                   }
+                   y_offset_up = compute_bastankhah_deflection(
+                       t_up->yaw, t_up->rotor_diameter, t_up->inflow_wind_speed,
+                       ct_up, t_up->local_ti, x_down_up,
+                       gaussian_ka_base, up_stability_factor, L_obukhov, enable_stability
+                   );
+                } else if (enable_jimenez_deflection && std::abs(t_up->yaw) > 1e-5) {
+                   Real gamma_rad = t_up->yaw * M_PI / 180.0;
+                   Real theta_0 = (ct_up / Real(2.0)) * std::cos(gamma_rad) * std::cos(gamma_rad) * std::sin(gamma_rad);
+                   Real beta_def = jimenez_kd_base;
+                   if (beta_def < Real(1e-5)) beta_def = Real(1e-5);
+                   y_offset_up = t_up->rotor_diameter * theta_0 * (Real(1.0) / (Real(2.0) * beta_def)) * 
+                                 (Real(1.0) - Real(1.0) / (Real(1.0) + Real(2.0) * beta_def * x_down_up / t_up->rotor_diameter));
                 }
                 Real z_offset_up = 0.0;
                 if (std::abs(t_up->tilt) > 1e-5) {
@@ -630,20 +706,37 @@ inline void apply_analytical_turbine_wakes(
                     Real dx_pt = x_phys - t.x;
                     Real dy_pt = y_phys - t.y;
 
+                    // Use local wind direction at each vertical grid level (z)
+                    Real u_local = interpolate_3d(u_host, t.x, t.y, z_phys, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz);
+                    Real v_local = interpolate_3d(v_host, t.x, t.y, z_phys, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz);
+                    Real speed_local = std::sqrt(u_local * u_local + v_local * v_local);
+                    Real u_z_dir = u_h_dir;
+                    Real v_z_dir = v_h_dir;
+                    if (speed_local > Real(1.0e-5)) {
+                       u_z_dir = u_local / speed_local;
+                       v_z_dir = v_local / speed_local;
+                    }
+
                     // Downwind distance
-                    Real x_down = dx_pt * u_h_dir + dy_pt * v_h_dir;
+                    Real x_down = dx_pt * u_z_dir + dy_pt * v_z_dir;
                     if (x_down <= Real(1.0e-3)) continue; // upstream or exactly at the turbine
 
-                    // Crosswind distance with optional Jimenez deflection
-                    Real y_cross_signed = -dx_pt * v_h_dir + dy_pt * u_h_dir;
+                    // Crosswind distance with optional deflection
+                    Real y_cross_signed = -dx_pt * v_z_dir + dy_pt * u_z_dir;
                     Real y_offset = 0.0;
-                    if (enable_jimenez_deflection && std::abs(t.yaw) > 1e-5) {
-                        Real gamma_rad = t.yaw * M_PI / 180.0;
-                        Real theta_0 = (ct / Real(2.0)) * std::cos(gamma_rad) * std::cos(gamma_rad) * std::sin(gamma_rad);
-                        Real beta_def = jimenez_kd_base;
-                        if (beta_def < Real(1e-5)) beta_def = Real(1e-5);
-                        y_offset = t.rotor_diameter * theta_0 * (Real(1.0) / (Real(2.0) * beta_def)) * 
-                                      (Real(1.0) - Real(1.0) / (Real(1.0) + Real(2.0) * beta_def * x_down / t.rotor_diameter));
+                    if (enable_bastankhah_deflection && std::abs(t.yaw) > 1e-5) {
+                       y_offset = compute_bastankhah_deflection(
+                           t.yaw, t.rotor_diameter, t.inflow_wind_speed,
+                           ct, t.local_ti, x_down,
+                           gaussian_ka_base, stability_factor, L_obukhov, enable_stability
+                       );
+                    } else if (enable_jimenez_deflection && std::abs(t.yaw) > 1e-5) {
+                       Real gamma_rad = t.yaw * M_PI / 180.0;
+                       Real theta_0 = (ct / Real(2.0)) * std::cos(gamma_rad) * std::cos(gamma_rad) * std::sin(gamma_rad);
+                       Real beta_def = jimenez_kd_base;
+                       if (beta_def < Real(1e-5)) beta_def = Real(1e-5);
+                       y_offset = t.rotor_diameter * theta_0 * (Real(1.0) / (Real(2.0) * beta_def)) * 
+                                     (Real(1.0) - Real(1.0) / (Real(1.0) + Real(2.0) * beta_def * x_down / t.rotor_diameter));
                     }
                     Real y_cross = std::abs(y_cross_signed - y_offset);
 
@@ -811,8 +904,8 @@ inline void apply_analytical_turbine_wakes(
                         w_vortex *= f_damp;
                         
                         // Convert to global Cartesian velocities
-                        Real u_vortex_global = v_vortex * (-v_h_dir);
-                        Real v_vortex_global = v_vortex * u_h_dir;
+                        Real u_vortex_global = v_vortex * (-v_z_dir);
+                        Real v_vortex_global = v_vortex * u_z_dir;
                         Real w_vortex_global = w_vortex;
                         
                         // Accumulate and add to flow field
@@ -891,6 +984,7 @@ inline void apply_turbine_wakes_to_multifab(
     Real ambient_ti_base = 0.075,
     bool enable_jimenez_deflection = false,
     Real jimenez_kd_base = 0.05,
+    bool enable_bastankhah_deflection = false,
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
     int time_step = 0,
     bool enable_wake_ground_interaction = true,
@@ -934,7 +1028,7 @@ inline void apply_turbine_wakes_to_multifab(
         model_type, superposition, jensen_kw_base, gaussian_ka_base,
         enable_stability, L_obukhov, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz,
         turbopark_c1_base, ambient_ti_base, enable_jimenez_deflection,
-        jimenez_kd_base, wake_added_turb_model, time_step,
+        jimenez_kd_base, enable_bastankhah_deflection, wake_added_turb_model, time_step,
         enable_wake_ground_interaction, wake_ground_damping_scale
     );
 
@@ -986,6 +1080,7 @@ inline void apply_turbine_wakes_to_multifab(
     Real ambient_ti_base = 0.075,
     bool enable_jimenez_deflection = false,
     Real jimenez_kd_base = 0.05,
+    bool enable_bastankhah_deflection = false,
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
     int time_step = 0,
     bool enable_wake_ground_interaction = true,
@@ -1017,7 +1112,8 @@ inline void apply_turbine_wakes_to_multifab(
         vel0, terrain_host, turbines, model_type, superposition, jensen_kw_base, gaussian_ka_base,
         enable_stability, L_obukhov, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz,
         turbopark_c1_base, ambient_ti_base, enable_jimenez_deflection, jimenez_kd_base,
-        wake_added_turb_model, time_step, enable_wake_ground_interaction, wake_ground_damping_scale
+        enable_bastankhah_deflection, wake_added_turb_model, time_step,
+        enable_wake_ground_interaction, wake_ground_damping_scale
     );
 }
 
