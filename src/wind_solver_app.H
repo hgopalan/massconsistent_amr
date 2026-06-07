@@ -129,6 +129,14 @@ private:
     bool enable_stability_correction = false;
     amrex::Real stability_length = 1000.0;
     bool use_holtslag_stability = false;
+    bool enable_pg_stability = false;
+    amrex::Real solar_radiation = 400.0;
+    bool is_nighttime = false;
+    amrex::Real cloud_cover = 0.5;
+
+    // Atmospheric Inversion Capping Lid
+    bool enable_capping_lid = false;
+    amrex::Real capping_lid_height = 1000.0;
 
     // Elevation scaling
     bool enable_elevation_scaling = false;

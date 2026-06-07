@@ -500,6 +500,14 @@ add_python_regression_test(iec61400_categories_regtest iec61400_categories
 add_regression_test(field_output_test field_output_test)
 
 # ===========================================================================
+# New easy-to-implement features tests
+# ===========================================================================
+add_regression_test(pasquill_gifford pasquill_gifford)
+add_regression_test(power_law_profile_bl power_law_profile_bl)
+add_regression_test(deaves_harris deaves_harris)
+add_regression_test(capping_lid capping_lid)
+
+# ===========================================================================
 # High-Yield Parameterizations (Surface Roughness, Coriolis, Windbreaks)
 # ===========================================================================
 add_regression_test(canopy_lai_profiles canopy_lai_profiles)
