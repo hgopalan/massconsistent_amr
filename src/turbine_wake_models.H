@@ -81,6 +81,8 @@ struct Turbine {
     CtCurve ct_curve;
     PowerCurve power_curve;
     std::string power_curve_file = "";
+    Real yaw = 0.0;        // yaw angle in degrees
+    Real orientation = 0.0; // orientation angle in degrees
 
     // Outputs computed during simulation
     Real inflow_wind_speed = 0.0;
@@ -119,6 +121,13 @@ inline void read_power_curve_file(const std::string& filename, PowerCurve& pc, C
     }
 }
 
+inline bool is_numeric(const std::string& s) {
+    if (s.empty()) return false;
+    char* p;
+    strtod(s.c_str(), &p);
+    return *p == 0;
+}
+
 inline void read_turbines_file(const std::string& filename, std::vector<Turbine>& turbines) {
     std::ifstream f(filename);
     if (!f.is_open()) {
@@ -133,9 +142,19 @@ inline void read_turbines_file(const std::string& filename, std::vector<Turbine>
         
         std::replace(line.begin(), line.end(), ',', ' ');
         std::istringstream ss(line);
-        Real x, y, hub_h, rot_d, default_ct;
-        std::string pc_file;
-        if (ss >> x >> y >> hub_h >> rot_d >> default_ct) {
+        std::vector<std::string> tokens;
+        std::string token;
+        while (ss >> token) {
+            tokens.push_back(token);
+        }
+        
+        if (tokens.size() >= 5) {
+            Real x = std::stod(tokens[0]);
+            Real y = std::stod(tokens[1]);
+            Real hub_h = std::stod(tokens[2]);
+            Real rot_d = std::stod(tokens[3]);
+            Real default_ct = std::stod(tokens[4]);
+            
             Turbine t;
             t.id = id++;
             t.x = x;
@@ -143,14 +162,31 @@ inline void read_turbines_file(const std::string& filename, std::vector<Turbine>
             t.hub_height = hub_h;
             t.rotor_diameter = rot_d;
             t.ct_curve.default_ct = default_ct;
+            t.yaw = 0.0;
+            t.orientation = 0.0;
+            t.power_curve_file = "";
             
-            if (ss >> pc_file && !pc_file.empty()) {
-                std::string resolved_pc_file = pc_file;
-                if (pc_file[0] != '/' && filename.find('/') != std::string::npos) {
-                    std::size_t last_slash = filename.find_last_of('/');
-                    resolved_pc_file = filename.substr(0, last_slash + 1) + pc_file;
+            bool parsed_yaw = false;
+            for (std::size_t i = 5; i < tokens.size(); ++i) {
+                const std::string& tok = tokens[i];
+                if (is_numeric(tok)) {
+                    if (!parsed_yaw) {
+                        t.yaw = std::stod(tok);
+                        parsed_yaw = true;
+                    } else {
+                        t.orientation = std::stod(tok);
+                    }
+                } else {
+                    t.power_curve_file = tok;
                 }
-                t.power_curve_file = pc_file;
+            }
+            
+            if (!t.power_curve_file.empty()) {
+                std::string resolved_pc_file = t.power_curve_file;
+                if (t.power_curve_file[0] != '/' && filename.find('/') != std::string::npos) {
+                    std::size_t last_slash = filename.find_last_of('/');
+                    resolved_pc_file = filename.substr(0, last_slash + 1) + t.power_curve_file;
+                }
                 read_power_curve_file(resolved_pc_file, t.power_curve, t.ct_curve);
             }
             turbines.push_back(t);

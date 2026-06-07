@@ -1530,7 +1530,7 @@ bool wind_solver_is_initialized()
     return g_wind_solver_state && g_wind_solver_state->initialized;
 }
 
-bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file)
+bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw, double orientation)
 {
     try {
         require_initialized();
@@ -1544,13 +1544,15 @@ bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor
         t.rotor_diameter = static_cast<Real>(rotor_diameter);
         t.ct_curve.default_ct = static_cast<Real>(default_ct);
         t.power_curve_file = power_curve_file;
+        t.yaw = static_cast<Real>(yaw);
+        t.orientation = static_cast<Real>(orientation);
         
         if (!power_curve_file.empty()) {
             TurbineWake::read_power_curve_file(power_curve_file, t.power_curve, t.ct_curve);
         }
         
         state.turbines.push_back(t);
-        amrex::Print() << "wind_solver: Added turbine " << t.id << " at (" << t.x << ", " << t.y << ")\n";
+        amrex::Print() << "wind_solver: Added turbine " << t.id << " at (" << t.x << ", " << t.y << ") with yaw=" << yaw << ", orientation=" << orientation << "\n";
         return true;
     } catch (const std::exception& e) {
         amrex::Print() << "Error adding turbine: " << e.what() << "\n";
@@ -1586,5 +1588,27 @@ std::vector<double> wind_solver_get_turbine_inflow_speeds()
         }
     }
     return speed;
+}
+
+std::vector<double> wind_solver_get_turbine_yaws()
+{
+    std::vector<double> yaws;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            yaws.push_back(static_cast<double>(t.yaw));
+        }
+    }
+    return yaws;
+}
+
+std::vector<double> wind_solver_get_turbine_orientations()
+{
+    std::vector<double> orientations;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            orientations.push_back(static_cast<double>(t.orientation));
+        }
+    }
+    return orientations;
 }
 

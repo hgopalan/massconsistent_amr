@@ -378,8 +378,8 @@ bool wind_solver_is_initialized_py() {
     return wind_solver_is_initialized();
 }
 
-bool wind_solver_add_turbine_py(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file) {
-    return wind_solver_add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file);
+bool wind_solver_add_turbine_py(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw, double orientation) {
+    return wind_solver_add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file, yaw, orientation);
 }
 
 void wind_solver_clear_turbines_py() {
@@ -392,6 +392,14 @@ std::vector<double> wind_solver_get_turbine_power_outputs_py() {
 
 std::vector<double> wind_solver_get_turbine_inflow_speeds_py() {
     return wind_solver_get_turbine_inflow_speeds();
+}
+
+std::vector<double> wind_solver_get_turbine_yaws_py() {
+    return wind_solver_get_turbine_yaws();
+}
+
+std::vector<double> wind_solver_get_turbine_orientations_py() {
+    return wind_solver_get_turbine_orientations();
 }
 
 // ============================================================================
@@ -636,7 +644,9 @@ PYBIND11_MODULE(pyWindSolver, m) {
 
     // Turbine API
     m.def("add_turbine", &wind_solver_add_turbine_py,
-          py::arg("x"), py::arg("y"), py::arg("hub_height"), py::arg("rotor_diameter"), py::arg("default_ct") = 0.8, py::arg("power_curve_file") = "",
+          py::arg("x"), py::arg("y"), py::arg("hub_height"), py::arg("rotor_diameter"),
+          py::arg("default_ct") = 0.8, py::arg("power_curve_file") = "",
+          py::arg("yaw") = 0.0, py::arg("orientation") = 0.0,
           R"pbdoc(
         Add a wind turbine to the solver.
       )pbdoc");
@@ -654,5 +664,15 @@ PYBIND11_MODULE(pyWindSolver, m) {
     m.def("get_turbine_inflow_speeds", &wind_solver_get_turbine_inflow_speeds_py,
           R"pbdoc(
         Get inflow wind speed at all turbines.
+      )pbdoc");
+
+    m.def("get_turbine_yaws", &wind_solver_get_turbine_yaws_py,
+          R"pbdoc(
+        Get yaw angle of all turbines.
+      )pbdoc");
+
+    m.def("get_turbine_orientations", &wind_solver_get_turbine_orientations_py,
+          R"pbdoc(
+        Get orientation of all turbines.
       )pbdoc");
 }

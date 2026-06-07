@@ -324,13 +324,13 @@ class WindSolver:
         print(f"✓ Solver parameters updated")
         return success
     
-    def add_turbine(self, x, y, hub_height, rotor_diameter, default_ct=0.8, power_curve_file=""):
+    def add_turbine(self, x, y, hub_height, rotor_diameter, default_ct=0.8, power_curve_file="", yaw=0.0, orientation=0.0):
         """
         Add a wind turbine to the solver.
         """
         if not self.initialized:
             raise RuntimeError("Solver not initialized.")
-        return pyWindSolver.add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file)
+        return pyWindSolver.add_turbine(x, y, hub_height, rotor_diameter, default_ct, power_curve_file, yaw, orientation)
     
     def clear_turbines(self):
         """
@@ -355,6 +355,22 @@ class WindSolver:
         if not self.initialized:
             raise RuntimeError("Solver not initialized.")
         return pyWindSolver.get_turbine_inflow_speeds()
+
+    def get_turbine_yaws(self):
+        """
+        Get the yaw angles from all wind turbines.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.get_turbine_yaws()
+
+    def get_turbine_orientations(self):
+        """
+        Get the orientation angles from all wind turbines.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized.")
+        return pyWindSolver.get_turbine_orientations()
     
     def write_plotfile(self, plotfile_name="plt_wind"):
         """
