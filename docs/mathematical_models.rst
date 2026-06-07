@@ -118,6 +118,20 @@ where :math:`\Delta\theta` is the potential temperature difference, and :math:`h
 * **Weak Stability (:math:`Ri_b < 0.1`)**: Uses Businger-Dyer functions.
 * **Strong Stability (:math:`Ri_b \ge 0.1`)**: Uses Holtslag-De Bruin functions to represent strong vertical shear damping.
 
+Spatially-Varying Diagnostic Boundary Layer Height
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To determine the mixing depth and boundary layer height :math:`z_i(x,y)` dynamically over complex terrain and variable thermal conditions, the solver implements a column-scanning bulk Richardson number (:math:`Ri_b`) profile method when ``enable_bl_depth_diagnostic = true``.
+
+The diagnostic scans each vertical grid column from the first cell above ground level, :math:`k_{\text{start}}`, up to the top of the domain. At each level :math:`k`, the bulk Richardson number is calculated using the local height above ground level :math:`z_{\text{agl}}` and the potential temperature difference relative to the surface cell:
+
+.. math::
+
+   Ri_b(z_{\text{agl}}) = \frac{g}{\theta_s} \frac{[\theta(z_{\text{agl}}) - \theta_s] \cdot z_{\text{agl}}}{u^2(z_{\text{agl}}) + v^2(z_{\text{agl}})}
+
+where :math:`\theta_s` is the surface potential temperature at :math:`k_{\text{start}}`, and :math:`u(z_{\text{agl}}), v(z_{\text{agl}})` are horizontal wind components.
+
+The boundary layer depth :math:`z_i(x,y)` is diagnosed as the height above ground where :math:`Ri_b` first exceeds the critical Richardson number :math:`Ri_c` (configured via ``richardson_critical``, defaulting to 0.25). Linear interpolation between grid levels is used to compute the precise transition height. If :math:`Ri_b` never exceeds :math:`Ri_c`, the boundary layer is assumed to extend to the top of the domain.
+
 Jackson-Hunt Orographic Speed-up Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Wind acceleration over convex terrain features (ridges, hill tops) and deceleration in valleys is parameterized using the Jackson and Hunt (1975) model:
