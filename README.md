@@ -102,7 +102,9 @@ Comprehensive test cases are located in the `test/` folder and documented in `te
 
 ## Regression Tests
 
-Over 70 automated regression tests are located in `regtest/`. Run them using CTest from your build directory:
+Over 80 automated regression tests are located in `regtest/`, covering core mass-consistent wind solver components, advanced boundary layer dynamics, forest canopies, buildings and obstacles, environmental dispersion, synthetic turbulence, and analytical turbine wake models (including GCH, TurbOPark, Jimenez deflection, wake-added turbulence, and AEP calculator validation). It also includes a specialized test verifying Python-side one-way wildfire levelset coupling.
+
+Run them using CTest from your build directory:
 ```bash
 ctest -L regtest
 ```

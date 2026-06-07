@@ -215,14 +215,29 @@ Buildings are specified in a CSV file with one building box per line. The option
 
 Wind Turbine File Format
 ~~~~~~~~~~~~~~~~~~~~~~~~
-Turbines are defined in a CSV layout file. Columns represent coordinate locations, dimensions, and operational properties::
+Turbines are defined in a CSV layout file. Columns represent coordinate locations, dimensions, and operational properties in the following order:
 
-   # x, y, hub_height, rotor_diameter, default_ct, [power_curve_file]
-   100.0, 200.0, 90.0, 120.0, 0.8, nrel_5mw.csv
+1. **x** (required): Easting or local x-coordinate [m].
+2. **y** (required): Northing or local y-coordinate [m].
+3. **hub_height** (required): Turbine hub height above ground level [m].
+4. **rotor_diameter** (required): Rotor diameter [m].
+5. **default_ct** (required): Default thrust coefficient.
+6. **yaw** (optional): Wake deflection angle relative to incoming wind [degrees].
+7. **orientation** (optional): Turbine rotor alignment angle relative to grid x-axis [degrees].
+8. **power_curve_file** (optional): Filename of the CSV power curve.
+
+**Yaw** defines the active aerodynamic misalignment of the rotor disk relative to the incoming wind direction. This is used to calculate lateral wake deflection and secondary steering. In contrast, **orientation** specifies the fixed absolute physical heading of the rotor face relative to the grid coordinate system.
+
+Example::
+
+   # x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file
+   100.0, 200.0, 90.0, 120.0, 0.8, 15.0, 45.0, nrel_5mw.csv
 
 Power Curve CSV Format
 ~~~~~~~~~~~~~~~~~~~~~~
-Discrete electrical power outputs and thrust coefficients are mapped in an optional power curve file::
+Discrete electrical power outputs and thrust coefficients are mapped in an optional power curve file:
+
+.. code-block:: csv
 
    # wind_speed, power_kw, ct
    3.0, 0.0, 0.8
@@ -267,25 +282,100 @@ The solver can export wind speeds in formats compatible with NREL's FLORIS (Wind
         --reference-speed 10.0 \
         --output wind_data.csv
 
-PyWake Integration
-------------------
+Wind Farm & Coupling Integration
+--------------------------------
 
-The solver also integrates with DTU's PyWake wind farm simulation library. It supports extracting converged wind fields as PyWake ``Site`` or ``WAsPGridSite`` compatible structures. You can export terrain, roughness, and wind maps directly to WAsP ASCII Surfer ``.grd`` grid format:
+PyWake Integration and Site Export
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The solver integrates directly with DTU's PyWake wind farm simulation library. This integration allows users to format and extract mass-consistent wind fields as native PyWake ``Site`` or ``WAsPGridSite`` structures. Additionally, grid maps of terrain, roughness, wind speed, and wind direction can be exported to Surfer ASCII ``.grd`` formats compatible with WAsP.
 
 .. code-block:: python
 
+    import sys
     from wind_solver import WindSolver
     from pywake_coupling import MassConsistentSite, to_wasp_grid_site
 
-    # Solved WindSolver instance
+    # 1. Initialize and execute the mass-consistent wind solver
     wind = WindSolver("inputs.i")
     wind.solve()
 
-    # Format resolved wind fields as a PyWake Site object
+    # 2. Extract resolved fields as a standard PyWake Site object
     site = MassConsistentSite(wind)
+    
+    # Query local wind properties at multiple coordinates and heights
+    local_wind = site.local_wind(x=[100.0, 500.0], y=[200.0, 200.0], h=[90.0, 90.0])
+    print("Local wind directions:", local_wind.WD_ilk)
+    print("Local wind speeds:", local_wind.WS_ilk)
 
-    # Or export to WAsP GRD files and load as a WAsPGridSite
+    # 3. Export resolved wind fields to WAsP Surfer GRD files and instantiate a WAsPGridSite
     wasp_site = to_wasp_grid_site(wind, height_agl=90.0, output_dir="wasp_grids")
+    print("WAsP Surfer GRD files successfully generated in 'wasp_grids/'")
+
+    # 4. Clean up resources
+    wind.finalize()
+
+Wind Turbine Yaw Setup & Wake Steering
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To configure wake deflection and secondary steering via yaw, specify the active wake parameterizations in ``inputs.i`` and define specific yaw angles in ``turbines.csv``:
+
+1. **Enable models in inputs.i**:
+
+   .. code-block:: ini
+
+       enable_turbine_wake = true
+       turbine_file = turbines.csv
+       turbine_wake_model_type = gch            # Gauss-Curl Hybrid (secondary steering)
+       enable_jimenez_deflection = true         # Deflection model for yawed turbines
+       jimenez_kd = 0.05                        # Deflection decay rate
+       wake_added_turbulence_model = frandsen   # Wake-added turbulence model
+
+2. **Specify layout and yaw values in turbines.csv**:
+
+   .. code-block:: csv
+
+       # x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, [power_curve_file]
+       200.0, 500.0, 80.0, 110.0, 0.8, 20.0, 0.0, nrel_5mw.csv
+       600.0, 500.0, 80.0, 110.0, 0.8, 0.0, 0.0, nrel_5mw.csv
+
+Coupling Integration with External Solvers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Programmatic coupling allows passing dynamic 3D wind velocity arrays to external solvers (e.g., wild-land fire spread solvers such as ``wildfire_levelset``) in a tight-coupling framework.
+
+.. code-block:: python
+
+    import time
+    from wind_solver import WindSolver
+    from wildfire_solver import WildfireSolver
+
+    # Initialize the wind and fire solvers
+    wind = WindSolver("wind_inputs.i")
+    fire = WildfireSolver("fire_inputs.i")
+
+    # Coupling loop
+    step = 0
+    while fire.time < 3600.0:
+        # Step A: Update and solve mass-consistent wind field
+        wind.solve()
+        vel_3d = wind.get_velocity()
+        
+        # Step B: Pass 3D wind arrays (nz, ny, nx) to the fire spread solver
+        # The fire solver maps these onto its internal grid using vertical interpolation
+        fire.update_wind_3d(
+            vel_3d['u'], 
+            vel_3d['v'], 
+            vel_3d['w'],
+            wind.nz, 
+            wind.zmin, 
+            wind.zmax
+        )
+
+        # Step C: Advance the wildfire levelset front
+        fire.step()
+        print(f"Step {step}: advanced fire simulation time to {fire.time:.1f} s")
+        step += 1
+
+    wind.finalize()
+    fire.finalize()
 
 Step-by-Step Walkthrough Tutorials
 ----------------------------------

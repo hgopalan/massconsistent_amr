@@ -159,6 +159,53 @@ To export to a custom PyWake ``Site`` subclass or save as standard WAsP GRD file
 
     wind.finalize()
 
+AEP Production Calculation (AEPCalculator)
+------------------------------------------
+
+The ``aep_calculator`` module automates batch execution of the mass-consistent C++ wind solver across a joint wind speed and direction distribution (wind rose) to compute total Annual Energy Production (AEP).
+
+Basic Usage
+~~~~~~~~~~~
+To calculate AEP across a 4-direction, 3-speed wind rose:
+
+.. code-block:: python
+
+    import numpy as np
+    from aep_calculator import AEPCalculator
+
+    # 1. Instantiate AEPCalculator with inputs file
+    calc = AEPCalculator("inputs.i")
+
+    # 2. Define wind rose parameters
+    wind_speeds = [5.0, 10.0, 15.0]
+    wind_directions = [0.0, 90.0, 180.0, 270.0]
+    
+    # Joint probabilities summing to 1.0
+    probabilities = [
+        [0.1,  0.1,  0.05],  # North (0 deg)
+        [0.15, 0.15, 0.05],  # East  (90 deg)
+        [0.05, 0.05, 0.05],  # South (180 deg)
+        [0.1,  0.1,  0.1 ]   # West  (270 deg)
+    ]
+
+    # 3. Execute batch simulations
+    res = calc.run_wind_rose(wind_speeds, wind_directions, probabilities)
+
+    # 4. Extract total AEP in kWh and detailed profiles
+    results = res["results"]
+    print(f"Total Annual Energy Production: {results['total_aep_kwh']:.2f} kWh")
+    print(f"Sector-by-sector AEP (kWh):", results["sector_aep_kwh"])
+    print(f"Turbine-by-turbine AEP (kWh):", results["turbine_aep_kwh"])
+
+AEPCalculator Class Reference
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Constructor**:
+* ``__init__(inputs_file)``: Initializes the calculator and stores the path to the C++ solver input template.
+
+**Methods**:
+* ``run_wind_rose(wind_speeds, wind_directions, probabilities, turbines=None, yaw_offsets=None, stability_scenarios=None)``: Runs the batch simulations. Optionally accepts custom turbine listings, specific yaw offset angles, and stability parameter scenarios to perform rapid layout optimization under varying conditions.
+
 Build and Installation
 ----------------------
 
