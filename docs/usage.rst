@@ -215,9 +215,20 @@ Buildings are specified in a CSV file with one building box per line. The option
 
 Wind Turbine File Format
 ~~~~~~~~~~~~~~~~~~~~~~~~
-Turbines are defined in a CSV layout file. Columns represent coordinate locations, dimensions, and operational properties including optional yaw (deflection angle relative to the incoming wind direction) and horizontal orientation angles (both specified in degrees)::
+Turbines are defined in a CSV layout file. Columns represent coordinate locations, dimensions, and operational properties in the following order:
 
-   # x, y, hub_height, rotor_diameter, default_ct, [yaw], [orientation], [power_curve_file]
+1. **x** (required): Easting or local x-coordinate [m].
+2. **y** (required): Northing or local y-coordinate [m].
+3. **hub_height** (required): Turbine hub height above ground level [m].
+4. **rotor_diameter** (required): Rotor diameter [m].
+5. **default_ct** (required): Default thrust coefficient.
+6. **yaw** (optional): Wake deflection angle relative to incoming wind [degrees].
+7. **orientation** (optional): Turbine rotor alignment angle relative to grid x-axis [degrees].
+8. **power_curve_file** (optional): Filename of the CSV power curve.
+
+Example::
+
+   # x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file
    100.0, 200.0, 90.0, 120.0, 0.8, 15.0, 45.0, nrel_5mw.csv
 
 Power Curve CSV Format

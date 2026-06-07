@@ -62,6 +62,17 @@ class TestWildfireCouplingIntegration(unittest.TestCase):
                 self.zmax = 0.0
                 
             def update_wind_3d(self, u, v, w, nz, zmin, zmax):
+                """
+                Pass corrected 3D wind velocity arrays to the fire solver.
+                
+                Parameters:
+                    u (np.ndarray): 3D array of x-direction wind velocity components.
+                    v (np.ndarray): 3D array of y-direction wind velocity components.
+                    w (np.ndarray): 3D array of z-direction wind velocity components.
+                    nz (int): Number of vertical levels.
+                    zmin (float): Minimum physical vertical height.
+                    zmax (float): Maximum physical vertical height.
+                """
                 # Verify passed parameter types and structures
                 assert isinstance(u, np.ndarray), "u must be a numpy array"
                 assert isinstance(v, np.ndarray), "v must be a numpy array"
