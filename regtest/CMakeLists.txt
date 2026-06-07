@@ -520,9 +520,15 @@ if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
                             test_phase2_analytical_wake_extensions.py)
   add_python_regression_test(aep_dispersion aep_dispersion
                             test_aep_dispersion.py)
+  add_python_regression_test(phase3_advanced_wake_models phase3_advanced_wake_models
+                            test_phase3_advanced_wake_models.py)
+  add_python_regression_test(wildfire_levelset_coupling wildfire_levelset_coupling
+                            test_wildfire_coupling.py)
 else()
   message(STATUS "  analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
   message(STATUS "  aep_dispersion: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  phase3_advanced_wake_models: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  wildfire_levelset_coupling: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
 endif()
 
 # ===========================================================================
