@@ -429,6 +429,11 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.gaussian_ka = 0.05;
     state.enable_stability_correction = false;
     state.stability_length = 1000.0;
+    state.turbopark_c1 = 0.38;
+    state.ambient_ti = 0.075;
+    state.enable_jimenez_deflection = false;
+    state.jimenez_kd = 0.05;
+    state.wake_added_turbulence_model = "none";
 
     pp.query("enable_turbine_wake", state.enable_turbine_wake);
     pp.query("turbine_file", state.turbine_file);
@@ -438,6 +443,11 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("gaussian_ka", state.gaussian_ka);
     pp.query("enable_stability_correction", state.enable_stability_correction);
     pp.query("stability_length", state.stability_length);
+    pp.query("turbopark_c1", state.turbopark_c1);
+    pp.query("ambient_ti", state.ambient_ti);
+    pp.query("enable_jimenez_deflection", state.enable_jimenez_deflection);
+    pp.query("jimenez_kd", state.jimenez_kd);
+    pp.query("wake_added_turbulence_model", state.wake_added_turbulence_model);
 
     if (state.enable_turbine_wake && !state.turbine_file.empty()) {
         TurbineWake::read_turbines_file(state.turbine_file, state.turbines);
@@ -732,10 +742,18 @@ void initialize_wind_field(WindSolverState& state)
         TurbineWake::TurbineWakeModelType tw_model_type = TurbineWake::TurbineWakeModelType::JENSEN;
         if (state.turbine_wake_model_type == "bastankhah_gaussian" || state.turbine_wake_model_type == "gaussian") {
             tw_model_type = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
+        } else if (state.turbine_wake_model_type == "turbopark") {
+            tw_model_type = TurbineWake::TurbineWakeModelType::TURBOPARK;
         }
         TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
         if (state.turbine_wake_superposition == "linear") {
             tw_superposition = TurbineWake::SuperpositionType::LINEAR;
+        }
+        TurbineWake::WakeAddedTurbulenceModelType added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::NONE;
+        if (state.wake_added_turbulence_model == "crespo_hernandez") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::CRESPO_HERNANDEZ;
+        } else if (state.wake_added_turbulence_model == "frandsen" || state.wake_added_turbulence_model == "stf") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::FRANDSEN;
         }
         
         TurbineWake::apply_turbine_wakes_to_multifab(
@@ -751,6 +769,11 @@ void initialize_wind_field(WindSolverState& state)
             state.xmin, state.ymin, state.zmin,
             state.dx, state.dy, state.dz,
             state.nx, state.ny, state.nz,
+            state.turbopark_c1,
+            state.ambient_ti,
+            state.enable_jimenez_deflection,
+            state.jimenez_kd,
+            added_turb_model,
             0 // time_step
         );
     }
@@ -1530,7 +1553,7 @@ bool wind_solver_is_initialized()
     return g_wind_solver_state && g_wind_solver_state->initialized;
 }
 
-bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file)
+bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw, double orientation)
 {
     try {
         require_initialized();
@@ -1544,13 +1567,15 @@ bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor
         t.rotor_diameter = static_cast<Real>(rotor_diameter);
         t.ct_curve.default_ct = static_cast<Real>(default_ct);
         t.power_curve_file = power_curve_file;
+        t.yaw = static_cast<Real>(yaw);
+        t.orientation = static_cast<Real>(orientation);
         
         if (!power_curve_file.empty()) {
             TurbineWake::read_power_curve_file(power_curve_file, t.power_curve, t.ct_curve);
         }
         
         state.turbines.push_back(t);
-        amrex::Print() << "wind_solver: Added turbine " << t.id << " at (" << t.x << ", " << t.y << ")\n";
+        amrex::Print() << "wind_solver: Added turbine " << t.id << " at (" << t.x << ", " << t.y << ") with yaw=" << yaw << ", orientation=" << orientation << "\n";
         return true;
     } catch (const std::exception& e) {
         amrex::Print() << "Error adding turbine: " << e.what() << "\n";
@@ -1586,5 +1611,27 @@ std::vector<double> wind_solver_get_turbine_inflow_speeds()
         }
     }
     return speed;
+}
+
+std::vector<double> wind_solver_get_turbine_yaws()
+{
+    std::vector<double> yaws;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            yaws.push_back(static_cast<double>(t.yaw));
+        }
+    }
+    return yaws;
+}
+
+std::vector<double> wind_solver_get_turbine_orientations()
+{
+    std::vector<double> orientations;
+    if (g_wind_solver_state) {
+        for (const auto& t : g_wind_solver_state->turbines) {
+            orientations.push_back(static_cast<double>(t.orientation));
+        }
+    }
+    return orientations;
 }
 

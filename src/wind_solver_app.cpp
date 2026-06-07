@@ -116,6 +116,11 @@ void WindSolverApp::parse_inputs() {
     pp.query("turbine_wake_superposition", turbine_wake_superposition);
     pp.query("jensen_kw", jensen_kw);
     pp.query("gaussian_ka", gaussian_ka);
+    pp.query("turbopark_c1", turbopark_c1);
+    pp.query("ambient_ti", ambient_ti);
+    pp.query("enable_jimenez_deflection", enable_jimenez_deflection);
+    pp.query("jimenez_kd", jimenez_kd);
+    pp.query("wake_added_turbulence_model", wake_added_turbulence_model);
     
     if (enable_turbine_wake && !turbine_file.empty()) {
         TurbineWake::read_turbines_file(turbine_file, turbines);
@@ -2720,10 +2725,18 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         TurbineWake::TurbineWakeModelType tw_model_type = TurbineWake::TurbineWakeModelType::JENSEN;
         if (turbine_wake_model_type == "bastankhah_gaussian" || turbine_wake_model_type == "gaussian") {
             tw_model_type = TurbineWake::TurbineWakeModelType::BASTANKHAH_GAUSSIAN;
+        } else if (turbine_wake_model_type == "turbopark") {
+            tw_model_type = TurbineWake::TurbineWakeModelType::TURBOPARK;
         }
         TurbineWake::SuperpositionType tw_superposition = TurbineWake::SuperpositionType::QUADRATIC;
         if (turbine_wake_superposition == "linear") {
             tw_superposition = TurbineWake::SuperpositionType::LINEAR;
+        }
+        TurbineWake::WakeAddedTurbulenceModelType added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::NONE;
+        if (wake_added_turbulence_model == "crespo_hernandez") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::CRESPO_HERNANDEZ;
+        } else if (wake_added_turbulence_model == "frandsen" || wake_added_turbulence_model == "stf") {
+            added_turb_model = TurbineWake::WakeAddedTurbulenceModelType::FRANDSEN;
         }
         
         TurbineWake::apply_turbine_wakes_to_multifab(
@@ -2739,6 +2752,11 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             x_lo, y_lo, zs_min,
             dx, dy, dz,
             nx, ny, nz,
+            turbopark_c1,
+            ambient_ti,
+            enable_jimenez_deflection,
+            jimenez_kd,
+            added_turb_model,
             time_step
         );
     }

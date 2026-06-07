@@ -133,6 +133,32 @@ MannBox Class Reference
 
 * ``update_parameters(**kwargs)``: Dynamically updates Monin-Obukhov parameters (length scales, intensities, coherence decay).
 
+PyWake Coupling and Site Export
+-------------------------------
+
+The ``pywake_coupling`` module provides classes and utilities to format converged mass-consistent wind fields directly into PyWake ``Site`` or ``WAsPGridSite`` structures.
+
+Basic Usage
+~~~~~~~~~~~
+To export to a custom PyWake ``Site`` subclass or save as standard WAsP GRD files:
+
+.. code-block:: python
+
+    from wind_solver import WindSolver
+    from pywake_coupling import MassConsistentSite, to_wasp_grid_site
+
+    wind = WindSolver("inputs.i")
+    wind.solve()
+
+    # 1. Create a PyWake-compatible Site object for local wind queries
+    site = MassConsistentSite(wind)
+    local_wind = site.local_wind(x=[100, 200], y=[150, 150], h=[90.0, 90.0])
+
+    # 2. Export WAsP Surfer .grd ASCII grid files
+    wasp_site = to_wasp_grid_site(wind, height_agl=90.0, output_dir="wasp_grids")
+
+    wind.finalize()
+
 Build and Installation
 ----------------------
 

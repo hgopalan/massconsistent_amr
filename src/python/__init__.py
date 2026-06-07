@@ -32,5 +32,6 @@ __version__ = "0.1.0"
 # Import the high-level API by default
 from .wind_solver import WindSolver
 from .floris_coupling import FLORISWindMap, quick_export
+from .pywake_coupling import MassConsistentSite, export_to_wasp_grd, to_wasp_grid_site
 
-__all__ = ["WindSolver", "FLORISWindMap", "quick_export"]
+__all__ = ["WindSolver", "FLORISWindMap", "quick_export", "MassConsistentSite", "export_to_wasp_grd", "to_wasp_grid_site"]

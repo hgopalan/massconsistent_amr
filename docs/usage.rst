@@ -167,7 +167,7 @@ Parameter Reference
      - Path to turbines CSV layout file.
    * - ``turbine_wake_model_type``
      - ``jensen``
-     - Turbine wake model: ``jensen`` (classic linear) or ``bastankhah_gaussian`` (Gaussian deficit).
+     - Turbine wake model: ``jensen`` (classic linear), ``bastankhah_gaussian`` (Gaussian deficit), or ``turbopark`` (self-similar Gaussian with local TI).
    * - ``turbine_wake_superposition``
      - ``quadratic``
      - Wake deficit superposition method: ``quadratic`` (RSS) or ``linear``.
@@ -177,6 +177,21 @@ Parameter Reference
    * - ``gaussian_ka``
      - ``0.05``
      - Bastankhah wake expansion coefficient.
+   * - ``turbopark_c1``
+     - ``0.38``
+     - TurbOPark expansion coefficient.
+   * - ``ambient_ti``
+     - ``0.075``
+     - Ambient turbulence intensity.
+   * - ``enable_jimenez_deflection``
+     - ``false``
+     - Enable Jimenez wake centerline deflection model.
+   * - ``jimenez_kd``
+     - ``0.05``
+     - Jimenez deflection calibration constant.
+   * - ``wake_added_turbulence_model``
+     - ``none``
+     - Analytical wake-added turbulence model: ``none``, ``crespo_hernandez``, or ``frandsen`` (STF).
 
 File Formats
 ------------
@@ -251,6 +266,26 @@ The solver can export wind speeds in formats compatible with NREL's FLORIS (Wind
         --hub-height 90.0 \
         --reference-speed 10.0 \
         --output wind_data.csv
+
+PyWake Integration
+------------------
+
+The solver also integrates with DTU's PyWake wind farm simulation library. It supports extracting converged wind fields as PyWake ``Site`` or ``WAsPGridSite`` compatible structures. You can export terrain, roughness, and wind maps directly to WAsP ASCII Surfer ``.grd`` grid format:
+
+.. code-block:: python
+
+    from wind_solver import WindSolver
+    from pywake_coupling import MassConsistentSite, to_wasp_grid_site
+
+    # Solved WindSolver instance
+    wind = WindSolver("inputs.i")
+    wind.solve()
+
+    # Format resolved wind fields as a PyWake Site object
+    site = MassConsistentSite(wind)
+
+    # Or export to WAsP GRD files and load as a WAsPGridSite
+    wasp_site = to_wasp_grid_site(wind, height_agl=90.0, output_dir="wasp_grids")
 
 Step-by-Step Walkthrough Tutorials
 ----------------------------------
