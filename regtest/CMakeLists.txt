@@ -530,6 +530,8 @@ if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
                             test_aep_dispersion.py)
   add_python_regression_test(phase3_advanced_wake_models phase3_advanced_wake_models
                             test_phase3_advanced_wake_models.py)
+  add_python_regression_test(bastankhah_deflection bastankhah_deflection
+                            test_bastankhah_deflection.py)
   add_python_regression_test(wildfire_levelset_coupling wildfire_levelset_coupling
                             test_wildfire_coupling.py)
 else()

@@ -157,6 +157,7 @@ struct WindSolverState {
     amrex::Real turbopark_c1;
     amrex::Real ambient_ti;
     bool enable_jimenez_deflection;
+    bool enable_bastankhah_deflection;
     amrex::Real jimenez_kd;
     std::string wake_added_turbulence_model;
     // Phase 3 Advanced Wake Models

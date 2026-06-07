@@ -97,6 +97,7 @@ private:
     amrex::Real turbopark_c1 = 0.38;
     amrex::Real ambient_ti = 0.075;
     bool enable_jimenez_deflection = false;
+    bool enable_bastankhah_deflection = false;
     amrex::Real jimenez_kd = 0.05;
     std::string wake_added_turbulence_model = "none";
     // Phase 3 Advanced Wake Models

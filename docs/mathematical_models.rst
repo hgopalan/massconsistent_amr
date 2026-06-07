@@ -313,8 +313,10 @@ The solver supports analytical turbine wake deficits for wind energy application
 
    These induced crosswind velocities steer downstream turbine wakes directly within the 3D velocity grid, fully capturing multi-turbine secondary steering without the computational expense of full CFD.
 
-Wake Centerline Deflection (Jimenez Model)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Wake Centerline Deflection Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. **Jimenez Model**:
 To model yawed wind turbine wakes, the Jimenez wake deflection model computes the wake centerline deflection :math:`y_{\text{offset}}(x_{\text{down}})` due to thrust-induced lateral force components:
 
 .. math::
@@ -334,6 +336,33 @@ Integrating the deflection angle along the downstream path yields the transverse
    y_{\text{offset}}(x_{\text{down}}) = D \cdot \theta_0 \cdot \frac{1}{2 \beta_{\text{def}}} \left( 1 - \frac{1}{1 + 2 \beta_{\text{def}} \frac{x_{\text{down}}}{D}} \right)
 
 where :math:`\gamma` is the yaw angle and :math:`\beta_{\text{def}} = k_d` is the deflection decay coefficient (configured via `jimenez_kd`, defaulting to 0.05).
+
+2. **Bastankhah & Porté-Agel Model (2016)**:
+The Bastankhah & Porté-Agel wake deflection model is a closed-form mass-and-momentum-conserving analytical formulation for Gaussian wakes in yawed conditions. The initial skew angle at the rotor is given by:
+
+.. math::
+
+   \theta_{c0} = \frac{0.3 \gamma}{\cos \gamma} \left(1 - \sqrt{1 - C_T \cos \gamma}\right)
+
+The deflection :math:`\delta(x_{\text{down}})` is computed separately for near and far wake regions bounded by the near-wake length :math:`x_0`:
+
+* For :math:`x_{\text{down}} \le x_0` (near-wake):
+
+  .. math::
+
+     \delta(x_{\text{down}}) = \tan(\theta_{c0}) \cdot x_{\text{down}}
+
+* For :math:`x_{\text{down}} > x_0` (far-wake):
+
+  .. math::
+
+     \delta(x_{\text{down}}) = \tan(\theta_{c0}) \cdot x_0 + \theta_{c0} \frac{E_0}{5.2} \sqrt{\frac{\sigma_{y0} \sigma_{z0}}{k^2 M_0}} \ln \left[ \frac{(1.6 + \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} - \sqrt{M_0})}{(1.6 - \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} + \sqrt{M_0})} \right]
+
+where :math:`M_0 = C_0(2 - C_0)`, :math:`C_0 = 1 - \sqrt{1 - C_T}`, and :math:`E_0 = C_0^2 - 3 e^{1/12} C_0 + 3 e^{1/3}`.
+
+Height-Varying (Veered) Wake Orientation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Under veered atmospheric conditions, the wind direction changes continuously with height. The coordinate projection used to define "downwind" and "crosswind" directions is modified dynamically to use the local wind direction at each vertical grid level :math:`z` rather than strictly the wind direction at hub height. This is a pure algebraic coordinate transformation that captures wake twisting under atmospheric wind veer.
 
 Analytical Wake-Added Turbulence Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
