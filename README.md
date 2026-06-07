@@ -81,6 +81,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Enhanced diagnostics** — Surface heat flux and drag coefficient output fields, momentum flux, boundary layer depth
 - **Advanced physics features** — Simplified Richardson number stability classification, roughness blocking from buildings, latitude-dependent Coriolis parameter, power-law wind profile option above boundary layer, enhanced heat flux diagnostics
 - **Python API** — Coupling with fire and atmospheric models
+- **Turbine wake models** — Analytical wind turbine wake modeling (Jensen and Bastankhah Gaussian formulations) with quadratic/linear superposition and atmospheric-stability-scaled wake expansion
 - **FLORIS integration** — Export wind data to FLORIS wind farm simulation format
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 
@@ -93,16 +94,7 @@ The solver synthesizes **terrain-aware turbulent fluctuations** using:
 
 ## Test Cases
 
-The test cases in the `test/` folder validate the wind solver, time-varying boundary conditions, and synthetic turbulence:
-1. **Case 1: Gaussian Hill** (Synthetic terrain, ready to run immediately)
-2. **Case 2: Flatirons NREL Site** (Real SRTM terrain, Boulder CO)
-3. **Case 3: Mt. Hood** (Alpine SRTM terrain, high elevation)
-
-Run a test case (e.g. Case 1):
-```bash
-cd test/mass_consistent_case1_gaussian_hill
-python3 test_case1.py
-```
+Comprehensive test cases are located in the `test/` folder and documented in `test/README.md`.
 
 ## Regression Tests
 

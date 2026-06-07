@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 TEST_DIR = Path(__file__).resolve().parent
-REPO_DIR = TEST_DIR.parent
+REPO_DIR = TEST_DIR.parent.parent
 BUILD_DIR = REPO_DIR / "build"
 REGTEST_DIR = REPO_DIR / "regtest" / "gaussian_hill"
 

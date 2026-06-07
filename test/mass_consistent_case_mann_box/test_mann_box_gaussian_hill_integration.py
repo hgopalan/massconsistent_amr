@@ -23,8 +23,8 @@ import numpy as np
 
 # Add paths
 TEST_DIR = Path(__file__).resolve().parent
-SRC_PYTHON_DIR = TEST_DIR.parent / "src" / "python"
-REGTEST_DIR = TEST_DIR.parent / "regtest" / "gaussian_hill"
+SRC_PYTHON_DIR = TEST_DIR.parent.parent / "src" / "python"
+REGTEST_DIR = TEST_DIR.parent.parent / "regtest" / "gaussian_hill"
 sys.path.insert(0, str(SRC_PYTHON_DIR))
 
 try:

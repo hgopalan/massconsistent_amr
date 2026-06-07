@@ -309,7 +309,96 @@ To synthesize terrain-aware turbulent fluctuations, the model uses spectral pipe
 
 Spectral Models
 ~~~~~~~~~~~~~~~
-Turbulent velocity spectra can be synthesized using either **Von Kármán** or **Kaimal** spectral density functions with height-dependent length scales and target intensities.
+Turbulent velocity fluctuations can be synthesized using multiple advanced spectral models. These include standard isotropic/sheared models from wind engineering standards (IEC 61400-1) and full anisotropic spectral tensor formulations (Mann Box).
+
+IEC 61400-1 Spectral Models
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The standard wind input models defined in IEC 61400-1:2019 specify turbulence parameters for wind turbine design and certification, supporting the **Normal Turbulence Model (NTM)** and **Extreme Turbulence Model (ETM)**.
+
+* **Turbine Power Classes**:
+  
+  - **Class I**: High wind sites, reference speed :math:`V_{\text{ref}} = 50.0 \text{ m/s}`, :math:`V_{\text{avg}} = 10.0 \text{ m/s}`, reference turbulence intensity :math:`I_{\text{ref}} = 0.18`.
+  - **Class II**: Medium wind sites, reference speed :math:`V_{\text{ref}} = 42.5 \text{ m/s}`, :math:`V_{\text{avg}} = 8.5 \text{ m/s}`, reference turbulence intensity :math:`I_{\text{ref}} = 0.18`.
+  - **Class III**: Low wind sites, reference speed :math:`V_{\text{ref}} = 37.5 \text{ m/s}`, :math:`V_{\text{avg}} = 7.5 \text{ m/s}`, reference turbulence intensity :math:`I_{\text{ref}} = 0.18`.
+
+* **Spectral Scales**:
+  The longitudinal scale parameter :math:`\Lambda_u` is defined as a function of height :math:`z`:
+  
+  .. math::
+  
+     \Lambda_u = \begin{cases} 0.7 z & \text{if } z < 60\text{ m} \\ 42\text{ m} & \text{if } z \ge 60\text{ m} \end{cases}
+  
+  The integral length scales for Kaimal and Von Kármán spectra map to :math:`\Lambda_u` via:
+  
+  .. math::
+  
+     L_u = 8.1 \Lambda_u, \quad L_v = 2.7 \Lambda_u, \quad L_w = 0.67 \Lambda_u
+  
+  The target velocity standard deviations are specified by:
+  
+  .. math::
+  
+     \sigma_u = \sigma, \quad \sigma_v = 0.8\sigma, \quad \sigma_w = 0.5\sigma
+
+* **Von Kármán Spectrum Formulation**:
+  The streamwise (u-component) spectral density is given by:
+  
+  .. math::
+  
+     S_u(f) = \frac{4 L_u \sigma_u^2}{(1 + 70.8 \hat{f}^2)^{5/6}}
+  
+  where :math:`\hat{f} = \frac{f L_u}{U_{\text{mean}}}` is the normalized frequency.
+
+* **Kaimal Spectrum Formulation**:
+  The streamwise (u-component) spectral density is given by:
+  
+  .. math::
+  
+     S_u(f) = \frac{4 L_u \sigma_u^2 \hat{f}}{(1 + 6 \hat{f})^{5/3}}
+  
+  where :math:`\hat{f} = \frac{f L_u}{U_{\text{mean}}}` is the normalized frequency.
+
+* **Coherence Formulations**:
+  Cross-component spatial correlations are modeled using directional coherence matrices between velocity components at different heights:
+  
+  .. math::
+  
+     \text{Coh}_{ij}(\Delta z, f) = \text{exp}\left( -k \frac{|\Delta z| f}{U_{\text{mean}}} \right)
+  
+  where :math:`k` is a decay parameter. Supported models include:
+  
+  - **Gaussian**: :math:`\text{Coh}(\Delta z, f) = \text{exp}(-k \cdot \Delta z^2)`
+  - **Exponential**: :math:`\text{Coh}(\Delta z, f) = \text{exp}(-k \cdot |\Delta z|)`
+  - **Power-law**: :math:`\text{Coh}(\Delta z, f) = (1 + k \cdot |\Delta z|)^{-m}`
+
+Mann Box Anisotropic Spectral Tensor Model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The Mann Box model (Mann, 1994) represents a fully anisotropic 3D turbulent velocity field, capturing sheared spectral tensors and cross-component correlations over complex terrain.
+
+* **Diagonal Spectral Components** (Energy Spectra):
+  The energy spectrum for each velocity component :math:`i \in \{u, v, w\}` is defined as:
+  
+  .. math::
+  
+     S_{ii}(k) = \frac{8 \sqrt{\frac{3}{11\pi}} \cdot \sigma_i^2 L_i}{k \cdot \left[ 1 + \left( \frac{k L_i}{\alpha} \right)^2 \right]^{5/6}}
+  
+  where :math:`k` is the wavenumber, :math:`L_i` is the component integral length scale, :math:`\sigma_i^2` is the velocity variance, and :math:`\alpha` is the asymmetry parameter.
+
+* **Off-Diagonal Spectral Components** (Cross-Spectra):
+  The cross-spectral components represent cross-correlation between different velocity components (satisfying the Cauchy-Schwarz inequality :math:`|S_{ij}|^2 \le S_{ii} S_{jj}`):
+  
+  .. math::
+  
+     S_{ij}(k) = \eta_{ij} \sqrt{S_{ii}(k) S_{jj}(k)} \exp\left( -\left( \frac{k L_{\text{harmonic}}}{300} \right)^2 \right)
+  
+  where :math:`\eta_{ij}` is the coherence factor (e.g., :math:`\eta_{uv}=0.75, \eta_{uw}=0.50, \eta_{vw}=0.65`) and :math:`L_{\text{harmonic}}` is the harmonic mean scale:
+  
+  .. math::
+  
+     L_{\text{harmonic}} = \frac{2 L_i L_j}{L_i + L_j}
+
+* **Terrain Adaptation**:
+  In complex terrain, local slopes modify the length scales and spectral components continuously, dynamically scaling energy in the streamwise direction to represent accelerated windward flows and sheared separation over ridge crests.
 
 Terrain-Aware Masking
 ~~~~~~~~~~~~~~~~~~~~~

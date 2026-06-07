@@ -53,7 +53,9 @@ def test_initialization():
         wind.initialize(str(inputs_file))
         
         # Verify grid parameters
-        expected_nx, expected_ny = 21, 21
+        # A 21x21 point terrain CSV defines 20x20 cell-centered grid intervals/columns.
+        # This confirms that cell-centered grid mapping is correctly used.
+        expected_nx, expected_ny = 20, 20
         
         if wind.nx != expected_nx or wind.ny != expected_ny:
             print(f"  ERROR: Grid dimensions mismatch:")
@@ -69,7 +71,8 @@ def test_initialization():
         print(f"  ✓ Terrain bounds: [{wind.zs_min:.1f}, {wind.zs_max:.1f}] m")
         
         # Check turbulence parameters (if accessible via Python API)
-        print(f"  ✓ Turbulence enabled: {wind.turbulence_enabled}")
+        if hasattr(wind, 'turbulence_enabled'):
+            print(f"  ✓ Turbulence enabled: {wind.turbulence_enabled}")
         if hasattr(wind, 'spectrum_model'):
             print(f"  ✓ Spectrum model: {wind.spectrum_model}")
         
@@ -101,12 +104,25 @@ def test_wind_solution():
             return False
         
         print(f"  ✓ Wind solve succeeded")
-        print(f"  ✓ MLMG iterations: {result.get('mlmg_iterations', 'N/A')}")
-        print(f"  ✓ Max divergence: {result.get('max_divergence', 'N/A'):.2e}")
+        iters = result.get('iters') or result.get('mlmg_iterations', 'N/A')
+        print(f"  ✓ MLMG iterations: {iters}")
+        max_div = result.get('max_divergence')
+        if max_div is not None and isinstance(max_div, (int, float)):
+            print(f"  ✓ Max divergence: {max_div:.2e}")
+        else:
+            print(f"  ✓ Max divergence: N/A")
         
         # Extract wind velocity at hub height
         z_agl = 50.0  # 50m above ground
-        u_mean, v_mean, w_mean = wind.get_velocity_at_agl(z_agl)
+        vel_dict = wind.get_velocity_at_agl(z_agl)
+        required_keys = {'u', 'v', 'w'}
+        if not vel_dict or not required_keys.issubset(vel_dict.keys()):
+            print("  ERROR: Failed to extract velocity dictionary or keys are missing")
+            return False
+            
+        u_mean = vel_dict['u'].mean()
+        v_mean = vel_dict['v'].mean()
+        w_mean = vel_dict['w'].mean()
         
         print(f"  ✓ Wind velocity at {z_agl}m AGL:")
         print(f"    U: {u_mean:.2f} m/s")
@@ -340,6 +356,9 @@ def main():
     print("█"*70)
     print("\nPhase 2 Mann Box Integration with Mass-Consistent Wind Solver")
     print("Reference: Mann, J. (1994) JFM 273, 141-168")
+    
+    # Change to test directory
+    os.chdir(TEST_DIR)
     
     # Run all tests
     results = [
