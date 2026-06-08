@@ -4191,7 +4191,6 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     }
 
     if (enable_wire_loading && !wires.empty()) {
-        const int cap_wire_idx_start = wire_idx_start;
         const Real xmin = x_lo;
         const Real ymin = y_lo;
         const Real zmin = zs_min;
