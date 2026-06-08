@@ -34,7 +34,7 @@ This test case validates the Mann Box anisotropic spectral tensor model integrat
 ## Files
 
 ```
-mass_consistent_case_mann_box/
+test_mann_box/
 ├── inputs.i                    # Wind solver configuration with Mann Box params
 ├── terrain.csv                 # 21×21 Gaussian hill terrain
 ├── test_mann_box.py           # Integration test suite
@@ -54,13 +54,13 @@ cd build && make -j4
 
 ### Basic Test
 ```bash
-cd test/mass_consistent_case_mann_box
+cd test/test_mann_box
 python3 test_mann_box.py
 ```
 
 ### Manual Wind Solver Execution
 ```bash
-cd test/mass_consistent_case_mann_box
+cd test/test_mann_box
 
 # Run the solver directly (if wind_solver executable is available)
 ../../build/wind_solver inputs.i

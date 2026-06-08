@@ -498,16 +498,25 @@ void WindSolverApp::parse_inputs() {
     }
     
     // Synthetic Turbulence Parameters
-    pp.query("enable_synthetic_turbulence", enable_synthetic_turbulence);
+    ParmParse pp_turb("turbulence");
+    if (!pp.query("enable_synthetic_turbulence", enable_synthetic_turbulence)) {
+        pp_turb.query("enabled", enable_synthetic_turbulence);
+    }
     turb_params.enabled = enable_synthetic_turbulence;
     
     if (enable_synthetic_turbulence) {
         std::string spectrum_model_str = "VonKarman";
         std::string intensity_model_str = "PowerLaw";
         std::string coherence_model_str = "Gaussian";
-        pp.query("turbulence_spectrum_model", spectrum_model_str);
-        pp.query("turbulence_intensity_model", intensity_model_str);
-        pp.query("turbulence_coherence_model", coherence_model_str);
+        if (!pp.query("turbulence_spectrum_model", spectrum_model_str)) {
+            pp_turb.query("spectrum_model", spectrum_model_str);
+        }
+        if (!pp.query("turbulence_intensity_model", intensity_model_str)) {
+            pp_turb.query("intensity_model", intensity_model_str);
+        }
+        if (!pp.query("turbulence_coherence_model", coherence_model_str)) {
+            pp_turb.query("coherence_model", coherence_model_str);
+        }
         
         if (spectrum_model_str == "VonKarman") {
             turb_params.spectrum_model = TurbulenceModel::VonKarman;
@@ -548,48 +557,106 @@ void WindSolverApp::parse_inputs() {
                          " (must be 'Gaussian', 'Exponential', 'QuadraticExponential', or 'PowerLaw')");
         }
         
-        pp.query("turbulence_intensity_ref", turb_params.intensity_ref);
-        pp.query("turbulence_z_intensity_ref", turb_params.z_intensity_ref);
-        pp.query("turbulence_intensity_exponent", turb_params.intensity_exponent);
-        pp.query("turbulence_hub_height", turb_params.hub_height);
-        pp.query("turbulence_iec_category", turb_params.iec_turbulence_category);
-        pp.query("turbulence_coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent);
-        pp.query("turbulence_length_scale_u", turb_params.length_scale_u);
-        pp.query("turbulence_length_scale_v", turb_params.length_scale_v);
-        pp.query("turbulence_length_scale_w", turb_params.length_scale_w);
-        pp.query("turbulence_coherence_decay_vertical", turb_params.coherence_decay_vertical);
-        pp.query("turbulence_coherence_decay_lateral", turb_params.coherence_decay_lateral);
-        pp.query("turbulence_anisotropy_ratio_v", turb_params.anisotropy_ratio_v);
-        pp.query("turbulence_anisotropy_ratio_w", turb_params.anisotropy_ratio_w);
+        if (!pp.query("turbulence_intensity_ref", turb_params.intensity_ref)) {
+            pp_turb.query("intensity_ref", turb_params.intensity_ref);
+        }
+        if (!pp.query("turbulence_z_intensity_ref", turb_params.z_intensity_ref)) {
+            pp_turb.query("z_intensity_ref", turb_params.z_intensity_ref);
+        }
+        if (!pp.query("turbulence_intensity_exponent", turb_params.intensity_exponent)) {
+            pp_turb.query("intensity_exponent", turb_params.intensity_exponent);
+        }
+        if (!pp.query("turbulence_hub_height", turb_params.hub_height)) {
+            pp_turb.query("hub_height", turb_params.hub_height);
+        }
+        if (!pp.query("turbulence_iec_category", turb_params.iec_turbulence_category)) {
+            pp_turb.query("iec_category", turb_params.iec_turbulence_category);
+        }
+        if (!pp.query("turbulence_coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent)) {
+            pp_turb.query("coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent);
+        }
+        if (!pp.query("turbulence_length_scale_u", turb_params.length_scale_u)) {
+            pp_turb.query("length_scale_u", turb_params.length_scale_u);
+        }
+        if (!pp.query("turbulence_length_scale_v", turb_params.length_scale_v)) {
+            pp_turb.query("length_scale_v", turb_params.length_scale_v);
+        }
+        if (!pp.query("turbulence_length_scale_w", turb_params.length_scale_w)) {
+            pp_turb.query("length_scale_w", turb_params.length_scale_w);
+        }
+        if (!pp.query("turbulence_coherence_decay_vertical", turb_params.coherence_decay_vertical)) {
+            pp_turb.query("coherence_decay_vertical", turb_params.coherence_decay_vertical);
+        }
+        if (!pp.query("turbulence_coherence_decay_lateral", turb_params.coherence_decay_lateral)) {
+            pp_turb.query("coherence_decay_lateral", turb_params.coherence_decay_lateral);
+        }
+        if (!pp.query("turbulence_anisotropy_ratio_v", turb_params.anisotropy_ratio_v)) {
+            pp_turb.query("anisotropy_ratio_v", turb_params.anisotropy_ratio_v);
+        }
+        if (!pp.query("turbulence_anisotropy_ratio_w", turb_params.anisotropy_ratio_w)) {
+            pp_turb.query("anisotropy_ratio_w", turb_params.anisotropy_ratio_w);
+        }
         
         if (turb_params.spectrum_model == TurbulenceModel::MannBox) {
-            pp.query("mann_length_scale_u", turb_params.mann_length_scale_u);
-            pp.query("mann_length_scale_v", turb_params.mann_length_scale_v);
-            pp.query("mann_length_scale_w", turb_params.mann_length_scale_w);
-            pp.query("mann_variance_u", turb_params.mann_variance_u);
-            pp.query("mann_variance_v", turb_params.mann_variance_v);
-            pp.query("mann_variance_w", turb_params.mann_variance_w);
-            pp.query("mann_asymmetry_parameter", turb_params.mann_asymmetry_parameter);
-            pp.query("mann_eddy_lifetime", turb_params.mann_eddy_lifetime);
-            pp.query("mann_terrain_adaptation_factor", turb_params.mann_terrain_adaptation_factor);
+            if (!pp.query("mann_length_scale_u", turb_params.mann_length_scale_u)) {
+                pp_turb.query("mann_length_scale_u", turb_params.mann_length_scale_u);
+            }
+            if (!pp.query("mann_length_scale_v", turb_params.mann_length_scale_v)) {
+                pp_turb.query("mann_length_scale_v", turb_params.mann_length_scale_v);
+            }
+            if (!pp.query("mann_length_scale_w", turb_params.mann_length_scale_w)) {
+                pp_turb.query("mann_length_scale_w", turb_params.mann_length_scale_w);
+            }
+            if (!pp.query("mann_variance_u", turb_params.mann_variance_u)) {
+                pp_turb.query("mann_variance_u", turb_params.mann_variance_u);
+            }
+            if (!pp.query("mann_variance_v", turb_params.mann_variance_v)) {
+                pp_turb.query("mann_variance_v", turb_params.mann_variance_v);
+            }
+            if (!pp.query("mann_variance_w", turb_params.mann_variance_w)) {
+                pp_turb.query("mann_variance_w", turb_params.mann_variance_w);
+            }
+            if (!pp.query("mann_asymmetry_parameter", turb_params.mann_asymmetry_parameter)) {
+                pp_turb.query("mann_asymmetry_parameter", turb_params.mann_asymmetry_parameter);
+            }
+            if (!pp.query("mann_eddy_lifetime", turb_params.mann_eddy_lifetime)) {
+                pp_turb.query("mann_eddy_lifetime", turb_params.mann_eddy_lifetime);
+            }
+            if (!pp.query("mann_terrain_adaptation_factor", turb_params.mann_terrain_adaptation_factor)) {
+                pp_turb.query("mann_terrain_adaptation_factor", turb_params.mann_terrain_adaptation_factor);
+            }
         }
         
         if (turb_params.intensity_model == IntensityModel::IEC61400) {
-            pp.query("hub_height", turb_params.hub_height);
-            pp.query("iec_turbulence_category", turb_params.iec_turbulence_category);
+            if (!pp.query("hub_height", turb_params.hub_height)) {
+                pp_turb.query("hub_height", turb_params.hub_height);
+            }
+            if (!pp.query("iec_turbulence_category", turb_params.iec_turbulence_category)) {
+                pp_turb.query("iec_category", turb_params.iec_turbulence_category);
+            }
         }
         
-        pp.query("coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent);
+        if (!pp.query("coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent)) {
+            pp_turb.query("coherence_powerlaw_exponent", turb_params.coherence_powerlaw_exponent);
+        }
         
         int random_seed_int = 12345;
-        pp.query("turbulence_random_seed", random_seed_int);
+        if (!pp.query("turbulence_random_seed", random_seed_int)) {
+            pp_turb.query("random_seed", random_seed_int);
+        }
         turb_params.random_seed = static_cast<unsigned int>(std::max(1, random_seed_int));
          
-        pp.query("turbulence_enable_stability_correction", turb_params.enable_stability_correction);
-        pp.query("turbulence_monin_obukhov_length", turb_params.monin_obukhov_length);
+        if (!pp.query("turbulence_enable_stability_correction", turb_params.enable_stability_correction)) {
+            pp_turb.query("enable_stability_correction", turb_params.enable_stability_correction);
+        }
+        if (!pp.query("turbulence_monin_obukhov_length", turb_params.monin_obukhov_length)) {
+            pp_turb.query("monin_obukhov_length", turb_params.monin_obukhov_length);
+        }
          
         std::string stability_param_str = "BusingerDyer";
-        pp.query("turbulence_stability_parameterization", stability_param_str);
+        if (!pp.query("turbulence_stability_parameterization", stability_param_str)) {
+            pp_turb.query("stability_parameterization", stability_param_str);
+        }
         if (stability_param_str == "BusingerDyer") {
             turb_params.use_holtslag_stability = false;
         } else if (stability_param_str == "HoltslagDeBruin") {
