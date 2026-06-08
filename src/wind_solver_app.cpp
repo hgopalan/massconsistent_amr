@@ -3533,6 +3533,7 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
 
     const bool cap_enable_capping_lid = enable_capping_lid;
     const Real cap_capping_lid_height = capping_lid_height;
+    const bool local_use_spatial_alpha_coefficients = use_spatial_alpha_coefficients;
 
     for (MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -3631,7 +3632,7 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
 
             Real local_bh = bh;
             Real local_bv = bv;
-            if (use_spatial_alpha_coefficients) {
+            if (local_use_spatial_alpha_coefficients) {
                 Real local_ah = ah_arr(i, j, k);
                 Real local_av = av_arr(i, j, k);
                 local_bh = local_ah * local_ah;
