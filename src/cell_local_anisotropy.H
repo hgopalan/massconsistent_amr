@@ -88,6 +88,9 @@ inline void compute_cell_local_anisotropy_fields(
         source_mode = 3;
     }
 
+    const amrex::Real max_bl_depth = RichardsonNumberConstants::MAX_BL_DEPTH;
+    const amrex::Real min_bl_depth = RichardsonNumberConstants::MIN_BL_DEPTH;
+
     for (amrex::MFIter mfi(alpha_h_field); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
         auto ah = alpha_h_field.array(mfi);
@@ -149,10 +152,10 @@ inline void compute_cell_local_anisotropy_fields(
                             }
                         }
                         if (!found) {
-                            bl_height = RichardsonNumberConstants::MAX_BL_DEPTH;
+                            bl_height = max_bl_depth;
                         }
-                        bl_height = std::max(RichardsonNumberConstants::MIN_BL_DEPTH,
-                                             std::min(bl_height, RichardsonNumberConstants::MAX_BL_DEPTH));
+                        bl_height = std::max(min_bl_depth,
+                                             std::min(bl_height, max_bl_depth));
                     }
                 }
 
