@@ -900,6 +900,10 @@ void WindSolverApp::setup_geometry_and_mesh() {
             amrex::Abort("wind_solver: invalid synthetic_type: " + synth_type);
         }
 
+        if (peaks.size() != sigmas.size() || peaks.size() != centers_x.size() || peaks.size() != centers_y.size()) {
+            amrex::Abort("wind_solver: size mismatch in synthetic terrain arrays: peaks, sigmas, centers_x, and centers_y must all have the same size.");
+        }
+
         // Generate the grid points of the synthetic terrain point cloud
         x_terr.clear();
         y_terr.clear();

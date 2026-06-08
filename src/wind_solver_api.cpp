@@ -540,6 +540,10 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
             throw std::runtime_error("invalid synthetic_type: " + synth_type);
         }
 
+        if (peaks.size() != sigmas.size() || peaks.size() != centers_x.size() || peaks.size() != centers_y.size()) {
+            throw std::runtime_error("size mismatch in synthetic terrain arrays: peaks, sigmas, centers_x, and centers_y must all have the same size.");
+        }
+
         // Generate the grid points of the synthetic terrain point cloud
         state.terrain_x_data.clear();
         state.terrain_y_data.clear();
