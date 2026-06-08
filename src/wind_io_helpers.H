@@ -94,6 +94,10 @@ void read_time_series_file(const std::string& filename,
                            std::vector<Real>& U_refs,
                            std::vector<Real>& V_refs);
 
+void read_precipitation_file(const std::string& filename,
+                             std::vector<Real>& times,
+                             std::vector<Real>& rates);
+
 void read_windfield_file(const std::string& filename,
                          std::vector<Real>& xd,
                          std::vector<Real>& yd,
