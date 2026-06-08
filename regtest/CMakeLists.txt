@@ -385,6 +385,11 @@ add_regression_test(puff_aloha_features puff_aloha_features)
 add_regression_test(lpdm_terrain lpdm_terrain)
 
 # ---------------------------------------------------------------------------
+# lpdm_drift_spatial_lid/ – LPDM with drift correction and spatially-varying capping lid
+# ---------------------------------------------------------------------------
+add_regression_test(lpdm_drift_spatial_lid lpdm_drift_spatial_lid)
+
+# ---------------------------------------------------------------------------
 # terrain_following_steep/ – Terrain-following coordinates on steep terrain
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_following_steep terrain_following_steep)

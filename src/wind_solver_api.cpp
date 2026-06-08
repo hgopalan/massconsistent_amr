@@ -37,6 +37,7 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       const std::vector<Real>& ux_data,
                                       const std::vector<Real>& uy_data,
                                       int k = 6,
+                                      Real gamma = 1.0,
                                       bool enable_shielding = false,
                                       const std::vector<Real>& terrain_h = {},
                                       Real x_lo = 0.0, Real y_lo = 0.0,
@@ -301,6 +302,7 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       const std::vector<Real>& ux_data,
                                       const std::vector<Real>& uy_data,
                                       int k,
+                                      Real gamma,
                                       bool enable_shielding,
                                       const std::vector<Real>& terrain_h,
                                       Real x_lo, Real y_lo,
@@ -308,7 +310,7 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       int nx, int ny)
 {
     return WindInterpolation::idw_velocity_3d(xq, yq, zq, x, y, z, ux_data, uy_data, k,
-                                              enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny);
+                                              gamma, enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny);
 }
 
 void parse_inputs(WindSolverState& state, const std::string& inputs_file)
@@ -345,8 +347,10 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.alpha_h = 1.0;
     state.alpha_v = 1.0;
+    state.idw_gamma = 1.0;
     pp.query("alpha_h", state.alpha_h);
     pp.query("alpha_v", state.alpha_v);
+    pp.query("idw_gamma", state.idw_gamma);
 
     state.mlmg_verbose = 1;
     state.tol_rel = 1.e-8;
@@ -697,6 +701,7 @@ void initialize_wind_field(WindSolverState& state)
                 for (int i = 0; i < state.nx; ++i) {
                     const Real xc = state.xmin + (i + Real(0.5)) * state.dx;
                     auto uv = idw_velocity_3d(xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel, 6,
+                                              state.idw_gamma,
                                               state.enable_topographic_shielding,
                                               g_wind_solver_runtime->terrain_host,
                                               state.xmin, state.ymin,

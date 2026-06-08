@@ -261,6 +261,7 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                              const std::vector<Real>& ux_data,
                                              const std::vector<Real>& uy_data,
                                              int k = 6,
+                                             Real gamma = 1.0,
                                              bool enable_shielding = false,
                                              const std::vector<Real>& terrain_h = {},
                                              Real x_lo = 0.0, Real y_lo = 0.0,
@@ -276,14 +277,9 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
         Real dx_val = x[i] - xq;
         Real dy_val = y[i] - yq;
         Real dz_val = z[i] - zq;
-        d2[i] = {dx_val * dx_val + dy_val * dy_val + dz_val * dz_val, i};
+        Real g_dz = gamma * dz_val;
+        d2[i] = {dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i};
     }
-    // Partial sort: first k elements are the k nearest
-    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
-
-    Real wsum = 0.0, ux_val = 0.0, uy_val = 0.0;
-    bool any_unshielded = false;
-    std::vector<Real> weights(k, 0.0);
 
     for (int i = 0; i < k; ++i) {
         int idx = d2[i].second;
@@ -330,6 +326,7 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
                                                          const std::vector<Real>& uy_data,
                                                          const std::vector<Real>& uz_data,
                                                          int k = 6,
+                                                         Real gamma = 1.0,
                                                          bool enable_shielding = false,
                                                          const std::vector<Real>& terrain_h = {},
                                                          Real x_lo = 0.0, Real y_lo = 0.0,
@@ -345,7 +342,8 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
         Real dx_val = x[i] - xq;
         Real dy_val = y[i] - yq;
         Real dz_val = z[i] - zq;
-        d2[i] = {dx_val * dx_val + dy_val * dy_val + dz_val * dz_val, i};
+        Real g_dz = gamma * dz_val;
+        d2[i] = {dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i};
     }
     // Partial sort: first k elements are the k nearest
     std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
