@@ -3681,8 +3681,8 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
                         } else if (z_agl >= cap_terrain_mask_transition_height) {
                             mask = Real(1.0);
                         } else {
-                            Real phase = MathConstants::pi * z_agl / cap_terrain_mask_transition_height;
-                            mask = (Real(1.0) - std::cos(phase)) / Real(2.0);
+                            Real transition_angle = MathConstants::pi * z_agl / cap_terrain_mask_transition_height;
+                            mask = (Real(1.0) - std::cos(transition_angle)) / Real(2.0);
                         }
                         u_val *= mask;
                         v_val *= mask;
