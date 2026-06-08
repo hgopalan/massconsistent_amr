@@ -17,7 +17,9 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#ifdef MASSCONSISTENT_USE_NLOHMANN_JSON
 #include <nlohmann/json.hpp>
+#endif
 
 namespace TurbineWake {
 
@@ -107,7 +109,8 @@ struct Turbine {
     Real local_ti = 0.0;
 };
 
-inline void read_power_curve_json(const std::string& filename, PowerCurve& pc, CtCurve& cc) {
+inline void read_power_curve_json(const std::string& filename, [[maybe_unused]] PowerCurve& pc, [[maybe_unused]] CtCurve& cc) {
+#ifdef MASSCONSISTENT_USE_NLOHMANN_JSON
     std::ifstream f(filename);
     if (!f.is_open()) {
         amrex::Print() << "Warning: Could not open JSON power curve file: " << filename << "\n";
@@ -184,6 +187,10 @@ inline void read_power_curve_json(const std::string& filename, PowerCurve& pc, C
         amrex::Print() << "Warning: Error parsing JSON power curve file: " << filename 
                        << ". Exception: " << e.what() << "\n";
     }
+#else
+    amrex::Print() << "Warning: JSON power curves are not supported without nlohmann_json. "
+                   << "Could not load " << filename << "\n";
+#endif
 }
 
 inline void read_power_curve_file(const std::string& filename, PowerCurve& pc, CtCurve& cc) {
