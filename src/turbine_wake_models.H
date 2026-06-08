@@ -6,6 +6,7 @@
 #include <AMReX_Vector.H>
 #include <AMReX_Print.H>
 #include <AMReX_MFIter.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <string>
 #include <vector>
 #include <cmath>
@@ -937,32 +938,34 @@ inline void apply_analytical_turbine_wakes(
     }
 
     // Output power to standard output and log it into a dedicated CSV file (`turbine_power_output.csv`)
-    std::string csv_filename = "turbine_power_output.csv";
-    std::ofstream csv_file;
-    if (time_step == 0) {
-        csv_file.open(csv_filename, std::ios::out); // Overwrite if first step
-        csv_file << "turbine_id,x,y,z_terrain,z_hub,u_ms,v_ms,speed_ms,direction_deg,power_kw,local_ti,time_step\n";
-    } else {
-        csv_file.open(csv_filename, std::ios::app); // Append for subsequent steps
-    }
-
-    if (csv_file.is_open()) {
-        for (const auto& t : turbines) {
-            csv_file << t.id << ","
-                     << std::fixed << std::setprecision(2) << t.x << ","
-                     << t.y << ","
-                     << t.z_terrain << ","
-                     << t.z_hub << ","
-                     << std::setprecision(4) << t.u_hub << ","
-                     << t.v_hub << ","
-                     << t.inflow_wind_speed << ","
-                     << std::setprecision(2) << t.direction_deg << ","
-                     << std::setprecision(2) << t.power_output << ","
-                     << std::setprecision(4) << t.local_ti << ","
-                     << time_step << "\n";
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        std::string csv_filename = "turbine_power_output.csv";
+        std::ofstream csv_file;
+        if (time_step == 0) {
+            csv_file.open(csv_filename, std::ios::out); // Overwrite if first step
+            csv_file << "turbine_id,x,y,z_terrain,z_hub,u_ms,v_ms,speed_ms,direction_deg,power_kw,local_ti,time_step\n";
+        } else {
+            csv_file.open(csv_filename, std::ios::app); // Append for subsequent steps
         }
-        csv_file.close();
-        amrex::Print() << "wind_solver: logged turbine power output to " << csv_filename << "\n";
+
+        if (csv_file.is_open()) {
+            for (const auto& t : turbines) {
+                csv_file << t.id << ","
+                         << std::fixed << std::setprecision(2) << t.x << ","
+                         << t.y << ","
+                         << t.z_terrain << ","
+                         << t.z_hub << ","
+                         << std::setprecision(4) << t.u_hub << ","
+                         << t.v_hub << ","
+                         << t.inflow_wind_speed << ","
+                         << std::setprecision(2) << t.direction_deg << ","
+                         << std::setprecision(2) << t.power_output << ","
+                         << std::setprecision(4) << t.local_ti << ","
+                         << time_step << "\n";
+            }
+            csv_file.close();
+            amrex::Print() << "wind_solver: logged turbine power output to " << csv_filename << "\n";
+        }
     }
 }
 
@@ -1021,6 +1024,10 @@ inline void apply_turbine_wakes_to_multifab(
             }
         }
     }
+
+    amrex::ParallelDescriptor::ReduceRealSum(u_host.data(), u_host.size());
+    amrex::ParallelDescriptor::ReduceRealSum(v_host.data(), v_host.size());
+    amrex::ParallelDescriptor::ReduceRealSum(w_host.data(), w_host.size());
 
     // Call apply_analytical_turbine_wakes
     apply_analytical_turbine_wakes(
@@ -1107,6 +1114,8 @@ inline void apply_turbine_wakes_to_multifab(
             }
         }
     }
+
+    amrex::ParallelDescriptor::ReduceRealSum(terrain_host.data(), terrain_host.size());
 
     apply_turbine_wakes_to_multifab(
         vel0, terrain_host, turbines, model_type, superposition, jensen_kw_base, gaussian_ka_base,
