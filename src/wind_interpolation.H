@@ -13,6 +13,7 @@ namespace WindInterpolation {
 using amrex::Real;
 
 static constexpr Real DISTANCE_EPSILON = Real(1.0e-12);  // threshold for exact spatial matches
+static constexpr Real TOPOGRAPHIC_SHIELDING_PENALTY_FACTOR = Real(1.0e-5); // penalty for blocked stations
 
 // IDW interpolation: terrain height at query point (xq, yq)
 // Uses k nearest data points with inverse-square-distance weights.
@@ -213,6 +214,43 @@ std::pair<Real, Real> idw_alpha_coefficients_gpu(
     return {ah_val / wsum, av_val / wsum};
 }
 
+// Check if the line-of-sight between (xq, yq, zq) and (xi, yi, zi) is blocked by terrain
+inline bool is_line_of_sight_blocked(
+    Real xq, Real yq, Real zq,
+    Real xi, Real yi, Real zi,
+    const std::vector<Real>& terrain_h,
+    Real x_lo, Real y_lo,
+    Real dx, Real dy,
+    int nx, int ny)
+{
+    Real dist = std::sqrt((xq - xi) * (xq - xi) + (yq - yi) * (yq - yi));
+    if (dist < Real(1.0e-6)) return false; // same location, not blocked
+
+    Real min_spacing = std::min(dx, dy);
+    if (min_spacing < Real(1.0e-6)) min_spacing = Real(1.0);
+    int num_steps = std::max(5, static_cast<int>(dist / min_spacing));
+    if (num_steps > 100) num_steps = 100; // safety limit
+
+    for (int step = 1; step < num_steps; ++step) {
+        Real t = static_cast<Real>(step) / static_cast<Real>(num_steps);
+        Real x = xq + t * (xi - xq);
+        Real y = yq + t * (yi - yq);
+        Real z = zq + t * (zi - zq);
+
+        // Map to terrain grid index
+        int i = static_cast<int>((x - x_lo) / dx);
+        int j = static_cast<int>((y - y_lo) / dy);
+        i = std::max(0, std::min(i, nx - 1));
+        j = std::max(0, std::min(j, ny - 1));
+
+        Real h_terrain = terrain_h[static_cast<std::size_t>(j) * nx + i];
+        if (h_terrain > z) {
+            return true; // blocked!
+        }
+    }
+    return false;
+}
+
 // IDW interpolation: 3D wind velocity at query point (xq, yq, zq)
 // Uses k nearest data points with 3D inverse-square-distance weights.
 // Returns (ux, uy) pair.
@@ -223,7 +261,12 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                              const std::vector<Real>& ux_data,
                                              const std::vector<Real>& uy_data,
                                              int k = 6,
-                                             Real gamma = 1.0)
+                                             Real gamma = 1.0,
+                                             bool enable_shielding = false,
+                                             const std::vector<Real>& terrain_h = {},
+                                             Real x_lo = 0.0, Real y_lo = 0.0,
+                                             Real dx = 1.0, Real dy = 1.0,
+                                             int nx = 0, int ny = 0)
 {
     int n = static_cast<int>(x.size());
     k = std::min(k, n);
@@ -231,24 +274,50 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
     // Squared distances to all 3D data points
     std::vector<std::pair<Real, int>> d2(n);
     for (int i = 0; i < n; ++i) {
-        Real dx = x[i] - xq;
-        Real dy = y[i] - yq;
-        Real dz = z[i] - zq;
-        Real g_dz = gamma * dz;
-        d2[i] = {dx * dx + dy * dy + g_dz * g_dz, i};
+        Real dx_val = x[i] - xq;
+        Real dy_val = y[i] - yq;
+        Real dz_val = z[i] - zq;
+        Real g_dz = gamma * dz_val;
+        d2[i] = {dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i};
     }
+
     // Partial sort: first k elements are the k nearest
     std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
 
     Real wsum = 0.0, ux_val = 0.0, uy_val = 0.0;
+    bool any_unshielded = false;
+    std::vector<Real> weights(k, 0.0);
+
     for (int i = 0; i < k; ++i) {
+        int idx = d2[i].second;
         if (d2[i].first < DISTANCE_EPSILON) {
-            return {ux_data[d2[i].second], uy_data[d2[i].second]}; // exact hit
+            return {ux_data[idx], uy_data[idx]}; // exact hit
         }
         Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
-        wsum += w;
-        ux_val += w * ux_data[d2[i].second];
-        uy_val += w * uy_data[d2[i].second];
+        bool blocked = false;
+        if (enable_shielding && !terrain_h.empty()) {
+            blocked = is_line_of_sight_blocked(xq, yq, zq, x[idx], y[idx], z[idx], terrain_h, x_lo, y_lo, dx, dy, nx, ny);
+        }
+        if (blocked) {
+            weights[i] = w * TOPOGRAPHIC_SHIELDING_PENALTY_FACTOR; // heavily penalized
+        } else {
+            weights[i] = w;
+            any_unshielded = true;
+        }
+    }
+
+    // If all are shielded, fallback to unpenalized weights to avoid division by zero or complete signal loss
+    if (enable_shielding && !any_unshielded) {
+        for (int i = 0; i < k; ++i) {
+            weights[i] = Real(1.0) / d2[i].first;
+        }
+    }
+
+    for (int i = 0; i < k; ++i) {
+        int idx = d2[i].second;
+        wsum += weights[i];
+        ux_val += weights[i] * ux_data[idx];
+        uy_val += weights[i] * uy_data[idx];
     }
     return {ux_val / wsum, uy_val / wsum};
 }
@@ -264,7 +333,12 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
                                                          const std::vector<Real>& uy_data,
                                                          const std::vector<Real>& uz_data,
                                                          int k = 6,
-                                                         Real gamma = 1.0)
+                                                         Real gamma = 1.0,
+                                                         bool enable_shielding = false,
+                                                         const std::vector<Real>& terrain_h = {},
+                                                         Real x_lo = 0.0, Real y_lo = 0.0,
+                                                         Real dx = 1.0, Real dy = 1.0,
+                                                         int nx = 0, int ny = 0)
 {
     int n = static_cast<int>(x.size());
     k = std::min(k, n);
@@ -272,26 +346,50 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
     // Squared distances to all 3D data points
     std::vector<std::pair<Real, int>> d2(n);
     for (int i = 0; i < n; ++i) {
-        Real dx = x[i] - xq;
-        Real dy = y[i] - yq;
-        Real dz = z[i] - zq;
-        Real g_dz = gamma * dz;
-        d2[i] = {dx * dx + dy * dy + g_dz * g_dz, i};
+        Real dx_val = x[i] - xq;
+        Real dy_val = y[i] - yq;
+        Real dz_val = z[i] - zq;
+        Real g_dz = gamma * dz_val;
+        d2[i] = {dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i};
     }
     // Partial sort: first k elements are the k nearest
     std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
 
     Real wsum = 0.0, ux_val = 0.0, uy_val = 0.0, uz_val = 0.0;
+    bool any_unshielded = false;
+    std::vector<Real> weights(k, 0.0);
+
     for (int i = 0; i < k; ++i) {
+        int idx = d2[i].second;
         if (d2[i].first < DISTANCE_EPSILON) {
-            int idx = d2[i].second;
             return {ux_data[idx], uy_data[idx], uz_data[idx]}; // exact hit
         }
         Real w = Real(1.0) / d2[i].first;  // inverse-square-distance weight
-        wsum += w;
-        ux_val += w * ux_data[d2[i].second];
-        uy_val += w * uy_data[d2[i].second];
-        uz_val += w * uz_data[d2[i].second];
+        bool blocked = false;
+        if (enable_shielding && !terrain_h.empty()) {
+            blocked = is_line_of_sight_blocked(xq, yq, zq, x[idx], y[idx], z[idx], terrain_h, x_lo, y_lo, dx, dy, nx, ny);
+        }
+        if (blocked) {
+            weights[i] = w * TOPOGRAPHIC_SHIELDING_PENALTY_FACTOR; // heavily penalized
+        } else {
+            weights[i] = w;
+            any_unshielded = true;
+        }
+    }
+
+    // If all are shielded, fallback to unpenalized weights to avoid division by zero or complete signal loss
+    if (enable_shielding && !any_unshielded) {
+        for (int i = 0; i < k; ++i) {
+            weights[i] = Real(1.0) / d2[i].first;
+        }
+    }
+
+    for (int i = 0; i < k; ++i) {
+        int idx = d2[i].second;
+        wsum += weights[i];
+        ux_val += weights[i] * ux_data[idx];
+        uy_val += weights[i] * uy_data[idx];
+        uz_val += weights[i] * uz_data[idx];
     }
     return {ux_val / wsum, uy_val / wsum, uz_val / wsum};
 }
