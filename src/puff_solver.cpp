@@ -549,8 +549,15 @@ int main(int argc, char* argv[])
         // Atmospheric Inversion Capping Lid
         bool enable_capping_lid = false;
         Real capping_lid_height = 1000.0;
+        std::string capping_lid_file = "";
         pp.query("enable_capping_lid", enable_capping_lid);
         pp.query("capping_lid_height", capping_lid_height);
+        pp.query("capping_lid_file", capping_lid_file);
+        
+        std::vector<Real> x_lid_pts, y_lid_pts, z_lid_pts;
+        if (!capping_lid_file.empty()) {
+            read_terrain_file(capping_lid_file, x_lid_pts, y_lid_pts, z_lid_pts);
+        }
         
         std::vector<Real> x_terr, y_terr, z_terr;
         if (!terrain_file.empty()) {
@@ -908,6 +915,50 @@ int main(int argc, char* argv[])
                 }
                 }
                 
+                // Define lambda to compute effective vertical diffusivity at any (x, y, z)
+                auto get_K_v_eff = [&](Real px, Real py, Real pz, Real terr_h) -> Real {
+                    Real Kv_val = K_v;
+                    Real z_agl_val = pz - terr_h;
+                    if (enable_height_dependent_K && z_agl_val >= 0.0) {
+                        PuffParams temp_params;
+                        temp_params.enable_height_dependent_K = enable_height_dependent_K;
+                        temp_params.K_profile = K_profile;
+                        temp_params.K_power_law_exponent = K_power_law_exponent;
+                        temp_params.K_reference_height = K_reference_height;
+                        
+                        Kv_val = compute_K_height_dependent(z_agl_val, K_v, temp_params);
+                    }
+                    
+                    if (enable_canopy_effects && z_agl_val >= 0.0) {
+                        Real K_h_dummy = K_h;
+                        compute_canopy_diffusivity(
+                            z_agl_val, canopy_height, K_h_dummy, Kv_val,
+                            canopy_enhancement_factor, canopy_sheltering_factor,
+                            K_h_dummy, Kv_val);
+                    }
+                    
+                    Real wake_fac = 1.0;
+                    if (enable_wake_diffusivity && !buildings.empty()) {
+                        for (const auto& building : buildings) {
+                            Real bldg_factor = compute_wake_enhancement_factor(
+                                px, py, pz, building,
+                                wind_speed, wind_dir_x, wind_dir_y,
+                                wake_params, wake_enhancement_cavity, wake_enhancement_far);
+                            wake_fac = std::max(wake_fac, bldg_factor);
+                        }
+                    }
+                    Kv_val *= wake_fac;
+
+                    if (enable_turbine_wake_diffusivity && !turbines.empty()) {
+                        Real added_ti = compute_turbine_wake_added_ti(
+                            px, py, pz, turbines,
+                            turb_wake_model, added_turb_model,
+                            wind_dir_x, wind_dir_y);
+                        Kv_val *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
+                    }
+                    return Kv_val;
+                };
+
                 // Advect and update all particles
                 for (auto& p : particles) {
                 if (!p.active) continue;
@@ -917,6 +968,13 @@ int main(int argc, char* argv[])
                 if (enable_terrain_reflection && !x_terr.empty()) {
                     terrain_height = interpolate_terrain_height(
                         p.x, p.y, x_terr, y_terr, z_terr);
+                }
+                    
+                // Get local capping lid height
+                Real local_capping_lid_height = capping_lid_height;
+                if (!x_lid_pts.empty()) {
+                    local_capping_lid_height = interpolate_terrain_height(
+                        p.x, p.y, x_lid_pts, y_lid_pts, z_lid_pts);
                 }
                     
                 // Check if particle is inside building - deactivate if so
@@ -978,6 +1036,23 @@ int main(int argc, char* argv[])
                     K_v_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
                 }
                     
+                // Apply vertical drift correction velocity w_drift = dKv/dz
+                Real w_drift = 0.0;
+                {
+                    Real delta_z = 0.1;
+                    Real z_plus = p.z + delta_z;
+                    Real z_minus = p.z - delta_z;
+                    if (z_minus < terrain_height) {
+                        Real Kv_z = K_v_eff;
+                        Real Kv_plus = get_K_v_eff(p.x, p.y, p.z + delta_z, terrain_height);
+                        w_drift = (Kv_plus - Kv_z) / delta_z;
+                    } else {
+                        Real Kv_plus = get_K_v_eff(p.x, p.y, z_plus, terrain_height);
+                        Real Kv_minus = get_K_v_eff(p.x, p.y, z_minus, terrain_height);
+                        w_drift = (Kv_plus - Kv_minus) / (2.0 * delta_z);
+                    }
+                }
+                    
                 // Apply canopy deposition
                 if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
                     if (canopy_height > 0.0 && frontal_area_index > 0.0) {
@@ -1022,11 +1097,13 @@ int main(int argc, char* argv[])
                     advect_particle_with_terrain(p, U_wind, V_wind, W_wind, 
                                                 rand_dx, rand_dy, rand_dz,
                                                 dt_puff, terrain_height, true, v_s,
-                                                enable_capping_lid, capping_lid_height);
+                                                enable_capping_lid, local_capping_lid_height,
+                                                w_drift);
                 } else {
                     advect_particle(p, U_wind, V_wind, W_wind, 
                                     rand_dx, rand_dy, rand_dz, dt_puff, v_s,
-                                    enable_capping_lid, capping_lid_height);
+                                    enable_capping_lid, local_capping_lid_height,
+                                    w_drift);
                 }
                     
                 // Check bounds with terrain awareness
@@ -1073,6 +1150,13 @@ int main(int argc, char* argv[])
                         puff.x, puff.y, x_terr, y_terr, z_terr);
                 }
                     
+                // Get local capping lid height
+                Real local_capping_lid_height = capping_lid_height;
+                if (!x_lid_pts.empty()) {
+                    local_capping_lid_height = interpolate_terrain_height(
+                        puff.x, puff.y, x_lid_pts, y_lid_pts, z_lid_pts);
+                }
+                    
                 // Check if puff is inside building - deactivate if so
                 if (enable_building_masking && !buildings.empty()) {
                     if (point_in_any_building(puff.x, puff.y, puff.z, buildings)) {
@@ -1084,11 +1168,11 @@ int main(int argc, char* argv[])
                 // Advection with terrain reflection
                 if (enable_terrain_reflection) {
                     advect_puff_with_terrain(puff, U_wind, V_wind, W_wind, 
-                                            dt_puff, terrain_height, true, v_s,
-                                            enable_capping_lid, capping_lid_height);
+                                             dt_puff, terrain_height, true, v_s,
+                                             enable_capping_lid, local_capping_lid_height);
                 } else {
                     advect_puff(puff, U_wind, V_wind, W_wind, dt_puff, v_s,
-                                enable_capping_lid, capping_lid_height);
+                                enable_capping_lid, local_capping_lid_height);
                 }
                     
                 // Compute effective diffusivities
@@ -1224,9 +1308,14 @@ int main(int argc, char* argv[])
                             Real C = 0.0;
                             for (const auto& puff : puffs) {
                                 if ((enable_terrain_reflection || enable_capping_lid) && use_image_source) {
+                                    Real local_capping_lid_height = capping_lid_height;
+                                    if (!x_lid_pts.empty()) {
+                                        local_capping_lid_height = interpolate_terrain_height(
+                                            x, y, x_lid_pts, y_lid_pts, z_lid_pts);
+                                    }
                                     C += gaussian_puff_concentration_with_reflection(
                                         x, y, z, puff, terrain_height, true,
-                                        enable_capping_lid, capping_lid_height);
+                                        enable_capping_lid, local_capping_lid_height);
                                 } else {
                                     C += gaussian_puff_concentration(x, y, z, puff);
                                 }
