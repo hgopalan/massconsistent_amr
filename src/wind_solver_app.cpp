@@ -1038,30 +1038,48 @@ void WindSolverApp::setup_geometry_and_mesh() {
         }
     }
 
-    if (enable_buoyancy_stratification) {
-        WindIO::read_temperature_file(temperature_file, z_temp, T_temp);
-        
-        if (enable_diurnal_temperature) {
-            amrex::Print() << "wind_solver: diurnal temperature variation enabled\n";
-            amrex::Print() << "  diurnal_temperature_amplitude = " << diurnal_temperature_amplitude << " K\n";
-            amrex::Print() << "  diurnal_time_of_day = " << diurnal_time_of_day << " hours\n";
-            amrex::Print() << "  diurnal_phase_hour = " << diurnal_phase_hour << " hours\n";
-            amrex::Print() << "  diurnal_period = " << diurnal_period << " hours\n";
+    if (enable_buoyancy_stratification || enable_cell_local_anisotropy) {
+        bool has_temperature_file = false;
+        {
+            std::ifstream f(temperature_file);
+            if (f.good()) {
+                has_temperature_file = true;
+            }
+        }
+
+        if (has_temperature_file) {
+            WindIO::read_temperature_file(temperature_file, z_temp, T_temp);
             
-            for (std::size_t m = 0; m < T_temp.size(); ++m) {
-                Real T_mean = T_temp[m];
-                T_temp[m] = diurnal_temperature(T_mean, diurnal_temperature_amplitude,
-                                               diurnal_time_of_day, diurnal_phase_hour, 
-                                               diurnal_period);
+            if (enable_diurnal_temperature) {
+                amrex::Print() << "wind_solver: diurnal temperature variation enabled\n";
+                amrex::Print() << "  diurnal_temperature_amplitude = " << diurnal_temperature_amplitude << " K\n";
+                amrex::Print() << "  diurnal_time_of_day = " << diurnal_time_of_day << " hours\n";
+                amrex::Print() << "  diurnal_phase_hour = " << diurnal_phase_hour << " hours\n";
+                amrex::Print() << "  diurnal_period = " << diurnal_period << " hours\n";
+                
+                for (std::size_t m = 0; m < T_temp.size(); ++m) {
+                    Real T_mean = T_temp[m];
+                    T_temp[m] = diurnal_temperature(T_mean, diurnal_temperature_amplitude,
+                                                   diurnal_time_of_day, diurnal_phase_hour, 
+                                                   diurnal_period);
+                }
+            }
+        } else {
+            if (enable_buoyancy_stratification) {
+                amrex::Abort("wind_solver: buoyancy stratification enabled but temperature file cannot be opened: " + temperature_file);
+            } else {
+                amrex::Print() << "wind_solver: WARNING: Cell-local anisotropy is enabled but temperature file '" << temperature_file << "' cannot be opened. Skipping temperature profile reading.\n";
             }
         }
         
-        amrex::Print() << "wind_solver: buoyancy stratification enabled\n";
-        amrex::Print() << "  temperature_reference = " << temperature_reference << " K\n";
-        amrex::Print() << "  buoyancy_coefficient = " << buoyancy_coefficient << "\n";
-        amrex::Print() << "  buoyancy_method = " << buoyancy_method << "\n";
-        if (buoyancy_method == "velocity") {
-            amrex::Print() << "  buoyancy_timescale = " << buoyancy_timescale << " s\n";
+        if (enable_buoyancy_stratification && has_temperature_file) {
+            amrex::Print() << "wind_solver: buoyancy stratification enabled\n";
+            amrex::Print() << "  temperature_reference = " << temperature_reference << " K\n";
+            amrex::Print() << "  buoyancy_coefficient = " << buoyancy_coefficient << "\n";
+            amrex::Print() << "  buoyancy_method = " << buoyancy_method << "\n";
+            if (buoyancy_method == "velocity") {
+                amrex::Print() << "  buoyancy_timescale = " << buoyancy_timescale << " s\n";
+            }
         }
     }
 
@@ -3410,29 +3428,37 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
     bcoef[2].define(convert(*ba_ptr, IntVect(0, 0, 1)), *dm_ptr, 1, 0);
     
     if (enable_cell_local_anisotropy) {
-        amrex::Print() << "wind_solver: computing cell-local spatially-varying variational anisotropy\n";
-        CellLocalAnisotropy::compute_cell_local_anisotropy_fields(
-            *alpha_h_field_ptr,
-            *alpha_v_field_ptr,
-            *vel0_ptr,
-            *temp_ptr,
-            d_obstacle_h.data(),
-            nx, ny, nz,
-            dx, dy, dz,
-            alpha_h,
-            alpha_v,
-            zs_min,
-            enable_cell_local_anisotropy,
-            anisotropy_source,
-            anisotropy_slope_scale,
-            anisotropy_decay_height,
-            anisotropy_ri_gamma,
-            anisotropy_ri_beta,
-            anisotropy_fr_min
-        );
-        
-        alpha_h_field_ptr->FillBoundary(geom_ptr->periodicity());
-        alpha_v_field_ptr->FillBoundary(geom_ptr->periodicity());
+        if (z_temp.empty()) {
+            amrex::Print() << "wind_solver: WARNING: Cell-local anisotropy is enabled but no temperature profile is provided. Skipping/disabling cell-local anisotropy.\n";
+            enable_cell_local_anisotropy = false;
+            if (alpha_coefficients_file.empty()) {
+                use_spatial_alpha_coefficients = false;
+            }
+        } else {
+            amrex::Print() << "wind_solver: computing cell-local spatially-varying variational anisotropy\n";
+            CellLocalAnisotropy::compute_cell_local_anisotropy_fields(
+                *alpha_h_field_ptr,
+                *alpha_v_field_ptr,
+                *vel0_ptr,
+                *temp_ptr,
+                d_obstacle_h.data(),
+                nx, ny, nz,
+                dx, dy, dz,
+                alpha_h,
+                alpha_v,
+                zs_min,
+                enable_cell_local_anisotropy,
+                anisotropy_source,
+                anisotropy_slope_scale,
+                anisotropy_decay_height,
+                anisotropy_ri_gamma,
+                anisotropy_ri_beta,
+                anisotropy_fr_min
+            );
+            
+            alpha_h_field_ptr->FillBoundary(geom_ptr->periodicity());
+            alpha_v_field_ptr->FillBoundary(geom_ptr->periodicity());
+        }
     }
 
     if (use_spatial_alpha_coefficients && (!alpha_h_data.empty() || enable_cell_local_anisotropy)) {

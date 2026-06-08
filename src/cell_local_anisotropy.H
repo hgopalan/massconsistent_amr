@@ -18,6 +18,11 @@
 #include <algorithm>
 #include <string>
 
+// Include existing models
+#include "richardson_number_models.H"
+#include "stability_models.H"
+#include "orographic_models.H"
+
 namespace CellLocalAnisotropy {
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -107,8 +112,51 @@ inline void compute_cell_local_anisotropy_fields(
             // 1. Terrain Slope factor
             amrex::Real f_slope = amrex::Real(1.0);
             if (source_mode == 0 || source_mode == 1) {
+                // Calculate boundary layer height for this column (i, j) on the fly
+                amrex::Real bl_height = amrex::Real(500.0); // default fallback
+                {
+                    int k_start = 0;
+                    while (k_start < nz && (zs_min + (k_start + amrex::Real(0.5)) * dz - z_terrain <= amrex::Real(0.0))) {
+                        k_start++;
+                    }
+                    if (k_start < nz) {
+                        amrex::Real theta_s = t_arr(i, j, k_start);
+                        bool found = false;
+                        amrex::Real richardson_critical = amrex::Real(0.25);
+                        for (int kp = k_start + 1; kp < nz; ++kp) {
+                            amrex::Real z_agl_kp = zs_min + (kp + amrex::Real(0.5)) * dz - z_terrain;
+                            amrex::Real u_kp = v0(i, j, kp, 0);
+                            amrex::Real v_kp = v0(i, j, kp, 1);
+                            amrex::Real u_mag_kp = std::sqrt(u_kp * u_kp + v_kp * v_kp);
+                            amrex::Real ri_b_kp = compute_bulk_richardson_number(theta_s, t_arr(i, j, kp), z_agl_kp, u_mag_kp, theta_s);
+
+                            if (ri_b_kp > richardson_critical) {
+                                amrex::Real z_agl_kpm1 = zs_min + (kp - 1 + amrex::Real(0.5)) * dz - z_terrain;
+                                amrex::Real u_kpm1 = v0(i, j, kp - 1, 0);
+                                amrex::Real v_kpm1 = v0(i, j, kp - 1, 1);
+                                amrex::Real u_mag_kpm1 = std::sqrt(u_kpm1 * u_kpm1 + v_kpm1 * v_kpm1);
+                                amrex::Real ri_b_kpm1 = compute_bulk_richardson_number(theta_s, t_arr(i, j, kp - 1), z_agl_kpm1, u_mag_kpm1, theta_s);
+
+                                if (std::abs(ri_b_kp - ri_b_kpm1) > amrex::Real(1.0e-10)) {
+                                    amrex::Real frac = (richardson_critical - ri_b_kpm1) / (ri_b_kp - ri_b_kpm1);
+                                    bl_height = z_agl_kpm1 + frac * (z_agl_kp - z_agl_kpm1);
+                                } else {
+                                    bl_height = z_agl_kpm1;
+                                }
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            bl_height = RichardsonNumberConstants::MAX_BL_DEPTH;
+                        }
+                        bl_height = std::max(RichardsonNumberConstants::MIN_BL_DEPTH,
+                                             std::min(bl_height, RichardsonNumberConstants::MAX_BL_DEPTH));
+                    }
+                }
+
                 amrex::Real slope = compute_local_slope(i, j, d_terrain, nx, ny, dx, dy);
-                amrex::Real slope_3d = slope * std::exp(-z_agl / anisotropy_decay_height);
+                amrex::Real slope_3d = slope * std::exp(-z_agl / bl_height);
                 f_slope = std::exp(-slope_3d / anisotropy_slope_scale);
             }
 
@@ -138,7 +186,7 @@ inline void compute_cell_local_anisotropy_fields(
             // 2. Richardson factor
             amrex::Real f_ri = amrex::Real(1.0);
             if (source_mode == 0 || source_mode == 2) {
-                amrex::Real Ri = (amrex::Real(9.81) / T_ref) * (dT_dz / (shear_sq + amrex::Real(1.0e-6)));
+                amrex::Real Ri = compute_richardson_number(T_ref, dT_dz, std::sqrt(shear_sq), amrex::Real(1.0e-3));
                 if (Ri > amrex::Real(0.0)) {
                     f_ri = std::exp(-anisotropy_ri_gamma * Ri);
                 } else if (Ri < amrex::Real(0.0)) {
@@ -156,7 +204,7 @@ inline void compute_cell_local_anisotropy_fields(
                     amrex::Real U_local = std::sqrt(v0(i, j, k, 0) * v0(i, j, k, 0) +
                                                      v0(i, j, k, 1) * v0(i, j, k, 1));
                     amrex::Real L_scale = std::max(amrex::Real(10.0), z_agl);
-                    amrex::Real Fr = U_local / (N * L_scale + amrex::Real(1.0e-5));
+                    amrex::Real Fr = compute_orographic_froude_number(U_local, N, L_scale);
                     f_fr = amrex::Real(1.0) - std::exp(-Fr * Fr);
                     f_fr = std::max(anisotropy_fr_min, std::min(f_fr, amrex::Real(1.0)));
                 }
