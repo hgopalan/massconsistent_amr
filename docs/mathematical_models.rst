@@ -457,6 +457,23 @@ Turbines increase local downstream turbulence intensity :math:`TI_{\text{local}}
    * :math:`c_{\text{fr1}} = 1.5`
    * :math:`c_{\text{fr2}} = 0.8`
 
+3. **Wake Recovery under Thermal Buoyancy (Buoyant Wake Destruction)** (Mirocha et al., 2018):
+   In highly convective, unstable atmospheres, buoyancy-driven thermals rapidly break down wind turbine wakes. This buoyant destruction is parameterized by increasing the downstream decay rates of wake-added turbulence proportionally to the surface sensible heat flux :math:`H_s` (only when :math:`H_s > 0`):
+
+   * For the **Crespo-Hernández** model, the decay exponent :math:`c_{\text{ch4}}` is modified as:
+
+     .. math::
+
+        c_{\text{ch4}} = -0.32 \cdot (1.0 + \beta_{\text{buoy}} \cdot H_s)
+
+   * For the **Frandsen** model, the decay coefficient :math:`c_{\text{fr2}}` is modified as:
+
+     .. math::
+
+        c_{\text{fr2}} = 0.8 \cdot (1.0 + \beta_{\text{buoy}} \cdot H_s)
+
+   where :math:`H_s` is the surface sensible heat flux in W/m² (parameter ``surface_sensible_heat_flux``), and :math:`\beta_{\text{buoy}}` is the buoyant wake destruction coefficient in m²/W (parameter ``buoyant_wake_destruction_coeff``, default 0.005).
+
 The wake centerline conforms perfectly to local terrain height, bending over hills:
 
 .. math::

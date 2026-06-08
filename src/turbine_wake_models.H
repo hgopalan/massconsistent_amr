@@ -480,7 +480,9 @@ inline void apply_analytical_turbine_wakes(
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
     int time_step = 0,
     bool enable_wake_ground_interaction = true,
-    Real wake_ground_damping_scale = 0.25)
+    Real wake_ground_damping_scale = 0.25,
+    Real surface_sensible_heat_flux = 0.0,
+    Real buoyant_wake_destruction_coeff = 0.005)
 {
     if (turbines.empty()) return;
 
@@ -495,6 +497,10 @@ inline void apply_analytical_turbine_wakes(
 
     amrex::Print() << "wind_solver: applying analytical turbine wake models ("
                    << model_name << ")\n";
+    if (surface_sensible_heat_flux > Real(0.0)) {
+        amrex::Print() << "wind_solver: Buoyant wake destruction ENABLED (surface_sensible_heat_flux = " 
+                       << surface_sensible_heat_flux << " W/m², coeff = " << buoyant_wake_destruction_coeff << " m²/W)\n";
+    }
 
     // 1. Determine wind direction and sort turbines from upwind to downwind
     Real sum_u = 0.0, sum_v = 0.0;
@@ -617,9 +623,17 @@ inline void apply_analytical_turbine_wakes(
                 
                 if (wake_added_turb_model == WakeAddedTurbulenceModelType::CRESPO_HERNANDEZ) {
                     Real a = (Real(1.0) - std::sqrt(Real(1.0) - ct_clamped_up)) / Real(2.0);
-                    delta_I_peak = Real(0.73) * std::pow(a, Real(0.832)) * std::pow(ambient_ti_base, Real(0.0325)) * std::pow(s_dist, Real(-0.32));
+                    Real decay_exponent = Real(-0.32);
+                    if (surface_sensible_heat_flux > Real(0.0)) {
+                        decay_exponent *= (Real(1.0) + buoyant_wake_destruction_coeff * surface_sensible_heat_flux);
+                    }
+                    delta_I_peak = Real(0.73) * std::pow(a, Real(0.832)) * std::pow(ambient_ti_base, Real(0.0325)) * std::pow(s_dist, decay_exponent);
                 } else if (wake_added_turb_model == WakeAddedTurbulenceModelType::FRANDSEN) {
-                    delta_I_peak = Real(1.0) / (Real(1.5) + Real(0.8) * s_dist / std::sqrt(ct_clamped_up));
+                    Real decay_coef = Real(0.8);
+                    if (surface_sensible_heat_flux > Real(0.0)) {
+                        decay_coef *= (Real(1.0) + buoyant_wake_destruction_coeff * surface_sensible_heat_flux);
+                    }
+                    delta_I_peak = Real(1.0) / (Real(1.5) + decay_coef * s_dist / std::sqrt(ct_clamped_up));
                 }
 
                 // Radial spreading
@@ -991,7 +1005,9 @@ inline void apply_turbine_wakes_to_multifab(
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
     int time_step = 0,
     bool enable_wake_ground_interaction = true,
-    Real wake_ground_damping_scale = 0.25)
+    Real wake_ground_damping_scale = 0.25,
+    Real surface_sensible_heat_flux = 0.0,
+    Real buoyant_wake_destruction_coeff = 0.005)
 {
     if (turbines.empty()) return;
 
@@ -1036,7 +1052,8 @@ inline void apply_turbine_wakes_to_multifab(
         enable_stability, L_obukhov, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz,
         turbopark_c1_base, ambient_ti_base, enable_jimenez_deflection,
         jimenez_kd_base, enable_bastankhah_deflection, wake_added_turb_model, time_step,
-        enable_wake_ground_interaction, wake_ground_damping_scale
+        enable_wake_ground_interaction, wake_ground_damping_scale,
+        surface_sensible_heat_flux, buoyant_wake_destruction_coeff
     );
 
     // 4. Write back updated u, v, w host vectors to vel0 MultiFab on device/host
@@ -1091,7 +1108,9 @@ inline void apply_turbine_wakes_to_multifab(
     WakeAddedTurbulenceModelType wake_added_turb_model = WakeAddedTurbulenceModelType::NONE,
     int time_step = 0,
     bool enable_wake_ground_interaction = true,
-    Real wake_ground_damping_scale = 0.25)
+    Real wake_ground_damping_scale = 0.25,
+    Real surface_sensible_heat_flux = 0.0,
+    Real buoyant_wake_destruction_coeff = 0.005)
 {
     if (turbines.empty()) return;
 
@@ -1122,7 +1141,8 @@ inline void apply_turbine_wakes_to_multifab(
         enable_stability, L_obukhov, xmin, ymin, zmin, dx, dy, dz, nx, ny, nz,
         turbopark_c1_base, ambient_ti_base, enable_jimenez_deflection, jimenez_kd_base,
         enable_bastankhah_deflection, wake_added_turb_model, time_step,
-        enable_wake_ground_interaction, wake_ground_damping_scale
+        enable_wake_ground_interaction, wake_ground_damping_scale,
+        surface_sensible_heat_flux, buoyant_wake_destruction_coeff
     );
 }
 
