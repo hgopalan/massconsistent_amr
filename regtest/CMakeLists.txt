@@ -517,6 +517,7 @@ add_regression_test(pasquill_gifford pasquill_gifford)
 add_regression_test(power_law_profile_bl power_law_profile_bl)
 add_regression_test(deaves_harris deaves_harris)
 add_regression_test(capping_lid capping_lid)
+add_regression_test(multi_gaussian_hill multi_gaussian_hill)
 
 # ===========================================================================
 # High-Yield Parameterizations (Surface Roughness, Coriolis, Windbreaks)

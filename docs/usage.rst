@@ -65,7 +65,37 @@ Parameter Reference
      - Description
    * - ``terrain_file``
      - ``terrain.csv``
-     - Path to terrain point-cloud file (X Y Z, whitespace or comma separated).
+     - Path to terrain point-cloud file (X Y Z, whitespace or comma separated). Set to ``synthetic`` (EXPERIMENTAL) to generate synthetic terrain programmatically.
+   * - **Synthetic Terrain Parameters (EXPERIMENTAL)**
+     -
+     -
+   * - ``synthetic_type``
+     - ``multi_gaussian_hill``
+     - Synthetic terrain model: ``gaussian_hill`` (single hill) or ``multi_gaussian_hill`` (sum of multiple hills).
+   * - ``synthetic_xmin`` / ``synthetic_xmax``
+     - ``0.0`` / ``300.0``
+     - Spatial bounds in X dimension [m] for the generated synthetic terrain.
+   * - ``synthetic_ymin`` / ``synthetic_ymax``
+     - ``0.0`` / ``300.0``
+     - Spatial bounds in Y dimension [m] for the generated synthetic terrain.
+   * - ``synthetic_nx`` / ``synthetic_ny``
+     - ``11`` / ``11``
+     - Number of grid points in X and Y directions for generating the synthetic terrain.
+   * - ``synthetic_peak`` / ``synthetic_sigma``
+     - ``50.0`` / ``60.0``
+     - Single peak elevation [m] and Gaussian width [m] (used when ``synthetic_type = gaussian_hill``).
+   * - ``synthetic_center_x`` / ``synthetic_center_y``
+     - center of domain
+     - Coordinates of the single peak center (used when ``synthetic_type = gaussian_hill``).
+   * - ``synthetic_peaks``
+     - ``[50.0, 30.0]``
+     - List of peak elevations [m] for each hill (used when ``synthetic_type = multi_gaussian_hill``). Space-separated.
+   * - ``synthetic_sigmas``
+     - ``[60.0, 40.0]``
+     - List of Gaussian width parameters [m] for each hill (used when ``synthetic_type = multi_gaussian_hill``). Space-separated.
+   * - ``synthetic_centers_x`` / ``synthetic_centers_y``
+     - ``[100.0, 200.0]`` / ``[150.0, 150.0]``
+     - List of peak center coordinates [m] in X and Y (used when ``synthetic_type = multi_gaussian_hill``). Space-separated.
    * - **Wind Initialization Mode**
      -
      -
