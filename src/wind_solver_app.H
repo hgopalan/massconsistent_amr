@@ -416,6 +416,8 @@ private:
 
     // Synthetic Turbulence
     bool enable_synthetic_turbulence = false;
+    bool enable_terrain_aware_masking = false;
+    amrex::Real terrain_mask_transition_height = 3.0;
     TurbulenceParams turb_params;
     std::string turbulence_export_format = "bts";
     std::string turbulence_output_file = "turbulence.bts";
