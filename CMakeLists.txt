@@ -7,6 +7,7 @@ option(MASSCONSISTENT_BUILD_PYTHON_BINDINGS "Build Python bindings using pybind1
 option(MASSCONSISTENT_ENABLE_AMREX_FFT "Prefer AMReX FFT support when dependencies are available" ON)
 option(MASSCONSISTENT_ENABLE_EXPERIMENTAL_GPU_TURBULENCE
   "Build experimental GPU turbulence kernels" OFF)
+option(MASSCONSISTENT_USE_NLOHMANN_JSON "Enable JSON support using nlohmann_json" OFF)
 set(MASSCONSISTENT_GPU_BACKEND "NONE" CACHE STRING
     "GPU backend for AMReX: NONE (CPU-only), CUDA, HIP, or SYCL")
 set_property(CACHE MASSCONSISTENT_GPU_BACKEND PROPERTY STRINGS NONE CUDA HIP SYCL)
@@ -45,8 +46,10 @@ if(MASSCONSISTENT_ENABLE_MPI)
 endif()
 
 # Find nlohmann/json library (header-only)
-find_package(nlohmann_json REQUIRED CONFIG)
-message(STATUS "Found nlohmann_json")
+if(MASSCONSISTENT_USE_NLOHMANN_JSON)
+  find_package(nlohmann_json REQUIRED CONFIG)
+  message(STATUS "Found nlohmann_json")
+endif()
 
 if(MASSCONSISTENT_USE_VENDORED_AMREX AND EXISTS "${AMREX_SUBMODULE_DIR}/CMakeLists.txt")
   message(STATUS "Using vendored AMReX from ${AMREX_SUBMODULE_DIR}")
@@ -171,10 +174,19 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA" AND WIN32)
   target_compile_definitions(wind_solver_api PRIVATE ${_cuda_windows_compile_defs})
 endif()
 
-target_link_libraries(wind_solver PRIVATE AMReX::amrex nlohmann_json::nlohmann_json)
-target_link_libraries(puff_solver PRIVATE AMReX::amrex nlohmann_json::nlohmann_json)
-target_link_libraries(wind_solver_api PUBLIC AMReX::amrex nlohmann_json::nlohmann_json)
+target_link_libraries(wind_solver PRIVATE AMReX::amrex)
+target_link_libraries(puff_solver PRIVATE AMReX::amrex)
+target_link_libraries(wind_solver_api PUBLIC AMReX::amrex)
 target_include_directories(wind_solver_api PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+if(MASSCONSISTENT_USE_NLOHMANN_JSON)
+  target_link_libraries(wind_solver PRIVATE nlohmann_json::nlohmann_json)
+  target_link_libraries(puff_solver PRIVATE nlohmann_json::nlohmann_json)
+  target_link_libraries(wind_solver_api PUBLIC nlohmann_json::nlohmann_json)
+  target_compile_definitions(wind_solver PRIVATE MASSCONSISTENT_USE_NLOHMANN_JSON)
+  target_compile_definitions(puff_solver PRIVATE MASSCONSISTENT_USE_NLOHMANN_JSON)
+  target_compile_definitions(wind_solver_api PUBLIC MASSCONSISTENT_USE_NLOHMANN_JSON)
+endif()
 
 if(MASSCONSISTENT_ENABLE_MPI)
   target_link_libraries(wind_solver PRIVATE MPI::MPI_CXX)
