@@ -123,21 +123,22 @@ inline void compute_cell_local_anisotropy_fields(
                         amrex::Real theta_s = t_arr(i, j, k_start);
                         bool found = false;
                         amrex::Real richardson_critical = amrex::Real(0.25);
+                        const amrex::Real ri_tol = amrex::Real(1.0e-10);
                         for (int kp = k_start + 1; kp < nz; ++kp) {
                             amrex::Real z_agl_kp = zs_min + (kp + amrex::Real(0.5)) * dz - z_terrain;
                             amrex::Real u_kp = v0(i, j, kp, 0);
                             amrex::Real v_kp = v0(i, j, kp, 1);
                             amrex::Real u_mag_kp = std::sqrt(u_kp * u_kp + v_kp * v_kp);
-                            amrex::Real ri_b_kp = compute_bulk_richardson_number(theta_s, t_arr(i, j, kp), z_agl_kp, u_mag_kp, theta_s);
+                            amrex::Real ri_b_kp = compute_bulk_richardson_number(theta_s, t_arr(i, j, kp), z_agl_kp, u_mag_kp);
 
                             if (ri_b_kp > richardson_critical) {
                                 amrex::Real z_agl_kpm1 = zs_min + (kp - 1 + amrex::Real(0.5)) * dz - z_terrain;
                                 amrex::Real u_kpm1 = v0(i, j, kp - 1, 0);
                                 amrex::Real v_kpm1 = v0(i, j, kp - 1, 1);
                                 amrex::Real u_mag_kpm1 = std::sqrt(u_kpm1 * u_kpm1 + v_kpm1 * v_kpm1);
-                                amrex::Real ri_b_kpm1 = compute_bulk_richardson_number(theta_s, t_arr(i, j, kp - 1), z_agl_kpm1, u_mag_kpm1, theta_s);
+                                amrex::Real ri_b_kpm1 = compute_bulk_richardson_number(theta_s, t_arr(i, j, kp - 1), z_agl_kpm1, u_mag_kpm1);
 
-                                if (std::abs(ri_b_kp - ri_b_kpm1) > amrex::Real(1.0e-10)) {
+                                if (std::abs(ri_b_kp - ri_b_kpm1) > ri_tol) {
                                     amrex::Real frac = (richardson_critical - ri_b_kpm1) / (ri_b_kp - ri_b_kpm1);
                                     bl_height = z_agl_kpm1 + frac * (z_agl_kp - z_agl_kpm1);
                                 } else {

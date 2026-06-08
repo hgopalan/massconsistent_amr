@@ -95,7 +95,7 @@ anisotropy_decay_height = 800.0
 anisotropy_ri_gamma = 1.2
 anisotropy_ri_beta = 0.6
 anisotropy_fr_min = 0.1
-temperature_file = temperature.csv
+temperature_file = "temperature.csv"
 temperature_gradient = {temp_gradient}
 
 mlmg_verbose = 0
@@ -191,8 +191,9 @@ def main():
     
     # Cleanup files
     for fn in ["temperature.csv", "inputs_iso.i", "inputs_aniso.i"]:
-        if os.path.exists(fn):
-            os.remove(fn)
+        filepath = TEST_DIR / fn
+        if filepath.exists():
+            os.remove(filepath)
             
     print("\n✓ Complex diurnal test case completed successfully!")
 

@@ -21,7 +21,7 @@ anisotropy_decay_height = 800.0
 anisotropy_ri_gamma = 1.2
 anisotropy_ri_beta = 0.6
 anisotropy_fr_min = 0.1
-temperature_file = temperature.csv
+temperature_file = "temperature.csv"
 temperature_gradient = 0.004
 
 mlmg_verbose = 0

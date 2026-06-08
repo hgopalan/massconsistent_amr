@@ -29,7 +29,7 @@ anisotropy_decay_height = 100.0
 anisotropy_ri_gamma = 1.0
 anisotropy_ri_beta = 0.5
 anisotropy_fr_min = 0.1
-temperature_file = temperature.csv
+temperature_file = "temperature.csv"
 temperature_gradient = 0.005 # Stable potential temperature gradient
 
 # MLMG solver settings

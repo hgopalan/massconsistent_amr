@@ -1405,7 +1405,7 @@ bool wind_solver_solve()
             }
         }
 
-        if (state.enable_cell_local_anisotropy && state.temperature_gradient == 0.0) {
+        if (state.enable_cell_local_anisotropy && std::abs(state.temperature_gradient) < 1.0e-10) {
             amrex::Print() << "wind_solver API: WARNING: Cell-local anisotropy is enabled but no temperature gradient/profile is provided. Disabling cell-local anisotropy.\n";
             state.enable_cell_local_anisotropy = false;
         }
