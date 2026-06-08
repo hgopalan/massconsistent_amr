@@ -139,6 +139,7 @@ struct WindSolverState {
     int extract_k;
     
     // Initialization mode
+    bool enable_topographic_shielding;
     std::string init_mode;  // "loglaw", "uniform", "raws"
     amrex::Real uniform_U;
     amrex::Real uniform_V;

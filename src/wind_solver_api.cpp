@@ -1,4 +1,5 @@
 #include "wind_solver_api.H"
+#include "wind_interpolation.H"
 #include "canopy_models.H"
 #include "terrain_following_coords.H"
 #include "solver_math_constants.H"
@@ -35,7 +36,12 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       const std::vector<Real>& z,
                                       const std::vector<Real>& ux_data,
                                       const std::vector<Real>& uy_data,
-                                      int k = 6);
+                                      int k = 6,
+                                      bool enable_shielding = false,
+                                      const std::vector<Real>& terrain_h = {},
+                                      Real x_lo = 0.0, Real y_lo = 0.0,
+                                      Real dx = 1.0, Real dy = 1.0,
+                                      int nx = 0, int ny = 0);
 
 struct WindSolverRuntimeData {
     Gpu::DeviceVector<Real> terrain_device;
@@ -294,33 +300,15 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       const std::vector<Real>& z,
                                       const std::vector<Real>& ux_data,
                                       const std::vector<Real>& uy_data,
-                                      int k)
+                                      int k,
+                                      bool enable_shielding,
+                                      const std::vector<Real>& terrain_h,
+                                      Real x_lo, Real y_lo,
+                                      Real dx, Real dy,
+                                      int nx, int ny)
 {
-    const int n = static_cast<int>(x.size());
-    k = std::min(k, n);
-
-    std::vector<std::pair<Real, int>> d2(n);
-    for (int i = 0; i < n; ++i) {
-        const Real dx = x[i] - xq;
-        const Real dy = y[i] - yq;
-        const Real dz = z[i] - zq;
-        d2[i] = {dx * dx + dy * dy + dz * dz, i};
-    }
-    std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
-
-    Real wsum = 0.0;
-    Real ux_val = 0.0;
-    Real uy_val = 0.0;
-    for (int i = 0; i < k; ++i) {
-        if (d2[i].first < DISTANCE_EPSILON) {
-            return {ux_data[d2[i].second], uy_data[d2[i].second]};
-        }
-        const Real w = Real(1.0) / d2[i].first;
-        wsum += w;
-        ux_val += w * ux_data[d2[i].second];
-        uy_val += w * uy_data[d2[i].second];
-    }
-    return {ux_val / wsum, uy_val / wsum};
+    return WindInterpolation::idw_velocity_3d(xq, yq, zq, x, y, z, ux_data, uy_data, k,
+                                              enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny);
 }
 
 void parse_inputs(WindSolverState& state, const std::string& inputs_file)
@@ -379,6 +367,9 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("extract_file", state.extract_file);
     pp.query("extract_agl", state.extract_agl);
     pp.query("extract_k", state.extract_k);
+
+    state.enable_topographic_shielding = false;
+    pp.query("enable_topographic_shielding", state.enable_topographic_shielding);
 
     state.init_mode = "loglaw";
     pp.query("init_mode", state.init_mode);
@@ -705,7 +696,12 @@ void initialize_wind_field(WindSolverState& state)
                 const Real yc = state.ymin + (j + Real(0.5)) * state.dy;
                 for (int i = 0; i < state.nx; ++i) {
                     const Real xc = state.xmin + (i + Real(0.5)) * state.dx;
-                    auto uv = idw_velocity_3d(xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel);
+                    auto uv = idw_velocity_3d(xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel, 6,
+                                              state.enable_topographic_shielding,
+                                              g_wind_solver_runtime->terrain_host,
+                                              state.xmin, state.ymin,
+                                              state.dx, state.dy,
+                                              state.nx, state.ny);
                     std::size_t idx = (static_cast<std::size_t>(k) * state.ny + j) * state.nx + i;
                     vel_u_host[idx] = uv.first;
                     vel_v_host[idx] = uv.second;

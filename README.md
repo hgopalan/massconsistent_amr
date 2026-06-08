@@ -70,6 +70,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Land-use Roughness Classification** — Categorical z₀ mapping from NLCD/IGBP land-use categories
 - **Directional Bias Correction** — Corrects systematic wind direction and speed biases from NWP models
 - **3D Meteorological Ingestion (NetCDF)** — Horizontal, terrain-aware vertical, and temporal interpolation of 3D NWP model outputs (e.g. WRF, GFS) into the solver grid
+- **Topographic Barrier Shielding (CALMET-style)** — Zeroes out or heavily penalizes interpolation weights from stations across high terrain obstacles/ridges, preventing observations in one valley from unphysically influencing adjacent valleys
 - **Solver enhancements** — Divergence damping filter, optional perturbation pressure gradient, multi-scale terrain analysis, smooth boundary layer transition
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Terrain-following coordinates** — Streamline coordinate transformation for improved accuracy on steep terrain

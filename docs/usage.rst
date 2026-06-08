@@ -87,6 +87,9 @@ Parameter Reference
    * - ``powerlaw_exponent``
      - ``0.143``
      - Power-law exponent for ``powerlaw`` mode.
+   * - ``enable_topographic_shielding``
+     - ``false``
+     - Enable topographic barrier shielding for meteorological station interpolations (e.g. in ``raws`` or ``windfield`` modes).
    * - **Grid Parameters**
      -
      -

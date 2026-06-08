@@ -42,6 +42,32 @@ where :math:`\kappa = 0.41` is the von Kármán constant (von Kármán, 1948), :
 
    u_* = \frac{\kappa\,|\mathbf{U}_{\text{ref}}|}{\ln\!\left(\dfrac{z_{\text{ref}}+z_0}{z_0}\right)}
 
+Topographic Barrier Shielding
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In complex terrain, observations from meteorological stations located in different valleys can unphysically distort the initial interpolated wind field if they are separated by high ridges. To address this, the solver supports CALMET-style topographic barrier shielding.
+
+When ``enable_topographic_shielding = true`` is configured, the interpolation weight between a query grid cell :math:`(x_q, y_q, z_q)` and a station :math:`(x_i, y_i, z_i)` is heavily penalized (by a factor of :math:`10^{-5}`) if the direct line-of-sight segment connecting them intersects the terrain height field :math:`z_{\text{terrain}}(x, y)`.
+
+Specifically, along the line-of-sight parametrized by :math:`t \in [0, 1]`:
+
+.. math::
+
+   x(t) = x_q + t(x_i - x_q), \quad y(t) = y_q + t(y_i - y_q), \quad z(t) = z_q + t(z_i - z_q)
+
+The blocking condition is checked at discrete intervals:
+
+.. math::
+
+   z_{\text{terrain}}(x(t), y(t)) > z(t)
+
+If blocking is detected, the weight :math:`w_i` for that station is reduced:
+
+.. math::
+
+   w_i \leftarrow w_i \times 10^{-5}
+
+If all nearest stations are blocked for a given query cell, the solver dynamically falls back to unpenalized weights to avoid numerical division-by-zero and preserve signal continuity.
+
 Variational Formulation
 ~~~~~~~~~~~~~~~~~~~~~~~
 The corrected wind field :math:`\mathbf{u} = (u,v,w)` is obtained by minimizing the volume integral of the difference between the adjusted and initial velocity fields, weighted by directional penalty coefficients (Sherman, 1978; Mathiesen, 1987):

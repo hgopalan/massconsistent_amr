@@ -188,6 +188,7 @@ private:
     std::string land_sea_mask_file = "";
 
     // Terrain blocking
+    bool enable_topographic_shielding = false;
     bool enable_terrain_blocking = false;
     amrex::Real terrain_blocking_brunt_vaisala_frequency = 0.01;
     amrex::Real terrain_blocking_reduction_factor = 0.5;
