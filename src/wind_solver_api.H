@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include "turbine_wake_models.H"
+#include "wire_models.H"
 
 // ============================================================================
 // WindSolverState
@@ -168,6 +169,12 @@ struct WindSolverState {
     amrex::Real surface_sensible_heat_flux;
     amrex::Real buoyant_wake_destruction_coeff;
     std::vector<TurbineWake::Turbine> turbines;
+
+    // Electrical Wire Loading
+    bool enable_wire_loading;
+    std::string wire_file;
+    std::string wire_output_file;
+    std::vector<WireLoading::WireSpan> wires;
 
     // Solver status
     bool solved;
