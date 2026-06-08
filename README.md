@@ -42,6 +42,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 ## Features
 
 - **Mass-consistent wind solver** — Enforces ∇·u = 0 using Lagrange multiplier approach
+- **Cell-Local Spatially-Varying Variational Anisotropy** — Formulates and solves the variational wind adjustment problem with a fully 3D spatially-varying anisotropic diagonal weighting tensor A(x, y, z), where local horizontal-to-vertical adjustment coefficients (\alpha_h / \alpha_v) adapt cell-locally based on local terrain slope, local Richardson number, and local Froude number.
 - **Chemical/Physical Properties Database Lookup** — ALOHA / Regulatory dictionary lookup of chemical molecular parameters, boiling points, vapor pressures, and AEGL/ERPG/PAC toxicity thresholds by chemical name from JSON database
 - **Trilinear & Quadrilinear Velocity Interpolation** — High-performance 3D trilinear (spatial) and 4D quadrilinear (spatial + temporal) interpolation of wind fields directly inside GPU kernels in `puff_models.H` and `lpdm_models.H`
 - **Spatially-Varying Canopy & Heterogeneous Surface Roughness** — Supports spatially distributed canopy height, frontal area index, and roughness ($z_0$) from user fields read into 2D AMReX arrays and retrieved cell-locally in solver kernels

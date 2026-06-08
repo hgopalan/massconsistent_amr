@@ -157,6 +157,13 @@ private:
     bool use_height_dependent_alpha_v = false;
     amrex::Real alpha_v_surface = 1.0;
     amrex::Real alpha_v_top = 1.0;
+    bool enable_cell_local_anisotropy = false;
+    std::string anisotropy_source = "all";
+    amrex::Real anisotropy_slope_scale = 0.25;
+    amrex::Real anisotropy_decay_height = 500.0;
+    amrex::Real anisotropy_ri_gamma = 1.0;
+    amrex::Real anisotropy_ri_beta = 0.5;
+    amrex::Real anisotropy_fr_min = 0.1;
     amrex::Real idw_gamma = 1.0;
 
     // Stability

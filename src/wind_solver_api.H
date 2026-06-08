@@ -48,6 +48,8 @@ struct WindSolverState {
     std::unique_ptr<amrex::MultiFab> lambda;   // Lagrange multiplier
     std::unique_ptr<amrex::MultiFab> div0;     // Initial divergence
     std::unique_ptr<amrex::MultiFab> terrain;  // Terrain elevation
+    std::unique_ptr<amrex::MultiFab> alpha_h_field; // Cell-local horizontal anisotropy field
+    std::unique_ptr<amrex::MultiFab> alpha_v_field; // Cell-local vertical anisotropy field
     
     // Phase 1 diagnostic fields (flux diagnostics)
     std::unique_ptr<amrex::MultiFab> u_star;   // Friction velocity [m/s]
@@ -85,6 +87,16 @@ struct WindSolverState {
     amrex::Real alpha_h;   // Horizontal Lagrange anisotropy factor
     amrex::Real alpha_v;   // Vertical Lagrange anisotropy factor
     amrex::Real idw_gamma; // Vertical scaling parameter for 3D IDW meteorological interpolation
+    
+    // Cell-local spatially-varying anisotropy parameters
+    bool enable_cell_local_anisotropy;
+    std::string anisotropy_source;
+    amrex::Real anisotropy_slope_scale;
+    amrex::Real anisotropy_decay_height;
+    amrex::Real anisotropy_ri_gamma;
+    amrex::Real anisotropy_ri_beta;
+    amrex::Real anisotropy_fr_min;
+    amrex::Real temperature_gradient;
     
     // Canopy model parameters
     bool enable_canopy;                // Enable canopy model

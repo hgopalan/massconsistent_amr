@@ -536,6 +536,15 @@ add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test
 add_python_regression_test(wire_loading_validation wire_loading verify_wire_loading.py)
 
 # ===========================================================================
+# Cell-Local Spatially-Varying Variational Anisotropy
+# ===========================================================================
+add_regression_test(cell_local_anisotropy_base cell_local_anisotropy)
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_python_regression_test(cell_local_anisotropy_python cell_local_anisotropy
+                            test_cell_local_anisotropy.py)
+endif()
+
+# ===========================================================================
 # Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
 # ===========================================================================
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)

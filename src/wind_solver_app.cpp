@@ -7,6 +7,7 @@
 #include "wall_functions.H"
 #include "buoyancy_models.H"
 #include "orographic_models.H"
+#include "cell_local_anisotropy.H"
 #include "thermal_circulation_models.H"
 #include "terrain_blocking_models.H"
 #include "slope_flow_models.H"
@@ -194,6 +195,15 @@ void WindSolverApp::parse_inputs() {
     pp.query("alpha_v_surface", alpha_v_surface);
     pp.query("alpha_v_top", alpha_v_top);
 
+    // Cell-local spatially-varying anisotropy
+    pp.query("enable_cell_local_anisotropy", enable_cell_local_anisotropy);
+    pp.query("anisotropy_source", anisotropy_source);
+    pp.query("anisotropy_slope_scale", anisotropy_slope_scale);
+    pp.query("anisotropy_decay_height", anisotropy_decay_height);
+    pp.query("anisotropy_ri_gamma", anisotropy_ri_gamma);
+    pp.query("anisotropy_ri_beta", anisotropy_ri_beta);
+    pp.query("anisotropy_fr_min", anisotropy_fr_min);
+
     // Non-Neutral Log-Law
     pp.query("enable_stability_correction", enable_stability_correction);
     pp.query("stability_length", stability_length);
@@ -364,6 +374,9 @@ void WindSolverApp::parse_inputs() {
     pp.query("use_spatial_alpha_coefficients", use_spatial_alpha_coefficients);
     pp.query("alpha_coefficients_file", alpha_coefficients_file);
     if (!alpha_coefficients_file.empty()) {
+        use_spatial_alpha_coefficients = true;
+    }
+    if (enable_cell_local_anisotropy) {
         use_spatial_alpha_coefficients = true;
     }
 
@@ -3396,9 +3409,38 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
     bcoef[1].define(convert(*ba_ptr, IntVect(0, 1, 0)), *dm_ptr, 1, 0);
     bcoef[2].define(convert(*ba_ptr, IntVect(0, 0, 1)), *dm_ptr, 1, 0);
     
-    if (use_spatial_alpha_coefficients && !alpha_h_data.empty()) {
+    if (enable_cell_local_anisotropy) {
+        amrex::Print() << "wind_solver: computing cell-local spatially-varying variational anisotropy\n";
+        CellLocalAnisotropy::compute_cell_local_anisotropy_fields(
+            *alpha_h_field_ptr,
+            *alpha_v_field_ptr,
+            *vel0_ptr,
+            *temp_ptr,
+            d_obstacle_h.data(),
+            nx, ny, nz,
+            dx, dy, dz,
+            alpha_h,
+            alpha_v,
+            zs_min,
+            enable_cell_local_anisotropy,
+            anisotropy_source,
+            anisotropy_slope_scale,
+            anisotropy_decay_height,
+            anisotropy_ri_gamma,
+            anisotropy_ri_beta,
+            anisotropy_fr_min
+        );
+        
+        alpha_h_field_ptr->FillBoundary(geom_ptr->periodicity());
+        alpha_v_field_ptr->FillBoundary(geom_ptr->periodicity());
+    }
+
+    if (use_spatial_alpha_coefficients && (!alpha_h_data.empty() || enable_cell_local_anisotropy)) {
         amrex::Print() << "wind_solver: using spatially-varying Lagrange coefficients in Poisson solver\n";
         
+        const int nx_val = nx;
+        const int ny_val = ny;
+        const int nz_val = nz;
         for (MFIter mfi(bcoef[0]); mfi.isValid(); ++mfi) {
             const Box& bx_x = mfi.validbox();
             const Box& bx_y = convert(mfi.validbox(), IntVect(0, 1, 0));
@@ -3413,8 +3455,10 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
             amrex::ParallelFor(bx_x,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real ah_left = (i > 0) ? ah_arr(i-1, j, k) : ah_arr(i, j, k);
-                Real ah_right = ah_arr(i, j, k);
+                int left_idx = std::max(0, i - 1);
+                int right_idx = std::min(nx_val - 1, i);
+                Real ah_left = ah_arr(left_idx, j, k);
+                Real ah_right = ah_arr(right_idx, j, k);
                 Real ah_avg = Real(0.5) * (ah_left + ah_right);
                 bx_arr(i, j, k) = ah_avg * ah_avg;
             });
@@ -3422,8 +3466,10 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
             amrex::ParallelFor(bx_y,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real ah_bottom = (j > 0) ? ah_arr(i, j-1, k) : ah_arr(i, j, k);
-                Real ah_top = ah_arr(i, j, k);
+                int bottom_idx = std::max(0, j - 1);
+                int top_idx = std::min(ny_val - 1, j);
+                Real ah_bottom = ah_arr(i, bottom_idx, k);
+                Real ah_top = ah_arr(i, top_idx, k);
                 Real ah_avg = Real(0.5) * (ah_bottom + ah_top);
                 by_arr(i, j, k) = ah_avg * ah_avg;
             });
@@ -3431,8 +3477,10 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
             amrex::ParallelFor(bx_z,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real av_below = (k > 0) ? av_arr(i, j, k-1) : av_arr(i, j, k);
-                Real av_above = av_arr(i, j, k);
+                int below_idx = std::max(0, k - 1);
+                int above_idx = std::min(nz_val - 1, k);
+                Real av_below = av_arr(i, j, below_idx);
+                Real av_above = av_arr(i, j, above_idx);
                 Real av_avg = Real(0.5) * (av_below + av_above);
                 bz_arr(i, j, k) = av_avg * av_avg;
             });
@@ -3591,6 +3639,7 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
 
     const bool cap_enable_capping_lid = enable_capping_lid;
     const Real cap_capping_lid_height = capping_lid_height;
+    const bool local_use_spatial_alpha_coefficients = use_spatial_alpha_coefficients;
 
     for (MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -3598,6 +3647,8 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
         const auto la  = lam_ptr->const_array(mfi);
         auto       vc  = vel_c_ptr->array(mfi);
         const auto z_bl_arr = z_bl_diag_ptr->const_array(mfi);
+        const auto ah_arr = alpha_h_field_ptr->const_array(mfi);
+        const auto av_arr = alpha_v_field_ptr->const_array(mfi);
 
         amrex::ParallelFor(bx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -3685,9 +3736,18 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
                                      la(i,j,k+1), la(i,j,k+2), dz_cap_div);
             }
 
-            vc(i, j, k, 0) = v0(i, j, k, 0) - bh * dlx;
-            vc(i, j, k, 1) = v0(i, j, k, 1) - bh * dly;
-            vc(i, j, k, 2) = v0(i, j, k, 2) - bv * dlz;
+            Real local_bh = bh;
+            Real local_bv = bv;
+            if (local_use_spatial_alpha_coefficients) {
+                Real local_ah = ah_arr(i, j, k);
+                Real local_av = av_arr(i, j, k);
+                local_bh = local_ah * local_ah;
+                local_bv = local_av * local_av;
+            }
+
+            vc(i, j, k, 0) = v0(i, j, k, 0) - local_bh * dlx;
+            vc(i, j, k, 1) = v0(i, j, k, 1) - local_bh * dly;
+            vc(i, j, k, 2) = v0(i, j, k, 2) - local_bv * dlz;
             
             Real local_capping_lid_height = (z_bl_arr(i, j, k) > Real(0.0)) ? z_bl_arr(i, j, k) : cap_capping_lid_height;
             if (cap_enable_capping_lid && z_agl >= local_capping_lid_height) {

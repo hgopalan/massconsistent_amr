@@ -2,6 +2,7 @@
 #include "wind_interpolation.H"
 #include "canopy_models.H"
 #include "terrain_following_coords.H"
+#include "cell_local_anisotropy.H"
 #include "solver_math_constants.H"
 
 #include <AMReX_FArrayBox.H>
@@ -352,6 +353,24 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("alpha_v", state.alpha_v);
     pp.query("idw_gamma", state.idw_gamma);
 
+    // Cell-local spatially-varying anisotropy
+    state.enable_cell_local_anisotropy = false;
+    state.anisotropy_source = "all";
+    state.anisotropy_slope_scale = 0.25;
+    state.anisotropy_decay_height = 500.0;
+    state.anisotropy_ri_gamma = 1.0;
+    state.anisotropy_ri_beta = 0.5;
+    state.anisotropy_fr_min = 0.1;
+    state.temperature_gradient = 0.0;
+    pp.query("enable_cell_local_anisotropy", state.enable_cell_local_anisotropy);
+    pp.query("anisotropy_source", state.anisotropy_source);
+    pp.query("anisotropy_slope_scale", state.anisotropy_slope_scale);
+    pp.query("anisotropy_decay_height", state.anisotropy_decay_height);
+    pp.query("anisotropy_ri_gamma", state.anisotropy_ri_gamma);
+    pp.query("anisotropy_ri_beta", state.anisotropy_ri_beta);
+    pp.query("anisotropy_fr_min", state.anisotropy_fr_min);
+    pp.query("temperature_gradient", state.temperature_gradient);
+
     state.mlmg_verbose = 1;
     state.tol_rel = 1.e-8;
     state.tol_abs = 0.0;
@@ -692,6 +711,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.lambda = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 1);
     state.div0 = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);
     state.terrain = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);
+    state.alpha_h_field = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 1);
+    state.alpha_v_field = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 1);
     
     // Phase 1: Initialize diagnostic flux fields
     state.u_star = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);
@@ -710,6 +731,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.lambda->setVal(0.0);
     state.div0->setVal(0.0);
     state.terrain->setVal(0.0);
+    state.alpha_h_field->setVal(state.alpha_h);
+    state.alpha_v_field->setVal(state.alpha_v);
 
     const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
     const int nx = state.nx;
@@ -1125,6 +1148,9 @@ void correct_velocity_field(WindSolverState& state)
         const auto v0 = state.vel0->const_array(mfi);
         const auto lam = state.lambda->const_array(mfi);
         auto vel = state.vel->array(mfi);
+        const auto ah_arr = state.alpha_h_field->const_array(mfi);
+        const auto av_arr = state.alpha_v_field->const_array(mfi);
+        const bool use_spatial = state.enable_cell_local_anisotropy;
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real z_phys = z_lo + (k + Real(0.5)) * dz;
             const Real z_terrain = terrain_ptr[j * nx + i];
@@ -1170,10 +1196,19 @@ void correct_velocity_field(WindSolverState& state)
                 }
             }
 
+            Real local_bh = bh;
+            Real local_bv = bv;
+            if (use_spatial) {
+                Real local_ah = ah_arr(i, j, k);
+                Real local_av = av_arr(i, j, k);
+                local_bh = local_ah * local_ah;
+                local_bv = local_av * local_av;
+            }
+
             // Standard velocity correction
-            vel(i, j, k, 0) = v0(i, j, k, 0) - bh * dlx;
-            vel(i, j, k, 1) = v0(i, j, k, 1) - bh * dly;
-            vel(i, j, k, 2) = v0(i, j, k, 2) - bv * dlz;
+            vel(i, j, k, 0) = v0(i, j, k, 0) - local_bh * dlx;
+            vel(i, j, k, 1) = v0(i, j, k, 1) - local_bh * dly;
+            vel(i, j, k, 2) = v0(i, j, k, 2) - local_bv * dlz;
             
             // Apply terrain-following coordinate corrections
             if (use_terrain_following) {
@@ -1191,7 +1226,7 @@ void correct_velocity_field(WindSolverState& state)
                     dz_terrain_dy, z_agl, decay_height);
                 
                 // Modify vertical velocity with horizontal metric terms
-                vel(i, j, k, 2) -= bh * (dsdx * dlx + dsdy * dly);
+                vel(i, j, k, 2) -= local_bh * (dsdx * dlx + dsdy * dly);
                 
                 // Scale vertical correction by Jacobian
                 const Real J = TerrainFollowingCoords::jacobian(
@@ -1348,15 +1383,105 @@ bool wind_solver_solve()
         acoef.setVal(0.0);
         mlabec.setACoeffs(0, acoef);
 
-        const Real bh = state.alpha_h * state.alpha_h;
-        const Real bv = state.alpha_v * state.alpha_v;
+        // Initialize temperature and compute cell-local anisotropy fields if enabled
+        MultiFab temp(*state.ba, *state.dm, 1, 0);
+        {
+            const Real T_ref = 300.0;
+            const Real grad = state.temperature_gradient;
+            const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+            const Real z_lo = state.zmin;
+            const Real dz_val = state.dz;
+            const int nx_val = state.nx;
+            
+            for (MFIter mfi(temp); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto t_arr = temp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    const Real z_phys = z_lo + (k + Real(0.5)) * dz_val;
+                    const Real z_terrain = terrain_ptr[j * nx_val + i];
+                    const Real z_agl = z_phys - z_terrain;
+                    t_arr(i, j, k) = T_ref + grad * z_agl;
+                });
+            }
+        }
+
+        CellLocalAnisotropy::compute_cell_local_anisotropy_fields(
+            *state.alpha_h_field,
+            *state.alpha_v_field,
+            *state.vel0,
+            temp,
+            g_wind_solver_runtime->terrain_device.data(),
+            state.nx, state.ny, state.nz,
+            state.dx, state.dy, state.dz,
+            state.alpha_h,
+            state.alpha_v,
+            state.zmin,
+            state.enable_cell_local_anisotropy,
+            state.anisotropy_source,
+            state.anisotropy_slope_scale,
+            state.anisotropy_decay_height,
+            state.anisotropy_ri_gamma,
+            state.anisotropy_ri_beta,
+            state.anisotropy_fr_min
+        );
+        state.alpha_h_field->FillBoundary(state.geom->periodicity());
+        state.alpha_v_field->FillBoundary(state.geom->periodicity());
+
         Array<MultiFab, AMREX_SPACEDIM> bcoef;
         bcoef[0].define(convert(*state.ba, IntVect(1, 0, 0)), *state.dm, 1, 0);
         bcoef[1].define(convert(*state.ba, IntVect(0, 1, 0)), *state.dm, 1, 0);
         bcoef[2].define(convert(*state.ba, IntVect(0, 0, 1)), *state.dm, 1, 0);
-        bcoef[0].setVal(bh);
-        bcoef[1].setVal(bh);
-        bcoef[2].setVal(bv);
+
+        if (state.enable_cell_local_anisotropy) {
+            for (MFIter mfi(bcoef[0]); mfi.isValid(); ++mfi) {
+                const Box& bx_x = mfi.validbox();
+                const Box& bx_y = convert(mfi.validbox(), IntVect(0, 1, 0));
+                const Box& bx_z = convert(mfi.validbox(), IntVect(0, 0, 1));
+                
+                auto bx_arr = bcoef[0].array(mfi);
+                auto by_arr = bcoef[1].array(mfi);
+                auto bz_arr = bcoef[2].array(mfi);
+                auto ah_arr = state.alpha_h_field->const_array(mfi);
+                auto av_arr = state.alpha_v_field->const_array(mfi);
+                
+                const int nx_val = state.nx;
+                const int ny_val = state.ny;
+                const int nz_val = state.nz;
+                
+                ParallelFor(bx_x, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    int left_idx = std::max(0, i - 1);
+                    int right_idx = std::min(nx_val - 1, i);
+                    Real ah_left = ah_arr(left_idx, j, k);
+                    Real ah_right = ah_arr(right_idx, j, k);
+                    Real ah_avg = Real(0.5) * (ah_left + ah_right);
+                    bx_arr(i, j, k) = ah_avg * ah_avg;
+                });
+                
+                ParallelFor(bx_y, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    int bottom_idx = std::max(0, j - 1);
+                    int top_idx = std::min(ny_val - 1, j);
+                    Real ah_bottom = ah_arr(i, bottom_idx, k);
+                    Real ah_top = ah_arr(i, top_idx, k);
+                    Real ah_avg = Real(0.5) * (ah_bottom + ah_top);
+                    by_arr(i, j, k) = ah_avg * ah_avg;
+                });
+                
+                ParallelFor(bx_z, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    int below_idx = std::max(0, k - 1);
+                    int above_idx = std::min(nz_val - 1, k);
+                    Real av_below = av_arr(i, j, below_idx);
+                    Real av_above = av_arr(i, j, above_idx);
+                    Real av_avg = Real(0.5) * (av_below + av_above);
+                    bz_arr(i, j, k) = av_avg * av_avg;
+                });
+            }
+        } else {
+            const Real bh = state.alpha_h * state.alpha_h;
+            const Real bv = state.alpha_v * state.alpha_v;
+            bcoef[0].setVal(bh);
+            bcoef[1].setVal(bh);
+            bcoef[2].setVal(bv);
+        }
         
         // Apply terrain-following coordinate metric corrections to B coefficients
         if (state.enable_terrain_following) {
@@ -1382,7 +1507,7 @@ bool wind_solver_solve()
                             z_terrain, z_agl, decay_height);
                         // Scale vertical B coefficient by Jacobian squared
                         // This accounts for metric tensor in terrain-following coords
-                        bz(i, j, k) = bv * J * J;
+                        bz(i, j, k) *= J * J;
                     }
                 });
             }
