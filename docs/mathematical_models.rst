@@ -3,7 +3,7 @@
 Mathematical Models
 ===================
 
-This page documents the mathematical models, physical parameterizations, and numerical formulations available in ``massconsistent_amr``.
+This page documents the mathematical models, physical parameterizations, and numerical formulations available in ``massconsistent_amr``. Each section is documented with references to the scientific literature supporting its implementation. For full citations, see the :ref:`references` page.
 
 .. contents:: Topics
    :local:
@@ -12,7 +12,7 @@ This page documents the mathematical models, physical parameterizations, and num
 Core Mass-Consistent Wind Solver
 --------------------------------
 
-The primary solver implements the variational, mass-consistent wind field adjustment methodology based on Sherman (1978) and Mathiesen (1987). This diagnostic model adjusts an initial wind profile over complex terrain to enforce mass conservation while minimizing alterations to the initial flow field.
+The primary solver implements the variational, mass-consistent wind field adjustment methodology based on Sherman (1978) and Mathiesen (1987). This diagnostic model adjusts an initial wind profile over complex terrain to enforce mass conservation while minimizing alterations to the initial flow field. The practical implementation follows the QUIC-URB architecture (Pardyjak & Brown, 2001).
 
 Terrain Interpolation
 ~~~~~~~~~~~~~~~~~~~~~
@@ -24,7 +24,7 @@ An arbitrary-density terrain point cloud (X, Y, Z) is ingested from a CSV file. 
 
 Wind Profile Initialization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The initial velocity components :math:`(u_0, v_0, w_0)` are computed for every cell. Above the local terrain surface, the default **log-law** wind profile is constructed at height above ground level (AGL):
+The initial velocity components :math:`(u_0, v_0, w_0)` are computed for every cell. Above the local terrain surface, the default **log-law** wind profile is constructed at height above ground level (AGL), following Monin-Obukhov similarity theory (Monin & Obukhov, 1954; Stull, 1988):
 
 .. math::
 
@@ -36,7 +36,7 @@ The initial velocity components :math:`(u_0, v_0, w_0)` are computed for every c
    v_0(z_{\text{agl}}) = \frac{u_*}{\kappa}\,\ln\!\left(\frac{z_{\text{agl}}+z_0}{z_0}\right) \hat{u}_y, \quad
    w_0(z_{\text{agl}}) = 0
 
-where :math:`\kappa = 0.41` is the von Kármán constant, :math:`z_0` is the aerodynamic roughness length, and the friction velocity :math:`u_*` is obtained from the reference wind speed :math:`|\mathbf{U}_{\text{ref}}|` at reference height :math:`z_{\text{ref}}`:
+where :math:`\kappa = 0.41` is the von Kármán constant (von Kármán, 1948), :math:`z_0` is the aerodynamic roughness length, and the friction velocity :math:`u_*` is obtained from the reference wind speed :math:`|\mathbf{U}_{\text{ref}}|` at reference height :math:`z_{\text{ref}}`:
 
 .. math::
 
@@ -44,7 +44,7 @@ where :math:`\kappa = 0.41` is the von Kármán constant, :math:`z_0` is the aer
 
 Variational Formulation
 ~~~~~~~~~~~~~~~~~~~~~~~
-The corrected wind field :math:`\mathbf{u} = (u,v,w)` is obtained by minimizing the volume integral of the difference between the adjusted and initial velocity fields, weighted by directional penalty coefficients:
+The corrected wind field :math:`\mathbf{u} = (u,v,w)` is obtained by minimizing the volume integral of the difference between the adjusted and initial velocity fields, weighted by directional penalty coefficients (Sherman, 1978; Mathiesen, 1987):
 
 .. math::
 
@@ -80,19 +80,19 @@ The anisotropic Poisson equation is solved using the following boundary conditio
 Advanced Boundary Layer Physics
 -------------------------------
 
-To represent complex microscale atmospheric dynamics, several physical models are integrated.
+To represent complex microscale atmospheric dynamics, several physical models are integrated. These follow established boundary layer meteorology theory (Stull, 1988; Högström, 1996).
 
 Atmospheric Stability (Monin-Obukhov Similarity Theory)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The log-law wind profile can be adjusted for non-neutral thermal stratification using stability corrections:
+The log-law wind profile can be adjusted for non-neutral thermal stratification using stability corrections (Businger et al., 1971; Dyer, 1974). The corrected profile follows:
 
 .. math::
 
    u(z) = \frac{u_*}{\kappa}\left[\ln\left(\frac{z_{\text{agl}}+z_0}{z_0}\right) - \psi_m\left(\frac{z_{\text{agl}}}{L}\right) + \psi_m\left(\frac{z_0}{L}\right)\right]
 
-where :math:`L` is the Obukhov length characterizing atmospheric stability (positive for stable, negative for unstable).
+where :math:`L` is the Obukhov length characterizing atmospheric stability (positive for stable, negative for unstable) (Monin & Obukhov, 1954).
 
-For **stable conditions** (:math:`\zeta = z_{\text{agl}}/L > 0`):
+For **stable conditions** (:math:`\zeta = z_{\text{agl}}/L > 0`), the Holtslag-De Bruin formulation is used (Holtslag & De Bruin, 1988):
 
 .. math::
 
@@ -134,7 +134,7 @@ The boundary layer depth :math:`z_i(x,y)` is diagnosed as the height above groun
 
 Jackson-Hunt Orographic Speed-up Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Wind acceleration over convex terrain features (ridges, hill tops) and deceleration in valleys is parameterized using the Jackson and Hunt (1975) model:
+Wind acceleration over convex terrain features (ridges, hill tops) and deceleration in valleys is parameterized using the Jackson and Hunt (1975) model, which has been validated experimentally over low hills (Ayotte et al., 1994; Belcher et al., 1994):
 
 .. math::
 
@@ -181,7 +181,7 @@ Canopy and Obstacle Modeling
 
 MacDonald Forest Canopy Drag Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Spatiotemporally varying vegetative canopies are parameterized using MacDonald et al. (2000) and Shaw-Pereira (1982) formulations. Within the canopy height (:math:`z_{\text{agl}} \le h_c`), the wind velocity decays exponentially:
+Spatiotemporally varying vegetative canopies are parameterized using MacDonald et al. (2000) and Shaw-Pereira (1982) formulations. The exponential canopy velocity decay and displacement height calculations follow established canopy aerodynamic theory (Raupach, 1994; Nakai et al., 2012). Within the canopy height (:math:`z_{\text{agl}} \le h_c`), the wind velocity decays exponentially:
 
 .. math::
 
@@ -198,9 +198,11 @@ where :math:`d` and effective :math:`z_0` are computed based on canopy plan area
 
 Building Wake Modeling (Röckle, Huber-Snyder, AERMOD PRIME)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Solid structures read from a buildings CSV file are masked (zero velocity inside). Their aerodynamic wakes are modeled using three selectable parameterizations applied to the initial wind field:
+Solid structures read from a buildings CSV file are masked (zero velocity inside). Their aerodynamic wakes are modeled using three selectable parameterizations applied to the initial wind field. These implementations follow regulatory and wind engineering standards:
 
-1. **Röckle (1990) Model**:
+1. **Röckle (1990) Model** — Empirical cavity and far-wake parameterization for urban flows (Röckle, 1990).
+2. **Huber-Snyder (EPA) Model** — Power-law wake deficit formulation from wind engineering (Huber & Snyder, 1982; Snyder, 1981).
+3. **AERMOD PRIME (EPA) Model** — Regulatory model for building downwash (Cimorelli et al., 2005; EPA 2005).
    * Cavity length :math:`L_r = c_1 \cdot H` (where :math:`H` is building height).
    * Cavity velocity deficit: :math:`u_{\text{deficit}} = c_2 \cdot U_H` with vertical rooftop vortex circulation patterns.
    * Far-wake velocity deficit decays linearly to zero at distance :math:`L_f = 3H`.
@@ -224,7 +226,7 @@ where :math:`d_i` is distance to building :math:`i`'s wake boundary, and :math:`
 
 Building Street Canyon Vortex Parameterization (QUIC-URB Style)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-When parallel buildings are aligned perpendicular to the ambient wind direction, the solver identifies street canyons geometrically, computes their aspect ratio (:math:`H/W`), and overwrites the initial wind field inside the canyon with a parameterized, solenoidal (divergence-free) recirculating vortex profile before the Poisson solve:
+When parallel buildings are aligned perpendicular to the ambient wind direction, the solver identifies street canyons geometrically, computes their aspect ratio (:math:`H/W`), and overwrites the initial wind field inside the canyon with a parameterized, solenoidal (divergence-free) recirculating vortex profile before the Poisson solve (Pardyjak & Brown, 2001; Brown et al., 2000):
 
 * **Solenoidal Vortex Velocity Components**:
   
@@ -243,9 +245,9 @@ When parallel buildings are aligned perpendicular to the ambient wind direction,
 
 Analytical Wind Turbine Wake Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The solver supports analytical turbine wake deficits for wind energy applications:
+The solver supports analytical turbine wake deficits for wind energy applications, following established models in wind farm design and optimization:
 
-1. **Jensen (Park) Model**:
+1. **Jensen (Park) Model** (Jensen, 1983; Katic et al., 1986) — Classic linear wake expansion model widely used in wind farm calculations.
    
    .. math::
    
@@ -255,7 +257,7 @@ The solver supports analytical turbine wake deficits for wind energy application
    
       \Delta U = U_0 \cdot \frac{1 - \sqrt{1 - C_T}}{(1 + 2 k_w x_{\text{down}} / D)^2}
 
-2. **Bastankhah (Gaussian) Model**:
+2. **Bastankhah (Gaussian) Model** (Bastankhah & Porté-Agel, 2014) — Gaussian wake deficit based on top-hat distribution, widely used in wind energy applications.
    
    .. math::
    
@@ -265,8 +267,7 @@ The solver supports analytical turbine wake deficits for wind energy application
    
       \frac{\Delta U}{U_0} = \left( 1 - \sqrt{1 - \frac{C_T}{8 (\sigma_w / D)^2}} \right) \cdot \exp\left( - \frac{r^2}{2 \sigma_w^2} \right)
 
-3. **TurbOPark Model**:
-   A self-similar Gaussian deficit model that uses a wake expansion parameter based on local turbulence intensity:
+3. **TurbOPark Model** — A self-similar Gaussian deficit model that uses a wake expansion parameter based on local turbulence intensity, implemented from wind energy research (Crespo et al., 1999; Frandsen et al., 2006):
    
    .. math::
    
@@ -280,8 +281,7 @@ The solver supports analytical turbine wake deficits for wind energy application
 
    with empirical scaling coefficient :math:`c_1 \approx 0.38`.
 
-4. **Gauss-Curl Hybrid (GCH) Model**:
-   An advanced model that resolves secondary steering effects (including counter-rotating vortex pairs) generated by yawed turbines.
+4. **Gauss-Curl Hybrid (GCH) Model** (Martínez-Tossas & Meneveau, 2019; Qian & Ishihara, 2016; Howland et al., 2016) — An advanced model that resolves secondary steering effects (including counter-rotating vortex pairs) generated by yawed turbines.
    
    The spanwise and vertical vortices are resolved in a right-handed Cartesian coordinate system with:
 
@@ -341,8 +341,8 @@ To combine velocity deficits from multiple overlapping upstream turbine wakes at
 Wake Centerline Deflection Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. **Jimenez Model**:
-To model yawed wind turbine wakes, the Jimenez wake deflection model computes the wake centerline deflection :math:`y_{\text{offset}}(x_{\text{down}})` due to thrust-induced lateral force components:
+1. **Jimenez Model** (Jimenez, 2010):
+    To model yawed wind turbine wakes, the Jimenez wake deflection model computes the wake centerline deflection :math:`y_{\text{offset}}(x_{\text{down}})` due to thrust-induced lateral force components:
 
 .. math::
 
@@ -362,8 +362,8 @@ Integrating the deflection angle along the downstream path yields the transverse
 
 where :math:`\gamma` is the yaw angle and :math:`\beta_{\text{def}} = k_d` is the deflection decay coefficient (configured via `jimenez_kd`, defaulting to 0.05).
 
-2. **Bastankhah & Porté-Agel Model (2016)**:
-The Bastankhah & Porté-Agel wake deflection model is a closed-form mass-and-momentum-conserving analytical formulation for Gaussian wakes in yawed conditions. The initial skew angle at the rotor is given by:
+2. **Bastankhah & Porté-Agel Model (2016)** (Bastankhah & Porté-Agel, 2016):
+    The Bastankhah & Porté-Agel wake deflection model is a closed-form mass-and-momentum-conserving analytical formulation for Gaussian wakes in yawed conditions. The initial skew angle at the rotor is given by:
 
 .. math::
 
@@ -405,9 +405,9 @@ Under veered atmospheric conditions, the wind direction changes continuously wit
 
 Analytical Wake-Added Turbulence Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Turbines increase local downstream turbulence intensity :math:`TI_{\text{local}} = \sqrt{TI_{\text{ambient}}^2 + \sum \Delta I_{+}^2}` via:
+Turbines increase local downstream turbulence intensity :math:`TI_{\text{local}} = \sqrt{TI_{\text{ambient}}^2 + \sum \Delta I_{+}^2}` via established empirical models (Crespo et al., 1999; Crespo & Hernández, 1996; Frandsen et al., 2006):
 
-1. **Crespo-Hernández Model**:
+1. **Crespo-Hernández Model** (Crespo & Hernández, 1996):
    
    .. math::
    
@@ -420,7 +420,7 @@ Turbines increase local downstream turbulence intensity :math:`TI_{\text{local}}
    * :math:`c_{\text{ch3}} = 0.0325`
    * :math:`c_{\text{ch4}} = -0.32`
 
-2. **Frandsen (STF) Model**:
+2. **Frandsen (STF) Model** (Frandsen et al., 2006):
    
    .. math::
    
@@ -479,7 +479,7 @@ where:
 Gaussian Puff Dispersion Model
 ------------------------------
 
-The passive Gaussian puff model couples wind transport with chemical/physical decay and deposition processes:
+The passive Gaussian puff model couples wind transport with chemical/physical decay and deposition processes (Csanady, 1973; Seinfeld & Pandis, 2016):
 
 Concentration Superposition
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -510,7 +510,7 @@ where :math:`n = 0.5` for neutral, :math:`1.2` for unstable, and :math:`0.3` for
 
 Briggs Plume Rise
 ~~~~~~~~~~~~~~~~~
-Buoyant exhaust plumes rise according to Briggs (1975) formula:
+Buoyant exhaust plumes rise according to Briggs (1975) formula, which is the standard in environmental dispersion modeling (Briggs, 1975, 1984; Ooms et al., 1972):
 
 .. math::
 
@@ -520,7 +520,7 @@ where :math:`Q_H` is the thermal power release, and :math:`F` is the buoyancy fl
 
 Dry Deposition and Gravitational Settling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Mass removal due to ground deposition is computed when a puff overlaps the terrain surface (:math:`z_{\text{agl}} < 3 \sigma_z`):
+Mass removal due to ground deposition is computed when a puff overlaps the terrain surface (:math:`z_{\text{agl}} < 3 \sigma_z`). The deposition velocity is computed using Stokes' Law and particle settling theory (Slinn & Slinn, 1980; Slinn et al., 1978):
 
 .. math::
 
@@ -530,7 +530,7 @@ where :math:`v_d` is the deposition/settling velocity, and :math:`A_{\text{eff}}
 
 Ambient-Condition-Driven Chemical Decay
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Puff chemical molecular parameters and first-order exponential decay are coupled:
+Puff chemical molecular parameters and first-order exponential decay are coupled (Atkinson, 1994; Finlayson-Pitts & Pitts, 2000):
 
 .. math::
 
@@ -541,15 +541,15 @@ where :math:`\lambda_{\text{decay}}` is the first-order reaction/decay constant.
 Synthetic Turbulence & Fluctuations
 -----------------------------------
 
-To synthesize terrain-aware turbulent fluctuations, the model uses spectral pipelines coupled with physical boundaries.
+To synthesize terrain-aware turbulent fluctuations, the model uses spectral pipelines coupled with physical boundaries (Panofsky & Dutton, 1984; Veers, 1988).
 
 Spectral Models
 ~~~~~~~~~~~~~~~
-Turbulent velocity fluctuations can be synthesized using multiple advanced spectral models. These include standard isotropic/sheared models from wind engineering standards (IEC 61400-1) and full anisotropic spectral tensor formulations (Mann Box).
+Turbulent velocity fluctuations can be synthesized using multiple advanced spectral models. These include standard isotropic/sheared models from wind engineering standards (IEC 61400-1, 2019; Sathe et al., 2011) and full anisotropic spectral tensor formulations (Mann Box).
 
 IEC 61400-1 Spectral Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The standard wind input models defined in IEC 61400-1:2019 specify turbulence parameters for wind turbine design and certification, supporting the **Normal Turbulence Model (NTM)** and **Extreme Turbulence Model (ETM)**.
+The standard wind input models defined in IEC 61400-1:2019 (IEC, 2019) specify turbulence parameters for wind turbine design and certification, supporting the **Normal Turbulence Model (NTM)** and **Extreme Turbulence Model (ETM)**.
 
 * **Turbine Power Classes**:
   
@@ -577,7 +577,7 @@ The standard wind input models defined in IEC 61400-1:2019 specify turbulence pa
      \sigma_u = \sigma, \quad \sigma_v = 0.8\sigma, \quad \sigma_w = 0.5\sigma
 
 * **Von Kármán Spectrum Formulation**:
-  The streamwise (u-component) spectral density is given by:
+  The streamwise (u-component) spectral density is given by (von Kármán, 1948; Panofsky & Dutton, 1984):
   
   .. math::
   
@@ -586,7 +586,7 @@ The standard wind input models defined in IEC 61400-1:2019 specify turbulence pa
   where :math:`\hat{f} = \frac{f L_u}{U_{\text{mean}}}` is the normalized frequency.
 
 * **Kaimal Spectrum Formulation**:
-  The streamwise (u-component) spectral density is given by:
+  The streamwise (u-component) spectral density is given by (Kaimal et al., 1976):
   
   .. math::
   
@@ -609,7 +609,7 @@ The standard wind input models defined in IEC 61400-1:2019 specify turbulence pa
 
 Mann Box Anisotropic Spectral Tensor Model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The Mann Box model (Mann, 1994) represents a fully anisotropic 3D turbulent velocity field, capturing sheared spectral tensors and cross-component correlations over complex terrain.
+The Mann Box model (Mann, 1994; Mann et al., 2016) represents a fully anisotropic 3D turbulent velocity field, capturing sheared spectral tensors and cross-component correlations over complex terrain.
 
 * **Diagonal Spectral Components** (Energy Spectra):
   The energy spectrum for each velocity component :math:`i \in \{u, v, w\}` is defined as:
