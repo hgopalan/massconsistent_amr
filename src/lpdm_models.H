@@ -69,16 +69,17 @@ void advect_particle_with_terrain(
     bool enable_reflection = false,
     amrex::Real v_s = amrex::Real(0.0),
     bool enable_capping_lid = false,
-    amrex::Real capping_lid_height = 1000.0)
+    amrex::Real capping_lid_height = 1000.0,
+    amrex::Real w_drift = amrex::Real(0.0))
 {
     if (!p.active || dt < amrex::Real(0.0)) {
         return;
     }
     
-    // Advect with wind, terminal settling velocity, + stochastic random walk
+    // Advect with wind, terminal settling velocity, + stochastic random walk + drift correction
     p.x += u * dt + rand_dx;
     p.y += v * dt + rand_dy;
-    p.z += (w - v_s) * dt + rand_dz;
+    p.z += (w - v_s + w_drift) * dt + rand_dz;
     
     // Ground reflection
     if (enable_reflection && p.z < terrain_height) {
@@ -110,7 +111,8 @@ void advect_particle(
     amrex::Real dt,
     amrex::Real v_s = amrex::Real(0.0),
     bool enable_capping_lid = false,
-    amrex::Real capping_lid_height = 1000.0)
+    amrex::Real capping_lid_height = 1000.0,
+    amrex::Real w_drift = amrex::Real(0.0))
 {
     if (!p.active || dt < amrex::Real(0.0)) {
         return;
@@ -118,7 +120,7 @@ void advect_particle(
     
     p.x += u * dt + rand_dx;
     p.y += v * dt + rand_dy;
-    p.z += (w - v_s) * dt + rand_dz;
+    p.z += (w - v_s + w_drift) * dt + rand_dz;
 
     // Capping lid reflection (with terrain_height = 0.0)
     if (enable_capping_lid) {
