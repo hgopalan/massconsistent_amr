@@ -505,6 +505,9 @@ void WindSolverApp::parse_inputs() {
     turb_params.enabled = enable_synthetic_turbulence;
     
     if (enable_synthetic_turbulence) {
+        pp.query("enable_terrain_aware_masking", enable_terrain_aware_masking);
+        pp.query("terrain_mask_transition_height", terrain_mask_transition_height);
+
         std::string spectrum_model_str = "VonKarman";
         std::string intensity_model_str = "PowerLaw";
         std::string coherence_model_str = "Gaussian";
@@ -762,6 +765,10 @@ void WindSolverApp::parse_inputs() {
         }
         if (turb_params.coherence_model == CoherenceModel::PowerLaw) {
             amrex::Print() << "  coherence_powerlaw_exponent: " << turb_params.coherence_powerlaw_exponent << "\n";
+        }
+        amrex::Print() << "  enable_terrain_aware_masking: " << enable_terrain_aware_masking << "\n";
+        if (enable_terrain_aware_masking) {
+            amrex::Print() << "  terrain_mask_transition_height: " << terrain_mask_transition_height << " [m]\n";
         }
         amrex::Print() << "  export_format: " << turbulence_export_format << "\n"
                        << "  output_file: " << turbulence_output_file << "\n";
@@ -3645,6 +3652,13 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
         Real const* d_w_prime_ptr = d_w_prime.data();
         const int n_fluc = static_cast<int>(random_fields.u_prime.size());
 
+        const bool cap_enable_terrain_aware_masking = enable_terrain_aware_masking;
+        const Real cap_terrain_mask_transition_height = terrain_mask_transition_height;
+        const Real cap_dz = dz;
+        const Real cap_zs_min = zs_min;
+        const int cap_nx = nx;
+        const Real* d_terr_ptr_loc = d_obstacle_h.data();
+
         for (MFIter mfi(*synthetic_turbulence_fluc_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto fluc = synthetic_turbulence_fluc_ptr->array(mfi);
@@ -3654,9 +3668,30 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
             {
                 int idx_1d = (k * turb_ny + j) * turb_nx + i;
                 if (idx_1d >= 0 && idx_1d < n_fluc) {
-                    fluc(i,j,k,0) = d_u_prime_ptr[idx_1d];
-                    fluc(i,j,k,1) = d_v_prime_ptr[idx_1d];
-                    fluc(i,j,k,2) = d_w_prime_ptr[idx_1d];
+                    Real u_val = d_u_prime_ptr[idx_1d];
+                    Real v_val = d_v_prime_ptr[idx_1d];
+                    Real w_val = d_w_prime_ptr[idx_1d];
+
+                    if (cap_enable_terrain_aware_masking) {
+                        Real z_physical = cap_zs_min + (k + Real(0.5)) * cap_dz;
+                        Real z_agl      = z_physical - d_terr_ptr_loc[j * cap_nx + i];
+                        Real mask;
+                        if (z_agl <= Real(0.0)) {
+                            mask = Real(0.0);
+                        } else if (z_agl >= cap_terrain_mask_transition_height) {
+                            mask = Real(1.0);
+                        } else {
+                            Real transition_angle = MathConstants::pi * z_agl / cap_terrain_mask_transition_height;
+                            mask = (Real(1.0) - std::cos(transition_angle)) / Real(2.0);
+                        }
+                        u_val *= mask;
+                        v_val *= mask;
+                        w_val *= mask;
+                    }
+
+                    fluc(i,j,k,0) = u_val;
+                    fluc(i,j,k,1) = v_val;
+                    fluc(i,j,k,2) = w_val;
                 } else {
                     fluc(i,j,k,0) = 0.0;
                     fluc(i,j,k,1) = 0.0;
