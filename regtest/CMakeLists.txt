@@ -129,6 +129,7 @@ add_regression_test(buildings_terrain buildings_terrain)
 # wake_single_building/ – Single building wake model (Röckle formulation)
 # ===========================================================================
 add_regression_test(wake_single_building wake_single_building)
+add_regression_test(wake_non_rectangular_sloped wake_non_rectangular_sloped)
 
 # ===========================================================================
 # Advanced features
@@ -582,6 +583,7 @@ message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat te
 message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terrain")
 message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
 message(STATUS "  wake_single_building/  : Single building wake model (Röckle formulation)")
+message(STATUS "  wake_non_rectangular_sloped/: Non-rectangular and sloped building wakes")
 message(STATUS "  rooftop_vortex/        : Rooftop vortex in building cavity zones")
 message(STATUS "  building_oriented/     : Arbitrary building orientation effects")
 message(STATUS "  building_array/        : Building array configurations")

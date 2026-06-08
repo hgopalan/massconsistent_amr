@@ -65,7 +65,10 @@ void read_building_file(const std::string& filename,
                         std::vector<Real>& ymax,
                         std::vector<Real>& zmin,
                         std::vector<Real>& zmax,
-                        std::vector<Real>& rotation);
+                        std::vector<Real>& rotation,
+                        std::vector<int>& shape,
+                        std::vector<Real>& pitch_or_radius,
+                        std::vector<Real>& pitch_direction);
 
 void read_porous_building_file(const std::string& filename,
                                std::vector<Real>& xmin,

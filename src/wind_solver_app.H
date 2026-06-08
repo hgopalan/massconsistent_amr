@@ -428,6 +428,9 @@ private:
     std::vector<amrex::Real> building_ymin, building_ymax;
     std::vector<amrex::Real> building_zmin, building_zmax;
     std::vector<amrex::Real> building_rotation;
+    std::vector<int> building_shape;
+    std::vector<amrex::Real> building_pitch_or_radius;
+    std::vector<amrex::Real> building_pitch_direction;
 
     std::vector<amrex::Real> porous_building_xmin, porous_building_xmax;
     std::vector<amrex::Real> porous_building_ymin, porous_building_ymax;

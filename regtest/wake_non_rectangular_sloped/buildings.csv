@@ -1,0 +1,8 @@
+# Buildings for non-rectangular and sloped roof wake test
+# Format: xmin xmax ymin ymax zmin zmax [rotation_angle_degrees] [shape_type] [pitch_or_radius] [pitch_direction_degrees]
+# 1. Standard building: Rectangular (shape=0)
+40.0  80.0  40.0  60.0  0.0  30.0  0.0  0
+# 2. Cylinder: Cylindrical (shape=1), radius = 15m
+120.0  160.0  90.0  110.0  0.0  35.0  0.0  1  15.0
+# 3. Pitched Roof: (shape=2), pitch = 30 degrees, pitch_direction = 0 degrees
+200.0  240.0  140.0  160.0  0.0  25.0  0.0  2  30.0  0.0
