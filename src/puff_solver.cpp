@@ -1127,26 +1127,26 @@ int main(int argc, char* argv[])
                 // Get local capping lid height
                 Real local_capping_lid_height = capping_lid_height;
                 if (!x_lid_pts.empty()) {
-                   local_capping_lid_height = interpolate_terrain_height(
-                       puff.x, puff.y, x_lid_pts, y_lid_pts, z_lid_pts);
+                    local_capping_lid_height = interpolate_terrain_height(
+                        puff.x, puff.y, x_lid_pts, y_lid_pts, z_lid_pts);
                 }
                     
                 // Check if puff is inside building - deactivate if so
                 if (enable_building_masking && !buildings.empty()) {
-                   if (point_in_any_building(puff.x, puff.y, puff.z, buildings)) {
-                       puff.active = false;
-                       continue;
-                   }
+                    if (point_in_any_building(puff.x, puff.y, puff.z, buildings)) {
+                        puff.active = false;
+                        continue;
+                    }
                 }
                     
                 // Advection with terrain reflection
                 if (enable_terrain_reflection) {
-                   advect_puff_with_terrain(puff, U_wind, V_wind, W_wind, 
-                                           dt_puff, terrain_height, true, v_s,
-                                           enable_capping_lid, local_capping_lid_height);
+                    advect_puff_with_terrain(puff, U_wind, V_wind, W_wind, 
+                                             dt_puff, terrain_height, true, v_s,
+                                             enable_capping_lid, local_capping_lid_height);
                 } else {
-                   advect_puff(puff, U_wind, V_wind, W_wind, dt_puff, v_s,
-                               enable_capping_lid, local_capping_lid_height);
+                    advect_puff(puff, U_wind, V_wind, W_wind, dt_puff, v_s,
+                                enable_capping_lid, local_capping_lid_height);
                 }
                     
                 // Compute effective diffusivities
