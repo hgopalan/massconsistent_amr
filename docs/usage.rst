@@ -120,6 +120,12 @@ Parameter Reference
    * - ``alpha_v_top``
      - ``alpha_v``
      - Vertical anisotropy coefficient at domain top (z=z_hi).
+   * - **IDW Meteorological Interpolation Parameters**
+     -
+     -
+   * - ``idw_gamma``
+     - ``1.0``
+     - Anisotropic vertical scaling parameter :math:`\gamma` for 3D meteorological interpolation. A value :math:`\gamma \gg 1` penalizes vertical distances to preserve atmospheric profile stratification.
    * - **MLMG Solver Parameters**
      -
      -
@@ -555,6 +561,10 @@ This tutorial demonstrates coupling wind transport with Gaussian pollutant dispe
 
     enable_puff_deposition   = true
     deposition_velocity      = 0.01
+
+    # Adaptive (CFL-Limited) Time-Stepping
+    enable_adaptive_time_stepping = true
+    cfl_limit                = 0.5
 
 Run the standalone puff solver::
 

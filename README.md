@@ -69,11 +69,12 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Surface Flux Diagnostics** — Computes friction velocity, momentum flux, drag coefficient, sensible/latent heat flux
 - **Land-use Roughness Classification** — Categorical z₀ mapping from NLCD/IGBP land-use categories
 - **Directional Bias Correction** — Corrects systematic wind direction and speed biases from NWP models
-- **3D Meteorological Ingestion (NetCDF)** — Horizontal, terrain-aware vertical, and temporal interpolation of 3D NWP model outputs (e.g. WRF, GFS) into the solver grid
+- **3D Meteorological Ingestion (NetCDF)** — Horizontal, terrain-aware vertical, and temporal interpolation of 3D NWP model outputs (e.g. WRF, GFS) into the solver grid. Includes anisotropic Inverse Distance Weighting (IDW) with vertical scaling parameter γ ≫ 1 to preserve vertical atmospheric profiles.
 - **Solver enhancements** — Divergence damping filter, optional perturbation pressure gradient, multi-scale terrain analysis, smooth boundary layer transition
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Terrain-following coordinates** — Streamline coordinate transformation for improved accuracy on steep terrain
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
+  - **Adaptive Time-Stepping** — Dynamic scaling of Δt based on cell-local grid size and maximum wind velocity to ensure Courant–Friedrichs–Lewy (CFL) stability.
   - **Height-dependent diffusivity** — K(z) profiles for realistic atmospheric mixing
   - **First-order decay** — Exponential decay for radioactive/chemical species
   - **Plume rise** — Briggs buoyancy formula for heated sources

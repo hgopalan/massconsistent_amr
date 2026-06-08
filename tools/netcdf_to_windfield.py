@@ -75,7 +75,7 @@ def idw_terrain_2d(xq, yq, x_terr, y_terr, z_terr, k=6):
     zval = np.sum(w * z_terr[nearest_idx])
     return zval / wsum
 
-def idw_velocity_3d(xq, yq, zq, x_src, y_s_grid, z_s_grid, u_grid, v_grid, w_grid, k=6):
+def idw_velocity_3d(xq, yq, zq, x_src, y_s_grid, z_s_grid, u_grid, v_grid, w_grid, k=6, gamma=1.0):
     """Compute 3D IDW velocity at query point (xq, yq, zq) from source grid points."""
     # Ensure x and y match the 3D shape of z
     if x_src.shape != z_s_grid.shape:
@@ -100,7 +100,8 @@ def idw_velocity_3d(xq, yq, zq, x_src, y_s_grid, z_s_grid, u_grid, v_grid, w_gri
     dx = x_flat - xq
     dy = y_flat - yq
     dz = z_flat - zq
-    d2 = dx*dx + dy*dy + dz*dz
+    g_dz = gamma * dz
+    d2 = dx*dx + dy*dy + g_dz*g_dz
     
     nearest_idx = np.argpartition(d2, k)[:k]
     d2_near = d2[nearest_idx]
@@ -225,6 +226,7 @@ def main():
     parser.add_argument("--output", default="windfield.csv", help="Output windfield CSV file")
     parser.add_argument("--time", type=float, default=0.0, help="Target time in seconds for interpolation")
     parser.add_argument("--terrain-file", help="Explicit terrain file to override what's in inputs.i")
+    parser.add_argument("--idw-gamma", type=float, help="Anisotropic IDW scaling parameter for the vertical axis")
     
     args = parser.parse_args()
     
@@ -273,6 +275,7 @@ def main():
     dy_req = float(params.get("dy", 30.0))
     dz_req = float(params.get("dz", 30.0))
     domain_height = float(params.get("domain_height", 300.0))
+    idw_gamma = args.idw_gamma if args.idw_gamma is not None else float(params.get("idw_gamma", 1.0))
     
     # Reconstruct AMReX grid sizing
     nx = max(1, int(np.round((x_hi - x_lo) / dx_req)))
@@ -430,9 +433,9 @@ def main():
                 
                 # Interpolate wind velocities horizontally/vertically at the requested source coordinates
                 # We can do 3D IDW directly over a local neighborhood around (xc, yc, z_src_req)
-                u1, v1, w1_vel = idw_velocity_3d(xc, yc, z_src_1_req, inst_1['x_src'], inst_1['y_src'], inst_1['z_src'], inst_1['u'], inst_1['v'], inst_1['w'])
+                u1, v1, w1_vel = idw_velocity_3d(xc, yc, z_src_1_req, inst_1['x_src'], inst_1['y_src'], inst_1['z_src'], inst_1['u'], inst_1['v'], inst_1['w'], gamma=idw_gamma)
                 
-                u2, v2, w2_vel = idw_velocity_3d(xc, yc, z_src_2_req, inst_2['x_src'], inst_2['y_src'], inst_2['z_src'], inst_2['u'], inst_2['v'], inst_2['w'])
+                u2, v2, w2_vel = idw_velocity_3d(xc, yc, z_src_2_req, inst_2['x_src'], inst_2['y_src'], inst_2['z_src'], inst_2['u'], inst_2['v'], inst_2['w'], gamma=idw_gamma)
                 
                 # Combine times
                 u_interp = wt1 * u1 + wt2 * u2
