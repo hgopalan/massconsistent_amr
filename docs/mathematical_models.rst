@@ -96,6 +96,46 @@ Substituting the adjusted velocities into the divergence equation results in the
 
    -\left(\alpha_h^2\frac{\partial^2\lambda}{\partial x^2} + \alpha_h^2\frac{\partial^2\lambda}{\partial y^2} + \alpha_v^2\frac{\partial^2\lambda}{\partial z^2}\right) = -\nabla\cdot\mathbf{u}_0
 
+Cell-Local Spatially-Varying Variational Anisotropy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To model atmospheric flows with high physical fidelity under non-uniform stability conditions and steep topography, ``massconsistent_amr`` supports a cell-local, 3D spatially-varying anisotropic weighting tensor :math:`\mathbf{A}(x, y, z) = \mathrm{diag}(\alpha_h^2, \alpha_h^2, \alpha_v^2)`. In this formulation, the anisotropy coefficients vary cell-locally, and the variable-coefficient elliptic Poisson equation is solved:
+
+.. math::
+
+   -\left[ \frac{\partial}{\partial x}\left(\alpha_h^2 \frac{\partial \lambda}{\partial x}\right) + \frac{\partial}{\partial y}\left(\alpha_h^2 \frac{\partial \lambda}{\partial y}\right) + \frac{\partial}{\partial z}\left(\alpha_v^2 \frac{\partial \lambda}{\partial z}\right) \right] = -\nabla \cdot \mathbf{u}_0
+
+where :math:`\alpha_h(i,j,k)` is held at :math:`\alpha_{h,\text{base}}`, and the vertical coefficient :math:`\alpha_v(i,j,k)` adapts cell-locally based on three physical factors:
+
+1. **Local Terrain Slope**: Flow over steep topography is forced to be terrain-following. The local terrain slope is computed and decays with height above ground level (AGL) to reduce vertical adjustment near steep faces:
+
+.. math::
+
+   f_{\text{slope}} = \exp\left( -\frac{\text{slope}_{\text{surface}} \exp(-z_{\text{agl}}/d_{\text{decay}})}{\text{slope\_scale}} \right)
+
+2. **Local Richardson Number**: Characterizes buoyancy-driven versus shear-driven turbulence:
+
+.. math::
+
+   Ri = \frac{g}{\theta_{\text{ref}}} \frac{\partial \theta / \partial z}{(\partial u/\partial z)^2 + (\partial v/\partial z)^2}
+
+Under stable conditions (:math:`Ri > 0`), vertical motion is suppressed, so :math:`\alpha_v` is reduced: :math:`f_{\text{Ri}} = \exp(-\gamma_{\text{Ri}} Ri)`. Under unstable convective conditions (:math:`Ri < 0`), vertical mixing is enhanced: :math:`f_{\text{Ri}} = 1.0 + \beta_{\text{Ri}} (-Ri)`.
+
+3. **Local Froude Number**: Characterizes terrain-blocking in stable stratification (:math:`N^2 > 0`):
+
+.. math::
+
+   Fr = \frac{\sqrt{u^2+v^2}}{N \cdot \max(10, z_{\text{agl}})}
+
+where :math:`N = \sqrt{\frac{g}{\theta_{\text{ref}}} \frac{\partial\theta}{\partial z}}` is the Brunt-Väisälä frequency. When :math:`Fr < 1.0`, vertical flow is blocked and deflected horizontally around the obstacles, modeled by reducing :math:`\alpha_v`: :math:`f_{\text{Fr}} = 1.0 - \exp(-Fr^2)`.
+
+The combined cell-local vertical anisotropy is then:
+
+.. math::
+
+   \alpha_v(i,j,k) = \alpha_{v,\text{base}} \times f_{\text{slope}} \times f_{\text{Ri}} \times f_{\text{Fr}}
+
+clamped to a physically reasonable range :math:`[0.05\alpha_{v,\text{base}}, 2.0\alpha_{v,\text{base}}]`.
+
 Boundary Conditions
 ~~~~~~~~~~~~~~~~~~~
 The anisotropic Poisson equation is solved using the following boundary conditions:
