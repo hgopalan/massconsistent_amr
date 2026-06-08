@@ -2875,8 +2875,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
     }
 
     if (enable_capping_lid) {
-        amrex::Print() << "wind_solver: enforcing capping lid boundary condition (w = 0) at z = " << capping_lid_height << " m\n";
-        const Real lid_height = capping_lid_height;
+        amrex::Print() << "wind_solver: enforcing capping lid boundary condition (w = 0) using spatially-varying boundary layer depth from z_bl_diag_ptr (fallback: " << capping_lid_height << " m)\n";
+        const Real fallback_lid_height = capping_lid_height;
         const Real z_lo_cap_lid = zs_min;
         const Real dz_cap_lid = dz;
         const int nx_cap_lid = nx;
@@ -2885,12 +2885,14 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = vel0_ptr->array(mfi);
+            const auto z_bl_arr = z_bl_diag_ptr->const_array(mfi);
 
             amrex::ParallelFor(bx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real z_physical = z_lo_cap_lid + (k + Real(0.5)) * dz_cap_lid;
                 Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_lid + i];
+                Real lid_height = (z_bl_arr(i, j, k) > Real(0.0)) ? z_bl_arr(i, j, k) : fallback_lid_height;
                 if (z_agl >= lid_height) {
                     vel(i, j, k, 2) = Real(0.0);
                 }
@@ -3388,6 +3390,7 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
         const auto v0  = vel0_ptr->const_array(mfi);
         const auto la  = lam_ptr->const_array(mfi);
         auto       vc  = vel_c_ptr->array(mfi);
+        const auto z_bl_arr = z_bl_diag_ptr->const_array(mfi);
 
         amrex::ParallelFor(bx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -3479,7 +3482,8 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
             vc(i, j, k, 1) = v0(i, j, k, 1) - bh * dly;
             vc(i, j, k, 2) = v0(i, j, k, 2) - bv * dlz;
             
-            if (cap_enable_capping_lid && z_agl >= cap_capping_lid_height) {
+            Real local_capping_lid_height = (z_bl_arr(i, j, k) > Real(0.0)) ? z_bl_arr(i, j, k) : cap_capping_lid_height;
+            if (cap_enable_capping_lid && z_agl >= local_capping_lid_height) {
                 vc(i, j, k, 2) = Real(0.0);
             }
         });
@@ -3820,6 +3824,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
         const auto tslope_arr = terrain_slope_ptr->const_array(mfi);
         const auto adap_rough_arr = adaptive_roughness_ptr->const_array(mfi);
         const auto temp_arr = temp_ptr->const_array(mfi);
+        const auto z_bl_arr = z_bl_diag_ptr->array(mfi);
         
         auto out = output.array(mfi);
         
@@ -3929,6 +3934,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             out(i,j,k,15) = ustar_local;
             out(i,j,k,16) = richardson_no;
             out(i,j,k,17) = bl_depth;
+            z_bl_arr(i, j, k) = bl_depth;
             
             out(i,j,k,18) = cap_enable_terrain_analysis ? Real(ttype_arr(i,j,k)) : Real(0.0);
             out(i,j,k,19) = cap_enable_terrain_analysis ? tslope_arr(i,j,k) : Real(0.0);

@@ -48,7 +48,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Terrain-following** — Log-law wind profiles over complex topography
 - **Multiple initialization modes** — Log-law, uniform, RAWS stations, HRRR-style surface parameters, power-law profiles, Deaves-Harris profiles, or log-law/power-law above boundary layer profiles
 - **Pasquill-Gifford-Turner (PGT) Atmospheric Stability Diagnostics** — Decision-tree lookup matching ground wind speed, solar radiation (daytime), and cloud cover (nighttime) to A-F stability categories to compute dispersion coefficients when flux measurements are unavailable
-- **Atmospheric Inversion Capping Lid (CALMET/CALPUFF-style)** — A defined mixing depth ($z_i$) acting as a physical boundary, enforcing $w = 0$ in the wind solver during Poisson solve, and reflecting dispersing pollutants downwards in the puff/particle dispersion solver
+- **Atmospheric Inversion Capping Lid (CALMET/CALPUFF-style)** — A defined mixing depth ($z_i$) acting as a physical boundary, enforcing $w = 0$ in the wind solver during Poisson solve, and reflecting dispersing pollutants downwards in the puff/particle dispersion solver. This supports both a flat, uniform input value and a cell-local, spatially-varying capping lid height $z_i(x,y)$ integrated directly from the 2D spatially-varying boundary layer depth MultiFab (`z_bl_diag_ptr`) or a file.
 - **Position-dependent roughness** — Spatially-varying aerodynamic roughness length z₀ from file or land-use classification
 - **Building support** — Wake modeling with Röckle (1990), Huber-Snyder (EPA), and AERMOD PRIME (EPA regulatory) parameterizations; adaptive wake superposition with distance-weighted blending
 - **Canopy modeling** — Forest canopy drag effects
@@ -88,6 +88,8 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
   - **Annual Energy Production (AEP) Calculator** — Python-based automated batch runner across a joint wind speed and direction distribution (wind rose), supporting sector-wise tracking and layout-level yaw sweep optimization.
   - **Fuga-style Linearized Wake Lookup** — Pre-computed 3D deficit look-up table (LUT) mapped onto the AMReX terrain mesh to bypass local analytical calculations in large wind farms.
   - **Integrated Turbine Wake-Induced Dispersion** — Couples analytical turbine wake-added turbulence (Crespo-Hernández, Frandsen) with both built-in Gaussian Puff and LPDM models to study pollutant or chemical transport and deposition within and around wind farms.
+- **Lagrangian Particle Dispersion Model (LPDM) Enhancements**:
+  - **Vertical Diffusivity Inhomogeneity Drift Correction** — Adds a vertical drift correction velocity $w_{drift} = \frac{\partial K_v}{\partial z}$ to the deterministic vertical advection of particles, eliminating numerical artifacts (spurious particle accumulation in regions of low vertical diffusivity) and ensuring physical uniformity in non-uniform vertical diffusivity $K_v(z)$ fields.
 - **FLORIS & PyWake integration** — Export wind data to FLORIS wind farm simulation format, and format resolved wind fields as PyWake Site or WAsPGridSite objects
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 
