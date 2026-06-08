@@ -778,7 +778,10 @@ void WindSolverApp::setup_geometry_and_mesh() {
                                  building_xmin, building_xmax,
                                  building_ymin, building_ymax,
                                  building_zmin, building_zmax,
-                                 building_rotation);
+                                 building_rotation,
+                                 building_shape,
+                                 building_pitch_or_radius,
+                                 building_pitch_direction);
     }
 
     if (enable_building_porosity && !building_porosity_file.empty()) {
@@ -2521,6 +2524,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         Gpu::DeviceVector<Real> d_bldg_zmin(n_buildings);
         Gpu::DeviceVector<Real> d_bldg_zmax(n_buildings);
         Gpu::DeviceVector<Real> d_bldg_rotation(n_buildings);
+        Gpu::DeviceVector<int> d_bldg_shape(n_buildings);
+        Gpu::DeviceVector<Real> d_bldg_pitch_or_radius(n_buildings);
+        Gpu::DeviceVector<Real> d_bldg_pitch_direction(n_buildings);
         
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_xmin.begin(), building_xmin.end(), d_bldg_xmin.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_xmax.begin(), building_xmax.end(), d_bldg_xmax.begin());
@@ -2529,6 +2535,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_zmin.begin(), building_zmin.end(), d_bldg_zmin.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_zmax.begin(), building_zmax.end(), d_bldg_zmax.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_rotation.begin(), building_rotation.end(), d_bldg_rotation.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_shape.begin(), building_shape.end(), d_bldg_shape.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_pitch_or_radius.begin(), building_pitch_or_radius.end(), d_bldg_pitch_or_radius.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_pitch_direction.begin(), building_pitch_direction.end(), d_bldg_pitch_direction.begin());
         
         Real const* d_bldg_xmin_ptr = d_bldg_xmin.data();
         Real const* d_bldg_xmax_ptr = d_bldg_xmax.data();
@@ -2537,6 +2546,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         Real const* d_bldg_zmin_ptr = d_bldg_zmin.data();
         Real const* d_bldg_zmax_ptr = d_bldg_zmax.data();
         Real const* d_bldg_rotation_ptr = d_bldg_rotation.data();
+        int const* d_bldg_shape_ptr = d_bldg_shape.data();
+        Real const* d_bldg_pitch_or_radius_ptr = d_bldg_pitch_or_radius.data();
+        Real const* d_bldg_pitch_direction_ptr = d_bldg_pitch_direction.data();
         
         const int n_bldg_cap = n_buildings;
         const Real dx_wake = dx;
@@ -2571,6 +2583,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         d_bldg_ymin_ptr, d_bldg_ymax_ptr,
                         d_bldg_zmin_ptr, d_bldg_zmax_ptr,
                         d_bldg_rotation_ptr,
+                        d_bldg_shape_ptr,
+                        d_bldg_pitch_or_radius_ptr,
+                        d_bldg_pitch_direction_ptr,
                         n_bldg_cap, wake_params);
                 } else {
                     for (int b = 0; b < n_bldg_cap; ++b) {
@@ -2579,6 +2594,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                             d_bldg_ymin_ptr[b], d_bldg_ymax_ptr[b],
                             d_bldg_zmin_ptr[b], d_bldg_zmax_ptr[b]);
                         bldg.rotation = d_bldg_rotation_ptr[b];
+                        bldg.shape = static_cast<BuildingShape>(d_bldg_shape_ptr[b]);
+                        bldg.pitch_or_radius = d_bldg_pitch_or_radius_ptr[b];
+                        bldg.pitch_direction = d_bldg_pitch_direction_ptr[b];
                         
                         apply_single_building_wake(x, y, z, u, v, w, bldg, wake_params);
                     }

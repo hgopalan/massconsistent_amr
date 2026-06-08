@@ -29,6 +29,7 @@
 #include <AMReX_GpuQualifiers.H>
 #include <algorithm>
 #include <cmath>
+#include "solver_math_constants.H"
 
 // ============================================================================
 // Wake model type enumeration
@@ -51,6 +52,15 @@ struct WakeParams {
 };
 
 // ============================================================================
+// Building shape enumeration
+// ============================================================================
+enum class BuildingShape : int {
+    RECTANGULAR = 0,
+    CYLINDRICAL = 1,
+    PITCHED_ROOF = 2
+};
+
+// ============================================================================
 // Building structure
 // ============================================================================
 struct Building {
@@ -61,6 +71,9 @@ struct Building {
     amrex::Real width;       // Effective width W [m]
     amrex::Real length;      // Effective length L [m]
     amrex::Real rotation;    // Building orientation angle (radians, counter-clockwise from x-axis)
+    BuildingShape shape = BuildingShape::RECTANGULAR;
+    amrex::Real pitch_or_radius = amrex::Real(0.0); // Cylinder radius [m] or roof pitch angle [degrees]
+    amrex::Real pitch_direction = amrex::Real(0.0); // Direction of pitch/ridge (radians, CCW from x-axis)
 };
 
 // ============================================================================
@@ -219,12 +232,42 @@ bool rockle_wake_deficit(
     const amrex::Real x_wind =  dx * wd_x + dy * wd_y;
     const amrex::Real y_wind = -dx * wd_y + dy * wd_x;
     
-    // Building extends from -L/2 to L/2 in downwind direction
-    // Determine building length in wind direction (simplified: use building width)
-    const amrex::Real half_length_wind = bldg.length / amrex::Real(2.0);
-    
+    // Shape-specific parameters
+    amrex::Real shape_width = W;
+    amrex::Real shape_half_len = bldg.length / amrex::Real(2.0);
+    amrex::Real Lr = params.c1 * H;
+    amrex::Real Hr = amrex::Real(0.67) * H;
+    amrex::Real deficit_scale = amrex::Real(1.0);
+    amrex::Real vortex_scale = amrex::Real(1.0);
+    amrex::Real separation_scale = amrex::Real(1.0);
+
+    if (bldg.shape == BuildingShape::CYLINDRICAL) {
+        const amrex::Real radius = (bldg.pitch_or_radius > amrex::Real(0.0)) ? bldg.pitch_or_radius : amrex::Real(0.5) * W;
+        shape_width = amrex::Real(2.0) * radius;
+        shape_half_len = radius;
+        
+        // Check if point is inside building volume (cylinder)
+        const amrex::Real dist_to_center = std::sqrt(dx * dx + dy * dy);
+        if (dist_to_center <= radius && (z - bldg.zmin) <= H) {
+            return false;
+        }
+        
+        Lr = amrex::Real(0.5) * params.c1 * H;
+        separation_scale = amrex::Real(0.7);
+        deficit_scale = amrex::Real(0.7);
+    } else if (bldg.shape == BuildingShape::PITCHED_ROOF) {
+        const amrex::Real pitch_rad = (bldg.pitch_or_radius > amrex::Real(0.0)) ? bldg.pitch_or_radius : amrex::Real(25.0) * MathConstants::deg_to_rad;
+        const amrex::Real pitch_deg = pitch_rad / MathConstants::deg_to_rad;
+        const amrex::Real pitch_factor = std::max(amrex::Real(0.4), amrex::Real(1.0) - amrex::Real(0.01) * pitch_deg);
+        
+        Lr = params.c1 * H * pitch_factor;
+        Hr = amrex::Real(0.67) * H * (amrex::Real(0.8) + amrex::Real(0.2) * std::cos(pitch_rad));
+        separation_scale = pitch_factor;
+        vortex_scale = amrex::Real(1.0) + amrex::Real(0.5) * std::sin(pitch_rad);
+    }
+
     // Wake starts at downwind face of building
-    const amrex::Real wake_start = half_length_wind;
+    const amrex::Real wake_start = shape_half_len;
     
     // Check if point is downwind of building
     if (x_wind < wake_start) {
@@ -233,11 +276,7 @@ bool rockle_wake_deficit(
     
     // Distance downwind from building back face
     const amrex::Real x_wake = x_wind - wake_start;
-    
-    // Röckle cavity parameters
-    const amrex::Real Lr = params.c1 * H;  // Cavity length
-    const amrex::Real Hr = amrex::Real(0.67) * H;  // Cavity height
-    const amrex::Real Wr = W;               // Cavity width
+    const amrex::Real Wr = shape_width;               // Cavity width
     
     // Height above ground (relative to building base)
     const amrex::Real z_local = z - bldg.zmin;
@@ -257,12 +296,13 @@ bool rockle_wake_deficit(
         }
         
         // Inside cavity zone: recirculation with negative velocity
-        const amrex::Real deficit_magnitude = params.c2 * U_ref;
+        const amrex::Real deficit_magnitude = params.c2 * U_ref * deficit_scale;
         du = deficit_magnitude * wd_x;
         dv = deficit_magnitude * wd_y;
         
         // Phase 3 Enhancement: Add rooftop vortex vertical component
         compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, dw);
+        dw *= vortex_scale;
         
         return true;
     }
@@ -270,7 +310,7 @@ bool rockle_wake_deficit(
     // ========================================================================
     // 2. Far-wake zone (displacement zone)
     // ========================================================================
-    const amrex::Real Lf = params.separation_length * H;  // Wake extent
+    const amrex::Real Lf = params.separation_length * H * separation_scale;  // Wake extent
     
     if (x_wake <= Lf) {
         // Linear decay of deficit with downwind distance
@@ -296,7 +336,7 @@ bool rockle_wake_deficit(
         
         // Inside far-wake zone: reduced velocity deficit
         // Deficit at cavity edge is c2 * U_ref, decays to zero at Lf
-        const amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor;
+        const amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor * deficit_scale;
         du = deficit_magnitude * wd_x;
         dv = deficit_magnitude * wd_y;
         dw = amrex::Real(0.0);
@@ -378,11 +418,44 @@ bool huber_snyder_wake_deficit(
     const amrex::Real x_wind =  dx * wd_x + dy * wd_y;
     const amrex::Real y_wind = -dx * wd_y + dy * wd_x;
     
-    // Building extends from -L/2 to L/2 in downwind direction
-    const amrex::Real half_length_wind = bldg.length / amrex::Real(2.0);
-    
+    // Shape-specific parameters
+    amrex::Real shape_width = W;
+    amrex::Real shape_half_len = bldg.length / amrex::Real(2.0);
+    const amrex::Real aspect_ratio = shape_width / H;
+    amrex::Real Lc = amrex::Real(0.5) * H * std::sqrt(aspect_ratio);  // Cavity length
+    amrex::Real Hc = amrex::Real(0.67) * H;  // Cavity height
+    amrex::Real deficit_scale = amrex::Real(1.0);
+    amrex::Real vortex_scale = amrex::Real(1.0);
+    amrex::Real separation_scale = amrex::Real(1.0);
+
+    if (bldg.shape == BuildingShape::CYLINDRICAL) {
+        const amrex::Real radius = (bldg.pitch_or_radius > amrex::Real(0.0)) ? bldg.pitch_or_radius : amrex::Real(0.5) * W;
+        shape_width = amrex::Real(2.0) * radius;
+        shape_half_len = radius;
+        
+        // Check if point is inside building volume (cylinder)
+        const amrex::Real dist_to_center = std::sqrt(dx * dx + dy * dy);
+        if (dist_to_center <= radius && (z - bldg.zmin) <= H) {
+            return false;
+        }
+        
+        const amrex::Real cyl_aspect_ratio = shape_width / H;
+        Lc = amrex::Real(0.5) * H * std::sqrt(cyl_aspect_ratio) * amrex::Real(0.5);
+        deficit_scale = amrex::Real(0.7);
+        separation_scale = amrex::Real(0.7);
+    } else if (bldg.shape == BuildingShape::PITCHED_ROOF) {
+        const amrex::Real pitch_rad = (bldg.pitch_or_radius > amrex::Real(0.0)) ? bldg.pitch_or_radius : amrex::Real(25.0) * MathConstants::deg_to_rad;
+        const amrex::Real pitch_deg = pitch_rad / MathConstants::deg_to_rad;
+        const amrex::Real pitch_factor = std::max(amrex::Real(0.4), amrex::Real(1.0) - amrex::Real(0.01) * pitch_deg);
+        
+        Lc = Lc * pitch_factor;
+        Hc = amrex::Real(0.67) * H * (amrex::Real(0.8) + amrex::Real(0.2) * std::cos(pitch_rad));
+        separation_scale = pitch_factor;
+        vortex_scale = amrex::Real(1.0) + amrex::Real(0.5) * std::sin(pitch_rad);
+    }
+
     // Wake starts at downwind face of building
-    const amrex::Real wake_start = half_length_wind;
+    const amrex::Real wake_start = shape_half_len;
     
     // Check if point is downwind of building
     if (x_wind < wake_start) {
@@ -391,13 +464,7 @@ bool huber_snyder_wake_deficit(
     
     // Distance downwind from building back face
     const amrex::Real x_wake = x_wind - wake_start;
-    
-    // Huber-Snyder cavity parameters
-    // Aspect ratio dependent cavity length
-    const amrex::Real aspect_ratio = W / H;
-    const amrex::Real Lc = amrex::Real(0.5) * H * std::sqrt(aspect_ratio);  // Cavity length
-    const amrex::Real Hc = amrex::Real(0.67) * H;  // Cavity height (similar to Röckle)
-    const amrex::Real Wc = W;                       // Cavity width
+    const amrex::Real Wc = shape_width;                       // Cavity width
     
     // Height above ground (relative to building base)
     const amrex::Real z_local = z - bldg.zmin;
@@ -418,12 +485,13 @@ bool huber_snyder_wake_deficit(
         
         // Inside cavity zone: recirculation with negative velocity
         // Huber-Snyder uses similar deficit magnitude as Röckle
-        const amrex::Real deficit_magnitude = params.c2 * U_ref;
+        const amrex::Real deficit_magnitude = params.c2 * U_ref * deficit_scale;
         du = deficit_magnitude * wd_x;
         dv = deficit_magnitude * wd_y;
         
         // Add rooftop vortex (reuse existing parameterization)
         compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
+        dw *= vortex_scale;
         
         return true;
     }
@@ -432,7 +500,7 @@ bool huber_snyder_wake_deficit(
     // 2. Far-wake zone (displacement zone)
     // ========================================================================
     // Huber-Snyder wake extends to 5*H (longer than Röckle's typical 3*H)
-    const amrex::Real Lw = amrex::Real(5.0) * H;  // Wake extent
+    const amrex::Real Lw = amrex::Real(5.0) * H * separation_scale;  // Wake extent
     
     if (x_wake <= Lw) {
         // Huber-Snyder velocity deficit decay function
@@ -463,7 +531,7 @@ bool huber_snyder_wake_deficit(
         }
         
         // Inside far-wake zone: reduced velocity deficit with power-law decay
-        const amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor;
+        const amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor * deficit_scale;
         du = deficit_magnitude * wd_x;
         dv = deficit_magnitude * wd_y;
         dw = amrex::Real(0.0);
@@ -685,20 +753,10 @@ bool aermod_prime_wake_deficit(
     const amrex::Real x_wind = dx_global * wind_dir_x + dy_global * wind_dir_y;
     const amrex::Real y_wind = -dx_global * wind_dir_y + dy_global * wind_dir_x;
     
-    // Downwind distance from building back face
-    const amrex::Real x_wake = x_wind - L / amrex::Real(2.0);
+    // Shape-specific parameters
+    amrex::Real shape_width = W;
+    amrex::Real shape_half_len = L / amrex::Real(2.0);
     
-    // Check if point is upstream of building
-    if (x_wake < amrex::Real(0.0)) {
-        return false;  // Upstream, no wake effect
-    }
-    
-    // Height above ground (relative to building base)
-    const amrex::Real z_local = z - bldg.zmin;
-    
-    // ========================================================================
-    // 3. PRIME cavity zone dimensions
-    // ========================================================================
     // Cavity length based on aspect ratio
     amrex::Real Lc;
     if (aspect_ratio > amrex::Real(1.0)) {
@@ -713,10 +771,50 @@ bool aermod_prime_wake_deficit(
     const amrex::Real Hc_peak = amrex::Real(0.22) * B_char;
     
     // Cavity height limit
-    const amrex::Real Hc = std::min(amrex::Real(1.5) * Hc_peak, H);
+    amrex::Real Hc = std::min(amrex::Real(1.5) * Hc_peak, H);
+    
+    amrex::Real deficit_scale = amrex::Real(1.0);
+    amrex::Real vortex_scale = amrex::Real(1.0);
+    amrex::Real separation_scale = amrex::Real(1.0);
+
+    if (bldg.shape == BuildingShape::CYLINDRICAL) {
+        const amrex::Real radius = (bldg.pitch_or_radius > amrex::Real(0.0)) ? bldg.pitch_or_radius : amrex::Real(0.5) * W;
+        shape_width = amrex::Real(2.0) * radius;
+        shape_half_len = radius;
+        
+        // Check if point is inside building volume (cylinder)
+        const amrex::Real dist_to_center = std::sqrt(dx_global * dx_global + dy_global * dy_global);
+        if (dist_to_center <= radius && (z - bldg.zmin) <= H) {
+            return false;
+        }
+        
+        Lc = amrex::Real(0.5) * Lc;
+        deficit_scale = amrex::Real(0.7);
+        separation_scale = amrex::Real(0.7);
+    } else if (bldg.shape == BuildingShape::PITCHED_ROOF) {
+        const amrex::Real pitch_rad = (bldg.pitch_or_radius > amrex::Real(0.0)) ? bldg.pitch_or_radius : amrex::Real(25.0) * MathConstants::deg_to_rad;
+        const amrex::Real pitch_deg = pitch_rad / MathConstants::deg_to_rad;
+        const amrex::Real pitch_factor = std::max(amrex::Real(0.4), amrex::Real(1.0) - amrex::Real(0.01) * pitch_deg);
+        
+        Lc = Lc * pitch_factor;
+        Hc = Hc * (amrex::Real(0.8) + amrex::Real(0.2) * std::cos(pitch_rad));
+        separation_scale = pitch_factor;
+        vortex_scale = amrex::Real(1.0) + amrex::Real(0.5) * std::sin(pitch_rad);
+    }
+
+    // Downwind distance from building back face
+    const amrex::Real x_wake = x_wind - shape_half_len;
+    
+    // Check if point is upstream of building
+    if (x_wake < amrex::Real(0.0)) {
+        return false;  // Upstream, no wake effect
+    }
+    
+    // Height above ground (relative to building base)
+    const amrex::Real z_local = z - bldg.zmin;
     
     // Cavity width (same as building width)
-    const amrex::Real Wc = W;
+    const amrex::Real Wc = shape_width;
     
     // ========================================================================
     // 4. Cavity zone (recirculation zone with enhanced turbulence)
@@ -735,14 +833,14 @@ bool aermod_prime_wake_deficit(
         // Inside cavity zone: recirculation with enhanced turbulence
         // PRIME uses higher deficit in cavity than Röckle/Huber-Snyder
         const amrex::Real cavity_deficit_factor = amrex::Real(0.5);  // 50% deficit in cavity
-        const amrex::Real deficit_magnitude = cavity_deficit_factor * U_ref;
+        const amrex::Real deficit_magnitude = cavity_deficit_factor * U_ref * deficit_scale;
         du = deficit_magnitude * wind_dir_x;
         dv = deficit_magnitude * wind_dir_y;
         
         // Streamline deflection: vertical component from flow over building
         // Enhanced vertical mixing in PRIME cavity
         const amrex::Real streamline_deflection = amrex::Real(0.2) * U_ref * (z_local / Hc);
-        dw = streamline_deflection;
+        dw = streamline_deflection * vortex_scale;
         
         return true;
     }
@@ -751,7 +849,7 @@ bool aermod_prime_wake_deficit(
     // 5. PRIME far-wake zone (enhanced mixing, extended downwind)
     // ========================================================================
     // PRIME wake extends to 10*H (regulatory standard, longer than others)
-    const amrex::Real Lw = amrex::Real(10.0) * H;
+    const amrex::Real Lw = amrex::Real(10.0) * H * separation_scale;
     
     if (x_wake <= Lw) {
         // Normalized downwind distance
@@ -780,12 +878,12 @@ bool aermod_prime_wake_deficit(
         
         // Inside far-wake zone: reduced velocity deficit with PRIME decay
         const amrex::Real wake_deficit_factor = amrex::Real(0.3);  // Base deficit factor
-        const amrex::Real deficit_magnitude = wake_deficit_factor * U_ref * decay_factor;
+        const amrex::Real deficit_magnitude = wake_deficit_factor * U_ref * decay_factor * deficit_scale;
         du = deficit_magnitude * wind_dir_x;
         dv = deficit_magnitude * wind_dir_y;
         
         // Vertical component from streamline deflection (diminishes downwind)
-        dw = amrex::Real(0.1) * U_ref * decay_factor * (z_local / Hw);
+        dw = amrex::Real(0.1) * U_ref * decay_factor * (z_local / Hw) * vortex_scale;
         
         return true;
     }
@@ -1062,6 +1160,9 @@ void apply_wake_superposition(
     const amrex::Real* bldg_zmin,
     const amrex::Real* bldg_zmax,
     const amrex::Real* bldg_rotation,
+    const int* bldg_shape,
+    const amrex::Real* bldg_pitch_or_radius,
+    const amrex::Real* bldg_pitch_direction,
     int n_buildings,
     const WakeParams& params)
 {
@@ -1090,12 +1191,23 @@ void apply_wake_superposition(
         
         // Phase 3: Add building rotation angle
         bldg.rotation = bldg_rotation[b];
+        bldg.shape = static_cast<BuildingShape>(bldg_shape[b]);
+        bldg.pitch_or_radius = bldg_pitch_or_radius[b];
+        bldg.pitch_direction = bldg_pitch_direction[b];
         
         // Compute wake deficit from this building
         amrex::Real du_b, dv_b, dw_b;
-        bool in_wake = rockle_wake_deficit(
-            x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params,
-            du_b, dv_b, dw_b);
+        bool in_wake = false;
+        if (params.model_type == WakeModelType::AERMOD_PRIME) {
+            in_wake = aermod_prime_wake_deficit(
+                x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params, du_b, dv_b, dw_b);
+        } else if (params.model_type == WakeModelType::HUBER_SNYDER) {
+            in_wake = huber_snyder_wake_deficit(
+                x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params, du_b, dv_b, dw_b);
+        } else {
+            in_wake = rockle_wake_deficit(
+                x, y, z, bldg, U_ref, wind_dir_x, wind_dir_y, params, du_b, dv_b, dw_b);
+        }
         
         if (in_wake) {
             // Add squared deficit (quadratic superposition)

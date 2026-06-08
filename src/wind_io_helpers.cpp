@@ -265,7 +265,10 @@ void read_building_file(const std::string& filename,
                         std::vector<Real>& ymax,
                         std::vector<Real>& zmin,
                         std::vector<Real>& zmax,
-                        std::vector<Real>& rotation)
+                        std::vector<Real>& rotation,
+                        std::vector<int>& shape,
+                        std::vector<Real>& pitch_or_radius,
+                        std::vector<Real>& pitch_direction)
 {
     std::ifstream f(filename);
     if (!f.is_open())
@@ -279,12 +282,41 @@ void read_building_file(const std::string& filename,
         // replace commas with spaces
         std::replace(line.begin(), line.end(), ',', ' ');
         std::istringstream ss(line);
-        Real x1, x2, y1, y2, z1, z2, angle = 0.0;
+        Real x1, x2, y1, y2, z1, z2;
         if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
-            // Phase 3 Enhancement: Optional rotation angle (7th column, in degrees)
-            // If provided, angle is converted from degrees to radians
+            Real angle = 0.0;
+            int shp = 0; // 0 = RECTANGULAR, 1 = CYLINDRICAL, 2 = PITCHED_ROOF
+            Real p_or_r = 0.0;
+            Real p_dir = 0.0;
             if (ss >> angle) {
                 angle = angle * MathConstants::deg_to_rad;
+                std::string shape_str;
+                if (ss >> shape_str) {
+                    for (char &c : shape_str) {
+                        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                    }
+                    try {
+                        shp = std::stoi(shape_str);
+                    } catch (const std::invalid_argument&) {
+                        if (shape_str == "cylindrical" || shape_str == "cylinder") {
+                            shp = 1;
+                        } else if (shape_str == "pitched_roof" || shape_str == "pitched") {
+                            shp = 2;
+                        } else {
+                            shp = 0;
+                        }
+                    } catch (const std::out_of_range&) {
+                        shp = 0;
+                    }
+                    if (ss >> p_or_r) {
+                        if (shp == 2) { // PITCHED_ROOF
+                            p_or_r = p_or_r * MathConstants::deg_to_rad;
+                        }
+                        if (ss >> p_dir) {
+                            p_dir = p_dir * MathConstants::deg_to_rad;
+                        }
+                    }
+                }
             }
             xmin.push_back(x1);
             xmax.push_back(x2);
@@ -293,6 +325,9 @@ void read_building_file(const std::string& filename,
             zmin.push_back(z1);
             zmax.push_back(z2);
             rotation.push_back(angle);
+            shape.push_back(shp);
+            pitch_or_radius.push_back(p_or_r);
+            pitch_direction.push_back(p_dir);
         }
     }
     if (xmin.empty())
