@@ -458,6 +458,18 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
         TurbineWake::read_turbines_file(state.turbine_file, state.turbines);
     }
 
+    // Electrical Wire Loading parameters
+    state.enable_wire_loading = false;
+    state.wire_file = "";
+    state.wire_output_file = "wire_output.csv";
+    pp.query("enable_wire_loading", state.enable_wire_loading);
+    pp.query("wire_file", state.wire_file);
+    pp.query("wire_output_file", state.wire_output_file);
+
+    if (state.enable_wire_loading && !state.wire_file.empty()) {
+        WireLoading::read_wires_file(state.wire_file, state.wires);
+    }
+
     // Terrain-following (streamline) coordinates parameters
     state.enable_terrain_following = false;
     state.terrain_decay_height = -1.0;  // Default: auto-set to domain_height / 3
@@ -1396,6 +1408,20 @@ bool wind_solver_solve()
         MultiFab div_corrected(*state.ba, *state.dm, 1, 0);
         state.vel->FillBoundary(state.geom->periodicity());
         compute_divergence(state, *state.vel, div_corrected);
+
+        if (state.enable_wire_loading && !state.wires.empty()) {
+            WireLoading::process_wire_loading(
+                state.wires,
+                *state.vel,
+                nullptr,
+                293.15,
+                400.0,
+                state.xmin, state.ymin, state.zmin,
+                state.dx, state.dy, state.dz,
+                state.nx, state.ny, state.nz
+            );
+            WireLoading::write_wire_output_file(state.wire_output_file, state.wires, 0);
+        }
 
         state.solved = true;
         state.mlmg_iters = mlmg.getNumIters();

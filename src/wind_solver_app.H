@@ -10,6 +10,7 @@
 
 #include "synthetic_turbulence.H"
 #include "turbine_wake_models.H"
+#include "wire_models.H"
 
 /**
  * @brief Representation of a detected urban street canyon.
@@ -106,6 +107,12 @@ private:
     amrex::Real surface_sensible_heat_flux = 0.0;
     amrex::Real buoyant_wake_destruction_coeff = 0.005;
     std::vector<TurbineWake::Turbine> turbines;
+
+    // Electrical Wire Loading
+    bool enable_wire_loading = false;
+    std::string wire_file = "";
+    std::string wire_output_file = "wire_output.csv";
+    std::vector<WireLoading::WireSpan> wires;
 
     // Street canyon
     bool enable_street_canyon = false;

@@ -131,6 +131,15 @@ void WindSolverApp::parse_inputs() {
     if (enable_turbine_wake && !turbine_file.empty()) {
         TurbineWake::read_turbines_file(turbine_file, turbines);
     }
+
+    // Electrical Wire Loading parameters
+    pp.query("enable_wire_loading", enable_wire_loading);
+    pp.query("wire_file", wire_file);
+    pp.query("wire_output_file", wire_output_file);
+
+    if (enable_wire_loading && !wire_file.empty()) {
+        WireLoading::read_wires_file(wire_file, wires);
+    }
     
     // Street canyon parameters
     pp.query("enable_street_canyon", enable_street_canyon);
@@ -4010,9 +4019,86 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     amrex::Print() << "wind_solver: max |div(u)| after  correction = "
                    << div_a_max << " s⁻¹\n";
 
+    std::vector<Real> u_host;
+    std::vector<Real> v_host;
+    std::vector<Real> w_host;
+    std::vector<Real> T_host;
+
+    if (enable_wire_loading) {
+        u_host.assign(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+        v_host.assign(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+        w_host.assign(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+        T_host.assign(static_cast<std::size_t>(nx) * ny * nz, temperature_reference);
+
+        for (amrex::MFIter mfi(*vel_c_ptr, false); mfi.isValid(); ++mfi) {
+            const amrex::Box& bx = mfi.validbox();
+#ifdef AMREX_USE_GPU
+            amrex::FArrayBox host_fab(bx, vel_c_ptr->nComp(), amrex::The_Pinned_Arena());
+            host_fab.copy<amrex::RunOn::Device>((*vel_c_ptr)[mfi], bx);
+            amrex::Gpu::streamSynchronize();
+            auto const& arr = host_fab.const_array();
+#else
+            auto const& arr = vel_c_ptr->const_array(mfi);
+#endif
+            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                    for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                        std::size_t idx = static_cast<std::size_t>(i) 
+                                        + static_cast<std::size_t>(nx) * (static_cast<std::size_t>(j) 
+                                        + static_cast<std::size_t>(ny) * k);
+                        u_host[idx] = arr(i, j, k, 0);
+                        v_host[idx] = arr(i, j, k, 1);
+                        w_host[idx] = arr(i, j, k, 2);
+                    }
+                }
+            }
+        }
+
+        if (temp_ptr) {
+            for (amrex::MFIter mfi(*temp_ptr, false); mfi.isValid(); ++mfi) {
+                const amrex::Box& bx = mfi.validbox();
+#ifdef AMREX_USE_GPU
+                amrex::FArrayBox host_fab(bx, temp_ptr->nComp(), amrex::The_Pinned_Arena());
+                host_fab.copy<amrex::RunOn::Device>((*temp_ptr)[mfi], bx);
+                amrex::Gpu::streamSynchronize();
+                auto const& arr = host_fab.const_array();
+#else
+                auto const& arr = temp_ptr->const_array(mfi);
+#endif
+                for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                    for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                            std::size_t idx = static_cast<std::size_t>(i) 
+                                            + static_cast<std::size_t>(nx) * (static_cast<std::size_t>(j) 
+                                            + static_cast<std::size_t>(ny) * k);
+                            T_host[idx] = arr(i, j, k, 0);
+                        }
+                    }
+                }
+            }
+            amrex::ParallelDescriptor::ReduceRealSum(T_host.data(), T_host.size());
+        }
+
+        amrex::ParallelDescriptor::ReduceRealSum(u_host.data(), u_host.size());
+        amrex::ParallelDescriptor::ReduceRealSum(v_host.data(), v_host.size());
+        amrex::ParallelDescriptor::ReduceRealSum(w_host.data(), w_host.size());
+
+        if (!wires.empty()) {
+            WireLoading::process_wire_loading_pregathered(
+                wires, u_host, v_host, w_host, T_host,
+                solar_radiation,
+                x_lo, y_lo, zs_min,
+                dx, dy, dz,
+                nx, ny, nz
+            );
+            WireLoading::write_wire_output_file(wire_output_file, wires, time_step);
+        }
+    }
+
     int nout_val = 21;
     if (has_synthetic_turbulence) nout_val += 3;
     if (enable_coriolis_latitude) nout_val += 3;
+    if (enable_wire_loading) nout_val += 2;
     const int nout = nout_val;
     const int nx_cap_out = nx;
     MultiFab output(*ba_ptr, *dm_ptr, nout, 0);
@@ -4027,6 +4113,12 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const bool use_pos_z0 = use_z0_file;
     const Real z0_cap = z0;
     const Real* d_z0_pos_ptr_diag = d_z0_pos.data();
+
+    int wire_idx_start = 21;
+    if (has_synthetic_turbulence) wire_idx_start += 3;
+    if (enable_coriolis_latitude) wire_idx_start += 3;
+    const int cap_wire_idx_start = wire_idx_start;
+    const bool cap_enable_wire_loading = enable_wire_loading;
     
     const Real rho_air = 1.225;
     const Real cp_air = 1005.0;
@@ -4187,7 +4279,78 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                 out(i,j,k, idx_offset + 1) = Ro;
                 out(i,j,k, idx_offset + 2) = T_i;
             }
+
+            if (cap_enable_wire_loading) {
+                out(i, j, k, cap_wire_idx_start) = Real(0.0);
+                out(i, j, k, cap_wire_idx_start + 1) = Real(0.0);
+            }
         });
+    }
+
+    if (enable_wire_loading && !wires.empty()) {
+        const Real xmin = x_lo;
+        const Real ymin = y_lo;
+        const Real zmin = zs_min;
+        const Real dx_val = dx;
+        const Real dy_val = dy;
+        const Real dz_val = dz;
+        const int nx_val = nx;
+        const int ny_val = ny;
+        const int nz_val = nz;
+
+#ifdef AMREX_USE_GPU
+        amrex::Gpu::streamSynchronize();
+#endif
+        for (MFIter mfi(output, false); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto out = output.array(mfi);
+            
+            for (const auto& w : wires) {
+                Real dx_span = w.x2 - w.x1;
+                Real dy_span = w.y2 - w.y1;
+                Real dz_span = w.z2 - w.z1;
+                Real L = std::sqrt(dx_span*dx_span + dy_span*dy_span + dz_span*dz_span);
+                if (L <= 1.0e-6) continue;
+
+                Real tx = dx_span / L;
+                Real ty = dy_span / L;
+                Real tz = dz_span / L;
+
+                int num_segs = std::max(1, static_cast<int>(std::ceil(L / std::min(dx_val, dy_val))));
+                Real ds = L / num_segs;
+
+                for (int s = 0; s < num_segs; ++s) {
+                    Real xc = w.x1 + (s + Real(0.5)) * ds * tx;
+                    Real yc = w.y1 + (s + Real(0.5)) * ds * ty;
+                    Real zc = w.z1 + (s + Real(0.5)) * ds * tz;
+
+                    int i = static_cast<int>(std::floor((xc - xmin) / dx_val));
+                    int j = static_cast<int>(std::floor((yc - ymin) / dy_val));
+                    int k = static_cast<int>(std::floor((zc - zmin) / dz_val));
+
+                    if (bx.contains(IntVect(i, j, k))) {
+                        Real u = TurbineWake::interpolate_3d(u_host, xc, yc, zc, xmin, ymin, zmin, dx_val, dy_val, dz_val, nx_val, ny_val, nz_val);
+                        Real v = TurbineWake::interpolate_3d(v_host, xc, yc, zc, xmin, ymin, zmin, dx_val, dy_val, dz_val, nx_val, ny_val, nz_val);
+                        Real w_vel = TurbineWake::interpolate_3d(w_host, xc, yc, zc, xmin, ymin, zmin, dx_val, dy_val, dz_val, nx_val, ny_val, nz_val);
+                        Real Ta = TurbineWake::interpolate_3d(T_host, xc, yc, zc, xmin, ymin, zmin, dx_val, dy_val, dz_val, nx_val, ny_val, nz_val);
+
+                        Real speed = std::sqrt(u*u + v*v + w_vel*w_vel);
+                        Real u_p = u * tx + v * ty + w_vel * tz;
+                        Real u_n_sq = std::max(Real(0.0), speed*speed - u_p*u_p);
+                        Real u_n = std::sqrt(u_n_sq);
+
+                        Real Fd = Real(0.5) * Real(1.225) * w.drag_coeff * w.diameter * u_n_sq;
+                        Real Ts = WireLoading::solve_conductor_temp(Ta, u_n, w.diameter, w.resistance, w.emissivity, w.absorptivity, solar_radiation, w.current);
+
+                        out(i, j, k, cap_wire_idx_start) += Fd;
+                        out(i, j, k, cap_wire_idx_start + 1) = std::max(out(i, j, k, cap_wire_idx_start + 1), Ts);
+                    }
+                }
+            }
+        }
+#ifdef AMREX_USE_GPU
+        amrex::Gpu::streamSynchronize();
+#endif
     }
 
     Vector<std::string> var_names = {
@@ -4212,6 +4375,11 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
         var_names.push_back("coriolis_f");
         var_names.push_back("rossby_number");
         var_names.push_back("inertial_period");
+    }
+
+    if (enable_wire_loading) {
+        var_names.push_back("wire_drag_force_per_m");
+        var_names.push_back("wire_conductor_temp");
     }
 
     amrex::Print() << "wind_solver: divergence computation time = " 

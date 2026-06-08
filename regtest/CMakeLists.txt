@@ -59,6 +59,7 @@ endfunction()
 # flat_terrain/ – flat domain (all z = 0), trivial mass-consistency check
 # ===========================================================================
 add_regression_test(flat_terrain flat_terrain)
+add_regression_test(wire_loading wire_loading)
 
 # ===========================================================================
 # flatirons_turbines/ – Sloping Flatirons NREL terrain with wind turbines
@@ -531,6 +532,8 @@ add_regression_test(subgrid_windbreaks subgrid_windbreaks)
 # ===========================================================================
 add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test 
                           test_parameter_sensitivity.py)
+
+add_python_regression_test(wire_loading_validation wire_loading verify_wire_loading.py)
 
 # ===========================================================================
 # Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
