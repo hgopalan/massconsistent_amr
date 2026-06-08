@@ -471,10 +471,102 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
                        << state.terrain_decay_height << " m (domain_height / 3)\n";
     }
 
-    read_terrain_file(terrain_file,
-                      state.terrain_x_data,
-                      state.terrain_y_data,
-                      state.terrain_z_data);
+    if (terrain_file == "synthetic") {
+        Real synth_xmin = 0.0;
+        Real synth_xmax = 300.0;
+        Real synth_ymin = 0.0;
+        Real synth_ymax = 300.0;
+        int synth_nx = 11;
+        int synth_ny = 11;
+        std::string synth_type = "multi_gaussian_hill";
+
+        pp.query("synthetic_xmin", synth_xmin);
+        pp.query("synthetic_xmax", synth_xmax);
+        pp.query("synthetic_ymin", synth_ymin);
+        pp.query("synthetic_ymax", synth_ymax);
+        pp.query("synthetic_nx", synth_nx);
+        pp.query("synthetic_ny", synth_ny);
+        pp.query("synthetic_type", synth_type);
+
+        std::vector<Real> peaks;
+        std::vector<Real> sigmas;
+        std::vector<Real> centers_x;
+        std::vector<Real> centers_y;
+
+        if (synth_type == "gaussian_hill") {
+            Real peak = 50.0;
+            Real sigma = 60.0;
+            Real center_x = (synth_xmin + synth_xmax) / 2.0;
+            Real center_y = (synth_ymin + synth_ymax) / 2.0;
+            pp.query("synthetic_peak", peak);
+            pp.query("synthetic_sigma", sigma);
+            pp.query("synthetic_center_x", center_x);
+            pp.query("synthetic_center_y", center_y);
+
+            peaks.push_back(peak);
+            sigmas.push_back(sigma);
+            centers_x.push_back(center_x);
+            centers_y.push_back(center_y);
+        } else if (synth_type == "multi_gaussian_hill") {
+            int n_vals = pp.countval("synthetic_peaks");
+            if (n_vals > 0) {
+                peaks.resize(n_vals);
+                pp.getarr("synthetic_peaks", peaks, 0, n_vals);
+            }
+            n_vals = pp.countval("synthetic_sigmas");
+            if (n_vals > 0) {
+                sigmas.resize(n_vals);
+                pp.getarr("synthetic_sigmas", sigmas, 0, n_vals);
+            }
+            n_vals = pp.countval("synthetic_centers_x");
+            if (n_vals > 0) {
+                centers_x.resize(n_vals);
+                pp.getarr("synthetic_centers_x", centers_x, 0, n_vals);
+            }
+            n_vals = pp.countval("synthetic_centers_y");
+            if (n_vals > 0) {
+                centers_y.resize(n_vals);
+                pp.getarr("synthetic_centers_y", centers_y, 0, n_vals);
+            }
+
+            // Defaults if arrays are empty
+            if (peaks.empty()) {
+                peaks = {50.0, 30.0};
+                sigmas = {60.0, 40.0};
+                centers_x = {100.0, 200.0};
+                centers_y = {150.0, 150.0};
+            }
+        } else {
+            throw std::runtime_error("invalid synthetic_type: " + synth_type);
+        }
+
+        // Generate the grid points of the synthetic terrain point cloud
+        state.terrain_x_data.clear();
+        state.terrain_y_data.clear();
+        state.terrain_z_data.clear();
+
+        for (int j = 0; j < synth_ny; ++j) {
+            Real y = synth_ymin + j * (synth_ymax - synth_ymin) / std::max(1, synth_ny - 1);
+            for (int i = 0; i < synth_nx; ++i) {
+                Real x = synth_xmin + i * (synth_xmax - synth_xmin) / std::max(1, synth_nx - 1);
+                
+                Real z = 0.0;
+                for (std::size_t m = 0; m < peaks.size(); ++m) {
+                    Real r_sq = (x - centers_x[m]) * (x - centers_x[m]) + (y - centers_y[m]) * (y - centers_y[m]);
+                    z += peaks[m] * std::exp(-r_sq / (2.0 * sigmas[m] * sigmas[m]));
+                }
+                state.terrain_x_data.push_back(x);
+                state.terrain_y_data.push_back(y);
+                state.terrain_z_data.push_back(z);
+            }
+        }
+        amrex::Print() << "wind_solver: generated synthetic terrain with type: " << synth_type << ", " << state.terrain_x_data.size() << " points\n";
+    } else {
+        read_terrain_file(terrain_file,
+                          state.terrain_x_data,
+                          state.terrain_y_data,
+                          state.terrain_z_data);
+    }
     
     // Parse building file (optional)
     std::string building_file = "";
