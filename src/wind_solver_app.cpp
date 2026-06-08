@@ -125,6 +125,8 @@ void WindSolverApp::parse_inputs() {
     pp.query("wake_added_turbulence_model", wake_added_turbulence_model);
     pp.query("enable_wake_ground_interaction", enable_wake_ground_interaction);
     pp.query("wake_ground_damping_scale", wake_ground_damping_scale);
+    pp.query("surface_sensible_heat_flux", surface_sensible_heat_flux);
+    pp.query("buoyant_wake_destruction_coeff", buoyant_wake_destruction_coeff);
     
     if (enable_turbine_wake && !turbine_file.empty()) {
         TurbineWake::read_turbines_file(turbine_file, turbines);
@@ -2845,7 +2847,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             added_turb_model,
             time_step,
             enable_wake_ground_interaction,
-            wake_ground_damping_scale
+            wake_ground_damping_scale,
+            surface_sensible_heat_flux,
+            buoyant_wake_destruction_coeff
         );
     }
 

@@ -367,7 +367,9 @@ Real compute_turbine_wake_added_ti(
     TurbineWake::TurbineWakeModelType model_type,
     TurbineWake::WakeAddedTurbulenceModelType added_turb_model,
     Real wind_dir_x, Real wind_dir_y,
-    Real ambient_ti_base = 0.075)
+    Real ambient_ti_base = 0.075,
+    Real surface_sensible_heat_flux = 0.0,
+    Real buoyant_wake_destruction_coeff = 0.005)
 {
     if (added_turb_model == TurbineWake::WakeAddedTurbulenceModelType::NONE || turbines.empty()) {
         return 0.0;
@@ -396,9 +398,17 @@ Real compute_turbine_wake_added_ti(
 
         if (added_turb_model == TurbineWake::WakeAddedTurbulenceModelType::CRESPO_HERNANDEZ) {
             Real a = (Real(1.0) - std::sqrt(Real(1.0) - ct_clamped)) / Real(2.0);
-            delta_I_peak = Real(0.73) * std::pow(a, Real(0.832)) * std::pow(ambient_ti_base, Real(0.0325)) * std::pow(s_dist, Real(-0.32));
+            Real decay_exponent = Real(-0.32);
+            if (surface_sensible_heat_flux > Real(0.0)) {
+                decay_exponent *= (Real(1.0) + buoyant_wake_destruction_coeff * surface_sensible_heat_flux);
+            }
+            delta_I_peak = Real(0.73) * std::pow(a, Real(0.832)) * std::pow(ambient_ti_base, Real(0.0325)) * std::pow(s_dist, decay_exponent);
         } else if (added_turb_model == TurbineWake::WakeAddedTurbulenceModelType::FRANDSEN) {
-            delta_I_peak = Real(1.0) / (Real(1.5) + Real(0.8) * s_dist / std::sqrt(ct_clamped));
+            Real decay_coef = Real(0.8);
+            if (surface_sensible_heat_flux > Real(0.0)) {
+                decay_coef *= (Real(1.0) + buoyant_wake_destruction_coeff * surface_sensible_heat_flux);
+            }
+            delta_I_peak = Real(1.0) / (Real(1.5) + decay_coef * s_dist / std::sqrt(ct_clamped));
         }
 
         // Radial spreading factor
@@ -606,12 +616,16 @@ int main(int argc, char* argv[])
         std::string turbine_wake_model_type = "jensen";
         std::string wake_added_turb_model = "crespo_hernandez";
         Real turbine_wake_diffusivity_factor = 2.0;
+        Real surface_sensible_heat_flux = 0.0;
+        Real buoyant_wake_destruction_coeff = 0.005;
 
         pp.query("turbine_file", turbine_file);
         pp.query("enable_turbine_wake_diffusivity", enable_turbine_wake_diffusivity);
         pp.query("turbine_wake_model_type", turbine_wake_model_type);
         pp.query("wake_added_turb_model", wake_added_turb_model);
         pp.query("turbine_wake_diffusivity_factor", turbine_wake_diffusivity_factor);
+        pp.query("surface_sensible_heat_flux", surface_sensible_heat_flux);
+        pp.query("buoyant_wake_destruction_coeff", buoyant_wake_destruction_coeff);
 
         std::vector<TurbineWake::Turbine> turbines;
         if (!turbine_file.empty()) {
@@ -816,6 +830,11 @@ int main(int argc, char* argv[])
             amrex::Print() << "    Turbine wake model: " << turbine_wake_model_type << "\n";
             amrex::Print() << "    Wake added turbulence model: " << wake_added_turb_model << "\n";
             amrex::Print() << "    Diffusivity factor: " << turbine_wake_diffusivity_factor << "\n";
+            if (surface_sensible_heat_flux > 0.0) {
+                amrex::Print() << "    Buoyant wake destruction: ENABLED\n"
+                               << "      Sensible heat flux: " << surface_sensible_heat_flux << " W/m²\n"
+                               << "      Destruction coefficient: " << buoyant_wake_destruction_coeff << " m²/W\n";
+            }
         }
         if (enable_cavity_trapping) {
             amrex::Print() << "  Cavity trapping (AERMOD PRIME): ENABLED\n";
@@ -953,7 +972,8 @@ int main(int argc, char* argv[])
                         Real added_ti = compute_turbine_wake_added_ti(
                             px, py, pz, turbines,
                             turb_wake_model, added_turb_model,
-                            wind_dir_x, wind_dir_y);
+                            wind_dir_x, wind_dir_y, 0.075,
+                            surface_sensible_heat_flux, buoyant_wake_destruction_coeff);
                         Kv_val *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
                     }
                     return Kv_val;
@@ -1031,7 +1051,8 @@ int main(int argc, char* argv[])
                     Real added_ti = compute_turbine_wake_added_ti(
                         p.x, p.y, p.z, turbines,
                         turb_wake_model, added_turb_model,
-                        wind_dir_x, wind_dir_y);
+                        wind_dir_x, wind_dir_y, 0.075,
+                        surface_sensible_heat_flux, buoyant_wake_destruction_coeff);
                     K_h_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
                     K_v_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
                 }
@@ -1218,7 +1239,8 @@ int main(int argc, char* argv[])
                     Real added_ti = compute_turbine_wake_added_ti(
                         puff.x, puff.y, puff.z, turbines,
                         turb_wake_model, added_turb_model,
-                        wind_dir_x, wind_dir_y);
+                        wind_dir_x, wind_dir_y, 0.075,
+                        surface_sensible_heat_flux, buoyant_wake_destruction_coeff);
                     K_h_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
                     K_v_eff *= (1.0 + turbine_wake_diffusivity_factor * added_ti);
                 }

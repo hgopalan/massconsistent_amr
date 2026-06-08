@@ -178,6 +178,10 @@ Wind Turbine Wake Models
   
   Empirical model for wake-added turbulence intensity used in solver.
 
+* **Mirocha, J. D., Rajewski, D. A., Marjanovic, M., Lundquist, J. K., Kosović, B., Draxl, C., & Churchfield, M. J. (2018)**. Investigating turbine wake recovery under thermal buoyancy. *Wind Energy Science*, 3(2), 693-712.
+  
+  Parameterization of buoyant wake destruction in unstable, highly convective atmospheres.
+
 * **Porté-Agel, F., Wu, X., & Parlange, M. B. (2000)**. Canopy turbulence structure and coherent motion. *Boundary-Layer Meteorology*, 97(1), 61–82.
   
   Foundational work on turbulence in complex flow fields relevant to wake interactions.

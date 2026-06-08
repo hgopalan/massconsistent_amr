@@ -204,6 +204,12 @@ Parameter Reference
    * - ``wake_added_turbulence_model``
      - ``none``
      - Analytical wake-added turbulence model: ``none``, ``crespo_hernandez``, or ``frandsen`` (STF).
+   * - ``surface_sensible_heat_flux``
+     - ``0.0``
+     - Surface sensible heat flux in W/m² used for buoyant wake destruction (only applied when > 0).
+   * - ``buoyant_wake_destruction_coeff``
+     - ``0.005``
+     - Buoyant wake destruction proportionality constant in m²/W.
 
 File Formats
 ------------

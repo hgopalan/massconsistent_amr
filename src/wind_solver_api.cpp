@@ -432,6 +432,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.wake_added_turbulence_model = "none";
     state.enable_wake_ground_interaction = true;
     state.wake_ground_damping_scale = 0.25;
+    state.surface_sensible_heat_flux = 0.0;
+    state.buoyant_wake_destruction_coeff = 0.005;
 
     pp.query("enable_turbine_wake", state.enable_turbine_wake);
     pp.query("turbine_file", state.turbine_file);
@@ -449,6 +451,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("wake_added_turbulence_model", state.wake_added_turbulence_model);
     pp.query("enable_wake_ground_interaction", state.enable_wake_ground_interaction);
     pp.query("wake_ground_damping_scale", state.wake_ground_damping_scale);
+    pp.query("surface_sensible_heat_flux", state.surface_sensible_heat_flux);
+    pp.query("buoyant_wake_destruction_coeff", state.buoyant_wake_destruction_coeff);
 
     if (state.enable_turbine_wake && !state.turbine_file.empty()) {
         TurbineWake::read_turbines_file(state.turbine_file, state.turbines);
@@ -788,7 +792,9 @@ void initialize_wind_field(WindSolverState& state)
             added_turb_model,
             0, // time_step
             state.enable_wake_ground_interaction,
-            state.wake_ground_damping_scale
+            state.wake_ground_damping_scale,
+            state.surface_sensible_heat_flux,
+            state.buoyant_wake_destruction_coeff
         );
     }
 

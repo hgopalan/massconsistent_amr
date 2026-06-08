@@ -165,6 +165,8 @@ struct WindSolverState {
     // Phase 3 Advanced Wake Models
     bool enable_wake_ground_interaction;
     amrex::Real wake_ground_damping_scale;
+    amrex::Real surface_sensible_heat_flux;
+    amrex::Real buoyant_wake_destruction_coeff;
     std::vector<TurbineWake::Turbine> turbines;
 
     // Solver status

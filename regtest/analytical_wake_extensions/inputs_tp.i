@@ -9,6 +9,8 @@ enable_jimenez_deflection = false
 jimenez_kd = 0.05
 turbopark_c1 = 0.38
 ambient_ti = 0.075
+surface_sensible_heat_flux = 0.0
+buoyant_wake_destruction_coeff = 0.005
 
 U_ref = 10.0
 V_ref = 0.0

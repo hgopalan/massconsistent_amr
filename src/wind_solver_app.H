@@ -103,6 +103,8 @@ private:
     // Phase 3 Advanced Wake Models
     bool enable_wake_ground_interaction = true;
     amrex::Real wake_ground_damping_scale = 0.25;
+    amrex::Real surface_sensible_heat_flux = 0.0;
+    amrex::Real buoyant_wake_destruction_coeff = 0.005;
     std::vector<TurbineWake::Turbine> turbines;
 
     // Street canyon

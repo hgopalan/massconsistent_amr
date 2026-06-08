@@ -26,7 +26,7 @@ except ImportError as e:
     print(f"ERROR: Could not import WindSolver: {e}")
     sys.exit(1)
 
-def write_test_inputs(filename, model_type, superposition="quadratic", turb_model="none", yaw1=0.0, yaw2=0.0):
+def write_test_inputs(filename, model_type, superposition="quadratic", turb_model="none", yaw1=0.0, yaw2=0.0, surface_sensible_heat_flux=0.0, buoyant_wake_destruction_coeff=0.005):
     with open(filename, "w") as f:
         f.write(f"""# Standalone phase 2 test case
 terrain_file = terrain.csv
@@ -39,6 +39,8 @@ enable_jimenez_deflection = {"true" if yaw1 != 0.0 or yaw2 != 0.0 else "false"}
 jimenez_kd = 0.05
 turbopark_c1 = 0.38
 ambient_ti = 0.075
+surface_sensible_heat_flux = {surface_sensible_heat_flux}
+buoyant_wake_destruction_coeff = {buoyant_wake_destruction_coeff}
 
 U_ref = 10.0
 V_ref = 0.0
@@ -132,11 +134,45 @@ def test_wake_added_turbulence():
     
     print("✓ Wake-added turbulence verification passed!")
 
+def test_buoyant_wake_destruction():
+    print("\n--- Test 4: Buoyant Wake Destruction Verification ---")
+    
+    # 1. Crespo-Hernández
+    # Neutral case: sensible heat flux = 0.0
+    write_test_inputs("inputs_ch_neutral.i", "turbopark", turb_model="crespo_hernandez", surface_sensible_heat_flux=0.0)
+    write_turbines("turbines_test.csv")
+    _, _, tis_ch_neutral = run_solver("inputs_ch_neutral.i")
+    
+    # Highly buoyant/convective case: sensible heat flux = 200.0
+    write_test_inputs("inputs_ch_buoyant.i", "turbopark", turb_model="crespo_hernandez", surface_sensible_heat_flux=200.0, buoyant_wake_destruction_coeff=0.005)
+    write_turbines("turbines_test.csv")
+    _, _, tis_ch_buoyant = run_solver("inputs_ch_buoyant.i")
+    
+    print(f"Crespo-Hernandez Downstream TI: Neutral = {tis_ch_neutral[1]:.5f}, Buoyant = {tis_ch_buoyant[1]:.5f}")
+    assert tis_ch_buoyant[1] < tis_ch_neutral[1], "Error: Buoyant wake destruction did not accelerate Crespo-Hernandez wake TI decay downstream!"
+    print("✓ Crespo-Hernandez buoyant wake destruction verification passed!")
+    
+    # 2. Frandsen (STF)
+    # Neutral case: sensible heat flux = 0.0
+    write_test_inputs("inputs_fr_neutral.i", "turbopark", turb_model="frandsen", surface_sensible_heat_flux=0.0)
+    write_turbines("turbines_test.csv")
+    _, _, tis_fr_neutral = run_solver("inputs_fr_neutral.i")
+    
+    # Highly buoyant/convective case: sensible heat flux = 200.0
+    write_test_inputs("inputs_fr_buoyant.i", "turbopark", turb_model="frandsen", surface_sensible_heat_flux=200.0, buoyant_wake_destruction_coeff=0.005)
+    write_turbines("turbines_test.csv")
+    _, _, tis_fr_buoyant = run_solver("inputs_fr_buoyant.i")
+    
+    print(f"Frandsen Downstream TI: Neutral = {tis_fr_neutral[1]:.5f}, Buoyant = {tis_fr_buoyant[1]:.5f}")
+    assert tis_fr_buoyant[1] < tis_fr_neutral[1], "Error: Buoyant wake destruction did not accelerate Frandsen wake TI decay downstream!"
+    print("✓ Frandsen buoyant wake destruction verification passed!")
+
 if __name__ == "__main__":
     try:
         test_turbopark()
         test_jimenez_deflection()
         test_wake_added_turbulence()
+        test_buoyant_wake_destruction()
         print("\n==================================================")
         print("ALL STANDALONE PHASE 2 ANALYTICAL WAKE & TURBULENCE EXTENSIONS TESTS PASSED!")
         print("==================================================")
