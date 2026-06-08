@@ -218,6 +218,56 @@ class TestAEPAndDispersion(unittest.TestCase):
         self.assertIn("Turbine wake model: gaussian", res.stdout)
         self.assertIn("Wake added turbulence model: crespo_hernandez", res.stdout)
 
+    def test_puff_solver_adaptive_time_stepping(self):
+        """Test puff_solver with adaptive (CFL-limited) time-stepping."""
+        puff_inputs_file = os.path.join(self.test_dir, "puff_inputs_adaptive.i")
+        with open(puff_inputs_file, "w") as f:
+            f.write("enable_puff = true\n")
+            f.write("source_x = 50.0\n")
+            f.write("source_y = 100.0\n")
+            f.write("source_z = 50.0\n")
+            f.write("emission_rate = 1.0\n")
+            f.write("emission_duration = 50.0\n")
+            f.write("K_h = 1.0\n")
+            f.write("K_v = 0.5\n")
+            f.write("dt_puff = 1.0\n")
+            f.write("n_steps_puff = 10\n")
+            f.write("output_freq_puff = 5\n")
+            f.write("enable_adaptive_time_stepping = true\n")
+            f.write("cfl_limit = 0.2\n")
+            f.write("U_wind = 40.0\n")
+            f.write("V_wind = 0.0\n")
+            f.write("W_wind = 0.0\n")
+            f.write("xmin = 0.0\n")
+            f.write("xmax = 200.0\n")
+            f.write("ymin = 0.0\n")
+            f.write("ymax = 200.0\n")
+            f.write("zmin = 0.0\n")
+            f.write("zmax = 100.0\n")
+            f.write("dx = 10.0\n")
+            f.write("dy = 10.0\n")
+            f.write("dz = 10.0\n")
+            f.write(f"puff_output = {os.path.join(self.test_dir, 'puff_conc_adaptive.csv')}\n")
+
+        # Run puff_solver executable
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_dir = script_dir
+        for _ in range(5):
+            if os.path.exists(os.path.join(repo_dir, "build", "puff_solver")):
+                break
+            repo_dir = os.path.dirname(repo_dir)
+            
+        exe_path = os.path.join(repo_dir, "build", "puff_solver")
+        
+        self.assertTrue(os.path.exists(exe_path), f"puff_solver executable not found at {exe_path}")
+        
+        cmd = [exe_path, puff_inputs_file]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        self.assertEqual(res.returncode, 0, f"puff_solver failed with error: {res.stderr}\nOutput: {res.stdout}")
+        self.assertIn("Adaptive time-stepping: ENABLED", res.stdout)
+        self.assertIn("dt_puff scaled from", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])

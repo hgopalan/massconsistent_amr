@@ -148,6 +148,7 @@ private:
     bool use_height_dependent_alpha_v = false;
     amrex::Real alpha_v_surface = 1.0;
     amrex::Real alpha_v_top = 1.0;
+    amrex::Real idw_gamma = 1.0;
 
     // Stability
     bool enable_stability_correction = false;

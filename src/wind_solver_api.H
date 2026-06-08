@@ -83,6 +83,7 @@ struct WindSolverState {
     amrex::Real z0;        // Aerodynamic roughness length [m]
     amrex::Real alpha_h;   // Horizontal Lagrange anisotropy factor
     amrex::Real alpha_v;   // Vertical Lagrange anisotropy factor
+    amrex::Real idw_gamma; // Vertical scaling parameter for 3D IDW meteorological interpolation
     
     // Canopy model parameters
     bool enable_canopy;                // Enable canopy model

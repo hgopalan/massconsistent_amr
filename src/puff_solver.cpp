@@ -519,10 +519,14 @@ int main(int argc, char* argv[])
         Real dt_puff = 1.0;
         int n_steps_puff = 100;
         int output_freq_puff = 10;
+        bool enable_adaptive_time_stepping = false;
+        Real cfl_limit = 0.5;
         
         pp.query("dt_puff", dt_puff);
         pp.query("n_steps_puff", n_steps_puff);
         pp.query("output_freq_puff", output_freq_puff);
+        pp.query("enable_adaptive_time_stepping", enable_adaptive_time_stepping);
+        pp.query("cfl_limit", cfl_limit);
         
         // Wind field parameters (for uniform wind test)
         Real U_wind = 10.0;
@@ -756,6 +760,28 @@ int main(int argc, char* argv[])
         if (!enable_lpdm) {
             amrex::Print() << "  Initial puff size: σy₀ = " << sigma_y0 
                            << " m, σz₀ = " << sigma_z0 << " m\n";
+        }
+        if (enable_adaptive_time_stepping) {
+            Real max_vel_over_dx = std::max({std::abs(U_wind) / dx, std::abs(V_wind) / dy, std::abs(W_wind) / dz});
+            if (max_vel_over_dx > 1.0e-12) {
+                Real dt_cfl = cfl_limit / max_vel_over_dx;
+                if (dt_cfl < dt_puff) {
+                    Real original_dt = dt_puff;
+                    Real original_total_time = dt_puff * n_steps_puff;
+                    dt_puff = dt_cfl;
+                    n_steps_puff = static_cast<int>(std::ceil(original_total_time / dt_puff));
+                    Real scale_factor = original_dt / dt_puff;
+                    output_freq_puff = std::max(1, static_cast<int>(std::round(output_freq_puff * scale_factor)));
+                    amrex::Print() << "  Adaptive time-stepping: ENABLED (CFL limit = " << cfl_limit << ")\n"
+                                   << "    dt_puff scaled from " << original_dt << " s to " << dt_puff << " s\n"
+                                   << "    n_steps_puff adjusted to " << n_steps_puff << "\n"
+                                   << "    output_freq_puff adjusted to " << output_freq_puff << "\n";
+                } else {
+                    amrex::Print() << "  Adaptive time-stepping: ENABLED (CFL limit = " << cfl_limit << ", static dt_puff = " << dt_puff << " s is stable)\n";
+                }
+            } else {
+                amrex::Print() << "  Adaptive time-stepping: ENABLED (CFL limit = " << cfl_limit << ", wind is zero)\n";
+            }
         }
         amrex::Print() << "  Wind: U = " << U_wind << ", V = " << V_wind 
                        << ", W = " << W_wind << " m/s\n";

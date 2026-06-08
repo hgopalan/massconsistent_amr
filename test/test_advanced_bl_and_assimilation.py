@@ -120,6 +120,104 @@ plot_file = plt_test_advanced_bl
             shutil.rmtree(plotfile_dir)
 
 
+def test_idw_gamma_effect():
+    """Verify that changing idw_gamma affects the 3D IDW interpolation."""
+    print("\n" + "="*70)
+    print("Testing 3D IDW vertical scaling parameter (idw_gamma)")
+    print("="*70)
+
+    # 1. Create a synthetic terrain file
+    terrain_file = TEST_DIR / "temp_terrain_gamma.csv"
+    with open(terrain_file, "w") as f:
+        f.write("# x, y, z\n")
+        for y in range(0, 300, 30):
+            for x in range(0, 300, 30):
+               f.write(f"{x}, {y}, 0.0\n")
+
+    # 2. Create a synthetic 3D vertical profile CSV
+    profile_file = TEST_DIR / "temp_profile_gamma.csv"
+    with open(profile_file, "w") as f:
+        f.write("# x, y, z, speed, direction_deg\n")
+        f.write("50.0, 50.0, 10.0, 5.0, 270.0\n")
+        f.write("50.0, 50.0, 50.0, 10.0, 270.0\n")
+        f.write("250.0, 250.0, 10.0, 12.0, 270.0\n")
+        f.write("250.0, 250.0, 50.0, 8.0, 270.0\n")
+
+    # 3. Create inputs.i file for Case A (gamma = 1.0)
+    inputs_file_a = TEST_DIR / "temp_inputs_gamma_a.i"
+    with open(inputs_file_a, "w") as f:
+        f.write(f"""terrain_file = {terrain_file}
+velocity_file = {profile_file}
+init_mode = raws
+dx = 30.0
+dy = 30.0
+dz = 25.0
+domain_height = 100.0
+alpha_h = 1.0
+alpha_v = 1.0
+mlmg_verbose = 0
+max_grid_size = 32
+idw_gamma = 1.0
+plot_file = plt_test_gamma_a
+""")
+
+    # 4. Create inputs.i file for Case B (gamma = 10.0)
+    inputs_file_b = TEST_DIR / "temp_inputs_gamma_b.i"
+    with open(inputs_file_b, "w") as f:
+        f.write(f"""terrain_file = {terrain_file}
+velocity_file = {profile_file}
+init_mode = raws
+dx = 30.0
+dy = 30.0
+dz = 25.0
+domain_height = 100.0
+alpha_h = 1.0
+alpha_v = 1.0
+mlmg_verbose = 0
+max_grid_size = 32
+idw_gamma = 10.0
+plot_file = plt_test_gamma_b
+""")
+
+    try:
+        # Solve Case A
+        wind_a = WindSolver()
+        wind_a.initialize(str(inputs_file_a))
+        wind_a.solve()
+        vel0_a = wind_a.get_velocity0()
+        u0_a = vel0_a['u']
+        wind_a.finalize()
+
+        # Solve Case B
+        wind_b = WindSolver()
+        wind_b.initialize(str(inputs_file_b))
+        wind_b.solve()
+        vel0_b = wind_b.get_velocity0()
+        u0_b = vel0_b['u']
+        wind_b.finalize()
+
+        # Verify that changing gamma resulted in a different initial interpolation field
+        diff = np.abs(u0_a - u0_b)
+        max_diff = np.max(diff)
+        print(f"✓ Maximum difference between isotropic and anisotropic IDW: {max_diff:.4f} m/s")
+        assert max_diff > 1.0e-3, "Changing idw_gamma had no effect on the 3D IDW interpolation"
+        print("✓ Verified anisotropic IDW vertical scaling parameter (idw_gamma) works as expected")
+
+    finally:
+        # Clean up temporary files
+        for temp_file in [terrain_file, profile_file, inputs_file_a, inputs_file_b]:
+            if temp_file.exists():
+               os.remove(temp_file)
+        
+        # Clean up plotfile directories
+        for suffix in ['a', 'b']:
+            plotfile_dir = TEST_DIR / f"plt_test_gamma_{suffix}"
+            if plotfile_dir.exists():
+               import shutil
+               shutil.rmtree(plotfile_dir)
+
+
 if __name__ == "__main__":
     test_3d_profile_assimilation()
+    test_idw_gamma_effect()
     print("\nALL TESTS PASSED!")

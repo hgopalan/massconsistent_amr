@@ -222,7 +222,8 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                              const std::vector<Real>& z,
                                              const std::vector<Real>& ux_data,
                                              const std::vector<Real>& uy_data,
-                                             int k = 6)
+                                             int k = 6,
+                                             Real gamma = 1.0)
 {
     int n = static_cast<int>(x.size());
     k = std::min(k, n);
@@ -233,7 +234,8 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
         Real dx = x[i] - xq;
         Real dy = y[i] - yq;
         Real dz = z[i] - zq;
-        d2[i] = {dx * dx + dy * dy + dz * dz, i};
+        Real g_dz = gamma * dz;
+        d2[i] = {dx * dx + dy * dy + g_dz * g_dz, i};
     }
     // Partial sort: first k elements are the k nearest
     std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
@@ -261,7 +263,8 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
                                                          const std::vector<Real>& ux_data,
                                                          const std::vector<Real>& uy_data,
                                                          const std::vector<Real>& uz_data,
-                                                         int k = 6)
+                                                         int k = 6,
+                                                         Real gamma = 1.0)
 {
     int n = static_cast<int>(x.size());
     k = std::min(k, n);
@@ -272,7 +275,8 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
         Real dx = x[i] - xq;
         Real dy = y[i] - yq;
         Real dz = z[i] - zq;
-        d2[i] = {dx * dx + dy * dy + dz * dz, i};
+        Real g_dz = gamma * dz;
+        d2[i] = {dx * dx + dy * dy + g_dz * g_dz, i};
     }
     // Partial sort: first k elements are the k nearest
     std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
