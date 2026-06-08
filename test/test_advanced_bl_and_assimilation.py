@@ -132,7 +132,7 @@ def test_idw_gamma_effect():
         f.write("# x, y, z\n")
         for y in range(0, 300, 30):
             for x in range(0, 300, 30):
-               f.write(f"{x}, {y}, 0.0\n")
+                f.write(f"{x}, {y}, 0.0\n")
 
     # 2. Create a synthetic 3D vertical profile CSV
     profile_file = TEST_DIR / "temp_profile_gamma.csv"
@@ -207,14 +207,14 @@ plot_file = plt_test_gamma_b
         # Clean up temporary files
         for temp_file in [terrain_file, profile_file, inputs_file_a, inputs_file_b]:
             if temp_file.exists():
-               os.remove(temp_file)
+                os.remove(temp_file)
         
         # Clean up plotfile directories
         for suffix in ['a', 'b']:
             plotfile_dir = TEST_DIR / f"plt_test_gamma_{suffix}"
             if plotfile_dir.exists():
-               import shutil
-               shutil.rmtree(plotfile_dir)
+                import shutil
+                shutil.rmtree(plotfile_dir)
 
 
 if __name__ == "__main__":
