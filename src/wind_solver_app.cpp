@@ -2844,9 +2844,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     Real d_min = std::numeric_limits<Real>::max();
                     bool any_station_within_rmax = false;
                     for (std::size_t s = 0; s < sounding_files.size(); ++s) {
-                       Real dx_s = sounding_x[s] - xc;
-                       Real dy_s = sounding_y[s] - yc;
-                       Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
+                       Real dx_to_station = sounding_x[s] - xc;
+                       Real dy_to_station = sounding_y[s] - yc;
+                       Real dist = std::sqrt(dx_to_station * dx_to_station + dy_to_station * dy_to_station);
                        if (rmax <= Real(0.0) || dist <= rmax) {
                            any_station_within_rmax = true;
                            if (dist < d_min) {
@@ -5096,17 +5096,21 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                     Real f_param = compute_latitude_dependent_coriolis(y_coord, cap_y_center, cap_domain_latitude);
                     Real abs_f = std::max(std::abs(f_param), Real(1.0e-5));
                     
+                    // Marine boundary layer parameters/empirical constants
+                    constexpr Real BULK_HEAT_TRANSFER_COEFF_WATER = 0.0014;
+                    constexpr Real MARINE_MECHANICAL_MIXING_COEFF = 0.2;
+                    constexpr Real MARINE_CONVECTIVE_MIXING_COEFF = 0.3;
+                    
                     // Mechanical mixing height
-                    Real h_mech = Real(0.2) * ustar_local / abs_f;
+                    Real h_mech = MARINE_MECHANICAL_MIXING_COEFF * ustar_local / abs_f;
                     
                     // Convective mixing height
                     Real h_conv = Real(0.0);
                     if (marine_air_sea_dt_val < Real(0.0)) { // convective over water
                         Real g_val = Real(9.81);
-                        Real Ch_val = Real(0.0014);
-                        Real num = g_val * Ch_val * u_mag * (-marine_air_sea_dt_val);
+                        Real num = g_val * BULK_HEAT_TRANSFER_COEFF_WATER * u_mag * (-marine_air_sea_dt_val);
                         Real den = marine_sst_val * abs_f * abs_f * abs_f;
-                        h_conv = Real(0.3) * std::sqrt(num / den);
+                        h_conv = MARINE_CONVECTIVE_MIXING_COEFF * std::sqrt(num / den);
                     }
                     Real h_marine = std::sqrt(h_mech * h_mech + h_conv * h_conv);
                     

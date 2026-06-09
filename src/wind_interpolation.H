@@ -527,6 +527,7 @@ inline Real log_linear_interpolate(Real xq, const std::vector<Real>& x, const st
     Real y0 = y[idx-1];
     Real y1 = y[idx];
 
+    // Fallback to linear interpolation to prevent taking the logarithm of non-positive height values
     if (x0 <= 0.0 || xq <= 0.0) {
         Real t = (xq - x0) / (x1 - x0);
         return y0 + t * (y1 - y0);

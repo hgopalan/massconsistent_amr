@@ -302,7 +302,12 @@ Terrain & Initialization
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 * **terrain_file** (String, Default: ``terrain.csv``): Path to CSV containing terrain X Y Z points, or ``synthetic``.
-* **init_mode** (String, Default: ``loglaw``): Wind initialization mode (``loglaw``, ``uniform``, ``raws``, ``surface_data``, ``powerlaw``, ``windfield``).
+* **init_mode** (String, Default: ``loglaw``): Wind initialization mode (``loglaw``, ``uniform``, ``raws``, ``surface_data``, ``powerlaw``, ``windfield``, ``sounding``).
+* **sounding_files** (Array of Strings, Default: none): Paths to sounding data files (FSL or UP.DAT/custom formats).
+* **sounding_file** (String, Default: none): Path to single sounding data file.
+* **sounding_x**, **sounding_y** (Array of Reals, Default: none): Projected X and Y coordinates [m] of the sounding stations.
+* **sounding_vertical_interp** (String, Default: ``spline``): Method for 1D vertical interpolation (``spline`` or ``log_linear``).
+* **sounding_wind_in_knots** (Boolean, Default: ``true``): Flag to convert FSL wind speeds from knots to m/s.
 * **U_ref**, **V_ref** (Real, Default: ``10.0`` / ``0.0``): Reference wind components [m/s] at reference height ``z_ref``.
 * **z_ref** (Real, Default: ``10.0``): Reference height above local terrain [m].
 * **z0** (Real, Default: ``0.1``): Default aerodynamic roughness length [m].
@@ -364,6 +369,9 @@ Atmospheric Physics & Boundary Layer Dynamics
 * **decay_height_scale** (Real, Default: ``100.0``): Vertical decay height scale above the boundary layer [m].
 * **bl_transition_height** (Real, Default: ``50.0``): Boundary layer transition height zone [m].
 * **enable_bl_depth_diagnostic** (Boolean, Default: ``false``): Enable Richardson-number-based boundary layer depth diagnostic.
+* **enable_marine_bl** (Boolean, Default: ``false``): Enable CALMET-style diagnostic overwater boundary layer mixing height model over water cells (landuse category 11).
+* **marine_sst** (Real, Default: ``288.15``): Sea-surface temperature (SST) [K].
+* **marine_air_sea_dt** (Real, Default: ``0.0``): Air-sea temperature difference (T_air - T_sea) [K]. Negative difference indicates convective unstable boundary layer.
 * **richardson_critical** (Real, Default: ``0.25``): Critical Richardson number threshold for boundary layer top.
 * **richardson_min_wind_shear** (Real, Default: ``0.001``): Minimum wind shear threshold for Richardson calculation.
 * **enable_froude_height_scaling** (Boolean, Default: ``false``): Scale terrain blocking intensity using local Froude height scaling.

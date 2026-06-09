@@ -676,6 +676,8 @@ void read_sounding_file(const std::string& filename,
         std::istringstream ss(line);
         int first_val;
         if (ss >> first_val) {
+            // FSL format record types: 254 is standard FSL header, 9 is station ID,
+            // 4 is station coordinates/elevation, and 1 is mandatory level data.
             if (first_val == 254 || first_val == 9 || first_val == 4 || first_val == 1) {
                 is_fsl = true;
                 break;
@@ -749,8 +751,9 @@ void read_sounding_file(const std::string& filename,
     z.clear();
     u.clear();
     v.clear();
+    constexpr Real HEIGHT_DUPLICATE_TOLERANCE = 1e-3; // 1mm vertical tolerance for duplicate levels
     for (const auto& pt : points) {
-        if (!z.empty() && std::abs(pt.z - z.back()) < 1e-3) {
+        if (!z.empty() && std::abs(pt.z - z.back()) < HEIGHT_DUPLICATE_TOLERANCE) {
             continue;
         }
         z.push_back(pt.z);

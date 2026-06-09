@@ -1143,9 +1143,9 @@ void initialize_wind_field(WindSolverState& state)
                     Real d_min = std::numeric_limits<Real>::max();
                     bool any_station_within_rmax = false;
                     for (std::size_t s = 0; s < state.sounding_files.size(); ++s) {
-                        Real dx_s = state.sounding_x[s] - xc;
-                        Real dy_s = state.sounding_y[s] - yc;
-                        Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
+                        Real dx_to_station = state.sounding_x[s] - xc;
+                        Real dy_to_station = state.sounding_y[s] - yc;
+                        Real dist = std::sqrt(dx_to_station * dx_to_station + dy_to_station * dy_to_station);
                         if (rmax <= Real(0.0) || dist <= rmax) {
                             any_station_within_rmax = true;
                             if (dist < d_min) {
