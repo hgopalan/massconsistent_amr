@@ -68,7 +68,7 @@ inline void parse_thermodynamic_lid_inputs(ThermodynamicLidParams& params, const
     pp.query("thermodynamic_lid_initial_delta_theta", params.initial_delta_theta);
 
     if (params.gamma <= 0.0) {
-        amrex::Abort("Thermodynamic Lid Error: thermodynamic_lid_gamma must be strictly positive!");
+        amrex::Abort("Thermodynamic Lid Error: thermodynamic_lid_gamma must be positive (> 0.0)!");
     }
 }
 
@@ -189,13 +189,13 @@ inline amrex::Real compute_maul_zi(amrex::Real t_target,
     }
 
     amrex::Real zi = params.initial_zi;
-    amrex::Real dt_val = params.initial_delta_theta;
+    amrex::Real delta_theta = params.initial_delta_theta;
 
     amrex::Real t_curr = 0.0;
     amrex::Real dt_sub = 1.0; // 1.0 second sub-step integration
 
-    auto derivatives = [&](amrex::Real t_loc, amrex::Real zi_curr, amrex::Real dt_curr,
-                           amrex::Real& dzi_dt, amrex::Real& ddt_dt) {
+    auto derivatives = [&](amrex::Real t_loc, amrex::Real zi_curr, amrex::Real delta_theta_curr,
+                           amrex::Real& dzi_dt, amrex::Real& ddelta_theta_dt) {
         amrex::Real QH = params.constant_flux;
         if (!flux_times.empty()) {
             if (t_loc <= flux_times.front()) {
@@ -220,15 +220,15 @@ inline amrex::Real compute_maul_zi(amrex::Real t_target,
         if (H0 <= 0.0) {
             // No growth if surface heat flux is negative or zero (e.g. stable boundary layer)
             dzi_dt = 0.0;
-            ddt_dt = 0.0;
+            ddelta_theta_dt = 0.0;
             return;
         }
 
         amrex::Real zi_safe = std::max(zi_curr, amrex::Real(1.0));
-        amrex::Real dt_safe = std::max(dt_curr, amrex::Real(1e-4));
+        amrex::Real delta_theta_safe = std::max(delta_theta_curr, amrex::Real(1e-4));
 
-        dzi_dt = params.entrainment_ratio * H0 / dt_safe;
-        ddt_dt = params.gamma * dzi_dt - (1.0 + params.entrainment_ratio) * H0 / zi_safe;
+        dzi_dt = params.entrainment_ratio * H0 / delta_theta_safe;
+        ddelta_theta_dt = params.gamma * dzi_dt - (1.0 + params.entrainment_ratio) * H0 / zi_safe;
     };
 
     while (t_curr < t_target) {
@@ -236,22 +236,22 @@ inline amrex::Real compute_maul_zi(amrex::Real t_target,
 
         // Runge-Kutta 4th Order (RK4)
         amrex::Real dzi1, ddt1;
-        derivatives(t_curr, zi, dt_val, dzi1, ddt1);
+        derivatives(t_curr, zi, delta_theta, dzi1, ddt1);
 
         amrex::Real dzi2, ddt2;
-        derivatives(t_curr + 0.5 * step, zi + 0.5 * step * dzi1, dt_val + 0.5 * step * ddt1, dzi2, ddt2);
+        derivatives(t_curr + 0.5 * step, zi + 0.5 * step * dzi1, delta_theta + 0.5 * step * ddt1, dzi2, ddt2);
 
         amrex::Real dzi3, ddt3;
-        derivatives(t_curr + 0.5 * step, zi + 0.5 * step * dzi2, dt_val + 0.5 * step * ddt2, dzi3, ddt3);
+        derivatives(t_curr + 0.5 * step, zi + 0.5 * step * dzi2, delta_theta + 0.5 * step * ddt2, dzi3, ddt3);
 
         amrex::Real dzi4, ddt4;
-        derivatives(t_curr + step, zi + step * dzi3, dt_val + step * ddt3, dzi4, ddt4);
+        derivatives(t_curr + step, zi + step * dzi3, delta_theta + step * ddt3, dzi4, ddt4);
 
         zi += (step / 6.0) * (dzi1 + 2.0 * dzi2 + 2.0 * dzi3 + dzi4);
-        dt_val += (step / 6.0) * (ddt1 + 2.0 * ddt2 + 2.0 * ddt3 + ddt4);
+        delta_theta += (step / 6.0) * (ddt1 + 2.0 * ddt2 + 2.0 * ddt3 + ddt4);
 
         zi = std::max(zi, amrex::Real(1.0));
-        dt_val = std::max(dt_val, amrex::Real(1e-4));
+        delta_theta = std::max(delta_theta, amrex::Real(1e-4));
 
         t_curr += step;
     }
