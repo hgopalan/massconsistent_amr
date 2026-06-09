@@ -128,8 +128,8 @@ def main():
                         help="Output joint wind rose CSV path for the AEP Calculator")
     parser.add_argument("--output-profile", default="future_scenarios.ini",
                         help="Output wind solver configuration options file for scenario flow modeling")
-    parser.add_argument("--offline", action="store_true", default=True,
-                        help="Force offline high-fidelity synthetic scenario extraction (recommended for sandboxes)")
+    parser.add_argument("--online", action="store_true",
+                        help="Query and download from Copernicus Climate Data Store API (requires CDS API key/setup)")
     
     args = parser.parse_args()
     
@@ -139,9 +139,7 @@ def main():
     print("=" * 80)
     
     # Fetch/generate dataset
-    if args.offline or not CDSAPI_AVAILABLE:
-        directions, speeds, joint_probs = generate_synthetic_projection(args)
-    else:
+    if args.online and CDSAPI_AVAILABLE:
         try:
             print("Querying Copernicus Climate Data Store (CDS)...")
             c = cdsapi.Client()
@@ -166,6 +164,8 @@ def main():
         except Exception as e:
             print(f"WARNING: CDS API download failed or unavailable ({e}). Reverting to offline high-fidelity generator.")
             directions, speeds, joint_probs = generate_synthetic_projection(args)
+    else:
+        directions, speeds, joint_probs = generate_synthetic_projection(args)
             
     # Write Wind Rose CSV output for the AEP Calculator
     print(f"\nWriting joint probability distribution to '{args.output_rose}'...")

@@ -339,7 +339,7 @@ def main():
         description="NAM Data Ingestion Tool supporting both Pathway A (3D) and Pathway B (Surface Data)",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--pathway", choices=["A", "B"], default="A", required=True,
+    parser.add_argument("--pathway", choices=["A", "B"], default="A",
                         help="Pathway selection:\n  A: 3D meteorological wind field mapping\n  B: Surface-varying parameter extraction")
     parser.add_argument("--inputs", required=True, help="Path to inputs.i solver configuration file")
     parser.add_argument("--file", help="Path to local NAM GRIB2 or NetCDF file")
