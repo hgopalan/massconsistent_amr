@@ -55,6 +55,12 @@ def main():
                         help="Square domain size in meters (default: 10000)")
     parser.add_argument("--subsample", type=int, default=1,
                         help="Subsample HRRR grid by this factor (default: 1 = all points)")
+    parser.add_argument("--terrain-output", default=None,
+                        help="Output terrain CSV filepath. If specified, will construct terrain.csv")
+    parser.add_argument("--srtm-terrain", action="store_true",
+                        help="Download terrain from SRTM instead of using NWP data")
+    parser.add_argument("--nx", type=int, default=100, help="Number of grid cells in X (for SRTM terrain)")
+    parser.add_argument("--ny", type=int, default=100, help="Number of grid cells in Y (for SRTM terrain)")
     
     args = parser.parse_args()
     
@@ -70,7 +76,10 @@ def main():
     # Load HRRR data
     if args.grib:
         print(f"Reading HRRR data from {args.grib}...")
-        ds = xr.open_dataset(args.grib, engine='cfgrib')
+        if args.grib.endswith('.nc') or args.grib.endswith('.netcdf'):
+            ds = xr.open_dataset(args.grib)
+        else:
+            ds = xr.open_dataset(args.grib, engine='cfgrib')
     elif args.date and args.hour is not None:
         try:
             from herbie import Herbie
@@ -84,12 +93,41 @@ def main():
     else:
         parser.error("Must provide either --grib or both --date and --hour")
     
+    # Get coordinates first to ensure correct dimensions
+    lats = ds['latitude'].values
+    lons = ds['longitude'].values
+    if len(lons.shape) == 1 and len(lats.shape) == 1:
+        lons, lats = np.meshgrid(lons, lats)
+
     # Extract fields
     print("Extracting surface parameters...")
     
     # 10m winds
-    u10 = ds['u10'].values if 'u10' in ds else ds['UGRD_10maboveground'].values
-    v10 = ds['v10'].values if 'v10' in ds else ds['VGRD_10maboveground'].values
+    if 'u10' in ds:
+        u10 = ds['u10'].values
+    elif 'UGRD_10maboveground' in ds:
+        u10 = ds['UGRD_10maboveground'].values
+    elif 'u' in ds:
+        u10 = ds['u'].values
+        if len(u10.shape) > 2:
+            u10 = u10[0, ...]
+            if len(u10.shape) > 2:
+                u10 = u10[0, ...]
+    else:
+        u10 = np.ones_like(lats) * 10.0
+
+    if 'v10' in ds:
+        v10 = ds['v10'].values
+    elif 'VGRD_10maboveground' in ds:
+        v10 = ds['VGRD_10maboveground'].values
+    elif 'v' in ds:
+        v10 = ds['v'].values
+        if len(v10.shape) > 2:
+            v10 = v10[0, ...]
+            if len(v10.shape) > 2:
+                v10 = v10[0, ...]
+    else:
+        v10 = np.ones_like(lats) * 2.0
     
     # Friction velocity (USTAR) - may be stored as FRICV
     if 'fricv' in ds:
@@ -114,13 +152,13 @@ def main():
         z = ds['orog'].values
     elif 'HGT_surface' in ds:
         z = ds['HGT_surface'].values
+    elif 'HGT_M' in ds:
+        z = ds['HGT_M'].values
+    elif 'HGT' in ds:
+        z = ds['HGT'].values
     else:
         z = np.zeros_like(ustar)
         print("WARNING: Terrain elevation not found, using z=0")
-    
-    # Get coordinates
-    lats = ds['latitude'].values
-    lons = ds['longitude'].values
     
     # Convert to local coordinates
     # For simplicity, use a local tangent plane projection
@@ -182,6 +220,50 @@ def main():
                    f"{u10_pts[i]:.4f} {v10_pts[i]:.4f}\n")
     
     print(f"Done! Output written to {args.output}")
+
+    # Terrain construction options
+    if args.terrain_output:
+        import os
+        import sys
+        if args.srtm_terrain:
+            # Option (ii): Download from SRTM
+            lat_pts = lats[mask]
+            lon_pts = lons[mask]
+            lat_min, lat_max = float(lat_pts.min()), float(lat_pts.max())
+            lon_min, lon_max = float(lon_pts.min()), float(lon_pts.max())
+            
+            if lat_min == lat_max:
+                lat_min -= 0.005
+                lat_max += 0.005
+            if lon_min == lon_max:
+                lon_min -= 0.005
+                lon_max += 0.005
+            
+            import subprocess
+            fetcher_path = os.path.join(os.path.dirname(__file__), "geographic_data_fetcher.py")
+            cmd = [
+                sys.executable, fetcher_path,
+                "--lat-min", f"{lat_min:.6f}",
+                "--lat-max", f"{lat_max:.6f}",
+                "--lon-min", f"{lon_min:.6f}",
+                "--lon-max", f"{lon_max:.6f}",
+                "--nx", str(args.nx),
+                "--ny", str(args.ny),
+                "--dem-output", args.terrain_output,
+                "--projection", "flat"
+            ]
+            print(f"Downloading SRTM terrain for bounds: [{lat_min}, {lat_max}], [{lon_min}, {lon_max}]...")
+            subprocess.run(cmd, check=True)
+        else:
+            # Option (i): Construct from NWP data (HRRR HGT/orog/HGT_M etc.)
+            print(f"Constructing terrain.csv from HRRR elevation data...")
+            with open(args.terrain_output, 'w') as f:
+                f.write("# Terrain elevation data extracted from HRRR NWP\n")
+                f.write(f"# Grid: {len(x_pts)} points\n")
+                f.write("# X[m] Y[m] Z[m]\n")
+                for i in range(len(x_pts)):
+                    f.write(f"{x_pts[i]:.6f} {y_pts[i]:.6f} {z_pts[i]:.6f}\n")
+            print(f"✓ Terrain written to {args.terrain_output}")
     print(f"\nUse in wind_solver with:")
     print(f"  init_mode = surface_data")
     print(f"  surface_data_file = {args.output}")
