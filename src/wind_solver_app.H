@@ -11,6 +11,7 @@
 #include "synthetic_turbulence.H"
 #include "turbine_wake_models.H"
 #include "wire_models.H"
+#include "thermodynamic_lid_models.H"
 
 /**
  * @brief Representation of a detected urban street canyon.
@@ -178,6 +179,9 @@ private:
     // Atmospheric Inversion Capping Lid
     bool enable_capping_lid = false;
     amrex::Real capping_lid_height = 1000.0;
+    ThermodynamicLidParams thermo_lid_params;
+    std::vector<amrex::Real> thermo_lid_flux_times;
+    std::vector<amrex::Real> thermo_lid_flux_values;
 
     // Elevation scaling
     bool enable_elevation_scaling = false;

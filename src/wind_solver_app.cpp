@@ -227,6 +227,10 @@ void WindSolverApp::parse_inputs() {
     pp.query("enable_topographic_shielding", enable_topographic_shielding);
     pp.query("enable_capping_lid", enable_capping_lid);
     pp.query("capping_lid_height", capping_lid_height);
+    parse_thermodynamic_lid_inputs(thermo_lid_params);
+    if (thermo_lid_params.enabled) {
+        enable_capping_lid = true;
+    }
 
     // Elevation-Dependent Wind Speed Scaling
     pp.query("enable_elevation_scaling", enable_elevation_scaling);
@@ -1045,6 +1049,18 @@ void WindSolverApp::setup_geometry_and_mesh() {
         }
     }
 
+    if (thermo_lid_params.enabled && !thermo_lid_params.flux_file.empty()) {
+        std::ifstream check_file(thermo_lid_params.flux_file);
+        if (check_file.good()) {
+            read_thermodynamic_flux_file(thermo_lid_params.flux_file,
+                                         thermo_lid_flux_times,
+                                         thermo_lid_flux_values);
+        } else {
+            amrex::Print() << "wind_solver: WARNING - thermodynamic lid flux file specified but not found: "
+                           << thermo_lid_params.flux_file << "\n";
+        }
+    }
+
     amrex::Print() << "wind_solver: terrain reading time = " 
                    << (amrex::second() - t_phase) << " s\n";
 
@@ -1335,6 +1351,13 @@ void WindSolverApp::allocate_data_fields() {
 }
 
 void WindSolverApp::initialize_wind_fields(int time_step) {
+    Real current_time = enable_time_varying ? time_series_times[time_step] : Real(0.0);
+    if (thermo_lid_params.enabled) {
+        capping_lid_height = compute_thermodynamic_zi(current_time, thermo_lid_params, thermo_lid_flux_times, thermo_lid_flux_values);
+        amrex::Print() << "wind_solver: thermodynamic lid model '" << thermo_lid_params.model 
+                       << "' calculated z_i(t) = " << capping_lid_height << " m at t = " << current_time << " s\n";
+    }
+
     if (enable_time_varying) {
         U_ref = time_series_U_refs[time_step];
         V_ref = time_series_V_refs[time_step];
