@@ -55,6 +55,19 @@ def generate_complex_terrain(filename, nx=41, ny=41, size=8000.0):
             
     print(f"✓ Terrain file written to {filename}")
 
+def create_temperature_file(filename, temp_gradient, T_ref=300.0, max_height=1200.0, dz=50.0):
+    """
+    Create a temperature profile file based on a gradient.
+    """
+    nz = int(max_height / dz) + 1
+    with open(filename, 'w') as f:
+        f.write("# Temperature profile for cell-local anisotropy\n")
+        f.write("# Z [m] T [K]\n")
+        for k in range(nz):
+            z = k * dz
+            T = T_ref + temp_gradient * z
+            f.write(f"{z:.2f} {T:.2f}\n")
+
 def create_inputs_file(filename, enable_anisotropy, temp_gradient, U_ref, V_ref, terrain_file="terrain.csv"):
     """
     Create a custom inputs.i configuration.
@@ -82,6 +95,7 @@ anisotropy_decay_height = 800.0
 anisotropy_ri_gamma = 1.2
 anisotropy_ri_beta = 0.6
 anisotropy_fr_min = 0.1
+temperature_file = "temperature.csv"
 temperature_gradient = {temp_gradient}
 
 mlmg_verbose = 0
@@ -101,8 +115,10 @@ def run_simulation(time_name, temp_gradient, U_ref, V_ref):
     
     inputs_iso = TEST_DIR / "inputs_iso.i"
     inputs_aniso = TEST_DIR / "inputs_aniso.i"
+    temp_file = TEST_DIR / "temperature.csv"
     
-    # Create the input files
+    # Create the temperature and input files
+    create_temperature_file(temp_file, temp_gradient)
     create_inputs_file(inputs_iso, enable_anisotropy=False, temp_gradient=temp_gradient, U_ref=U_ref, V_ref=V_ref)
     create_inputs_file(inputs_aniso, enable_anisotropy=True, temp_gradient=temp_gradient, U_ref=U_ref, V_ref=V_ref)
     
@@ -174,9 +190,10 @@ def main():
     run_simulation("Night Stable Boundary Layer", temp_gradient=0.010, U_ref=2.5, V_ref=0.0)
     
     # Cleanup files
-    for fn in ["terrain.csv", "inputs_iso.i", "inputs_aniso.i"]:
-        if os.path.exists(fn):
-            os.remove(fn)
+    for fn in ["temperature.csv", "inputs_iso.i", "inputs_aniso.i"]:
+        filepath = TEST_DIR / fn
+        if filepath.exists():
+            os.remove(filepath)
             
     print("\n✓ Complex diurnal test case completed successfully!")
 
