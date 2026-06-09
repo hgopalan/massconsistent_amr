@@ -227,6 +227,10 @@ void WindSolverApp::parse_inputs() {
     pp.query("enable_topographic_shielding", enable_topographic_shielding);
     pp.query("enable_capping_lid", enable_capping_lid);
     pp.query("capping_lid_height", capping_lid_height);
+    parse_thermodynamic_lid_inputs(thermo_lid_params);
+    if (thermo_lid_params.enabled) {
+        enable_capping_lid = true;
+    }
 
     // Elevation-Dependent Wind Speed Scaling
     pp.query("enable_elevation_scaling", enable_elevation_scaling);
@@ -492,6 +496,9 @@ void WindSolverApp::parse_inputs() {
     pp.query("pressure_tol_rel", pressure_tol_rel);
     pp.query("pressure_max_iter", pressure_max_iter);
     pp.query("pressure_scale", pressure_scale);
+    
+    // O'Brien Vertical Velocity Adjustment
+    pp.query("enable_obrien_w_adjustment", enable_obrien_w_adjustment);
     
     // Multi-Scale Terrain Analysis
     pp.query("enable_terrain_analysis", enable_terrain_analysis);
@@ -1045,6 +1052,18 @@ void WindSolverApp::setup_geometry_and_mesh() {
         }
     }
 
+    if (thermo_lid_params.enabled && !thermo_lid_params.flux_file.empty()) {
+        std::ifstream check_file(thermo_lid_params.flux_file);
+        if (check_file.good()) {
+            read_thermodynamic_flux_file(thermo_lid_params.flux_file,
+                                         thermo_lid_flux_times,
+                                         thermo_lid_flux_values);
+        } else {
+            amrex::Print() << "wind_solver: WARNING - thermodynamic lid flux file specified but not found: "
+                           << thermo_lid_params.flux_file << "\n";
+        }
+    }
+
     amrex::Print() << "wind_solver: terrain reading time = " 
                    << (amrex::second() - t_phase) << " s\n";
 
@@ -1335,6 +1354,13 @@ void WindSolverApp::allocate_data_fields() {
 }
 
 void WindSolverApp::initialize_wind_fields(int time_step) {
+    Real current_time = enable_time_varying ? time_series_times[time_step] : Real(0.0);
+    if (thermo_lid_params.enabled) {
+        capping_lid_height = compute_thermodynamic_zi(current_time, thermo_lid_params, thermo_lid_flux_times, thermo_lid_flux_values);
+        amrex::Print() << "wind_solver: thermodynamic lid model '" << thermo_lid_params.model 
+                       << "' calculated z_i(t) = " << capping_lid_height << " m at t = " << current_time << " s\n";
+    }
+
     if (enable_time_varying) {
         U_ref = time_series_U_refs[time_step];
         V_ref = time_series_V_refs[time_step];
@@ -3430,6 +3456,101 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
     const Real z_lo_cap_div = zs_min;
     const int  nx_cap_div   = nx;
     const Real* d_terr_ptr = d_obstacle_h.data();
+
+    if (enable_obrien_w_adjustment) {
+        amrex::Print() << "wind_solver: Applying O'Brien Vertical Velocity Adjustment Procedure\n";
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+            Box bx_2d(IntVect(bx.smallEnd(0), bx.smallEnd(1), 0),
+                      IntVect(bx.bigEnd(0),   bx.bigEnd(1),   0));
+            amrex::ParallelFor(bx_2d,
+                [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                Real terrain_elev = d_terr_ptr[j * nx_cap_div + i];
+                int k_start = klo;
+                while (k_start <= khi) {
+                    Real cell_center_height = z_lo_cap_div + (Real(k_start) + Real(0.5)) * dz_cap_div;
+                    if (cell_center_height - terrain_elev <= Real(0.0)) {
+                        k_start++;
+                    } else {
+                        break;
+                    }
+                }
+                if (k_start < khi) {
+                    // C++ device lambda for horizontal divergence Dh at level k
+                    auto get_Dh = [=] AMREX_GPU_DEVICE (int k) noexcept -> Real {
+                        Real du = 0.0, dv = 0.0;
+                        if (deriv_method_cap == 0) {
+                            if (i == ilo)
+                                du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                            else if (i == ihi)
+                                du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                            else
+                                du = (vel(i+1,j,k,0) - vel(i-1,j,k,0)) * inv2dx;
+                        } else if (deriv_method_cap == 1) {
+                            if (i == ilo)
+                                du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                            else if (i == ihi)
+                                du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                            else
+                                du = NumericalDerivatives::weno3_deriv(vel(i-1,j,k,0), vel(i,j,k,0), vel(i+1,j,k,0), dx_cap);
+                        } else {
+                            if (i <= ilo+1)
+                                du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                            else if (i >= ihi-1)
+                                du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                            else
+                                du = NumericalDerivatives::weno5_deriv(vel(i-2,j,k,0), vel(i-1,j,k,0), vel(i,j,k,0), 
+                                                vel(i+1,j,k,0), vel(i+2,j,k,0), dx_cap);
+                        }
+                        if (deriv_method_cap == 0) {
+                            if (j == jlo)
+                                dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                            else if (j == jhi)
+                                dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                            else
+                                dv = (vel(i,j+1,k,1) - vel(i,j-1,k,1)) * inv2dy;
+                        } else if (deriv_method_cap == 1) {
+                            if (j == jlo)
+                                dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                            else if (j == jhi)
+                                dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                            else
+                                dv = NumericalDerivatives::weno3_deriv(vel(i,j-1,k,1), vel(i,j,k,1), vel(i,j+1,k,1), dy_cap);
+                        } else {
+                            if (j <= jlo+1)
+                                dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                            else if (j >= jhi-1)
+                                dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                            else
+                                dv = NumericalDerivatives::weno5_deriv(vel(i,j-2,k,1), vel(i,j-1,k,1), vel(i,j,k,1), 
+                                                vel(i,j+1,k,1), vel(i,j+2,k,1), dy_cap);
+                        }
+                        return du + dv;
+                    };
+
+                    // Pass 1: Integrate up to domain top to get the vertical velocity residual E
+                    Real w_top_val = vel(i, j, k_start, 2);
+                    for (int k = k_start + 1; k <= khi; ++k) {
+                        w_top_val -= get_Dh(k) * dz_cap_div;
+                    }
+                    Real E = w_top_val;
+
+                    // Pass 2: Apply the polynomial adjustment on the fly, integrating sequentially
+                    Real w_current = vel(i, j, k_start, 2);
+                    for (int k = k_start + 1; k <= khi; ++k) {
+                        w_current -= get_Dh(k) * dz_cap_div;
+                        Real frac = Real(k - k_start) / Real(khi - k_start);
+                        Real adjustment = frac * frac * E;
+                        vel(i, j, k, 2) = w_current - adjustment;
+                    }
+                }
+            });
+        }
+        amrex::Gpu::streamSynchronize();
+        vel0_ptr->FillBoundary(geom_ptr->periodicity());
+    }
     
     const bool use_buoyancy_rhs = enable_buoyancy_stratification && (buoyancy_method == "rhs");
     const Real T_ref_rhs = temperature_reference;

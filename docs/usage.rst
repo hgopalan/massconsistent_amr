@@ -183,6 +183,9 @@ Parameter Reference
    * - ``deriv_method``
      - ``central``
      - Derivative scheme: ``central`` (2nd order), ``weno3`` (3rd order), or ``weno5`` (5th order).
+   * - ``enable_obrien_w_adjustment``
+     - ``false``
+     - Enables the O'Brien (1970) vertical velocity adjustment procedure to redistribute vertical divergence residuals column-wise and force vertical velocity :math:`w = 0` precisely at the domain top.
    * - **Output Parameters**
      -
      -

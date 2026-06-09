@@ -52,6 +52,28 @@ Parses Shuttle Radar Topography Mission (SRTM) 1-arcsecond HGT files and project
   * Correct coordinate projections from geographic (latitude/longitude) to local UTM meters.
   * Handles void/missing values safely.
 
+Geographic Data Fetcher (``geographic_data_fetcher.py``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Queries public web APIs (such as USGS or NASA databases) using latitude/longitude bounding boxes to automatically download and format elevation DEMs (e.g., SRTM or USGS 3DEP) and land-cover maps (e.g., USGS NLCD) into solver-compatible local flat/UTM grid coordinate formats.
+
+* **Usage**:
+
+  .. code-block:: bash
+
+     python3 tools/geographic_data_fetcher.py \
+       --lat-min 39.9 --lat-max 40.1 \
+       --lon-min -105.3 --lon-max -105.2 \
+       --nx 100 --ny 100 \
+       --dem-output terrain.csv \
+       --lc-output landuse.csv \
+       --projection flat
+
+* **Key Features**:
+  * Seamlessly fetches elevation grids from USGS 3DEP or OpenTopography SRTM endpoints.
+  * Fetches USGS NLCD land-use maps to automatically generate local surface roughness CSV outputs matching the grid spacing.
+  * Dual-projection system supporting local relative UTM meters or flat-earth projections.
+  * Advanced high-quality offline mockup/synthetic data generation when running in restricted or sandboxed environments without network access.
+
 Boundary Condition & Weather Processing
 ---------------------------------------
 
@@ -62,6 +84,18 @@ Parses 3D meteorological outputs (WRF, GFS) in NetCDF format, performs coordinat
 HRRR Surface Parameter Extractor (``hrrr_to_surface_data.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Extracts friction velocities (:math:`u_*`), roughness lengths (:math:`z_0`), and 10m velocities from High-Resolution Rapid Refresh (HRRR) GRIB/NetCDF products to build surface parameter CSV files for ``init_mode = surface_data``.
+
+NAM Data Ingestor (``nam_ingestion.py``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Provides full ingestion of North American Mesoscale (NAM) meteorological datasets under both pathways:
+  * **Pathway A (3D Wind Field)**: Extracts and interpolates 3D wind velocity components on the solver coordinate mesh (generates ``windfield.csv`` for ``init_mode = windfield``).
+  * **Pathway B (Surface Parameters)**: Extracts friction velocity, roughness, and 10m wind speed/direction (generates ``surface_data.csv`` for ``init_mode = surface_data``).
+
+Climate Projection Downscaler (``download_climate_projection.py``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Queries and downloads future climate projection models (CMIP6, downscaled projections) for target locations.
+  * Formats the projected future wind climatology into joint speed-direction distributions (wind roses) to feed directly into the **AEP Calculator**.
+  * Outputs wind flow configuration profile files (e.g., ``future_scenarios.ini``) to analyze extreme or representative wind flows under projected future climate regimes.
 
 FARSITE Weather Parser (``farsite_weather_reader.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
