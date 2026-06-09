@@ -521,6 +521,8 @@ add_regression_test(capping_lid capping_lid)
 add_regression_test(multi_gaussian_hill multi_gaussian_hill)
 add_regression_test(charnock_overwater charnock_overwater)
 add_regression_test(precipitation_stability precipitation_stability)
+add_regression_test(obrien_adjustment obrien_adjustment)
+add_python_regression_test(obrien_adjustment_validation obrien_adjustment verify_obrien.py)
 
 # ===========================================================================
 # High-Yield Parameterizations (Surface Roughness, Coriolis, Windbreaks)
