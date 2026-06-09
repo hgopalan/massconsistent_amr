@@ -430,6 +430,112 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
     return {ux_val / wsum, uy_val / wsum, uz_val / wsum};
 }
 
+class CubicSpline1D {
+private:
+    std::vector<Real> x;
+    std::vector<Real> y;
+    std::vector<Real> m; // second derivatives
+public:
+    CubicSpline1D() = default;
+    CubicSpline1D(const std::vector<Real>& x_in, const std::vector<Real>& y_in) {
+        x = x_in;
+        y = y_in;
+        int n = static_cast<int>(x.size());
+        m.resize(n, 0.0);
+        if (n < 3) {
+            return; // Fallback to linear if too few points
+        }
+
+        std::vector<Real> h(n - 1);
+        for (int i = 0; i < n - 1; ++i) {
+            h[i] = x[i+1] - x[i];
+        }
+
+        // Setup tridiagonal system for second derivatives
+        std::vector<Real> a(n), b(n), c(n), d(n);
+        for (int i = 1; i < n - 1; ++i) {
+            a[i] = h[i-1] / 6.0;
+            b[i] = (h[i-1] + h[i]) / 3.0;
+            c[i] = h[i] / 6.0;
+            d[i] = (y[i+1] - y[i])/h[i] - (y[i] - y[i-1])/h[i-1];
+        }
+
+        // Thomas algorithm for tridiagonal solver
+        std::vector<Real> c_prime(n, 0.0);
+        std::vector<Real> d_prime(n, 0.0);
+
+        c_prime[1] = c[1] / b[1];
+        d_prime[1] = d[1] / b[1];
+
+        for (int i = 2; i < n - 1; ++i) {
+            Real denom = b[i] - a[i] * c_prime[i-1];
+            c_prime[i] = c[i] / denom;
+            d_prime[i] = (d[i] - a[i] * d_prime[i-1]) / denom;
+        }
+
+        m[n-2] = d_prime[n-2];
+        for (int i = n - 3; i >= 1; --i) {
+            m[i] = d_prime[i] - c_prime[i] * m[i+1];
+        }
+        m[0] = 0.0;
+        m[n-1] = 0.0;
+    }
+
+    Real evaluate(Real xq) const {
+        int n = static_cast<int>(x.size());
+        if (n == 0) return 0.0;
+        if (n == 1) return y[0];
+        if (xq <= x[0]) return y[0];
+        if (xq >= x[n-1]) return y[n-1];
+
+        // Binary search to find interval
+        auto it = std::lower_bound(x.begin(), x.end(), xq);
+        int idx = static_cast<int>(std::distance(x.begin(), it));
+        if (idx == 0) idx = 1;
+        if (idx >= n) idx = n - 1;
+
+        int i = idx;
+        Real h = x[i] - x[i-1];
+        if (h < 1e-9) return y[i];
+
+        if (n < 3) {
+            Real t = (xq - x[i-1]) / h;
+            return y[i-1] + t * (y[i] - y[i-1]);
+        }
+
+        Real A = (x[i] - xq) / h;
+        Real B = (xq - x[i-1]) / h;
+
+        return A * y[i-1] + B * y[i] + (h*h/6.0) * ((A*A*A - A) * m[i-1] + (B*B*B - B) * m[i]);
+    }
+};
+
+inline Real log_linear_interpolate(Real xq, const std::vector<Real>& x, const std::vector<Real>& y) {
+    int n = static_cast<int>(x.size());
+    if (n == 0) return 0.0;
+    if (n == 1) return y[0];
+    if (xq <= x[0]) return y[0];
+    if (xq >= x[n-1]) return y[n-1];
+
+    auto it = std::lower_bound(x.begin(), x.end(), xq);
+    int idx = static_cast<int>(std::distance(x.begin(), it));
+    if (idx == 0) idx = 1;
+    if (idx >= n) idx = n - 1;
+
+    Real x0 = x[idx-1];
+    Real x1 = x[idx];
+    Real y0 = y[idx-1];
+    Real y1 = y[idx];
+
+    if (x0 <= 0.0 || xq <= 0.0) {
+        Real t = (xq - x0) / (x1 - x0);
+        return y0 + t * (y1 - y0);
+    }
+
+    Real t = (std::log(xq) - std::log(x0)) / (std::log(x1) - std::log(x0));
+    return y0 + t * (y1 - y0);
+}
+
 } // namespace WindInterpolation
 
 #endif // WIND_INTERPOLATION_H

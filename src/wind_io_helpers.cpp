@@ -613,4 +613,152 @@ void read_windfield_file(const std::string& filename,
                    << " windfield points from " << filename << "\n";
 }
 
+void read_fsl_sounding(const std::string& filename,
+                       std::vector<Real>& z,
+                       std::vector<Real>& u,
+                       std::vector<Real>& v,
+                       bool wind_in_knots)
+{
+    std::ifstream f(filename);
+    if (!f.is_open()) {
+        amrex::Abort("wind_solver: cannot open FSL sounding file: " + filename);
+    }
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        if (line.empty()) continue;
+
+        std::istringstream ss(line);
+        int level_type;
+        if (!(ss >> level_type)) continue;
+
+        // FSL level types: 1 = mandatory level, 2 = significant level, 3 = wind level
+        if (level_type == 1 || level_type == 2 || level_type == 3) {
+            Real pressure, hght, temp, dew, dir, spd;
+            if (ss >> pressure >> hght >> temp >> dew >> dir >> spd) {
+                if (hght >= 99999.0 || dir >= 9999.0 || spd >= 9999.0 || dir < 0.0 || spd < 0.0) {
+                    continue; // Skip missing data
+                }
+                z.push_back(hght);
+                Real speed_ms = spd;
+                if (wind_in_knots) {
+                    speed_ms *= 0.514444; // 1 knot = 0.514444 m/s
+                }
+                Real dir_rad = dir * MathConstants::deg_to_rad;
+                Real u_val = -speed_ms * std::sin(dir_rad);
+                Real v_val = -speed_ms * std::cos(dir_rad);
+                u.push_back(u_val);
+                v.push_back(v_val);
+            }
+        }
+    }
+}
+
+void read_sounding_file(const std::string& filename,
+                        std::vector<Real>& z,
+                        std::vector<Real>& u,
+                        std::vector<Real>& v,
+                        bool wind_in_knots)
+{
+    std::ifstream f(filename);
+    if (!f.is_open()) {
+        amrex::Abort("wind_solver: cannot open sounding file: " + filename);
+    }
+
+    std::string line;
+    bool is_fsl = false;
+    int line_count = 0;
+    while (std::getline(f, line) && line_count < 10) {
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        std::istringstream ss(line);
+        int first_val;
+        if (ss >> first_val) {
+            if (first_val == 254 || first_val == 9 || first_val == 4 || first_val == 1) {
+                is_fsl = true;
+                break;
+            }
+        }
+        line_count++;
+    }
+
+    f.close();
+
+    if (is_fsl) {
+        amrex::Print() << "wind_solver: reading " << filename << " as FSL format\n";
+        read_fsl_sounding(filename, z, u, v, wind_in_knots);
+    } else {
+        amrex::Print() << "wind_solver: reading " << filename << " as UP.DAT / custom format\n";
+        std::ifstream f2(filename);
+        while (std::getline(f2, line)) {
+            auto pos = line.find('#');
+            if (pos != std::string::npos) line = line.substr(0, pos);
+            std::replace(line.begin(), line.end(), ',', ' ');
+            std::istringstream ss(line);
+            std::vector<double> vals;
+            double val;
+            while (ss >> val) {
+                vals.push_back(val);
+            }
+            if (vals.size() == 5) {
+                // pressure height temp direction speed (UP.DAT format)
+                Real h = vals[1];
+                Real temp = vals[2];
+                Real dir = vals[3];
+                Real spd = vals[4];
+                if (h >= 99999.0 || dir >= 9999.0 || spd >= 9999.0 || dir < 0.0 || spd < 0.0) continue;
+                z.push_back(h);
+                Real dir_rad = dir * MathConstants::deg_to_rad;
+                u.push_back(-spd * std::sin(dir_rad));
+                v.push_back(-spd * std::cos(dir_rad));
+            } else if (vals.size() == 3 || vals.size() == 4) {
+                // height speed direction [temp]
+                Real h = vals[0];
+                Real spd = vals[1];
+                Real dir = vals[2];
+                if (h >= 99999.0 || dir >= 9999.0 || spd >= 9999.0 || dir < 0.0 || spd < 0.0) continue;
+                z.push_back(h);
+                Real dir_rad = dir * MathConstants::deg_to_rad;
+                u.push_back(-spd * std::sin(dir_rad));
+                v.push_back(-spd * std::cos(dir_rad));
+            }
+        }
+    }
+
+    if (z.empty()) {
+        amrex::Abort("wind_solver: no valid vertical profiles read from sounding file: " + filename);
+    }
+
+    // Sort by height in ascending order and remove duplicate heights
+    struct SoundingPoint {
+        Real z;
+        Real u;
+        Real v;
+        bool operator<(const SoundingPoint& other) const {
+            return z < other.z;
+        }
+    };
+    std::vector<SoundingPoint> points(z.size());
+    for (std::size_t i = 0; i < z.size(); ++i) {
+        points[i] = {z[i], u[i], v[i]};
+    }
+    std::sort(points.begin(), points.end());
+
+    z.clear();
+    u.clear();
+    v.clear();
+    for (const auto& pt : points) {
+        if (!z.empty() && std::abs(pt.z - z.back()) < 1e-3) {
+            continue;
+        }
+        z.push_back(pt.z);
+        u.push_back(pt.u);
+        v.push_back(pt.v);
+    }
+    
+    amrex::Print() << "wind_solver: loaded " << z.size() << " sorted vertical levels from sounding " << filename << "\n";
+}
+
 } // namespace WindIO

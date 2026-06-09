@@ -136,6 +136,13 @@ private:
     // RAWS
     std::string velocity_file = "velocity.csv";
 
+    // Sounding profiles
+    std::vector<std::string> sounding_files;
+    std::vector<amrex::Real> sounding_x;
+    std::vector<amrex::Real> sounding_y;
+    std::string sounding_vertical_interp = "spline"; // "spline" or "log_linear"
+    bool sounding_wind_in_knots = true;
+
     // Surface data
     std::string surface_data_file = "surface_data.csv";
 
@@ -389,6 +396,11 @@ private:
     bool enable_landuse_roughness = false;
     std::string landuse_file_class = "";
     amrex::Real charnock_alpha = 0.011;
+
+    // Marine Boundary Layer mixing height
+    bool enable_marine_bl = false;
+    amrex::Real marine_sst = 288.15;
+    amrex::Real marine_air_sea_dt = 0.0;
 
     // Precipitation
     std::string precipitation_file = "";

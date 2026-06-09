@@ -1,5 +1,6 @@
 #include "wind_solver_api.H"
 #include "wind_interpolation.H"
+#include "wind_io_helpers.H"
 #include "canopy_models.H"
 #include "morphometric_models.H"
 #include "terrain_following_coords.H"
@@ -424,7 +425,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.init_mode = "loglaw";
     pp.query("init_mode", state.init_mode);
-    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral") {
+    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral" && state.init_mode != "sounding") {
         throw std::runtime_error("invalid init_mode: " + state.init_mode);
     }
 
@@ -435,6 +436,46 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.velocity_file = "velocity.csv";
     pp.query("velocity_file", state.velocity_file);
+
+    // Sounding profiles parameters
+    {
+        int n_sfiles = pp.countval("sounding_files");
+        if (n_sfiles > 0) {
+            state.sounding_files.resize(n_sfiles);
+            pp.getarr("sounding_files", state.sounding_files, 0, n_sfiles);
+        }
+    }
+    {
+        int n_sx = pp.countval("sounding_x");
+        if (n_sx > 0) {
+            state.sounding_x.resize(n_sx);
+            pp.getarr("sounding_x", state.sounding_x, 0, n_sx);
+        }
+    }
+    {
+        int n_sy = pp.countval("sounding_y");
+        if (n_sy > 0) {
+            state.sounding_y.resize(n_sy);
+            pp.getarr("sounding_y", state.sounding_y, 0, n_sy);
+        }
+    }
+    std::string s_file = "";
+    pp.query("sounding_file", s_file);
+    if (!s_file.empty()) {
+        state.sounding_files.push_back(s_file);
+    }
+    state.sounding_vertical_interp = "spline";
+    pp.query("sounding_vertical_interp", state.sounding_vertical_interp);
+    state.sounding_wind_in_knots = true;
+    pp.query("sounding_wind_in_knots", state.sounding_wind_in_knots);
+
+    // Marine Boundary Layer parameters
+    state.enable_marine_bl = false;
+    state.marine_sst = 288.15;
+    state.marine_air_sea_dt = 0.0;
+    pp.query("enable_marine_bl", state.enable_marine_bl);
+    pp.query("marine_sst", state.marine_sst);
+    pp.query("marine_air_sea_dt", state.marine_air_sea_dt);
 
     // Canopy model parameters
     state.enable_canopy = false;
@@ -1055,6 +1096,136 @@ void initialize_wind_field(WindSolverState& state)
                         vel(i, j, k, 0) = Ug;
                         vel(i, j, k, 1) = Vg;
                     }
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+    } else if (state.init_mode == "sounding") {
+        if (state.sounding_files.empty()) {
+            throw std::runtime_error("init_mode is sounding but sounding_files is empty!");
+        }
+        if (state.sounding_x.size() != state.sounding_files.size() || state.sounding_y.size() != state.sounding_files.size()) {
+            throw std::runtime_error("sounding_x and sounding_y must have the same size as sounding_files!");
+        }
+
+        struct SoundingStation {
+            Real x;
+            Real y;
+            std::vector<Real> z;
+            std::vector<Real> u;
+            std::vector<Real> v;
+            WindInterpolation::CubicSpline1D spline_u;
+            WindInterpolation::CubicSpline1D spline_v;
+        };
+
+        std::vector<SoundingStation> stations(state.sounding_files.size());
+        for (std::size_t s = 0; s < state.sounding_files.size(); ++s) {
+            stations[s].x = state.sounding_x[s];
+            stations[s].y = state.sounding_y[s];
+            WindIO::read_sounding_file(state.sounding_files[s], stations[s].z, stations[s].u, stations[s].v, state.sounding_wind_in_knots);
+            if (state.sounding_vertical_interp == "spline") {
+                stations[s].spline_u = WindInterpolation::CubicSpline1D(stations[s].z, stations[s].u);
+                stations[s].spline_v = WindInterpolation::CubicSpline1D(stations[s].z, stations[s].v);
+            }
+        }
+
+        std::vector<Real> vel_u_host(static_cast<std::size_t>(state.nx) * state.ny * state.nz);
+        std::vector<Real> vel_v_host(static_cast<std::size_t>(state.nx) * state.ny * state.nz);
+
+        for (int k = 0; k < state.nz; ++k) {
+            Real zc = z_lo + (k + Real(0.5)) * dz;
+            Real rmax = (k == 0) ? state.idw_rmax1 : state.idw_rmax2;
+            Real R_param = (k == 0) ? state.idw_r1 : state.idw_r2;
+            for (int j = 0; j < state.ny; ++j) {
+                Real yc = state.ymin + (j + Real(0.5)) * state.dy;
+                for (int i = 0; i < state.nx; ++i) {
+                    Real xc = state.xmin + (i + Real(0.5)) * state.dx;
+                    Real d_min = std::numeric_limits<Real>::max();
+                    bool any_station_within_rmax = false;
+                    for (std::size_t s = 0; s < state.sounding_files.size(); ++s) {
+                        Real dx_s = state.sounding_x[s] - xc;
+                        Real dy_s = state.sounding_y[s] - yc;
+                        Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
+                        if (rmax <= Real(0.0) || dist <= rmax) {
+                            any_station_within_rmax = true;
+                            if (dist < d_min) {
+                                d_min = dist;
+                            }
+                        }
+                    }
+
+                    // 1D Vertical interpolation for each sounding station
+                    std::vector<Real> station_u(state.sounding_files.size());
+                    std::vector<Real> station_v(state.sounding_files.size());
+                    for (std::size_t s = 0; s < state.sounding_files.size(); ++s) {
+                        if (state.sounding_vertical_interp == "spline") {
+                            station_u[s] = stations[s].spline_u.evaluate(zc);
+                            station_v[s] = stations[s].spline_v.evaluate(zc);
+                        } else {
+                            station_u[s] = WindInterpolation::log_linear_interpolate(zc, stations[s].z, stations[s].u);
+                            station_v[s] = WindInterpolation::log_linear_interpolate(zc, stations[s].z, stations[s].v);
+                        }
+                    }
+
+                    // 2D Horizontal IDW
+                    auto [u_cell, v_cell] = WindInterpolation::idw_velocity(
+                        xc, yc, state.sounding_x, state.sounding_y, station_u, station_v, 6, state.idw_exponent);
+
+                    Real u_final = u_cell;
+                    Real v_final = v_cell;
+
+                    if (R_param > Real(0.0)) {
+                        Real speed_ref = std::sqrt(state.U_ref * state.U_ref + state.V_ref * state.V_ref);
+                        Real u_bg = 0.0, v_bg = 0.0;
+                        if (speed_ref > Real(1.0e-10)) {
+                            Real z_agl = zc - g_wind_solver_runtime->terrain_host[j * state.nx + i];
+                            if (z_agl > Real(0.0)) {
+                                Real ustar_bg = speed_ref * Real(0.41) / std::log((state.z_ref + state.z0) / state.z0);
+                                Real speed_bg = (ustar_bg / Real(0.41)) * std::log((z_agl + state.z0) / state.z0);
+                                u_bg = speed_bg * state.U_ref / speed_ref;
+                                v_bg = speed_bg * state.V_ref / speed_ref;
+                            }
+                        }
+
+                        if (!any_station_within_rmax) {
+                            u_final = u_bg;
+                            v_final = v_bg;
+                        } else {
+                            Real weight_bg = (d_min / R_param) * (d_min / R_param);
+                            u_final = (u_cell + weight_bg * u_bg) / (Real(1.0) + weight_bg);
+                            v_final = (v_cell + weight_bg * v_bg) / (Real(1.0) + weight_bg);
+                        }
+                    }
+                    std::size_t idx = (static_cast<std::size_t>(k) * state.ny + j) * state.nx + i;
+                    vel_u_host[idx] = u_final;
+                    vel_v_host[idx] = v_final;
+                }
+            }
+        }
+
+        Gpu::DeviceVector<Real> vel_u_dev(vel_u_host.size());
+        Gpu::DeviceVector<Real> vel_v_dev(vel_v_host.size());
+        Gpu::copy(Gpu::hostToDevice, vel_u_host.begin(), vel_u_host.end(), vel_u_dev.begin());
+        Gpu::copy(Gpu::hostToDevice, vel_v_host.begin(), vel_v_host.end(), vel_v_dev.begin());
+        const Real* vel_u_ptr = vel_u_dev.data();
+        const Real* vel_v_ptr = vel_v_dev.data();
+        const int nx_val = state.nx;
+        const int ny_val = state.ny;
+
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl = z_phys - terrain_ptr[j * nx_val + i];
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny_val + j) * nx_val + i;
+                    vel(i, j, k, 0) = vel_u_ptr[idx];
+                    vel(i, j, k, 1) = vel_v_ptr[idx];
                     vel(i, j, k, 2) = Real(0.0);
                 }
             });

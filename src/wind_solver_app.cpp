@@ -79,9 +79,9 @@ void WindSolverApp::parse_inputs() {
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
         init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield" &&
-        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral") {
+        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral" && init_mode != "sounding") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', or 'ekman_spiral')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', 'ekman_spiral', or 'sounding')");
     }
 
     pp.query("U_ref", U_ref);
@@ -176,6 +176,36 @@ void WindSolverApp::parse_inputs() {
 
     // RAWS mode parameters
     pp.query("velocity_file", velocity_file);
+
+    // Sounding profiles parameters
+    {
+        int n_sfiles = pp.countval("sounding_files");
+        if (n_sfiles > 0) {
+            sounding_files.resize(n_sfiles);
+            pp.getarr("sounding_files", sounding_files, 0, n_sfiles);
+        }
+    }
+    {
+        int n_sx = pp.countval("sounding_x");
+        if (n_sx > 0) {
+            sounding_x.resize(n_sx);
+            pp.getarr("sounding_x", sounding_x, 0, n_sx);
+        }
+    }
+    {
+        int n_sy = pp.countval("sounding_y");
+        if (n_sy > 0) {
+            sounding_y.resize(n_sy);
+            pp.getarr("sounding_y", sounding_y, 0, n_sy);
+        }
+    }
+    std::string s_file = "";
+    pp.query("sounding_file", s_file);
+    if (!s_file.empty()) {
+        sounding_files.push_back(s_file);
+    }
+    pp.query("sounding_vertical_interp", sounding_vertical_interp);
+    pp.query("sounding_wind_in_knots", sounding_wind_in_knots);
 
     // Surface data mode parameters (for HRRR-style initialization)
     pp.query("surface_data_file", surface_data_file);
@@ -484,6 +514,11 @@ void WindSolverApp::parse_inputs() {
     }
     pp.query("landuse_file", landuse_file_class);
     pp.query("charnock_alpha", charnock_alpha);
+
+    // Marine Boundary Layer parameters
+    pp.query("enable_marine_bl", enable_marine_bl);
+    pp.query("marine_sst", marine_sst);
+    pp.query("marine_air_sea_dt", marine_air_sea_dt);
 
     // Precipitation Parameters
     pp.query("precipitation_file", precipitation_file);
@@ -2766,6 +2801,138 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 }
             });
         }
+    } else if (init_mode == "sounding") {
+        if (sounding_files.empty()) {
+            amrex::Abort("wind_solver: init_mode is sounding but sounding_files is empty!");
+        }
+        if (sounding_x.size() != sounding_files.size() || sounding_y.size() != sounding_files.size()) {
+            amrex::Abort("wind_solver: sounding_x and sounding_y must have the same size as sounding_files!");
+        }
+
+        struct SoundingStation {
+            Real x;
+            Real y;
+            std::vector<Real> z;
+            std::vector<Real> u;
+            std::vector<Real> v;
+            WindInterpolation::CubicSpline1D spline_u;
+            WindInterpolation::CubicSpline1D spline_v;
+        };
+
+        std::vector<SoundingStation> stations(sounding_files.size());
+        for (std::size_t s = 0; s < sounding_files.size(); ++s) {
+            stations[s].x = sounding_x[s];
+            stations[s].y = sounding_y[s];
+            WindIO::read_sounding_file(sounding_files[s], stations[s].z, stations[s].u, stations[s].v, sounding_wind_in_knots);
+            if (sounding_vertical_interp == "spline") {
+                stations[s].spline_u = WindInterpolation::CubicSpline1D(stations[s].z, stations[s].u);
+                stations[s].spline_v = WindInterpolation::CubicSpline1D(stations[s].z, stations[s].v);
+            }
+        }
+
+        std::vector<Real> vel_u_h(static_cast<std::size_t>(nx) * ny * nz);
+        std::vector<Real> vel_v_h(static_cast<std::size_t>(nx) * ny * nz);
+
+        for (int k = 0; k < nz; ++k) {
+            Real zc = z_lo_cap + (k + Real(0.5)) * dz_cap;
+            Real rmax = (k == 0) ? idw_rmax1 : idw_rmax2;
+            Real R_param = (k == 0) ? idw_r1 : idw_r2;
+            for (int j = 0; j < ny; ++j) {
+                Real yc = y_lo + (j + Real(0.5)) * dy;
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + Real(0.5)) * dx;
+                    Real d_min = std::numeric_limits<Real>::max();
+                    bool any_station_within_rmax = false;
+                    for (std::size_t s = 0; s < sounding_files.size(); ++s) {
+                       Real dx_s = sounding_x[s] - xc;
+                       Real dy_s = sounding_y[s] - yc;
+                       Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
+                       if (rmax <= Real(0.0) || dist <= rmax) {
+                           any_station_within_rmax = true;
+                           if (dist < d_min) {
+                               d_min = dist;
+                           }
+                       }
+                    }
+
+                    // 1D Vertical interpolation for each sounding station
+                    std::vector<Real> station_u(sounding_files.size());
+                    std::vector<Real> station_v(sounding_files.size());
+                    for (std::size_t s = 0; s < sounding_files.size(); ++s) {
+                       if (sounding_vertical_interp == "spline") {
+                           station_u[s] = stations[s].spline_u.evaluate(zc);
+                           station_v[s] = stations[s].spline_v.evaluate(zc);
+                       } else {
+                           station_u[s] = WindInterpolation::log_linear_interpolate(zc, stations[s].z, stations[s].u);
+                           station_v[s] = WindInterpolation::log_linear_interpolate(zc, stations[s].z, stations[s].v);
+                       }
+                    }
+
+                    // 2D Horizontal IDW
+                    auto [u_cell, v_cell] = WindInterpolation::idw_velocity(
+                       xc, yc, sounding_x, sounding_y, station_u, station_v, 6, idw_exponent);
+
+                    Real u_final = u_cell;
+                    Real v_final = v_cell;
+
+                    if (R_param > Real(0.0)) {
+                       Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+                       Real u_bg = 0.0, v_bg = 0.0;
+                       if (speed_ref > Real(1.0e-10)) {
+                           Real z_agl = zc - terrain_h[j * nx + i];
+                           if (z_agl > Real(0.0)) {
+                               Real ustar_bg = speed_ref * Real(0.41) / std::log((z_ref + z0) / z0);
+                               Real speed_bg = (ustar_bg / Real(0.41)) * std::log((z_agl + z0) / z0);
+                               u_bg = speed_bg * U_ref / speed_ref;
+                               v_bg = speed_bg * V_ref / speed_ref;
+                           }
+                       }
+
+                       if (!any_station_within_rmax) {
+                           u_final = u_bg;
+                           v_final = v_bg;
+                       } else {
+                           Real weight_bg = (d_min / R_param) * (d_min / R_param);
+                           u_final = (u_cell + weight_bg * u_bg) / (Real(1.0) + weight_bg);
+                           v_final = (v_cell + weight_bg * v_bg) / (Real(1.0) + weight_bg);
+                       }
+                    }
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny + j) * nx + i;
+                    vel_u_h[idx] = u_final;
+                    vel_v_h[idx] = v_final;
+                }
+            }
+        }
+
+        d_vel_u.resize(vel_u_h.size());
+        d_vel_v.resize(vel_v_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, vel_u_h.begin(), vel_u_h.end(), d_vel_u.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, vel_v_h.begin(), vel_v_h.end(), d_vel_v.begin());
+        d_vel_u_ptr = d_vel_u.data();
+        d_vel_v_ptr = d_vel_v.data();
+
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
+                    vel(i, j, k, 0) = d_vel_u_ptr[idx];
+                    vel(i, j, k, 1) = d_vel_v_ptr[idx];
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
     } else if (init_mode == "surface_data") {
         std::vector<Real> x_surf, y_surf, z_surf, ustar_surf, z0_surf, u10_surf, v10_surf;
         WindIO::read_surface_data_file(surface_data_file, x_surf, y_surf, z_surf, 
@@ -4784,6 +4951,10 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const Real* d_landuse_pos_ptr_diag = d_landuse_pos.data();
     const Real charnock_alpha_val = charnock_alpha;
 
+    const bool enable_marine_bl_val = enable_marine_bl;
+    const Real marine_sst_val = marine_sst;
+    const Real marine_air_sea_dt_val = marine_air_sea_dt;
+
     for (MFIter mfi(output); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         const int k_lo_box = bx.smallEnd(2);
@@ -4916,6 +5087,33 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             } else {
                 richardson_no = Real(0.0);
                 bl_depth = cap_bl_depth_param;
+            }
+
+            if (enable_marine_bl_val) {
+                int lu_type = (enable_landuse_roughness_val && d_landuse_pos_ptr_diag) ? static_cast<int>(std::round(d_landuse_pos_ptr_diag[j * nx_cap_out + i])) : -1;
+                if (lu_type == 11) { // WATER
+                    Real y_coord = cap_y_lo + (j + Real(0.5)) * cap_dy;
+                    Real f_param = compute_latitude_dependent_coriolis(y_coord, cap_y_center, cap_domain_latitude);
+                    Real abs_f = std::max(std::abs(f_param), Real(1.0e-5));
+                    
+                    // Mechanical mixing height
+                    Real h_mech = Real(0.2) * ustar_local / abs_f;
+                    
+                    // Convective mixing height
+                    Real h_conv = Real(0.0);
+                    if (marine_air_sea_dt_val < Real(0.0)) { // convective over water
+                        Real g_val = Real(9.81);
+                        Real Ch_val = Real(0.0014);
+                        Real num = g_val * Ch_val * u_mag * (-marine_air_sea_dt_val);
+                        Real den = marine_sst_val * abs_f * abs_f * abs_f;
+                        h_conv = Real(0.3) * std::sqrt(num / den);
+                    }
+                    Real h_marine = std::sqrt(h_mech * h_mech + h_conv * h_conv);
+                    
+                    const Real min_bl_depth_local = RichardsonNumberConstants::MIN_BL_DEPTH;
+                    const Real max_bl_depth_local = RichardsonNumberConstants::MAX_BL_DEPTH;
+                    bl_depth = std::max(min_bl_depth_local, std::min(h_marine, max_bl_depth_local));
+                }
             }
             
             out(i,j,k,11) = heat_flux;

@@ -173,6 +173,18 @@ struct WindSolverState {
     amrex::Real uniform_V;
     std::string velocity_file;
     
+    // Sounding profiles
+    std::vector<std::string> sounding_files;
+    std::vector<amrex::Real> sounding_x;
+    std::vector<amrex::Real> sounding_y;
+    std::string sounding_vertical_interp;
+    bool sounding_wind_in_knots;
+
+    // Marine Boundary Layer mixing height
+    bool enable_marine_bl;
+    amrex::Real marine_sst;
+    amrex::Real marine_air_sea_dt;
+    
     // Analytical Turbine Wake
     bool enable_turbine_wake;
     std::string turbine_file;

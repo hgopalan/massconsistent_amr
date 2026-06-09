@@ -106,6 +106,12 @@ void read_windfield_file(const std::string& filename,
                          std::vector<Real>& uy,
                          std::vector<Real>& uz);
 
+void read_sounding_file(const std::string& filename,
+                        std::vector<Real>& z,
+                        std::vector<Real>& u,
+                        std::vector<Real>& v,
+                        bool wind_in_knots = true);
+
 } // namespace WindIO
 
 #endif // WIND_IO_HELPERS_H
