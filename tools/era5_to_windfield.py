@@ -40,6 +40,11 @@ def main():
     parser.add_argument("--lon-range", nargs=2, type=float, metavar=("LON_MIN", "LON_MAX"),
                         help="Optional longitude range to crop input data")
     parser.add_argument("--zero-w", action="store_true", help="Force vertical wind component W to be zero")
+    parser.add_argument("--create-terrain", action="store_true", help="Enable constructing terrain.csv")
+    parser.add_argument("--terrain-output", default=None, help="Output terrain CSV path")
+    parser.add_argument("--srtm-terrain", action="store_true", help="Download terrain from SRTM instead of using NWP data")
+    parser.add_argument("--nx", type=int, default=100, help="Number of grid cells in X (for SRTM)")
+    parser.add_argument("--ny", type=int, default=100, help="Number of grid cells in Y (for SRTM)")
 
     args = parser.parse_args()
 
@@ -293,7 +298,7 @@ def main():
                 blh_data = blh_data[0, ...]
 
     # 5. Extract/Formulate Terrain Elevation (HGT)
-    hgt_name = detect_variable(ds_in, ["orography", "surface_geopotential", "HGT_surface", "topo", "elevation"])
+    hgt_name = detect_variable(ds_in, ["orography", "surface_geopotential", "HGT_surface", "topo", "elevation", "HGT_M", "HGT"])
     if not hgt_name and "z" in ds_in.variables:
         z_dims = ds_in.variables["z"].dimensions
         # In a surface file, "z" is typically 2D (lat, lon) or 3D (time, lat, lon) and has no level dimension
@@ -388,6 +393,46 @@ def main():
 
     ds_out.close()
     print("Successfully completed ERA5 conversion!")
+
+    # Terrain construction options
+    if args.create_terrain or args.terrain_output:
+        terrain_out = args.terrain_output or "terrain.csv"
+        if args.srtm_terrain:
+            # Option (ii): Download from SRTM
+            lat_min, lat_max = float(lats_cropped.min()), float(lats_cropped.max())
+            lon_min, lon_max = float(lons_cropped.min()), float(lons_cropped.max())
+            if lat_min == lat_max:
+                lat_min -= 0.005
+                lat_max += 0.005
+            if lon_min == lon_max:
+                lon_min -= 0.005
+                lon_max += 0.005
+            import subprocess
+            fetcher_path = os.path.join(os.path.dirname(__file__), "geographic_data_fetcher.py")
+            cmd = [
+                sys.executable, fetcher_path,
+                "--lat-min", f"{lat_min:.6f}",
+                "--lat-max", f"{lat_max:.6f}",
+                "--lon-min", f"{lon_min:.6f}",
+                "--lon-max", f"{lon_max:.6f}",
+                "--nx", str(args.nx),
+                "--ny", str(args.ny),
+                "--dem-output", terrain_out,
+                "--projection", "flat"
+            ]
+            print(f"Downloading SRTM terrain for bounds: [{lat_min}, {lat_max}], [{lon_min}, {lon_max}]...")
+            subprocess.run(cmd, check=True)
+        else:
+            # Option (i): Use HGT_M / hgt_data from ERA5 NWP
+            print(f"Constructing terrain.csv from ERA5 elevation data...")
+            with open(terrain_out, 'w') as f:
+                f.write("# Terrain elevation data extracted from ERA5 NWP\n")
+                f.write(f"# Grid: {hgt_data.shape[0]}x{hgt_data.shape[1]} points\n")
+                f.write("# X[m] Y[m] Z[m]\n")
+                for j in range(hgt_data.shape[0]):
+                    for i in range(hgt_data.shape[1]):
+                        f.write(f"{x_grid[j, i]:.6f} {y_grid[j, i]:.6f} {hgt_data[j, i]:.6f}\n")
+            print(f"✓ Terrain written to {terrain_out}")
     print(f"You can now feed {args.output} into netcdf_to_windfield.py")
 
 if __name__ == "__main__":

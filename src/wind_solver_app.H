@@ -76,6 +76,11 @@ private:
     bool use_exponential_profile = false;
     int canopy_profile_type = 0;
 
+    // Morphometric Models
+    bool enable_morphometric_models = false;
+    std::string morphometric_model_type = "macdonald";
+    amrex::Real morphometric_drag_coeff = -1.0;
+
     // Windbreaks
     bool enable_windbreaks = false;
     std::string windbreaks_file = "";
@@ -166,7 +171,14 @@ private:
     amrex::Real anisotropy_ri_beta = 0.5;
     amrex::Real anisotropy_fr_min = 0.1;
     amrex::Real idw_gamma = 1.0;
+<<<<<<< HEAD
     amrex::Real idw_exponent = 2.0;
+=======
+    amrex::Real idw_rmax1 = -1.0;
+    amrex::Real idw_rmax2 = -1.0;
+    amrex::Real idw_r1 = -1.0;
+    amrex::Real idw_r2 = -1.0;
+>>>>>>> origin/main
 
     // Stability
     bool enable_stability_correction = false;
@@ -301,6 +313,12 @@ private:
     amrex::Real ekman_veer_total = 20.0;
     amrex::Real ekman_veer_height = 200.0;
     amrex::Real ekman_veer_total_rad = 0.0;
+
+    // Analytical Ekman Spiral vertical profile initialization parameters
+    amrex::Real ekman_latitude = 45.0;
+    amrex::Real ekman_ug = 10.0;
+    amrex::Real ekman_vg = 0.0;
+    amrex::Real ekman_Km = 5.0;
 
     // Wind Direction Gradient
     bool enable_wind_direction_gradient = false;
@@ -546,6 +564,12 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_landuse_pos;
     amrex::Gpu::DeviceVector<amrex::Real> d_canopy_height;
     amrex::Gpu::DeviceVector<amrex::Real> d_frontal_area_index;
+    
+    // Morphometric models
+    std::vector<amrex::Real> morphometric_d;
+    std::vector<amrex::Real> morphometric_z0;
+    amrex::Gpu::DeviceVector<amrex::Real> d_morphometric_d;
+    amrex::Gpu::DeviceVector<amrex::Real> d_morphometric_z0;
     
     // RAWS
     amrex::Gpu::DeviceVector<amrex::Real> d_raws_x, d_raws_y, d_raws_z, d_raws_u, d_raws_v;

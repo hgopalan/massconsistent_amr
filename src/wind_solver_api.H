@@ -87,7 +87,18 @@ struct WindSolverState {
     amrex::Real alpha_h;   // Horizontal Lagrange anisotropy factor
     amrex::Real alpha_v;   // Vertical Lagrange anisotropy factor
     amrex::Real idw_gamma; // Vertical scaling parameter for 3D IDW meteorological interpolation
+<<<<<<< HEAD
     amrex::Real idw_exponent; // Exponent parameter for Inverse Distance Weighting (IDW) interpolation
+=======
+    amrex::Real idw_rmax1;
+    amrex::Real idw_rmax2;
+    amrex::Real idw_r1;
+    amrex::Real idw_r2;
+    amrex::Real ekman_latitude;
+    amrex::Real ekman_ug;
+    amrex::Real ekman_vg;
+    amrex::Real ekman_Km;
+>>>>>>> origin/main
     
     // Cell-local spatially-varying anisotropy parameters
     bool enable_cell_local_anisotropy;
@@ -107,6 +118,11 @@ struct WindSolverState {
     amrex::Real canopy_drag_coeff;     // Canopy drag coefficient Cd
     amrex::Real canopy_attenuation;    // Exponential attenuation coefficient α
     bool use_exponential_profile;      // Use Shaw-Pereira exponential profile
+
+    // Morphometric model parameters
+    bool enable_morphometric_models;
+    std::string morphometric_model_type;
+    amrex::Real morphometric_drag_coeff;
     
     // Ekman spiral veer parameters
     bool enable_ekman_veer;            // Enable Ekman spiral wind veer

@@ -272,19 +272,36 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                              Real x_lo = 0.0, Real y_lo = 0.0,
                                              Real dx = 1.0, Real dy = 1.0,
                                              int nx = 0, int ny = 0,
+<<<<<<< HEAD
                                              Real idw_exponent = 2.0)
+=======
+                                             Real rmax = -1.0)
+>>>>>>> origin/main
 {
     int n = static_cast<int>(x.size());
-    k = std::min(k, n);
 
     // Squared distances to all 3D data points
-    std::vector<std::pair<Real, int>> d2(n);
+    std::vector<std::pair<Real, int>> d2;
+    d2.reserve(n);
     for (int i = 0; i < n; ++i) {
         Real dx_val = x[i] - xq;
         Real dy_val = y[i] - yq;
+        if (rmax > Real(0.0)) {
+            Real d2D_sq = dx_val * dx_val + dy_val * dy_val;
+            if (d2D_sq > rmax * rmax) {
+                continue; // Skip station if it's beyond rmax
+            }
+        }
         Real dz_val = z[i] - zq;
         Real g_dz = gamma * dz_val;
-        d2[i] = {dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i};
+        d2.push_back({dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i});
+    }
+
+    int n_valid = static_cast<int>(d2.size());
+    k = std::min(k, n_valid);
+
+    if (k == 0) {
+        return {Real(0.0), Real(0.0)};
     }
 
     // Partial sort: first k elements are the k nearest
@@ -345,20 +362,38 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
                                                          Real x_lo = 0.0, Real y_lo = 0.0,
                                                          Real dx = 1.0, Real dy = 1.0,
                                                          int nx = 0, int ny = 0,
+<<<<<<< HEAD
                                                          Real idw_exponent = 2.0)
+=======
+                                                         Real rmax = -1.0)
+>>>>>>> origin/main
 {
     int n = static_cast<int>(x.size());
-    k = std::min(k, n);
 
     // Squared distances to all 3D data points
-    std::vector<std::pair<Real, int>> d2(n);
+    std::vector<std::pair<Real, int>> d2;
+    d2.reserve(n);
     for (int i = 0; i < n; ++i) {
         Real dx_val = x[i] - xq;
         Real dy_val = y[i] - yq;
+        if (rmax > Real(0.0)) {
+            Real d2D_sq = dx_val * dx_val + dy_val * dy_val;
+            if (d2D_sq > rmax * rmax) {
+                continue; // Skip station if it's beyond rmax
+            }
+        }
         Real dz_val = z[i] - zq;
         Real g_dz = gamma * dz_val;
-        d2[i] = {dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i};
+        d2.push_back({dx_val * dx_val + dy_val * dy_val + g_dz * g_dz, i});
     }
+
+    int n_valid = static_cast<int>(d2.size());
+    k = std::min(k, n_valid);
+
+    if (k == 0) {
+        return {Real(0.0), Real(0.0), Real(0.0)};
+    }
+
     // Partial sort: first k elements are the k nearest
     std::partial_sort(d2.begin(), d2.begin() + k, d2.end());
 

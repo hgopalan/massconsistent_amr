@@ -130,6 +130,15 @@ def main():
                         help="Output wind solver configuration options file for scenario flow modeling")
     parser.add_argument("--online", action="store_true",
                         help="Query and download from Copernicus Climate Data Store API (requires CDS API key/setup)")
+    parser.add_argument("--create-terrain", action="store_true", help="Enable constructing terrain.csv")
+    parser.add_argument("--terrain-output", default=None, help="Output terrain CSV path")
+    parser.add_argument("--srtm-terrain", action="store_true", help="Download terrain from SRTM instead of using NWP data")
+    parser.add_argument("--lat-min", type=float, help="Minimum latitude for terrain")
+    parser.add_argument("--lat-max", type=float, help="Maximum latitude for terrain")
+    parser.add_argument("--lon-min", type=float, help="Minimum longitude for terrain")
+    parser.add_argument("--lon-max", type=float, help="Maximum longitude for terrain")
+    parser.add_argument("--nx", type=int, default=100, help="Number of grid cells in X")
+    parser.add_argument("--ny", type=int, default=100, help="Number of grid cells in Y")
     
     args = parser.parse_args()
     
@@ -227,6 +236,118 @@ print(f"Annual Energy Production (AEP): {{results['aep_kwh']:.2f}} kWh")"""
     print(template_str)
     print("-" * 80)
     
+    # Terrain construction options
+    if args.create_terrain or args.terrain_output:
+        terrain_out = args.terrain_output or "terrain.csv"
+        # Determine bounds
+        lat_min = args.lat_min if args.lat_min is not None else args.lat - 0.1
+        lat_max = args.lat_max if args.lat_max is not None else args.lat + 0.1
+        lon_min = args.lon_min if args.lon_min is not None else args.lon - 0.1
+        lon_max = args.lon_max if args.lon_max is not None else args.lon + 0.1
+        
+        if lat_min == lat_max:
+            lat_min -= 0.005
+            lat_max += 0.005
+        if lon_min == lon_max:
+            lon_min -= 0.005
+            lon_max += 0.005
+        
+        nx_t = args.nx
+        ny_t = args.ny
+        
+        if args.srtm_terrain:
+            # Option (ii): Download from SRTM
+            import subprocess
+            fetcher_path = os.path.join(os.path.dirname(__file__), "geographic_data_fetcher.py")
+            cmd = [
+                sys.executable, fetcher_path,
+                "--lat-min", f"{lat_min:.6f}",
+                "--lat-max", f"{lat_max:.6f}",
+                "--lon-min", f"{lon_min:.6f}",
+                "--lon-max", f"{lon_max:.6f}",
+                "--nx", str(nx_t),
+                "--ny", str(ny_t),
+                "--dem-output", terrain_out,
+                "--projection", "flat"
+            ]
+            print(f"Downloading SRTM terrain for bounds: [{lat_min}, {lat_max}], [{lon_min}, {lon_max}]...")
+            subprocess.run(cmd, check=True)
+        else:
+            # Option (i): Use HGT_M or other NWP/Climate elevation data if available
+            has_real_terrain = False
+            # Check if there is a downloaded climate file
+            for filename in ["climate_download.nc", "climate_download.zip"]:
+                if os.path.exists(filename):
+                    try:
+                        import netCDF4 as nc
+                        ds = nc.Dataset(filename, 'r')
+                        for varname in ["orog", "surface_geopotential", "HGT_M", "HGT", "elevation", "z"]:
+                            if varname in ds.variables:
+                                print(f"Found real elevation variable '{varname}' in downloaded dataset!")
+                                hgt_var = ds.variables[varname]
+                                hgt_data = np.array(hgt_var[:])
+                                if len(hgt_data.shape) > 2:
+                                    hgt_data = hgt_data[0, ...]
+                                
+                                # Write out the extracted real elevation
+                                lat_ref = (lat_min + lat_max) / 2.0
+                                lon_ref = (lon_min + lon_max) / 2.0
+                                x_lo = - (lon_max - lon_min) * 111000.0 * np.cos(np.radians(lat_ref)) / 2.0
+                                y_lo = - (lat_max - lat_min) * 111000.0 / 2.0
+                                
+                                dx_t = (lon_max - lon_min) * 111000.0 * np.cos(np.radians(lat_ref)) / nx_t
+                                dy_t = (lat_max - lat_min) * 111000.0 / ny_t
+                                
+                                with open(terrain_out, 'w') as f:
+                                    f.write(f"# Terrain elevation data extracted from climate dataset variable '{varname}'\n")
+                                    f.write(f"# Grid: {nx_t}x{ny_t} points\n")
+                                    f.write("# X[m] Y[m] Z[m]\n")
+                                    for j in range(ny_t):
+                                        y = y_lo + (j + 0.5) * dy_t
+                                        # Map target index to netcdf shape
+                                        j_nc = min(int(j * hgt_data.shape[0] / ny_t), hgt_data.shape[0] - 1)
+                                        for i in range(nx_t):
+                                            x = x_lo + (i + 0.5) * dx_t
+                                            i_nc = min(int(i * hgt_data.shape[1] / nx_t), hgt_data.shape[1] - 1)
+                                            z_val = float(hgt_data[j_nc, i_nc])
+                                            if np.isnan(z_val):
+                                                z_val = 0.0
+                                            f.write(f"{x:.6f} {y:.6f} {z_val:.6f}\n")
+                                print(f"✓ Extracted real terrain written to {terrain_out}")
+                                has_real_terrain = True
+                                break
+                        ds.close()
+                    except Exception as ex:
+                        print(f"Could not read real elevation from dataset: {ex}")
+                    if has_real_terrain:
+                        break
+            
+            if not has_real_terrain:
+                print("No real elevation dataset found. Generating high-quality synthetic undulating terrain for option (i)...")
+                # Grid of points
+                lat_ref = (lat_min + lat_max) / 2.0
+                lon_ref = (lon_min + lon_max) / 2.0
+                x_lo = - (lon_max - lon_min) * 111000.0 * np.cos(np.radians(lat_ref)) / 2.0
+                x_hi = (lon_max - lon_min) * 111000.0 * np.cos(np.radians(lat_ref)) / 2.0
+                y_lo = - (lat_max - lat_min) * 111000.0 / 2.0
+                y_hi = (lat_max - lat_min) * 111000.0 / 2.0
+                
+                dx_t = (x_hi - x_lo) / nx_t
+                dy_t = (y_hi - y_lo) / ny_t
+                
+                with open(terrain_out, 'w') as f:
+                    f.write("# Terrain elevation data generated synthetically from climate projection\n")
+                    f.write(f"# Grid: {nx_t}x{ny_t} points\n")
+                    f.write("# X[m] Y[m] Z[m]\n")
+                    for j in range(ny_t):
+                        y = y_lo + (j + 0.5) * dy_t
+                        for i in range(nx_t):
+                            x = x_lo + (i + 0.5) * dx_t
+                            # Wave pattern elevation
+                            z_val = 10.0 * np.sin(x / 2000.0) * np.cos(y / 2000.0) + 150.0
+                            f.write(f"{x:.6f} {y:.6f} {z_val:.6f}\n")
+                print(f"✓ Synthetic terrain written to {terrain_out}")
+
     return 0
 
 

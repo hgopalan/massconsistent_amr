@@ -1,5 +1,6 @@
 #include "wind_solver_app.H"
 #include "canopy_models.H"
+#include "morphometric_models.H"
 #include "wake_models.H"
 #include "solver_math_constants.H"
 #include "stability_models.H"
@@ -78,9 +79,9 @@ void WindSolverApp::parse_inputs() {
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
         init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield" &&
-        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl") {
+        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', or 'powerlaw_above_bl')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', or 'ekman_spiral')");
     }
 
     pp.query("U_ref", U_ref);
@@ -98,6 +99,19 @@ void WindSolverApp::parse_inputs() {
     pp.query("canopy_attenuation", canopy_attenuation);
     pp.query("use_exponential_profile", use_exponential_profile);
     pp.query("canopy_profile_type", canopy_profile_type);
+
+    // Morphometric model parameters
+    pp.query("enable_morphometric_models", enable_morphometric_models);
+    pp.query("morphometric_model_type", morphometric_model_type);
+    pp.query("morphometric_drag_coeff", morphometric_drag_coeff);
+    if (morphometric_drag_coeff < 0.0) {
+        if (morphometric_model_type == "bottema") {
+            morphometric_drag_coeff = 0.8;
+        } else {
+            // Default for Macdonald or other models
+            morphometric_drag_coeff = 1.2;
+        }
+    }
 
     // Sub-grid Windbreak and Linear Barrier Drag
     pp.query("enable_windbreaks", enable_windbreaks);
@@ -189,7 +203,24 @@ void WindSolverApp::parse_inputs() {
     pp.query("alpha_h", alpha_h);
     pp.query("alpha_v", alpha_v);
     pp.query("idw_gamma", idw_gamma);
+<<<<<<< HEAD
     pp.query("idw_exponent", idw_exponent);
+=======
+    pp.query("idw_rmax1", idw_rmax1);
+    pp.query("idw_rmax2", idw_rmax2);
+    pp.query("idw_r1", idw_r1);
+    pp.query("idw_r2", idw_r2);
+
+    // Analytical Ekman Spiral vertical profile initialization parameters
+    ekman_latitude = latitude;
+    pp.query("ekman_latitude", ekman_latitude);
+    ekman_ug = U_ref;
+    pp.query("ekman_ug", ekman_ug);
+    ekman_vg = V_ref;
+    pp.query("ekman_vg", ekman_vg);
+    ekman_Km = Real(5.0);
+    pp.query("ekman_Km", ekman_Km);
+>>>>>>> origin/main
 
     // Height-dependent alpha_v
     pp.query("use_height_dependent_alpha_v", use_height_dependent_alpha_v);
@@ -1255,6 +1286,114 @@ void WindSolverApp::allocate_data_fields() {
     d_obstacle_h.resize(obstacle_h.size());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, obstacle_h.begin(), obstacle_h.end(), d_obstacle_h.begin());
 
+    const std::size_t grid_size = static_cast<std::size_t>(nx) * ny;
+    morphometric_d.assign(grid_size, Real(0.0));
+    morphometric_z0.assign(grid_size, z0);
+
+    if (enable_morphometric_models) {
+        amrex::Print() << "wind_solver: computing localized morphometric parameters on the grid...\n";
+        
+        std::vector<Real> lambda_p_grid(grid_size, Real(0.0));
+        std::vector<Real> lambda_f_x_grid(grid_size, Real(0.0));
+        std::vector<Real> lambda_f_y_grid(grid_size, Real(0.0));
+        std::vector<Real> H_avg_grid(grid_size, Real(0.0));
+        std::vector<Real> sum_weight_grid(grid_size, Real(0.0));
+
+        Real cell_area = dx * dy;
+
+        if (!building_xmin.empty()) {
+            int n_buildings = static_cast<int>(building_xmin.size());
+            for (int j = 0; j < ny; ++j) {
+                Real cell_y1 = y_lo + j * dy;
+                Real cell_y2 = y_lo + (j + 1) * dy;
+                for (int i = 0; i < nx; ++i) {
+                    Real cell_x1 = x_lo + i * dx;
+                    Real cell_x2 = x_lo + (i + 1) * dx;
+                    std::size_t idx = static_cast<std::size_t>(j) * nx + i;
+
+                    for (int b = 0; b < n_buildings; ++b) {
+                        Real bx1 = building_xmin[b];
+                        Real bx2 = building_xmax[b];
+                        Real by1 = building_ymin[b];
+                        Real by2 = building_ymax[b];
+                        Real bz1 = building_zmin[b];
+                        Real bz2 = building_zmax[b];
+                        Real H_b = bz2 - bz1;
+
+                        Real ix1 = std::max(bx1, cell_x1);
+                        Real ix2 = std::min(bx2, cell_x2);
+                        Real iy1 = std::max(by1, cell_y1);
+                        Real iy2 = std::min(by2, cell_y2);
+
+                        if (ix2 > ix1 && iy2 > iy1) {
+                            Real w_x = ix2 - ix1;
+                            Real w_y = iy2 - iy1;
+                            Real A_p_b = w_x * w_y;
+
+                            lambda_p_grid[idx] += A_p_b;
+                            lambda_f_x_grid[idx] += w_y * H_b;
+                            lambda_f_y_grid[idx] += w_x * H_b;
+                            H_avg_grid[idx] += A_p_b * H_b;
+                            sum_weight_grid[idx] += A_p_b;
+                        }
+                    }
+
+                    if (sum_weight_grid[idx] > Real(1.0e-10)) {
+                        H_avg_grid[idx] /= sum_weight_grid[idx];
+                    } else {
+                        H_avg_grid[idx] = Real(0.0);
+                    }
+
+                    lambda_p_grid[idx] /= cell_area;
+                    lambda_f_x_grid[idx] /= cell_area;
+                    lambda_f_y_grid[idx] /= cell_area;
+                    
+                    // Clamp plan area index (lambda_p) to [0, 0.95] to prevent division by zero in equations
+                    // when the canopy is completely solid, and clamp frontal area indices (lambda_f) to [0, 2.0]
+                    // to keep them within physically realistic limits for highly dense obstacle arrays.
+                    lambda_p_grid[idx] = std::max(Real(0.0), std::min(lambda_p_grid[idx], Real(0.95)));
+                    lambda_f_x_grid[idx] = std::max(Real(0.0), std::min(lambda_f_x_grid[idx], Real(2.0)));
+                    lambda_f_y_grid[idx] = std::max(Real(0.0), std::min(lambda_f_y_grid[idx], Real(2.0)));
+                }
+            }
+        }
+
+        Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+        Real ux_hat = (speed_ref > Real(1.0e-10)) ? U_ref / speed_ref : Real(1.0);
+        Real uy_hat = (speed_ref > Real(1.0e-10)) ? V_ref / speed_ref : Real(0.0);
+
+        Real abs_ux = std::abs(ux_hat);
+        Real abs_uy = std::abs(uy_hat);
+
+        for (std::size_t idx = 0; idx < grid_size; ++idx) {
+            Real lambda_f = abs_ux * lambda_f_x_grid[idx] + abs_uy * lambda_f_y_grid[idx];
+            Real H = H_avg_grid[idx];
+            Real lp = lambda_p_grid[idx];
+            
+            Real d_val = Real(0.0);
+            Real z0_val = z0;
+
+            if (morphometric_model_type == "macdonald") {
+                MorphometricModels::compute_macdonald(H, lp, lambda_f, morphometric_drag_coeff, z0, d_val, z0_val);
+            } else if (morphometric_model_type == "kutzbach") {
+                MorphometricModels::compute_kutzbach(H, lp, lambda_f, morphometric_drag_coeff, z0, d_val, z0_val);
+            } else if (morphometric_model_type == "bottema") {
+                MorphometricModels::compute_bottema(H, lp, lambda_f, morphometric_drag_coeff, z0, d_val, z0_val);
+            }
+
+            morphometric_d[idx] = d_val;
+            morphometric_z0[idx] = z0_val;
+        }
+
+        amrex::Print() << "  Morphometric grid computation complete.\n";
+    }
+
+    d_morphometric_d.resize(morphometric_d.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, morphometric_d.begin(), morphometric_d.end(), d_morphometric_d.begin());
+
+    d_morphometric_z0.resize(morphometric_z0.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, morphometric_z0.begin(), morphometric_z0.end(), d_morphometric_z0.begin());
+
     vel0_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 3, 1);
     vel_c_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 3, 0);
     lam_ptr  = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 1);
@@ -1867,6 +2006,12 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 amrex::Print() << "  using MacDonald displacement height\n";
             }
         }
+
+        if (enable_morphometric_models) {
+            amrex::Print() << "wind_solver: morphometric models enabled\n";
+            amrex::Print() << "  model_type = " << morphometric_model_type << "\n";
+            amrex::Print() << "  drag_coefficient = " << morphometric_drag_coeff << "\n";
+        }
         
         if (enable_ekman_veer) {
             amrex::Print() << "wind_solver: Ekman spiral wind veer enabled\n";
@@ -1998,6 +2143,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         const Real* d_landuse_pos_ptr_val = d_landuse_pos_ptr;
         const Real charnock_alpha_val = charnock_alpha;
 
+        const bool enable_morph_val = enable_morphometric_models;
+        const Real* d_morph_d_ptr = d_morphometric_d.data();
+        const Real* d_morph_z0_ptr = d_morphometric_z0.data();
+
         for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = vel0_ptr->array(mfi);
@@ -2015,7 +2164,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     vel(i, j, k, 1) = Real(0.0);
                     vel(i, j, k, 2) = Real(0.0);
                 } else if (use_wall_func && use_terrain_wall && z_agl <= wf_blend_height * dz_cap) {
-                    Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap + i] : z0_cap;
+                    Real z0_local = enable_morph_val ? d_morph_z0_ptr[j * nx_cap + i] : (use_pos_z0 ? d_z0_pos_ptr[j * nx_cap + i] : z0_cap);
                     
                     if (use_veg_roughness) {
                         Real veg_factor = vegetation_roughness_factor(veg_state_val, veg_state_type_val);
@@ -2069,7 +2218,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
                     }
                     Real speed;
-                    if (init_mode_val == 1) { // Deaves-Harris
+                    if (enable_morph_val) {
+                        Real d_local = d_morph_d_ptr[j * nx_cap + i];
+                        speed = log_law_with_displacement(z_agl, d_local, z0_local, ustar_local, kappa_cap);
+                    } else if (init_mode_val == 1) { // Deaves-Harris
                         Real ratio = z_agl / zg_val;
                         ratio = (ratio > Real(1.0)) ? Real(1.0) : ((ratio < Real(0.0)) ? Real(0.0) : ratio);
                         Real term = std::log((z_agl + z0_local) / z0_local) + Real(5.75) * ratio - Real(1.88) * ratio * ratio - Real(1.33) * std::pow(ratio, 3) + Real(0.25) * std::pow(ratio, 4);
@@ -2108,7 +2260,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     vel(i, j, k, 1) = v_wf;
                     vel(i, j, k, 2) = w_wf;
                 } else {
-                    Real z0_local = use_pos_z0 ? d_z0_pos_ptr[j * nx_cap + i] : z0_cap;
+                    Real z0_local = enable_morph_val ? d_morph_z0_ptr[j * nx_cap + i] : (use_pos_z0 ? d_z0_pos_ptr[j * nx_cap + i] : z0_cap);
                     
                     if (use_veg_roughness) {
                         Real veg_factor = vegetation_roughness_factor(veg_state_val, veg_state_type_val);
@@ -2158,7 +2310,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
                     }
                     Real speed;
-                    if (init_mode_val == 1) { // Deaves-Harris
+                    if (enable_morph_val) {
+                        Real d_local = d_morph_d_ptr[j * nx_cap + i];
+                        speed = log_law_with_displacement(z_agl, d_local, z0_local, ustar_local, kappa_cap);
+                    } else if (init_mode_val == 1) { // Deaves-Harris
                         Real ratio = z_agl / zg_val;
                         ratio = (ratio > Real(1.0)) ? Real(1.0) : ((ratio < Real(0.0)) ? Real(0.0) : ratio);
                         Real term = std::log((z_agl + z0_local) / z0_local) + Real(5.75) * ratio - Real(1.88) * ratio * ratio - Real(1.33) * std::pow(ratio, 3) + Real(0.25) * std::pow(ratio, 4);
@@ -2368,6 +2523,51 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 }
             });
         }
+    } else if (init_mode == "ekman_spiral") {
+        const Real lat = ekman_latitude;
+        const Real Ug = ekman_ug;
+        const Real Vg = ekman_vg;
+        const Real Km = ekman_Km;
+        const Real pi_val = MathConstants::pi;
+        const Real omega = 7.27e-5;
+        const Real f_coriolis = 2.0 * omega * std::sin(lat * pi_val / 180.0);
+        const Real abs_f = std::abs(f_coriolis);
+        const Real a_ekman = (abs_f > 1.0e-8) ? std::sqrt(abs_f / (2.0 * Km)) : 0.0;
+
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    if (abs_f > Real(1.0e-8)) {
+                        Real exp_term = std::exp(-a_ekman * z_agl);
+                        Real cos_term = std::cos(a_ekman * z_agl);
+                        Real sin_term = std::sin(a_ekman * z_agl);
+                        if (f_coriolis >= Real(0.0)) {
+                            vel(i, j, k, 0) = Ug * (Real(1.0) - exp_term * cos_term) - Vg * exp_term * sin_term;
+                            vel(i, j, k, 1) = Vg * (Real(1.0) - exp_term * cos_term) + Ug * exp_term * sin_term;
+                        } else {
+                            vel(i, j, k, 0) = Ug * (Real(1.0) - exp_term * cos_term) + Vg * exp_term * sin_term;
+                            vel(i, j, k, 1) = Vg * (Real(1.0) - exp_term * cos_term) - Ug * exp_term * sin_term;
+                        }
+                    } else {
+                        vel(i, j, k, 0) = Ug;
+                        vel(i, j, k, 1) = Vg;
+                    }
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
     } else if (init_mode == "uniform") {
         const Real u_uniform = uniform_U;
         const Real v_uniform = uniform_V;
@@ -2483,17 +2683,64 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
 
         for (int k = 0; k < nz; ++k) {
             Real zc = z_lo_cap + (k + Real(0.5)) * dz_cap;
+            Real rmax = (k == 0) ? idw_rmax1 : idw_rmax2;
+            Real R_param = (k == 0) ? idw_r1 : idw_r2;
             for (int j = 0; j < ny; ++j) {
                 Real yc = y_lo + (j + Real(0.5)) * dy;
                 for (int i = 0; i < nx; ++i) {
                     Real xc = x_lo + (i + Real(0.5)) * dx;
+                    Real d_min = std::numeric_limits<Real>::max();
+                    bool any_station_within_rmax = false;
+                    for (std::size_t s = 0; s < x_vel.size(); ++s) {
+                        Real dx_s = x_vel[s] - xc;
+                        Real dy_s = y_vel[s] - yc;
+                        Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
+                        if (rmax <= Real(0.0) || dist <= rmax) {
+                            any_station_within_rmax = true;
+                            if (dist < d_min) {
+                                d_min = dist;
+                            }
+                        }
+                    }
+
                     auto [ux_interp, uy_interp] = WindInterpolation::idw_velocity_3d(
                         xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel, 6,
                         idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
+<<<<<<< HEAD
                         idw_exponent);
+=======
+                        rmax);
+                    
+                    Real u_final = ux_interp;
+                    Real v_final = uy_interp;
+
+                    if (R_param > Real(0.0)) {
+                        Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+                        Real u_bg = 0.0, v_bg = 0.0;
+                        if (speed_ref > Real(1.0e-10)) {
+                            Real z_agl = zc - terrain_h[j * nx + i];
+                            if (z_agl > Real(0.0)) {
+                                Real ustar_bg = speed_ref * Real(0.41) / std::log((z_ref + z0) / z0);
+                                Real speed_bg = (ustar_bg / Real(0.41)) * std::log((z_agl + z0) / z0);
+                                u_bg = speed_bg * U_ref / speed_ref;
+                                v_bg = speed_bg * V_ref / speed_ref;
+                            }
+                        }
+
+                        if (!any_station_within_rmax) {
+                            u_final = u_bg;
+                            v_final = v_bg;
+                        } else {
+                            Real weight_bg = (d_min / R_param) * (d_min / R_param);
+                            u_final = (ux_interp + weight_bg * u_bg) / (Real(1.0) + weight_bg);
+                            v_final = (uy_interp + weight_bg * v_bg) / (Real(1.0) + weight_bg);
+                        }
+                    }
+
+>>>>>>> origin/main
                     std::size_t idx = (static_cast<std::size_t>(k) * ny + j) * nx + i;
-                    vel_u_h[idx] = ux_interp;
-                    vel_v_h[idx] = uy_interp;
+                    vel_u_h[idx] = u_final;
+                    vel_v_h[idx] = v_final;
                 }
             }
         }
@@ -2588,6 +2835,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         const Real cap_dy = dy;
         const Real cap_y_center = y_lo + Real(0.5) * (y_hi - y_lo);
 
+        const bool enable_morph_val = enable_morphometric_models;
+        const Real* d_morph_d_ptr = d_morphometric_d.data();
+        const Real* d_morph_z0_ptr = d_morphometric_z0.data();
+
         for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = vel0_ptr->array(mfi);
@@ -2620,8 +2871,15 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     if (d_frontal_area_index_ptr) {
                         cell_canopy_params.frontal_area_index = d_frontal_area_index_ptr[j * nx_cap + i];
                     }
-                    Real speed = canopy_wind_profile(
-                        z_agl, cell_canopy_params, z0_col, ustar_col, kappa_cap);
+                    Real speed;
+                    if (enable_morph_val) {
+                        Real d_local = d_morph_d_ptr[j * nx_cap + i];
+                        Real z0_cell = d_morph_z0_ptr[j * nx_cap + i];
+                        speed = log_law_with_displacement(z_agl, d_local, z0_cell, ustar_col, kappa_cap);
+                    } else {
+                        speed = canopy_wind_profile(
+                            z_agl, cell_canopy_params, z0_col, ustar_col, kappa_cap);
+                    }
                     
                     Real u_vel, v_vel;
                     if (use_ekman) {
@@ -2863,6 +3121,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
 
         for (int k = 0; k < nz; ++k) {
             Real zc = z_lo_cap + (k + Real(0.5)) * dz_cap;
+            Real rmax = (k == 0) ? idw_rmax1 : idw_rmax2;
             for (int j = 0; j < ny; ++j) {
                 Real yc = y_lo + (j + Real(0.5)) * dy;
                 for (int i = 0; i < nx; ++i) {
@@ -2870,7 +3129,11 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     auto [ux_interp, uy_interp, uz_interp] = WindInterpolation::idw_velocity_3d_full(
                         xc, yc, zc, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf, 6,
                         idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
+<<<<<<< HEAD
                         idw_exponent);
+=======
+                        rmax);
+>>>>>>> origin/main
                     std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
                     vel_u_h[idx] = ux_interp;
                     vel_v_h[idx] = uy_interp;
@@ -4512,6 +4775,8 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const bool use_pos_z0 = use_z0_file;
     const Real z0_cap = z0;
     const Real* d_z0_pos_ptr_diag = d_z0_pos.data();
+    const bool enable_morph_val = enable_morphometric_models;
+    const Real* d_morph_z0_ptr = d_morphometric_z0.data();
 
     int wire_idx_start = 21;
     if (has_synthetic_turbulence) wire_idx_start += 3;
@@ -4579,7 +4844,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             Real tau_x = Real(0.0);
             Real tau_y = Real(0.0);
             
-            Real z0_local = use_pos_z0 ? d_z0_pos_ptr_diag[j * nx_cap_out + i] : z0_cap;
+            Real z0_local = enable_morph_val ? d_morph_z0_ptr[j * nx_cap_out + i] : (use_pos_z0 ? d_z0_pos_ptr_diag[j * nx_cap_out + i] : z0_cap);
 
             if (z_agl > Real(0.0) && u_mag > Real(1.0e-6)) {
                 z0_local = std::max(z0_local, Real(1.0e-6));
