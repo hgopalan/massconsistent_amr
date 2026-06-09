@@ -1738,8 +1738,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         if (wsum > Real(0.0)) {
                             landuse_interp = lu_sum / wsum;
                         }
-                        int lu_type = static_cast<int>(std::round(landuse_interp));
-                        z0_val = get_z0_from_landuse(lu_type);
+                        int lu_type_dom = static_cast<int>(std::round(landuse_interp));
+                        z0_val = get_z0_from_landuse(lu_type_dom);
                     }
                     
                     int lu_type = static_cast<int>(std::round(landuse_interp));
@@ -5139,7 +5139,8 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                     Real bowen = get_bowen_ratio_from_landuse(lu_type);
                     Real net_rad = (Real(1.0) - albedo) * cap_solar_radiation;
                     if (bowen > Real(1.0e-5)) {
-                        shf_val = Real(0.9) * net_rad / (Real(1.0) + Real(1.0) / bowen);
+                        constexpr Real partitioning_factor = Real(0.9); // 90% of net radiation is partitioned into turbulent fluxes
+                        shf_val = partitioning_factor * net_rad / (Real(1.0) + Real(1.0) / bowen);
                         lhf_val = shf_val / bowen;
                     }
                 } else {

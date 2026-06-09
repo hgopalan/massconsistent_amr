@@ -34,8 +34,14 @@ namespace {
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real get_stability_class_from_richardson(amrex::Real Ri_b);
 
-// Map Pasquill-Gifford stability class (1-6) and local aerodynamic roughness length (z0)
-// to Obukhov length L using standard empirical Golder (1972) curves.
+/**
+ * @brief Map Pasquill-Gifford stability class (1-6) and local aerodynamic roughness length (z0)
+ * directly to the Monin-Obukhov length (L) using standard empirical Golder (1972) curves.
+ * 
+ * @param pg_class Stability class ID: 1=A, 2=B, 3=C, 4=D, 5=E, 6=F
+ * @param z0       Local aerodynamic roughness length [m]
+ * @return         Corresponding Monin-Obukhov length L [m]
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_obukhov_length_golder(int pg_class, amrex::Real z0)
 {
@@ -65,7 +71,18 @@ amrex::Real compute_obukhov_length_golder(int pg_class, amrex::Real z0)
     }
 }
 
-// Compute Obukhov length from bulk Richardson number using lookup table or Golder curves
+/**
+ * @brief Compute Obukhov length from bulk Richardson number.
+ * 
+ * Maps Ri_b to Pasquill-Gifford stability class, then translates it either dynamically
+ * via Golder (1972) curves with local roughness length z0 (if use_golder=true), or falls
+ * back to the traditional lookup table of static L values.
+ * 
+ * @param Ri_b       Bulk Richardson number [dimensionless]
+ * @param z0         Local aerodynamic roughness length [m] (defaults to 0.1 m)
+ * @param use_golder Toggle to use Golder curves instead of static lookup table (defaults to true)
+ * @return           Monin-Obukhov length L [m]
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_obukhov_length_from_richardson(amrex::Real Ri_b, amrex::Real z0 = amrex::Real(0.1), bool use_golder = true)
 {
