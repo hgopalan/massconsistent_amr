@@ -100,6 +100,60 @@ def generate_synthetic_datasets():
         v_v[:] = 4.0
         w_v[:] = 2.0
 
+    # 3. ERA5 format file
+    with nc.Dataset("era5_synthetic.nc", "w") as ds:
+        ds.createDimension("longitude", 5)
+        ds.createDimension("latitude", 5)
+        ds.createDimension("level", 4)
+        ds.createDimension("time", 1)
+        
+        lon_v = ds.createVariable("longitude", "f4", ("longitude",))
+        lat_v = ds.createVariable("latitude", "f4", ("latitude",))
+        lev_v = ds.createVariable("level", "f4", ("level",))
+        t_v = ds.createVariable("time", "f4", ("time",))
+        
+        lon_v[:] = np.array([-105.02, -105.01, -105.00, -104.99, -104.98], dtype=np.float32)
+        lat_v[:] = np.array([39.98, 39.99, 40.00, 40.01, 40.02], dtype=np.float32)
+        lev_v[:] = np.array([1000.0, 850.0, 700.0, 500.0], dtype=np.float32)
+        t_v[:] = np.array([0.0], dtype=np.float32)
+        
+        u_v = ds.createVariable("u", "f4", ("time", "level", "latitude", "longitude"))
+        v_v = ds.createVariable("v", "f4", ("time", "level", "latitude", "longitude"))
+        z_v = ds.createVariable("z", "f4", ("time", "level", "latitude", "longitude"))
+        temp_v = ds.createVariable("t", "f4", ("time", "level", "latitude", "longitude"))
+        q_v = ds.createVariable("q", "f4", ("time", "level", "latitude", "longitude"))
+        
+        # 2D surface variables
+        sr_v = ds.createVariable("sr", "f4", ("latitude", "longitude"))
+        ustar_v = ds.createVariable("ustar", "f4", ("latitude", "longitude"))
+        blh_v = ds.createVariable("blh", "f4", ("latitude", "longitude"))
+        oro_v = ds.createVariable("orography", "f4", ("latitude", "longitude"))
+        
+        u_v[:] = 15.0
+        v_v[:] = 5.0
+        
+        # Geopotential height values to simulate: [10.0, 30.0, 60.0, 100.0] meters above sea level
+        # To get geopotential z, we multiply by standard gravity 9.80665
+        z_heights = np.array([10.0, 30.0, 60.0, 100.0], dtype=np.float32) * 9.80665
+        for t in range(1):
+            for k in range(4):
+                z_v[t, k, :, :] = z_heights[k]
+                
+        # Simulate temperature profile [288.15, 283.15, 278.15, 268.15] Kelvin
+        t_levels = np.array([288.15, 283.15, 278.15, 268.15], dtype=np.float32)
+        for t in range(1):
+            for k in range(4):
+                temp_v[t, k, :, :] = t_levels[k]
+                
+        # Simulate humidity
+        q_v[:] = 0.005
+        
+        # Simulate surface variables
+        sr_v[:] = 0.1
+        ustar_v[:] = 0.35
+        blh_v[:] = 800.0
+        oro_v[:] = 150.0 * 9.80665  # surface geopotential in m^2/s^2, which corresponds to 150m terrain elevation when divided by standard gravity
+
 def run_cmd(cmd):
     """Execute shell command and print output."""
     print(f"Executing: {' '.join(cmd)}")
@@ -199,6 +253,62 @@ def main():
     # Run solver
     run_cmd([solver_exe, "inputs_multi.i"])
     assert os.path.exists("wind_extract_multi.csv"), "extract_file for multi step not created!"
+    
+    # =========================================================================
+    # Test 3: ERA5 Format Ingestion, Profile Printing, and Solver Run
+    # =========================================================================
+    print("\n--- TEST 3: ERA5 Format Ingestion, Profile Printing, and Solver Run ---")
+    era5_script = os.path.join(repo_dir, "tools", "era5_to_windfield.py")
+    
+    # Run the ERA5 converter
+    run_cmd([
+        sys.executable, era5_script,
+        "--input", "era5_synthetic.nc",
+        "--output", "formatted_era5.nc"
+    ])
+    
+    # Verify formatted_era5.nc was created
+    assert os.path.exists("formatted_era5.nc"), "formatted_era5.nc was not created!"
+    
+    # Run the NetCDF converter on the formatted ERA5 data
+    run_cmd([
+        sys.executable, parser_script,
+        "--nc-files", "formatted_era5.nc",
+        "--inputs", "inputs_single.i",
+        "--output", "windfield_era5.csv"
+    ])
+    
+    # Verify windfield_era5.csv was created
+    assert os.path.exists("windfield_era5.csv"), "windfield_era5.csv was not created!"
+    
+    # Verify values inside windfield_era5.csv (should be U=15.0, V=5.0, W=0.0)
+    with open("windfield_era5.csv", "r") as f:
+        lines = f.readlines()
+    data_lines = [l for l in lines if not l.startswith('#') and l.strip()]
+    
+    sample_pt = [float(p) for p in data_lines[50].split()]
+    print(f"Sample ERA5 point values (X, Y, Z, U, V, W): {sample_pt}")
+    assert abs(sample_pt[3] - 15.0) < 1e-3, f"Expected U near 15.0, got {sample_pt[3]}"
+    assert abs(sample_pt[4] - 5.0) < 1e-3, f"Expected V near 5.0, got {sample_pt[4]}"
+    assert abs(sample_pt[5] - 0.0) < 1e-3, f"Expected W near 0.0, got {sample_pt[5]}"
+    
+    # Generate inputs_era5.i
+    with open("inputs_single.i", "r") as f:
+        lines = f.readlines()
+    with open("inputs_era5.i", "w") as f:
+        for l in lines:
+            if "windfield_file" in l:
+                f.write("windfield_file = windfield_era5.csv\n")
+            elif "plot_file" in l:
+                f.write("plot_file = plt_netcdf_era5\n")
+            elif "extract_file" in l:
+                f.write("extract_file = wind_extract_era5.csv\n")
+            else:
+                f.write(l)
+                
+    # Run solver on inputs_era5.i
+    run_cmd([solver_exe, "inputs_era5.i"])
+    assert os.path.exists("wind_extract_era5.csv"), "extract_file for ERA5 not created!"
     
     print("\n✓ ALL NETCDF INGESTION TESTS PASSED SUCCESSFULLY!")
     return 0
