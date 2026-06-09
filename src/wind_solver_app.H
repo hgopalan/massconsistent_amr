@@ -391,11 +391,15 @@ private:
     bool flux_compute_latent_heat = false;
     amrex::Real flux_theta_star = 1.0;
     amrex::Real flux_q_star = 1.0e-3;
+    amrex::Real surface_temperature = 288.15;
+    amrex::Real heat_flux_scale = 1.0;
+    amrex::Real relative_humidity = 0.5;
 
     // Landuse classification
     bool enable_landuse_roughness = false;
     std::string landuse_file_class = "";
     amrex::Real charnock_alpha = 0.011;
+    bool enable_mosaic_roughness = false;
 
     // Marine Boundary Layer mixing height
     bool enable_marine_bl = false;
@@ -418,6 +422,7 @@ private:
 
     // Simplified Richardson
     bool enable_simplified_richardson = false;
+    bool use_golder_curves = true;
 
     // Roughness blocking
     bool enable_roughness_blocking = false;

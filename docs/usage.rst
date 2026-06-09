@@ -384,6 +384,9 @@ Atmospheric Physics & Boundary Layer Dynamics
 * **flux_compute_sensible_heat**, **flux_compute_latent_heat** (Boolean, Default: ``false``): Flags to calculate sensible and latent heat flux components.
 * **flux_theta_star** (Real, Default: ``0.1``): Prescribed scale temperature parameter for surface energy flux.
 * **flux_q_star** (Real, Default: ``0.001``): Prescribed scale moisture parameter for latent heat flux.
+* **surface_temperature** (Real, Default: ``288.15``): Reference temperature [K] for flux calculations.
+* **heat_flux_scale** (Real, Default: ``1.0``): Scaling factor for sensible heat flux.
+* **relative_humidity** (Real, Default: ``0.5``): Relative humidity for latent heat flux calculation.
 * **charnock_alpha** (Real, Default: ``0.011``): Charnock parameter used for wind-speed-dependent overwater roughness.
 * **precipitation_file** (String, Default: none): Path to precipitation rate spatial CSV file.
 * **precipitation_stability_threshold** (Real, Default: ``1.0``): Rainfall rate threshold [mm/hr] for eroding stable layers.
@@ -393,6 +396,8 @@ Atmospheric Physics & Boundary Layer Dynamics
 * **bias_periodic_enabled** (Boolean, Default: ``false``): Enable time-varying periodic bias offset.
 * **bias_periodic_amplitude** (Real, Default: ``5.0``): Amplitude of periodic bias oscillations [degrees].
 * **enable_simplified_richardson** (Boolean, Default: ``false``): Enable bulk Richardson method for conditional stability selection.
+* **use_golder_curves** (Boolean, Default: ``true``): Map stability class and roughness length to Obukhov length using standard empirical Golder (1972) curves when using bulk Richardson method.
+* **enable_mosaic_roughness** (Boolean, Default: ``false``): Compute effective roughness length via area-weighted logarithmic averaging for fractional land use cover databases.
 * **enable_coriolis_latitude** (Boolean, Default: ``false``): Enable geographical latitude-based scaling of Coriolis parameter.
 * **domain_latitude** (Real, Default: ``45.0``): Latitude of computational domain [degrees].
 * **enable_power_law_profile** (Boolean, Default: ``false``): Enable power-law profile wind initialization.

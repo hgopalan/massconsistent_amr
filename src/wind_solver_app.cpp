@@ -504,6 +504,9 @@ void WindSolverApp::parse_inputs() {
     pp.query("flux_compute_latent_heat", flux_compute_latent_heat);
     pp.query("flux_theta_star", flux_theta_star);
     pp.query("flux_q_star", flux_q_star);
+    pp.query("surface_temperature", surface_temperature);
+    pp.query("heat_flux_scale", heat_flux_scale);
+    pp.query("relative_humidity", relative_humidity);
     
     // Land-use Roughness Classification
     pp.query("enable_landuse_roughness", enable_landuse_roughness);
@@ -514,6 +517,7 @@ void WindSolverApp::parse_inputs() {
     }
     pp.query("landuse_file", landuse_file_class);
     pp.query("charnock_alpha", charnock_alpha);
+    pp.query("enable_mosaic_roughness", enable_mosaic_roughness);
 
     // Marine Boundary Layer parameters
     pp.query("enable_marine_bl", enable_marine_bl);
@@ -533,6 +537,7 @@ void WindSolverApp::parse_inputs() {
 
     // Simplified Richardson Number Method
     pp.query("enable_simplified_richardson", enable_simplified_richardson);
+    pp.query("use_golder_curves", use_golder_curves);
     
     // Roughness Blocking from Buildings
     pp.query("enable_roughness_blocking", enable_roughness_blocking);
@@ -1574,6 +1579,54 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         amrex::Print() << "wind_solver: current precipitation rate = " << current_precipitation_rate << " mm/h\n";
     }
 
+    // Populate temp_ptr with interpolated local temperature for diagnostics and Richardson mapping
+    if (!z_temp.empty()) {
+        const int n_temp_pts = static_cast<int>(z_temp.size());
+        amrex::Gpu::DeviceVector<Real> d_temp_z_init(n_temp_pts), d_temp_T_init(n_temp_pts);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, z_temp.begin(), z_temp.end(), d_temp_z_init.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, T_temp.begin(), T_temp.end(), d_temp_T_init.begin());
+        Real const* d_temp_z_ptr = d_temp_z_init.data();
+        Real const* d_temp_T_ptr = d_temp_T_init.data();
+        const Real T_ref_val = temperature_reference;
+        const Real z_lo_cap_val = zs_min;
+        const Real dz_cap_val = dz;
+
+        for (MFIter mfi(*temp_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto temp_arr = temp_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap_val + (k + Real(0.5)) * dz_cap_val;
+                Real T_local = T_ref_val;
+                
+                if (n_temp_pts == 1) {
+                    T_local = d_temp_T_ptr[0];
+                } else if (z_physical <= d_temp_z_ptr[0]) {
+                    T_local = d_temp_T_ptr[0];
+                } else if (z_physical >= d_temp_z_ptr[n_temp_pts - 1]) {
+                    T_local = d_temp_T_ptr[n_temp_pts - 1];
+                } else {
+                    for (int m = 0; m < n_temp_pts - 1; ++m) {
+                        if (z_physical >= d_temp_z_ptr[m] && 
+                            z_physical <= d_temp_z_ptr[m + 1]) {
+                            T_local = temperature_linear_interp(
+                                z_physical,
+                                d_temp_z_ptr[m], d_temp_T_ptr[m],
+                                d_temp_z_ptr[m + 1], d_temp_T_ptr[m + 1]);
+                             break;
+                        }
+                    }
+                }
+                temp_arr(i, j, k) = T_local;
+            });
+        }
+        amrex::Gpu::streamSynchronize();
+    } else {
+        temp_ptr->setVal(temperature_reference);
+    }
+
     if (enable_pg_stability) {
         Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
         PGStabilityClass pg_class = pasquill_gifford_class(speed_ref, solar_radiation, is_nighttime, cloud_cover);
@@ -1627,9 +1680,6 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     Real xc = x_lo + (i + Real(0.5)) * dx;
                     Real yc = y_lo + (j + Real(0.5)) * dy;
                     
-                    Real landuse_interp = -1.0;
-                    Real wsum = 0.0;
-                    Real lu_sum = 0.0;
                     std::vector<std::pair<Real, int>> d2(x_lu.size());
                     for (std::size_t m = 0; m < x_lu.size(); ++m) {
                         Real dx_pt = xc - x_lu[m];
@@ -1638,26 +1688,62 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     }
                     std::sort(d2.begin(), d2.end());
                     
-                    const int n_pts = std::min(6, static_cast<int>(d2.size()));
-                    for (int m = 0; m < n_pts; ++m) {
-                        Real dist = std::sqrt(d2[m].first);
-                        if (dist < Real(1.0e-12)) {
-                            landuse_interp = landuse_data[d2[m].second];
-                            wsum = 1.0;
-                            break;
+                    Real z0_val = Real(0.0);
+                    Real landuse_interp = -1.0;
+                    
+                    if (enable_mosaic_roughness) {
+                        Real wsum = 0.0;
+                        Real ln_z0_sum = 0.0;
+                        Real lu_sum = 0.0;
+                        bool exact_match = false;
+                        
+                        const int n_pts = std::min(6, static_cast<int>(d2.size()));
+                        for (int m = 0; m < n_pts; ++m) {
+                            Real dist = std::sqrt(d2[m].first);
+                            if (dist < Real(1.0e-12)) {
+                                int lu_type = static_cast<int>(std::round(landuse_data[d2[m].second]));
+                                z0_val = get_z0_from_landuse(lu_type);
+                                landuse_interp = Real(lu_type);
+                                exact_match = true;
+                                break;
+                            }
+                            Real w = Real(1.0) / (dist * dist);
+                            wsum += w;
+                            
+                            int lu_type = static_cast<int>(std::round(landuse_data[d2[m].second]));
+                            Real z0_m = get_z0_from_landuse(lu_type);
+                            ln_z0_sum += w * std::log(std::max(z0_m, Real(1.0e-6)));
+                            lu_sum += w * landuse_data[d2[m].second];
                         }
-                        Real w = Real(1.0) / (dist * dist);
-                        wsum += w;
-                        lu_sum += w * landuse_data[d2[m].second];
-                    }
-                    if (wsum > Real(0.0)) {
-                        landuse_interp = lu_sum / wsum;
+                        
+                        if (!exact_match && wsum > Real(0.0)) {
+                            z0_val = std::exp(ln_z0_sum / wsum);
+                            landuse_interp = lu_sum / wsum;
+                        }
+                    } else {
+                        Real wsum = 0.0;
+                        Real lu_sum = 0.0;
+                        const int n_pts = std::min(6, static_cast<int>(d2.size()));
+                        for (int m = 0; m < n_pts; ++m) {
+                            Real dist = std::sqrt(d2[m].first);
+                            if (dist < Real(1.0e-12)) {
+                                landuse_interp = landuse_data[d2[m].second];
+                                wsum = 1.0;
+                                break;
+                            }
+                            Real w = Real(1.0) / (dist * dist);
+                            wsum += w;
+                            lu_sum += w * landuse_data[d2[m].second];
+                        }
+                        if (wsum > Real(0.0)) {
+                            landuse_interp = lu_sum / wsum;
+                        }
+                        int lu_type = static_cast<int>(std::round(landuse_interp));
+                        z0_val = get_z0_from_landuse(lu_type);
                     }
                     
                     int lu_type = static_cast<int>(std::round(landuse_interp));
                     landuse_h[static_cast<std::size_t>(j) * nx + i] = Real(lu_type);
-                    
-                    Real z0_val = get_z0_from_landuse(lu_type);
                     z0_h[static_cast<std::size_t>(j) * nx + i] = z0_val;
                 }
             }
@@ -2179,10 +2265,15 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         const Real* d_morph_d_ptr = d_morphometric_d.data();
         const Real* d_morph_z0_ptr = d_morphometric_z0.data();
 
+        const bool use_simplified_richardson_val = enable_simplified_richardson;
+        const bool use_golder_curves_val = use_golder_curves;
+        const int nz_val = nz;
+
         for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = vel0_ptr->array(mfi);
             auto adap_rough = adaptive_roughness_ptr->array(mfi);
+            const auto temp_arr = temp_ptr->const_array(mfi);
 
             amrex::ParallelFor(bx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -2265,9 +2356,28 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                             Real speed_bl = (ustar_local / kappa_cap) * std::log((zg_val + z0_local) / z0_local);
                             speed = speed_bl * std::pow(z_agl / zg_val, powerlaw_exp_val);
                         }
-                    } else if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
-                        speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
-                                                      kappa_cap, L_obukhov, use_holtslag);
+                    } else if (use_stability || use_simplified_richardson_val) {
+                        Real L_local = L_obukhov;
+                        if (use_simplified_richardson_val) {
+                            int k_start = 0;
+                            while (k_start < nz_val && (z_lo_cap + (Real(k_start) + Real(0.5)) * dz_cap - d_terr_ptr[j * nx_cap + i] <= Real(0.0))) {
+                                k_start++;
+                            }
+                            if (k_start < nz_val && k >= k_start) {
+                                Real theta_s = temp_arr(i, j, k_start);
+                                Real theta_z = temp_arr(i, j, k);
+                                Real speed_neutral = (ustar_local / kappa_cap) * std::log((z_agl + z0_local) / z0_local);
+                                Real ri_b = compute_bulk_richardson_number(theta_s, theta_z, z_agl, speed_neutral, theta_s);
+                                L_local = compute_obukhov_length_from_richardson(ri_b, z0_local, use_golder_curves_val);
+                            }
+                        }
+                        if (std::abs(L_local) > Real(1.0e-10)) {
+                            speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
+                                                          kappa_cap, L_local, use_holtslag);
+                        } else {
+                            speed = canopy_wind_profile(
+                                z_agl, cell_canopy_params, z0_local, ustar_local, kappa_cap);
+                        }
                     } else {
                         speed = canopy_wind_profile(
                             z_agl, cell_canopy_params, z0_local, ustar_local, kappa_cap);
@@ -2357,9 +2467,28 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                             Real speed_bl = (ustar_local / kappa_cap) * std::log((zg_val + z0_local) / z0_local);
                             speed = speed_bl * std::pow(z_agl / zg_val, powerlaw_exp_val);
                         }
-                    } else if (use_stability && std::abs(L_obukhov) > Real(1.0e-10)) {
-                        speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
-                                                      kappa_cap, L_obukhov, use_holtslag);
+                    } else if (use_stability || use_simplified_richardson_val) {
+                        Real L_local = L_obukhov;
+                        if (use_simplified_richardson_val) {
+                            int k_start = 0;
+                            while (k_start < nz_val && (z_lo_cap + (Real(k_start) + Real(0.5)) * dz_cap - d_terr_ptr[j * nx_cap + i] <= Real(0.0))) {
+                                k_start++;
+                            }
+                            if (k_start < nz_val && k >= k_start) {
+                                Real theta_s = temp_arr(i, j, k_start);
+                                Real theta_z = temp_arr(i, j, k);
+                                Real speed_neutral = (ustar_local / kappa_cap) * std::log((z_agl + z0_local) / z0_local);
+                                Real ri_b = compute_bulk_richardson_number(theta_s, theta_z, z_agl, speed_neutral, theta_s);
+                                L_local = compute_obukhov_length_from_richardson(ri_b, z0_local, use_golder_curves_val);
+                            }
+                        }
+                        if (std::abs(L_local) > Real(1.0e-10)) {
+                            speed = wind_profile_stability(z_agl, z0_local, ustar_local, 
+                                                          kappa_cap, L_local, use_holtslag);
+                        } else {
+                            speed = canopy_wind_profile(
+                                z_agl, cell_canopy_params, z0_local, ustar_local, kappa_cap);
+                        }
                     } else {
                         speed = canopy_wind_profile(
                             z_agl, cell_canopy_params, z0_local, ustar_local, kappa_cap);
@@ -3688,54 +3817,6 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         );
     }
 
-    // Populate temp_ptr with interpolated local temperature for diagnostics
-    if (!z_temp.empty()) {
-        const int n_temp_pts = static_cast<int>(z_temp.size());
-        amrex::Gpu::DeviceVector<Real> d_temp_z(n_temp_pts), d_temp_T(n_temp_pts);
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, z_temp.begin(), z_temp.end(), d_temp_z.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, T_temp.begin(), T_temp.end(), d_temp_T.begin());
-        Real const* d_temp_z_ptr = d_temp_z.data();
-        Real const* d_temp_T_ptr = d_temp_T.data();
-        const Real T_ref = temperature_reference;
-        const Real z_lo_cap = zs_min;
-        const Real dz_cap = dz;
-
-        for (MFIter mfi(*temp_ptr); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.validbox();
-            auto temp_arr = temp_ptr->array(mfi);
-
-            amrex::ParallelFor(bx,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
-                Real T_local = T_ref;
-                
-                if (n_temp_pts == 1) {
-                    T_local = d_temp_T_ptr[0];
-                } else if (z_physical <= d_temp_z_ptr[0]) {
-                    T_local = d_temp_T_ptr[0];
-                } else if (z_physical >= d_temp_z_ptr[n_temp_pts - 1]) {
-                    T_local = d_temp_T_ptr[n_temp_pts - 1];
-                } else {
-                    for (int m = 0; m < n_temp_pts - 1; ++m) {
-                        if (z_physical >= d_temp_z_ptr[m] && 
-                            z_physical <= d_temp_z_ptr[m + 1]) {
-                            T_local = temperature_linear_interp(
-                                z_physical,
-                                d_temp_z_ptr[m], d_temp_T_ptr[m],
-                                d_temp_z_ptr[m + 1], d_temp_T_ptr[m + 1]);
-                            break;
-                        }
-                    }
-                }
-                temp_arr(i, j, k) = T_local;
-            });
-        }
-        amrex::Gpu::streamSynchronize();
-    } else {
-        temp_ptr->setVal(temperature_reference);
-    }
-
     if (enable_capping_lid) {
         amrex::Print() << "wind_solver: enforcing capping lid boundary condition (w = 0) using spatially-varying boundary layer depth from z_bl_diag_ptr (fallback: " << capping_lid_height << " m)\n";
         const Real fallback_lid_height = capping_lid_height;
@@ -4955,6 +5036,14 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const Real marine_sst_val = marine_sst;
     const Real marine_air_sea_dt_val = marine_air_sea_dt;
 
+    const bool cap_enable_flux_diagnostics = enable_flux_diagnostics;
+    const Real cap_solar_radiation = solar_radiation;
+    const Real cap_flux_theta_star = flux_theta_star;
+    const Real cap_flux_q_star = flux_q_star;
+    const Real cap_heat_flux_scale = heat_flux_scale;
+    const Real cap_relative_humidity = relative_humidity;
+    const Real cap_lv_water = FluxConstants::lv_water;
+
     for (MFIter mfi(output); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         const int k_lo_box = bx.smallEnd(2);
@@ -4972,6 +5061,11 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
         const auto z_bl_arr = z_bl_diag_ptr->array(mfi);
         
         auto out = output.array(mfi);
+        auto shf_arr = shf_ptr->array(mfi);
+        auto lhf_arr = lhf_ptr->array(mfi);
+        auto cd_arr = cd_ptr->array(mfi);
+        auto ustar_arr = u_star_ptr->array(mfi);
+        auto tau_arr = tau_flux_ptr->array(mfi);
         
         amrex::Array4<amrex::Real> turb_fluc;
         if (has_synthetic_turbulence && synthetic_turbulence_fluc_ptr) {
@@ -5035,6 +5129,32 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                     tau_y = tau_magnitude * (v / u_mag);
                 }
             }
+
+            Real shf_val = Real(0.0);
+            Real lhf_val = Real(0.0);
+            if (cap_enable_flux_diagnostics && z_agl > Real(0.0) && u_mag > Real(1.0e-6)) {
+                if (enable_landuse_roughness_val && d_landuse_pos_ptr_diag) {
+                    int lu_type = static_cast<int>(std::round(d_landuse_pos_ptr_diag[j * nx_cap_out + i]));
+                    Real albedo = get_albedo_from_landuse(lu_type);
+                    Real bowen = get_bowen_ratio_from_landuse(lu_type);
+                    Real net_rad = (Real(1.0) - albedo) * cap_solar_radiation;
+                    if (bowen > Real(1.0e-5)) {
+                        shf_val = Real(0.9) * net_rad / (Real(1.0) + Real(1.0) / bowen);
+                        lhf_val = shf_val / bowen;
+                    }
+                } else {
+                    shf_val = rho_air * cp_air * ustar_local * cap_flux_theta_star * cap_heat_flux_scale;
+                    lhf_val = rho_air * cap_lv_water * ustar_local * cap_flux_q_star * cap_relative_humidity;
+                }
+                heat_flux = shf_val;
+            }
+
+            shf_arr(i, j, k) = shf_val;
+            lhf_arr(i, j, k) = lhf_val;
+            cd_arr(i, j, k) = Cd;
+            ustar_arr(i, j, k) = ustar_local;
+            tau_arr(i, j, k, 0) = tau_x;
+            tau_arr(i, j, k, 1) = tau_y;
 
             Real richardson_no = Real(0.0);
             Real bl_depth = cap_bl_depth_param;
