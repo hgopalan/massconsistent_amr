@@ -85,6 +85,18 @@ HRRR Surface Parameter Extractor (``hrrr_to_surface_data.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Extracts friction velocities (:math:`u_*`), roughness lengths (:math:`z_0`), and 10m velocities from High-Resolution Rapid Refresh (HRRR) GRIB/NetCDF products to build surface parameter CSV files for ``init_mode = surface_data``.
 
+NAM Data Ingestor (``nam_ingestion.py``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Provides full ingestion of North American Mesoscale (NAM) meteorological datasets under both pathways:
+  * **Pathway A (3D Wind Field)**: Extracts and interpolates 3D wind velocity components on the solver coordinate mesh (generates ``windfield.csv`` for ``init_mode = windfield``).
+  * **Pathway B (Surface Parameters)**: Extracts friction velocity, roughness, and 10m wind speed/direction (generates ``surface_data.csv`` for ``init_mode = surface_data``).
+
+Climate Projection Downscaler (``download_climate_projection.py``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Queries and downloads future climate projection models (CMIP6, downscaled projections) for target locations.
+  * Formats the projected future wind climatology into joint speed-direction distributions (wind roses) to feed directly into the **AEP Calculator**.
+  * Outputs wind flow configuration profile files (e.g., ``future_scenarios.ini``) to analyze extreme or representative wind flows under projected future climate regimes.
+
 FARSITE Weather Parser (``farsite_weather_reader.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Reads diurnal, multi-station weather schedules from FARSITE format files, formatting them for coupled wind-fire time-loop simulation steering.
