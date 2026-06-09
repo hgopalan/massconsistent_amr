@@ -76,6 +76,11 @@ private:
     bool use_exponential_profile = false;
     int canopy_profile_type = 0;
 
+    // Morphometric Models
+    bool enable_morphometric_models = false;
+    std::string morphometric_model_type = "macdonald";
+    amrex::Real morphometric_drag_coeff = -1.0;
+
     // Windbreaks
     bool enable_windbreaks = false;
     std::string windbreaks_file = "";
@@ -543,6 +548,12 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_landuse_pos;
     amrex::Gpu::DeviceVector<amrex::Real> d_canopy_height;
     amrex::Gpu::DeviceVector<amrex::Real> d_frontal_area_index;
+    
+    // Morphometric models
+    std::vector<amrex::Real> morphometric_d;
+    std::vector<amrex::Real> morphometric_z0;
+    amrex::Gpu::DeviceVector<amrex::Real> d_morphometric_d;
+    amrex::Gpu::DeviceVector<amrex::Real> d_morphometric_z0;
     
     // RAWS
     amrex::Gpu::DeviceVector<amrex::Real> d_raws_x, d_raws_y, d_raws_z, d_raws_u, d_raws_v;
