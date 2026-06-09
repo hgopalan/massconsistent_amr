@@ -240,6 +240,10 @@ def fetch_or_parse_nam(args, x_target, y_target):
             hgt = ds['orog'].values
         elif 'HGT_surface' in ds:
             hgt = ds['HGT_surface'].values
+        elif 'HGT_M' in ds:
+            hgt = ds['HGT_M'].values
+        elif 'HGT' in ds:
+            hgt = ds['HGT'].values
         else:
             hgt = np.zeros_like(x_src)
             
@@ -368,6 +372,15 @@ def main():
     parser.add_argument("--output", help="Explicit output filename (defaults: windfield.csv for A, surface_data.csv for B)")
     parser.add_argument("--idw-gamma", type=float, help="Anisotropic IDW vertical scaling parameter for Pathway A")
     parser.add_argument("--synthetic", action="store_true", help="Force synthetic high-fidelity offline generation")
+    parser.add_argument("--create-terrain", action="store_true", help="Enable constructing terrain.csv")
+    parser.add_argument("--terrain-output", default=None, help="Output terrain CSV path")
+    parser.add_argument("--srtm-terrain", action="store_true", help="Download terrain from SRTM instead of using NWP data")
+    parser.add_argument("--lat-min", type=float, help="Minimum latitude for terrain")
+    parser.add_argument("--lat-max", type=float, help="Maximum latitude for terrain")
+    parser.add_argument("--lon-min", type=float, help="Minimum longitude for terrain")
+    parser.add_argument("--lon-max", type=float, help="Maximum longitude for terrain")
+    parser.add_argument("--nx", type=int, default=100, help="Number of grid cells in X")
+    parser.add_argument("--ny", type=int, default=100, help="Number of grid cells in Y")
     
     args = parser.parse_args()
     
@@ -381,6 +394,70 @@ def main():
         terrain_path = terrain_file
         
     print(f"Target terrain path resolved: {terrain_path}")
+
+    # Terrain construction options
+    create_terrain_enabled = (args.create_terrain or args.terrain_output is not None or args.srtm_terrain)
+    if create_terrain_enabled:
+       terrain_out = args.terrain_output or terrain_path
+       lat_min, lat_max = 39.9, 40.1
+       lon_min, lon_max = -105.3, -105.2
+       if args.lat_min is not None: lat_min = args.lat_min
+       if args.lat_max is not None: lat_max = args.lat_max
+       if args.lon_min is not None: lon_min = args.lon_min
+       if args.lon_max is not None: lon_max = args.lon_max
+        
+       nx_t = args.nx
+       ny_t = args.ny
+        
+       lat_ref = (lat_min + lat_max) / 2.0
+       lon_ref = (lon_min + lon_max) / 2.0
+       x_lo = (lon_min - lon_ref) * 111000.0 * np.cos(np.radians(lat_ref))
+       x_hi = (lon_max - lon_ref) * 111000.0 * np.cos(np.radians(lat_ref))
+       y_lo = (lat_min - lat_ref) * 111000.0
+       y_hi = (lat_max - lat_ref) * 111000.0
+        
+       dx_t = (x_hi - x_lo) / nx_t
+       dy_t = (y_hi - y_lo) / ny_t
+       x_tgt_1d = np.array([x_lo + (i + 0.5) * dx_t for i in range(nx_t)])
+       y_tgt_1d = np.array([y_lo + (j + 0.5) * dy_t for j in range(ny_t)])
+       x_tgt, y_tgt = np.meshgrid(x_tgt_1d, y_tgt_1d)
+        
+       # We need the NAM dataset's source fields to interpolate NWP terrain
+       x_src, y_src, z_src_3d, hgt_src, u_src, v_src, w_src, ustar_src, z0_src, u10_src, v10_src = fetch_or_parse_nam(args, x_tgt, y_tgt)
+        
+       if args.srtm_terrain:
+           # Option (ii): Download from SRTM
+           import subprocess
+           fetcher_path = os.path.join(os.path.dirname(__file__), "geographic_data_fetcher.py")
+           cmd = [
+               sys.executable, fetcher_path,
+               "--lat-min", f"{lat_min:.6f}",
+               "--lat-max", f"{lat_max:.6f}",
+               "--lon-min", f"{lon_min:.6f}",
+               "--lon-max", f"{lon_max:.6f}",
+               "--nx", str(nx_t),
+               "--ny", str(ny_t),
+               "--dem-output", terrain_out,
+               "--projection", "flat"
+           ]
+           print(f"Downloading SRTM terrain for bounds: [{lat_min}, {lat_max}], [{lon_min}, {lon_max}]...")
+           subprocess.run(cmd, check=True)
+       else:
+           # Option (i): Use HGT_M / hgt_src from NWP
+           print(f"Constructing terrain.csv from NAM elevation data...")
+           with open(terrain_out, 'w') as f:
+               f.write("# Terrain elevation data extracted from NAM NWP\n")
+               f.write(f"# Grid: {nx_t}x{ny_t} points\n")
+               f.write("# X[m] Y[m] Z[m]\n")
+               for j in range(ny_t):
+                   for i in range(nx_t):
+                       xc = x_tgt[j, i]
+                       yc = y_tgt[j, i]
+                       zc = idw_terrain_2d(xc, yc, x_src.flatten(), y_src.flatten(), hgt_src.flatten())
+                       f.write(f"{xc:.6f} {yc:.6f} {zc:.6f}\n")
+           print(f"✓ Terrain written to {terrain_out}")
+       terrain_path = terrain_out
+
     terrain_pts = read_terrain_csv(terrain_path)
     if terrain_pts is None:
         print(f"ERROR: Could not read terrain file at {terrain_path}")

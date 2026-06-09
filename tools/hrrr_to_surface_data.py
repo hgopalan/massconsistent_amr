@@ -55,6 +55,12 @@ def main():
                         help="Square domain size in meters (default: 10000)")
     parser.add_argument("--subsample", type=int, default=1,
                         help="Subsample HRRR grid by this factor (default: 1 = all points)")
+    parser.add_argument("--terrain-output", default=None,
+                        help="Output terrain CSV filepath. If specified, will construct terrain.csv")
+    parser.add_argument("--srtm-terrain", action="store_true",
+                        help="Download terrain from SRTM instead of using NWP data")
+    parser.add_argument("--nx", type=int, default=100, help="Number of grid cells in X (for SRTM terrain)")
+    parser.add_argument("--ny", type=int, default=100, help="Number of grid cells in Y (for SRTM terrain)")
     
     args = parser.parse_args()
     
@@ -114,6 +120,10 @@ def main():
         z = ds['orog'].values
     elif 'HGT_surface' in ds:
         z = ds['HGT_surface'].values
+    elif 'HGT_M' in ds:
+        z = ds['HGT_M'].values
+    elif 'HGT' in ds:
+        z = ds['HGT'].values
     else:
         z = np.zeros_like(ustar)
         print("WARNING: Terrain elevation not found, using z=0")
@@ -182,6 +192,43 @@ def main():
                    f"{u10_pts[i]:.4f} {v10_pts[i]:.4f}\n")
     
     print(f"Done! Output written to {args.output}")
+
+    # Terrain construction options
+    if args.terrain_output:
+        import os
+        import sys
+        if args.srtm_terrain:
+            # Option (ii): Download from SRTM
+            lat_pts = lats[mask]
+            lon_pts = lons[mask]
+            lat_min, lat_max = float(lat_pts.min()), float(lat_pts.max())
+            lon_min, lon_max = float(lon_pts.min()), float(lon_pts.max())
+            
+            import subprocess
+            fetcher_path = os.path.join(os.path.dirname(__file__), "geographic_data_fetcher.py")
+            cmd = [
+                sys.executable, fetcher_path,
+                "--lat-min", f"{lat_min:.6f}",
+                "--lat-max", f"{lat_max:.6f}",
+                "--lon-min", f"{lon_min:.6f}",
+                "--lon-max", f"{lon_max:.6f}",
+                "--nx", str(args.nx),
+                "--ny", str(args.ny),
+                "--dem-output", args.terrain_output,
+                "--projection", "flat"
+            ]
+            print(f"Downloading SRTM terrain for bounds: [{lat_min}, {lat_max}], [{lon_min}, {lon_max}]...")
+            subprocess.run(cmd, check=True)
+        else:
+            # Option (i): Construct from NWP data (HRRR HGT/orog/HGT_M etc.)
+            print(f"Constructing terrain.csv from HRRR elevation data...")
+            with open(args.terrain_output, 'w') as f:
+                f.write("# Terrain elevation data extracted from HRRR NWP\n")
+                f.write(f"# Grid: {len(x_pts)} points\n")
+                f.write("# X[m] Y[m] Z[m]\n")
+                for i in range(len(x_pts)):
+                    f.write(f"{x_pts[i]:.6f} {y_pts[i]:.6f} {z_pts[i]:.6f}\n")
+            print(f"✓ Terrain written to {args.terrain_output}")
     print(f"\nUse in wind_solver with:")
     print(f"  init_mode = surface_data")
     print(f"  surface_data_file = {args.output}")
