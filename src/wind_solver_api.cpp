@@ -45,7 +45,8 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       Real x_lo = 0.0, Real y_lo = 0.0,
                                       Real dx = 1.0, Real dy = 1.0,
                                       int nx = 0, int ny = 0,
-                                      Real rmax = -1.0);
+                                      Real rmax = -1.0,
+                                      Real idw_exponent = 2.0);
 
 struct WindSolverRuntimeData {
     Gpu::DeviceVector<Real> terrain_device;
@@ -148,7 +149,8 @@ Real idw_terrain(Real xq, Real yq,
                  const std::vector<Real>& x,
                  const std::vector<Real>& y,
                  const std::vector<Real>& z,
-                 int k = 6)
+                 int k = 6,
+                 Real idw_exponent = 2.0)
 {
     const int n = static_cast<int>(x.size());
     k = std::min(k, n);
@@ -167,7 +169,7 @@ Real idw_terrain(Real xq, Real yq,
         if (d2[i].first < DISTANCE_EPSILON) {
             return z[d2[i].second];
         }
-        const Real w = Real(1.0) / d2[i].first;
+        const Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));
         wsum += w;
         zval += w * z[d2[i].second];
     }
@@ -214,7 +216,8 @@ void read_velocity_file(const std::string& filename,
                                    const std::vector<Real>& y,
                                    const std::vector<Real>& ux_data,
                                    const std::vector<Real>& uy_data,
-                                   int k = 6)
+                                   int k = 6,
+                                   Real idw_exponent = 2.0)
 {
     const int n = static_cast<int>(x.size());
     k = std::min(k, n);
@@ -234,7 +237,7 @@ void read_velocity_file(const std::string& filename,
         if (d2[i].first < DISTANCE_EPSILON) {
             return {ux_data[d2[i].second], uy_data[d2[i].second]};
         }
-        const Real w = Real(1.0) / d2[i].first;
+        const Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));
         wsum += w;
         ux_val += w * ux_data[d2[i].second];
         uy_val += w * uy_data[d2[i].second];
@@ -313,11 +316,12 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       Real x_lo, Real y_lo,
                                       Real dx, Real dy,
                                       int nx, int ny,
-                                      Real rmax)
+                                      Real rmax,
+                                      Real idw_exponent)
 {
     return WindInterpolation::idw_velocity_3d(xq, yq, zq, x, y, z, ux_data, uy_data, k,
                                               gamma, enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
-                                              rmax);
+                                              rmax, idw_exponent);
 }
 
 void parse_inputs(WindSolverState& state, const std::string& inputs_file)
@@ -355,6 +359,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.alpha_h = 1.0;
     state.alpha_v = 1.0;
     state.idw_gamma = 1.0;
+    state.idw_exponent = 2.0;
     state.idw_rmax1 = -1.0;
     state.idw_rmax2 = -1.0;
     state.idw_r1 = -1.0;
@@ -366,6 +371,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("alpha_h", state.alpha_h);
     pp.query("alpha_v", state.alpha_v);
     pp.query("idw_gamma", state.idw_gamma);
+    pp.query("idw_exponent", state.idw_exponent);
     pp.query("idw_rmax1", state.idw_rmax1);
     pp.query("idw_rmax2", state.idw_rmax2);
     pp.query("idw_r1", state.idw_r1);
@@ -683,7 +689,9 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
                 idw_terrain(xc, yc,
                             state.terrain_x_data,
                             state.terrain_y_data,
-                            state.terrain_z_data);
+                            state.terrain_z_data,
+                            6,
+                            state.idw_exponent);
         }
     }
 
@@ -1110,7 +1118,7 @@ void initialize_wind_field(WindSolverState& state)
                                               state.xmin, state.ymin,
                                               state.dx, state.dy,
                                               state.nx, state.ny,
-                                              rmax);
+                                              rmax, state.idw_exponent);
                     std::size_t idx = (static_cast<std::size_t>(k) * state.ny + j) * state.nx + i;
                     
                     Real u_final = uv.first;

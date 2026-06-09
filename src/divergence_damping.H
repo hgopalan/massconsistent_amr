@@ -71,6 +71,32 @@ amrex::Real damped_lagrange_multiplier(
 }
 
 // =========================================================================
+// Compute damped Lagrange multiplier anisotropically: λ_filtered = λ - ε_h∇_h²λ - ε_v∇_v²λ
+// =========================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real damped_lagrange_multiplier_anisotropic(
+    int i, int j, int k,
+    const amrex::FArrayBox& lambda_fab,
+    int lambda_comp,
+    amrex::Real damping_coeff_h,
+    amrex::Real damping_coeff_v,
+    amrex::Real dx,
+    amrex::Real dy,
+    amrex::Real dz) noexcept
+{
+    const amrex::Real inv_dx2 = amrex::Real(1.0) / (dx * dx);
+    const amrex::Real inv_dy2 = amrex::Real(1.0) / (dy * dy);
+    const amrex::Real inv_dz2 = amrex::Real(1.0) / (dz * dz);
+
+    amrex::Real f_xx = (lambda_fab(i+1, j, k, lambda_comp) - amrex::Real(2.0) * lambda_fab(i, j, k, lambda_comp) + lambda_fab(i-1, j, k, lambda_comp)) * inv_dx2;
+    amrex::Real f_yy = (lambda_fab(i, j+1, k, lambda_comp) - amrex::Real(2.0) * lambda_fab(i, j, k, lambda_comp) + lambda_fab(i, j-1, k, lambda_comp)) * inv_dy2;
+    amrex::Real f_zz = (lambda_fab(i, j, k+1, lambda_comp) - amrex::Real(2.0) * lambda_fab(i, j, k, lambda_comp) + lambda_fab(i, j, k-1, lambda_comp)) * inv_dz2;
+
+    amrex::Real lambda_val = lambda_fab(i, j, k, lambda_comp);
+    return lambda_val - damping_coeff_h * (f_xx + f_yy) - damping_coeff_v * f_zz;
+}
+
+// =========================================================================
 // Compute velocity correction from damped Lagrange multiplier gradient
 // u_corrected = u - α_h² ∇λ_damped
 // v_corrected = v - α_h² ∇λ_damped
@@ -122,6 +148,24 @@ amrex::Real estimate_damping_coefficient(
     
     // Default: ~5% of grid spacing squared
     return amrex::Real(0.05) * min_spacing_sq;
+}
+
+// =========================================================================
+// Estimate optimal anisotropic damping coefficients from grid spacing
+// Horizontal: ε_h ≈ 0.05 × min(dx², dy²)
+// Vertical:   ε_v ≈ 0.05 × dz²
+// =========================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void estimate_damping_coefficients_anisotropic(
+    amrex::Real dx,
+    amrex::Real dy,
+    amrex::Real dz,
+    amrex::Real& damping_coeff_h,
+    amrex::Real& damping_coeff_v) noexcept
+{
+    amrex::Real min_horizontal_spacing = std::min(dx, dy);
+    damping_coeff_h = amrex::Real(0.05) * min_horizontal_spacing * min_horizontal_spacing;
+    damping_coeff_v = amrex::Real(0.05) * dz * dz;
 }
 
 } // namespace divergence_damping

@@ -203,6 +203,7 @@ void WindSolverApp::parse_inputs() {
     pp.query("alpha_h", alpha_h);
     pp.query("alpha_v", alpha_v);
     pp.query("idw_gamma", idw_gamma);
+    pp.query("idw_exponent", idw_exponent);
     pp.query("idw_rmax1", idw_rmax1);
     pp.query("idw_rmax2", idw_rmax2);
     pp.query("idw_r1", idw_r1);
@@ -517,6 +518,8 @@ void WindSolverApp::parse_inputs() {
     // Divergence Damping Filter
     pp.query("enable_divergence_damping", enable_divergence_damping);
     pp.query("damping_coefficient", damping_coefficient);
+    pp.query("damping_coefficient_h", damping_coefficient_h);
+    pp.query("damping_coefficient_v", damping_coefficient_v);
     pp.query("damping_iterations", damping_iterations);
     
     // Perturbation Pressure Gradient
@@ -1103,7 +1106,7 @@ void WindSolverApp::setup_geometry_and_mesh() {
         for (int i = 0; i < nx; ++i) {
             Real xc = x_lo + (i + 0.5) * dx;
             terrain_h[static_cast<std::size_t>(j) * nx + i] =
-                WindInterpolation::idw_terrain(xc, yc, x_terr, y_terr, z_terr);
+                WindInterpolation::idw_terrain(xc, yc, x_terr, y_terr, z_terr, 6, idw_exponent);
         }
     }
 
@@ -1422,6 +1425,7 @@ void WindSolverApp::allocate_data_fields() {
         const Real y_lo_cap = y_lo;
         const Real dx_cap = dx;
         const Real dy_cap = dy;
+        const Real idw_exponent_cap = idw_exponent;
         
         for (MFIter mfi(*alpha_h_field_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -1436,7 +1440,7 @@ void WindSolverApp::allocate_data_fields() {
                 
                 auto alpha_vals = WindInterpolation::idw_alpha_coefficients_gpu(xc, yc,
                     d_x_alpha_ptr, d_y_alpha_ptr,
-                    d_alpha_h_ptr, d_alpha_v_ptr, n_alpha_pts, 6);
+                    d_alpha_h_ptr, d_alpha_v_ptr, n_alpha_pts, 6, idw_exponent_cap);
                 
                 alpha_h_arr(i, j, k) = alpha_vals.first;
                 alpha_v_arr(i, j, k) = alpha_vals.second;
@@ -2699,7 +2703,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     auto [ux_interp, uy_interp] = WindInterpolation::idw_velocity_3d(
                         xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel, 6,
                         idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
-                        rmax);
+                        rmax, idw_exponent);
                     
                     Real u_final = ux_interp;
                     Real v_final = uy_interp;
@@ -2726,7 +2730,6 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                             v_final = (uy_interp + weight_bg * v_bg) / (Real(1.0) + weight_bg);
                         }
                     }
-
                     std::size_t idx = (static_cast<std::size_t>(k) * ny + j) * nx + i;
                     vel_u_h[idx] = u_final;
                     vel_v_h[idx] = v_final;
@@ -2778,7 +2781,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
             for (int i = 0; i < nx; ++i) {
                 Real xc = x_lo + (i + 0.5) * dx;
                 auto [ustar_interp, z0_interp, u10_interp, v10_interp] = 
-                    WindInterpolation::idw_surface_data(xc, yc, x_surf, y_surf, ustar_surf, z0_surf, u10_surf, v10_surf);
+                    WindInterpolation::idw_surface_data(xc, yc, x_surf, y_surf, ustar_surf, z0_surf, u10_surf, v10_surf, 6, idw_exponent);
                 ustar_h[static_cast<std::size_t>(j) * nx + i] = ustar_interp;
                 z0_h[static_cast<std::size_t>(j) * nx + i] = z0_interp;
                 u10_h[static_cast<std::size_t>(j) * nx + i] = u10_interp;
@@ -3118,7 +3121,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     auto [ux_interp, uy_interp, uz_interp] = WindInterpolation::idw_velocity_3d_full(
                         xc, yc, zc, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf, 6,
                         idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
-                        rmax);
+                        rmax, idw_exponent);
                     std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
                     vel_u_h[idx] = ux_interp;
                     vel_v_h[idx] = uy_interp;
@@ -4135,14 +4138,27 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
         amrex::Print() << "wind_solver: applying divergence damping filter...\n";
         t_phase = amrex::second();
         
-        Real damp_coeff = damping_coefficient;
-        if (damp_coeff < Real(0.0)) {
-            Real min_spacing = std::min({dx, dy, dz});
-            Real min_spacing_sq = min_spacing * min_spacing;
-            damp_coeff = Real(0.05) * min_spacing_sq;
+        Real damp_coeff_h = damping_coefficient_h;
+        Real damp_coeff_v = damping_coefficient_v;
+        
+        if (damp_coeff_h < Real(0.0)) {
+            if (damping_coefficient >= Real(0.0)) {
+                damp_coeff_h = damping_coefficient;
+            } else {
+                Real h_spacing = std::min(dx, dy);
+                damp_coeff_h = Real(0.05) * h_spacing * h_spacing;
+            }
+        }
+        if (damp_coeff_v < Real(0.0)) {
+            if (damping_coefficient >= Real(0.0)) {
+                damp_coeff_v = damping_coefficient;
+            } else {
+                damp_coeff_v = Real(0.05) * dz * dz;
+            }
         }
         
-        amrex::Print() << "  damping_coefficient = " << damp_coeff << " m^2/s\n";
+        amrex::Print() << "  damping_coefficient_h = " << damp_coeff_h << " m^2/s\n";
+        amrex::Print() << "  damping_coefficient_v = " << damp_coeff_v << " m^2/s\n";
         amrex::Print() << "  damping_iterations = " << damping_iterations << "\n";
         
         const Real inv_dx2 = Real(1.0) / (dx * dx);
@@ -4164,8 +4180,7 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
                     Real f_yy = (lam_arr(i, j+1, k) - Real(2.0) * lambda_val + lam_arr(i, j-1, k)) * inv_dy2;
                     Real f_zz = (lam_arr(i, j, k+1) - Real(2.0) * lambda_val + lam_arr(i, j, k-1)) * inv_dz2;
                     
-                    Real laplacian = f_xx + f_yy + f_zz;
-                    lambda_damp_arr(i, j, k) = lambda_val - damp_coeff * laplacian;
+                    lambda_damp_arr(i, j, k) = lambda_val - damp_coeff_h * (f_xx + f_yy) - damp_coeff_v * f_zz;
                 });
             }
             
