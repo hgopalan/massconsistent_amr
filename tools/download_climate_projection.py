@@ -211,18 +211,20 @@ def main():
     print(f"  - Solver Input Configuration Profiles: {args.output_profile}")
     print("\nTo feed the downscaled wind rose directly into the AEP Calculator, use the following template:")
     print("-" * 80)
-    print("""import numpy as np
+    speeds_str = ", ".join([f"{s:.1f}" for s in speeds])
+    template_str = f"""import numpy as np
 from aep_calculator import AEPCalculator
 
 # Load the downscaled wind rose
-data = np.loadtxt('%s', comments='#', skiprows=4)
+data = np.loadtxt("{args.output_rose}", comments="#", skiprows=4)
 directions = data[:, 0]
 probabilities = data[:, 1:]
-speeds = np.array([%s]) # bin centers
+speeds = np.array([{speeds_str}]) # bin centers
 
 calc = AEPCalculator("inputs.i")
 results = calc.run_wind_rose(speeds, directions, probabilities)
-print(f"Annual Energy Production (AEP): {results['aep_kwh']:.2f} kWh")""" % (args.output_rose, ", ".join([f"{s:.1f}" for s in speeds])))
+print(f"Annual Energy Production (AEP): {{results['aep_kwh']:.2f}} kWh")"""
+    print(template_str)
     print("-" * 80)
     
     return 0

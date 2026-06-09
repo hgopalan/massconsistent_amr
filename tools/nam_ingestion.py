@@ -206,7 +206,13 @@ def fetch_or_parse_nam(args, x_target, y_target):
             from herbie import Herbie
             print(f"Attempting to download NAM via Herbie for {args.date} hour {args.hour}...")
             H = Herbie(args.date, model='nam', product='conus', fxx=args.hour)
-            # Fetch variables
+            # Fetch variables from NAM:
+            # - UGRD: Eastward wind component (U)
+            # - VGRD: Northward wind component (V)
+            # - WGRD: Vertical velocity component (W)
+            # - HGT: Geopotential height / Surface elevation
+            # - FRICV: Friction velocity (ustar)
+            # - SFCR: Aerodynamic roughness length (z0)
             ds = H.xarray('UGRD|VGRD|WGRD|HGT|FRICV|SFCR')
         except Exception as e:
             print(f"WARNING: Herbie download failed ({e}). Falling back to synthetic NAM.")
@@ -237,9 +243,20 @@ def fetch_or_parse_nam(args, x_target, y_target):
         else:
             hgt = np.zeros_like(x_src)
             
-        # Extract surface parameters
-        u10 = ds['u10'].values if 'u10' in ds else (ds['UGRD_10maboveground'].values if 'UGRD_10maboveground' in ds else 8.0 * np.ones_like(x_src))
-        v10 = ds['v10'].values if 'v10' in ds else (ds['VGRD_10maboveground'].values if 'VGRD_10maboveground' in ds else 2.0 * np.ones_like(x_src))
+        # Extract 10m surface winds (UGRD = U wind component, VGRD = V wind component)
+        if 'u10' in ds:
+            u10 = ds['u10'].values
+        elif 'UGRD_10maboveground' in ds:
+            u10 = ds['UGRD_10maboveground'].values
+        else:
+            u10 = 8.0 * np.ones_like(x_src)
+
+        if 'v10' in ds:
+            v10 = ds['v10'].values
+        elif 'VGRD_10maboveground' in ds:
+            v10 = ds['VGRD_10maboveground'].values
+        else:
+            v10 = 2.0 * np.ones_like(x_src)
         
         if 'fricv' in ds:
             ustar = ds['fricv'].values
@@ -265,7 +282,7 @@ def fetch_or_parse_nam(args, x_target, y_target):
             # Construct 3D absolute heights
             # Simulating/estimating levels heights if not given explicitly
             z_3d = np.zeros((nz_src, x_src.shape[0], x_src.shape[1]))
-            # Estimate 50m, 100m, 200m, 500m, 1000m ...
+            # Estimate vertical levels at 50m, 100m, 150m, 200m, ...
             for k in range(nz_src):
                 z_3d[k, :, :] = hgt + 50.0 * (k + 1)
                 
