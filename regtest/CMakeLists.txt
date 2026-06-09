@@ -18,8 +18,8 @@ function(add_regression_test TEST_NAME TEST_DIR)
     set(TEST_WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${TEST_DIR}")
     file(MAKE_DIRECTORY ${TEST_WORK_DIR})
 
-    # Copy terrain/data CSV files to the working directory
-    file(GLOB _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.csv")
+    # Copy terrain/data CSV/FSL/UP files to the working directory
+    file(GLOB _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.csv" "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.fsl" "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR}/*.up")
     foreach(_df ${_DATA_FILES})
         file(COPY "${_df}" DESTINATION ${TEST_WORK_DIR})
     endforeach()
@@ -532,6 +532,8 @@ add_regression_test(field_output_test diagnostics/field_output_test)
 # ===========================================================================
 # New easy-to-implement features tests
 # ===========================================================================
+add_regression_test(sounding_profiles physics/sounding_profiles)
+add_regression_test(marine_boundary_layer physics/marine_boundary_layer)
 add_regression_test(pasquill_gifford physics/pasquill_gifford)
 add_regression_test(power_law_profile_bl physics/power_law_profile_bl)
 add_regression_test(deaves_harris physics/deaves_harris)

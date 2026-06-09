@@ -222,6 +222,41 @@ where :math:`\theta_s` is the surface potential temperature at :math:`k_{\text{s
 
 The boundary layer depth :math:`z_i(x,y)` is diagnosed as the height above ground where :math:`Ri_b` first exceeds the critical Richardson number :math:`Ri_c` (configured via ``richardson_critical``, defaulting to 0.25). Linear interpolation between grid levels is used to compute the precise transition height. If :math:`Ri_b` never exceeds :math:`Ri_c`, the boundary layer is assumed to extend to the top of the domain.
 
+Multi-Station Vertical Blending using Sounding Profiles
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When ``init_mode = sounding`` is selected, the wind field is initialized using meteorological upper-air soundings (radiosondes). The vertical wind profile at each sounding station :math:`s` is first interpolated from its discrete measurement levels to the grid cell height :math:`z_c` using either natural cubic splines or log-linear interpolation in the vertical coordinate.
+
+Once the vertical profiles are interpolated to the target level :math:`z_c`, the wind components are horizontally blended across the computational domain using 2D Inverse Distance Weighting (IDW):
+
+.. math::
+
+   U(x_c, y_c, z_c) = \frac{\sum_{s} w_s U_s(z_c)}{\sum_{s} w_s}, \quad V(x_c, y_c, z_c) = \frac{\sum_{s} w_s V_s(z_c)}{\sum_{s} w_s}
+
+where the horizontal distance weight is :math:`w_s = (d_s)^{-p}`, with :math:`d_s` being the horizontal distance between the grid cell center :math:`(x_c, y_c)` and the sounding station :math:`(X_s, Y_s)`, and :math:`p` is the user-configured IDW exponent.
+
+Marine Boundary Layer Diagnostic Mixing Height
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When ``enable_marine_bl = true``, the boundary layer mixing height :math:`z_i(x,y)` is dynamically calculated over water cells (land-use category 11) using a diagnostic thermal-mechanical mixing depth equation:
+
+.. math::
+
+   z_i = \sqrt{h_{\text{mech}}^2 + h_{\text{conv}}^2}
+
+where:
+* **Mechanical mixing height** (:math:`h_{\text{mech}}`) is driven by friction velocity :math:`u_*` and Coriolis parameter :math:`f = 2\Omega\sin\phi`:
+
+  .. math::
+
+     h_{\text{mech}} = 0.2 \frac{u_*}{|f|}
+
+* **Convective mixing height** (:math:`h_{\text{conv}}`) is driven by the air-sea potential temperature difference :math:`\Delta T = T_{\text{air}} - T_{\text{sea}}`. Under unstable conditions (:math:`\Delta T < 0`), the convective mixing depth is diagnosed as:
+
+  .. math::
+
+     h_{\text{conv}} = 0.3 \left( \frac{g \cdot C_H \cdot U_{\text{mag}} \cdot (-\Delta T)}{T_{\text{sea}} \cdot |f|^3} \right)^{1/2}
+
+  where :math:`g = 9.81\,\text{m/s}^2`, :math:`C_H = 0.0014` is the bulk heat transfer coefficient over water, :math:`U_{\text{mag}}` is the local wind speed, and :math:`T_{\text{sea}}` is the sea-surface temperature (SST).
+
 Jackson-Hunt Orographic Speed-up Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Wind acceleration over convex terrain features (ridges, hill tops) and deceleration in valleys is parameterized using the Jackson and Hunt (1975) model, which has been validated experimentally over low hills (Ayotte et al., 1994; Belcher et al., 1994):
