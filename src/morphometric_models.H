@@ -57,7 +57,7 @@ namespace MorphometricModels {
         amrex::Real H,
         amrex::Real lambda_p,
         amrex::Real lambda_f,
-        amrex::Real Cd, // unused in Kutzbach, but kept for interface consistency
+        amrex::Real /*Cd*/, // unused in Kutzbach, but kept for interface consistency
         amrex::Real z0_base,
         amrex::Real& d,
         amrex::Real& z0_eff)

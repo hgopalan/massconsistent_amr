@@ -106,6 +106,11 @@ struct WindSolverState {
     amrex::Real canopy_drag_coeff;     // Canopy drag coefficient Cd
     amrex::Real canopy_attenuation;    // Exponential attenuation coefficient α
     bool use_exponential_profile;      // Use Shaw-Pereira exponential profile
+
+    // Morphometric model parameters
+    bool enable_morphometric_models;
+    std::string morphometric_model_type;
+    amrex::Real morphometric_drag_coeff;
     
     // Ekman spiral veer parameters
     bool enable_ekman_veer;            // Enable Ekman spiral wind veer

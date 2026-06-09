@@ -1,6 +1,7 @@
 #include "wind_solver_api.H"
 #include "wind_interpolation.H"
 #include "canopy_models.H"
+#include "morphometric_models.H"
 #include "terrain_following_coords.H"
 #include "cell_local_anisotropy.H"
 #include "solver_math_constants.H"
@@ -48,6 +49,8 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
 struct WindSolverRuntimeData {
     Gpu::DeviceVector<Real> terrain_device;
     std::vector<Real> terrain_host;
+    Gpu::DeviceVector<Real> morphometric_d_device;
+    Gpu::DeviceVector<Real> morphometric_z0_device;
 };
 
 std::unique_ptr<WindSolverRuntimeData> g_wind_solver_runtime = nullptr;
@@ -423,6 +426,21 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("canopy_drag_coeff", state.canopy_drag_coeff);
     pp.query("canopy_attenuation", state.canopy_attenuation);
     pp.query("use_exponential_profile", state.use_exponential_profile);
+
+    // Morphometric model parameters
+    state.enable_morphometric_models = false;
+    state.morphometric_model_type = "macdonald";
+    state.morphometric_drag_coeff = -1.0;
+    pp.query("enable_morphometric_models", state.enable_morphometric_models);
+    pp.query("morphometric_model_type", state.morphometric_model_type);
+    pp.query("morphometric_drag_coeff", state.morphometric_drag_coeff);
+    if (state.morphometric_drag_coeff < 0.0) {
+        if (state.morphometric_model_type == "bottema") {
+            state.morphometric_drag_coeff = 0.8;
+        } else {
+            state.morphometric_drag_coeff = 1.2;
+        }
+    }
     
     // Ekman spiral veer parameters
     state.enable_ekman_veer = false;
@@ -831,6 +849,105 @@ void initialize_wind_field(WindSolverState& state)
         const Real ux_hat = (speed_ref > Real(1.0e-10)) ? state.U_ref / speed_ref : Real(1.0);
         const Real uy_hat = (speed_ref > Real(1.0e-10)) ? state.V_ref / speed_ref : Real(0.0);
 
+        const bool enable_morph = state.enable_morphometric_models;
+        if (enable_morph) {
+            const int nx = state.nx;
+            const int ny = state.ny;
+            std::vector<Real> morph_d_host(static_cast<std::size_t>(nx) * ny, Real(0.0));
+            std::vector<Real> morph_z0_host(static_cast<std::size_t>(nx) * ny, state.z0);
+
+            std::vector<Real> lambda_p_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
+            std::vector<Real> lambda_f_x_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
+            std::vector<Real> lambda_f_y_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
+            std::vector<Real> H_avg_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
+            std::vector<Real> sum_weight_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
+
+            Real cell_area = state.dx * state.dy;
+
+            if (!state.building_xmin.empty()) {
+                int n_buildings = static_cast<int>(state.building_xmin.size());
+                for (int j = 0; j < ny; ++j) {
+                    Real cell_y1 = state.ymin + j * state.dy;
+                    Real cell_y2 = state.ymin + (j + 1) * state.dy;
+                    for (int i = 0; i < nx; ++i) {
+                        Real cell_x1 = state.xmin + i * state.dx;
+                        Real cell_x2 = state.xmin + (i + 1) * state.dx;
+                        std::size_t idx = static_cast<std::size_t>(j) * nx + i;
+
+                        for (int b = 0; b < n_buildings; ++b) {
+                            Real bx1 = state.building_xmin[b];
+                            Real bx2 = state.building_xmax[b];
+                            Real by1 = state.building_ymin[b];
+                            Real by2 = state.building_ymax[b];
+                            Real bz1 = state.building_zmin[b];
+                            Real bz2 = state.building_zmax[b];
+                            Real H_b = bz2 - bz1;
+
+                            Real ix1 = std::max(bx1, cell_x1);
+                            Real ix2 = std::min(bx2, cell_x2);
+                            Real iy1 = std::max(by1, cell_y1);
+                            Real iy2 = std::min(by2, cell_y2);
+
+                            if (ix2 > ix1 && iy2 > iy1) {
+                                Real w_x = ix2 - ix1;
+                                Real w_y = iy2 - iy1;
+                                Real A_p_b = w_x * w_y;
+
+                                lambda_p_grid[idx] += A_p_b;
+                                lambda_f_x_grid[idx] += w_y * H_b;
+                                lambda_f_y_grid[idx] += w_x * H_b;
+                                H_avg_grid[idx] += A_p_b * H_b;
+                                sum_weight_grid[idx] += A_p_b;
+                            }
+                        }
+
+                        if (sum_weight_grid[idx] > Real(1.0e-10)) {
+                            H_avg_grid[idx] /= sum_weight_grid[idx];
+                        } else {
+                            H_avg_grid[idx] = Real(0.0);
+                        }
+
+                        lambda_p_grid[idx] /= cell_area;
+                        lambda_f_x_grid[idx] /= cell_area;
+                        lambda_f_y_grid[idx] /= cell_area;
+                        
+                        lambda_p_grid[idx] = std::max(Real(0.0), std::min(lambda_p_grid[idx], Real(0.95)));
+                        lambda_f_x_grid[idx] = std::max(Real(0.0), std::min(lambda_f_x_grid[idx], Real(2.0)));
+                        lambda_f_y_grid[idx] = std::max(Real(0.0), std::min(lambda_f_y_grid[idx], Real(2.0)));
+                    }
+                }
+            }
+
+            Real abs_ux = std::abs(ux_hat);
+            Real abs_uy = std::abs(uy_hat);
+
+            for (std::size_t idx = 0; idx < static_cast<std::size_t>(nx) * ny; ++idx) {
+                Real lambda_f = abs_ux * lambda_f_x_grid[idx] + abs_uy * lambda_f_y_grid[idx];
+                Real H = H_avg_grid[idx];
+                Real lp = lambda_p_grid[idx];
+                
+                Real d_val = Real(0.0);
+                Real z0_val = state.z0;
+
+                if (state.morphometric_model_type == "macdonald") {
+                    MorphometricModels::compute_macdonald(H, lp, lambda_f, state.morphometric_drag_coeff, state.z0, d_val, z0_val);
+                } else if (state.morphometric_model_type == "kutzbach") {
+                    MorphometricModels::compute_kutzbach(H, lp, lambda_f, state.morphometric_drag_coeff, state.z0, d_val, z0_val);
+                } else if (state.morphometric_model_type == "bottema") {
+                    MorphometricModels::compute_bottema(H, lp, lambda_f, state.morphometric_drag_coeff, state.z0, d_val, z0_val);
+                }
+
+                morph_d_host[idx] = d_val;
+                morph_z0_host[idx] = z0_val;
+            }
+
+            g_wind_solver_runtime->morphometric_d_device.resize(morph_d_host.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, morph_d_host.begin(), morph_d_host.end(), g_wind_solver_runtime->morphometric_d_device.begin());
+
+            g_wind_solver_runtime->morphometric_z0_device.resize(morph_z0_host.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, morph_z0_host.begin(), morph_z0_host.end(), g_wind_solver_runtime->morphometric_z0_device.begin());
+        }
+
         // Setup canopy parameters
         CanopyParams canopy_params;
         canopy_params.enabled = state.enable_canopy;
@@ -840,6 +957,9 @@ void initialize_wind_field(WindSolverState& state)
         canopy_params.drag_coefficient = state.canopy_drag_coeff;
         canopy_params.attenuation_coeff = state.canopy_attenuation;
         canopy_params.use_exponential_profile = state.use_exponential_profile;
+
+        const Real* d_morph_d = enable_morph ? g_wind_solver_runtime->morphometric_d_device.data() : nullptr;
+        const Real* d_morph_z0 = enable_morph ? g_wind_solver_runtime->morphometric_z0_device.data() : nullptr;
 
         for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -852,8 +972,15 @@ void initialize_wind_field(WindSolverState& state)
                     vel(i, j, k, 1) = Real(0.0);
                     vel(i, j, k, 2) = Real(0.0);
                 } else {
-                    const Real speed = canopy_wind_profile(
-                        z_agl, canopy_params, z0, ustar, kappa);
+                    Real speed;
+                    if (enable_morph) {
+                        const Real d_local = d_morph_d[j * nx + i];
+                        const Real z0_cell = d_morph_z0[j * nx + i];
+                        speed = log_law_with_displacement(z_agl, d_local, z0_cell, ustar, kappa);
+                    } else {
+                        speed = canopy_wind_profile(
+                            z_agl, canopy_params, z0, ustar, kappa);
+                    }
                     vel(i, j, k, 0) = speed * ux_hat;
                     vel(i, j, k, 1) = speed * uy_hat;
                     vel(i, j, k, 2) = Real(0.0);
