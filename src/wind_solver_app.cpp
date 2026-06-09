@@ -3890,18 +3890,19 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
         Real damp_coeff_v = damping_coefficient_v;
         
         if (damp_coeff_h < Real(0.0)) {
-            damp_coeff_h = damping_coefficient;
+            if (damping_coefficient >= Real(0.0)) {
+                damp_coeff_h = damping_coefficient;
+            } else {
+                Real h_spacing = std::min(dx, dy);
+                damp_coeff_h = Real(0.05) * h_spacing * h_spacing;
+            }
         }
         if (damp_coeff_v < Real(0.0)) {
-            damp_coeff_v = damping_coefficient;
-        }
-
-        if (damp_coeff_h < Real(0.0)) {
-            Real h_spacing = std::min(dx, dy);
-            damp_coeff_h = Real(0.05) * h_spacing * h_spacing;
-        }
-        if (damp_coeff_v < Real(0.0)) {
-            damp_coeff_v = Real(0.05) * dz * dz;
+            if (damping_coefficient >= Real(0.0)) {
+                damp_coeff_v = damping_coefficient;
+            } else {
+                damp_coeff_v = Real(0.05) * dz * dz;
+            }
         }
         
         amrex::Print() << "  damping_coefficient_h = " << damp_coeff_h << " m^2/s\n";

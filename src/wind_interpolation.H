@@ -40,7 +40,7 @@ inline Real idw_terrain(Real xq, Real yq,
     Real wsum = 0.0, zval = 0.0;
     for (int i = 0; i < k; ++i) {
         if (d2[i].first < DISTANCE_EPSILON) return z[d2[i].second]; // exact hit
-        Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
+        Real w = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
         wsum += w;
         zval += w * z[d2[i].second];
     }
@@ -76,7 +76,7 @@ inline std::pair<Real, Real> idw_velocity(Real xq, Real yq,
         if (d2[i].first < DISTANCE_EPSILON) {
             return {ux_data[d2[i].second], uy_data[d2[i].second]}; // exact hit
         }
-        Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
+        Real w = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
         wsum += w;
         ux_val += w * ux_data[d2[i].second];
         uy_val += w * uy_data[d2[i].second];
@@ -114,7 +114,7 @@ inline std::tuple<Real, Real, Real, Real> idw_surface_data(
             int idx = d2[i].second;
             return {ustar_data[idx], z0_data[idx], u10_data[idx], v10_data[idx]};
         }
-        Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));
+        Real w = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));
         wsum += w;
         ustar_val += w * ustar_data[d2[i].second];
         z0_val += w * z0_data[d2[i].second];
@@ -151,7 +151,7 @@ inline std::pair<Real, Real> idw_alpha_coefficients(
         if (d2[i].first < DISTANCE_EPSILON) {
             return {alpha_h_data[d2[i].second], alpha_v_data[d2[i].second]}; // exact hit
         }
-        Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
+        Real w = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
         wsum += w;
         ah_val += w * alpha_h_data[d2[i].second];
         av_val += w * alpha_v_data[d2[i].second];
@@ -211,7 +211,7 @@ std::pair<Real, Real> idw_alpha_coefficients_gpu(
         if (d2_vals[i] < DISTANCE_EPSILON) {
             return {alpha_h_data[idx_vals[i]], alpha_v_data[idx_vals[i]]}; // exact hit
         }
-        Real w = std::pow(d2_vals[i], -idw_exponent / Real(2.0));  // configurable distance weight
+        Real w = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2_vals[i]) : std::pow(d2_vals[i], -idw_exponent / Real(2.0));  // configurable distance weight
         wsum += w;
         ah_val += w * alpha_h_data[idx_vals[i]];
         av_val += w * alpha_v_data[idx_vals[i]];
@@ -299,7 +299,7 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
         if (d2[i].first < DISTANCE_EPSILON) {
             return {ux_data[idx], uy_data[idx]}; // exact hit
         }
-        Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
+        Real w = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
         bool blocked = false;
         if (enable_shielding && !terrain_h.empty()) {
             blocked = is_line_of_sight_blocked(xq, yq, zq, x[idx], y[idx], z[idx], terrain_h, x_lo, y_lo, dx, dy, nx, ny);
@@ -315,7 +315,7 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
     // If all are shielded, fallback to unpenalized weights to avoid division by zero or complete signal loss
     if (enable_shielding && !any_unshielded) {
         for (int i = 0; i < k; ++i) {
-            weights[i] = std::pow(d2[i].first, -idw_exponent / Real(2.0));
+            weights[i] = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));
         }
     }
 
@@ -371,7 +371,7 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
         if (d2[i].first < DISTANCE_EPSILON) {
             return {ux_data[idx], uy_data[idx], uz_data[idx]}; // exact hit
         }
-        Real w = std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
+        Real w = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));  // configurable distance weight
         bool blocked = false;
         if (enable_shielding && !terrain_h.empty()) {
             blocked = is_line_of_sight_blocked(xq, yq, zq, x[idx], y[idx], z[idx], terrain_h, x_lo, y_lo, dx, dy, nx, ny);
@@ -387,7 +387,7 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
     // If all are shielded, fallback to unpenalized weights to avoid division by zero or complete signal loss
     if (enable_shielding && !any_unshielded) {
         for (int i = 0; i < k; ++i) {
-            weights[i] = std::pow(d2[i].first, -idw_exponent / Real(2.0));
+            weights[i] = (idw_exponent == Real(2.0)) ? (Real(1.0) / d2[i].first) : std::pow(d2[i].first, -idw_exponent / Real(2.0));
         }
     }
 

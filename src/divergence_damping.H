@@ -163,8 +163,8 @@ void estimate_damping_coefficients_anisotropic(
     amrex::Real& damping_coeff_h,
     amrex::Real& damping_coeff_v) noexcept
 {
-    amrex::Real h_spacing = std::min(dx, dy);
-    damping_coeff_h = amrex::Real(0.05) * h_spacing * h_spacing;
+    amrex::Real min_horizontal_spacing = std::min(dx, dy);
+    damping_coeff_h = amrex::Real(0.05) * min_horizontal_spacing * min_horizontal_spacing;
     damping_coeff_v = amrex::Real(0.05) * dz * dz;
 }
 
