@@ -1266,17 +1266,18 @@ void WindSolverApp::allocate_data_fields() {
     d_obstacle_h.resize(obstacle_h.size());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, obstacle_h.begin(), obstacle_h.end(), d_obstacle_h.begin());
 
-    morphometric_d.assign(static_cast<std::size_t>(nx) * ny, Real(0.0));
-    morphometric_z0.assign(static_cast<std::size_t>(nx) * ny, z0);
+    const std::size_t grid_size = static_cast<std::size_t>(nx) * ny;
+    morphometric_d.assign(grid_size, Real(0.0));
+    morphometric_z0.assign(grid_size, z0);
 
     if (enable_morphometric_models) {
         amrex::Print() << "wind_solver: computing localized morphometric parameters on the grid...\n";
         
-        std::vector<Real> lambda_p_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
-        std::vector<Real> lambda_f_x_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
-        std::vector<Real> lambda_f_y_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
-        std::vector<Real> H_avg_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
-        std::vector<Real> sum_weight_grid(static_cast<std::size_t>(nx) * ny, Real(0.0));
+        std::vector<Real> lambda_p_grid(grid_size, Real(0.0));
+        std::vector<Real> lambda_f_x_grid(grid_size, Real(0.0));
+        std::vector<Real> lambda_f_y_grid(grid_size, Real(0.0));
+        std::vector<Real> H_avg_grid(grid_size, Real(0.0));
+        std::vector<Real> sum_weight_grid(grid_size, Real(0.0));
 
         Real cell_area = dx * dy;
 
@@ -1327,6 +1328,9 @@ void WindSolverApp::allocate_data_fields() {
                     lambda_f_x_grid[idx] /= cell_area;
                     lambda_f_y_grid[idx] /= cell_area;
                     
+                    // Clamp plan area index (lambda_p) to [0, 0.95] to prevent division by zero in equations
+                    // when the canopy is completely solid, and clamp frontal area indices (lambda_f) to [0, 2.0]
+                    // to keep them within physically realistic limits for highly dense obstacle arrays.
                     lambda_p_grid[idx] = std::max(Real(0.0), std::min(lambda_p_grid[idx], Real(0.95)));
                     lambda_f_x_grid[idx] = std::max(Real(0.0), std::min(lambda_f_x_grid[idx], Real(2.0)));
                     lambda_f_y_grid[idx] = std::max(Real(0.0), std::min(lambda_f_y_grid[idx], Real(2.0)));
@@ -1341,7 +1345,7 @@ void WindSolverApp::allocate_data_fields() {
         Real abs_ux = std::abs(ux_hat);
         Real abs_uy = std::abs(uy_hat);
 
-        for (std::size_t idx = 0; idx < static_cast<std::size_t>(nx) * ny; ++idx) {
+        for (std::size_t idx = 0; idx < grid_size; ++idx) {
             Real lambda_f = abs_ux * lambda_f_x_grid[idx] + abs_uy * lambda_f_y_grid[idx];
             Real H = H_avg_grid[idx];
             Real lp = lambda_p_grid[idx];
