@@ -171,14 +171,11 @@ private:
     amrex::Real anisotropy_ri_beta = 0.5;
     amrex::Real anisotropy_fr_min = 0.1;
     amrex::Real idw_gamma = 1.0;
-<<<<<<< HEAD
     amrex::Real idw_exponent = 2.0;
-=======
     amrex::Real idw_rmax1 = -1.0;
     amrex::Real idw_rmax2 = -1.0;
     amrex::Real idw_r1 = -1.0;
     amrex::Real idw_r2 = -1.0;
->>>>>>> origin/main
 
     // Stability
     bool enable_stability_correction = false;

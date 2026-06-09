@@ -272,11 +272,8 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                              Real x_lo = 0.0, Real y_lo = 0.0,
                                              Real dx = 1.0, Real dy = 1.0,
                                              int nx = 0, int ny = 0,
-<<<<<<< HEAD
+                                             Real rmax = -1.0,
                                              Real idw_exponent = 2.0)
-=======
-                                             Real rmax = -1.0)
->>>>>>> origin/main
 {
     int n = static_cast<int>(x.size());
 
@@ -362,11 +359,8 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
                                                          Real x_lo = 0.0, Real y_lo = 0.0,
                                                          Real dx = 1.0, Real dy = 1.0,
                                                          int nx = 0, int ny = 0,
-<<<<<<< HEAD
+                                                         Real rmax = -1.0,
                                                          Real idw_exponent = 2.0)
-=======
-                                                         Real rmax = -1.0)
->>>>>>> origin/main
 {
     int n = static_cast<int>(x.size());
 

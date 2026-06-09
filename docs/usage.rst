@@ -159,11 +159,9 @@ Parameter Reference
    * - ``idw_gamma``
      - ``1.0``
      - Anisotropic vertical scaling parameter :math:`\gamma` for 3D meteorological interpolation. A value :math:`\gamma \gg 1` penalizes vertical distances to preserve atmospheric profile stratification.
-<<<<<<< HEAD
    * - ``idw_exponent``
      - ``2.0``
      - User-configurable exponent parameter for Inverse Distance Weighting (IDW) interpolation. Higher values control the smoothness and local influence of interpolated station observations.
-=======
    * - ``idw_rmax1``
      - ``-1.0``
      - CALMET-style maximum horizontal radius of influence [m] for surface layer meteorological station interpolation (value <= 0 ignores the limit).
@@ -191,7 +189,6 @@ Parameter Reference
    * - ``ekman_Km``
      - ``5.0``
      - Vertical eddy viscosity coefficient [m^2/s] for analytical Ekman spiral profile initialization.
->>>>>>> origin/main
    * - **MLMG Solver Parameters**
      -
      -

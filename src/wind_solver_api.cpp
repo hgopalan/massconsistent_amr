@@ -45,11 +45,8 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       Real x_lo = 0.0, Real y_lo = 0.0,
                                       Real dx = 1.0, Real dy = 1.0,
                                       int nx = 0, int ny = 0,
-<<<<<<< HEAD
+                                      Real rmax = -1.0,
                                       Real idw_exponent = 2.0);
-=======
-                                      Real rmax = -1.0);
->>>>>>> origin/main
 
 struct WindSolverRuntimeData {
     Gpu::DeviceVector<Real> terrain_device;
@@ -319,19 +316,12 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       Real x_lo, Real y_lo,
                                       Real dx, Real dy,
                                       int nx, int ny,
-<<<<<<< HEAD
+                                      Real rmax,
                                       Real idw_exponent)
 {
     return WindInterpolation::idw_velocity_3d(xq, yq, zq, x, y, z, ux_data, uy_data, k,
                                               gamma, enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
-                                              idw_exponent);
-=======
-                                      Real rmax)
-{
-    return WindInterpolation::idw_velocity_3d(xq, yq, zq, x, y, z, ux_data, uy_data, k,
-                                              gamma, enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
-                                              rmax);
->>>>>>> origin/main
+                                              rmax, idw_exponent);
 }
 
 void parse_inputs(WindSolverState& state, const std::string& inputs_file)
@@ -369,13 +359,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.alpha_h = 1.0;
     state.alpha_v = 1.0;
     state.idw_gamma = 1.0;
-<<<<<<< HEAD
     state.idw_exponent = 2.0;
-    pp.query("alpha_h", state.alpha_h);
-    pp.query("alpha_v", state.alpha_v);
-    pp.query("idw_gamma", state.idw_gamma);
-    pp.query("idw_exponent", state.idw_exponent);
-=======
     state.idw_rmax1 = -1.0;
     state.idw_rmax2 = -1.0;
     state.idw_r1 = -1.0;
@@ -387,6 +371,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("alpha_h", state.alpha_h);
     pp.query("alpha_v", state.alpha_v);
     pp.query("idw_gamma", state.idw_gamma);
+    pp.query("idw_exponent", state.idw_exponent);
     pp.query("idw_rmax1", state.idw_rmax1);
     pp.query("idw_rmax2", state.idw_rmax2);
     pp.query("idw_r1", state.idw_r1);
@@ -395,7 +380,6 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("ekman_ug", state.ekman_ug);
     pp.query("ekman_vg", state.ekman_vg);
     pp.query("ekman_Km", state.ekman_Km);
->>>>>>> origin/main
 
     // Cell-local spatially-varying anisotropy
     state.enable_cell_local_anisotropy = false;
@@ -1134,11 +1118,7 @@ void initialize_wind_field(WindSolverState& state)
                                               state.xmin, state.ymin,
                                               state.dx, state.dy,
                                               state.nx, state.ny,
-<<<<<<< HEAD
-                                              state.idw_exponent);
-=======
-                                              rmax);
->>>>>>> origin/main
+                                              rmax, state.idw_exponent);
                     std::size_t idx = (static_cast<std::size_t>(k) * state.ny + j) * state.nx + i;
                     
                     Real u_final = uv.first;
