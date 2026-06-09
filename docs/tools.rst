@@ -52,6 +52,28 @@ Parses Shuttle Radar Topography Mission (SRTM) 1-arcsecond HGT files and project
   * Correct coordinate projections from geographic (latitude/longitude) to local UTM meters.
   * Handles void/missing values safely.
 
+Geographic Data Fetcher (``geographic_data_fetcher.py``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Queries public web APIs (such as USGS or NASA databases) using latitude/longitude bounding boxes to automatically download and format elevation DEMs (e.g., SRTM or USGS 3DEP) and land-cover maps (e.g., USGS NLCD) into solver-compatible local flat/UTM grid coordinate formats.
+
+* **Usage**:
+
+  .. code-block:: bash
+
+     python3 tools/geographic_data_fetcher.py \
+       --lat-min 39.9 --lat-max 40.1 \
+       --lon-min -105.3 --lon-max -105.2 \
+       --nx 100 --ny 100 \
+       --dem-output terrain.csv \
+       --lc-output landuse.csv \
+       --projection flat
+
+* **Key Features**:
+  * Seamlessly fetches elevation grids from USGS 3DEP or OpenTopography SRTM endpoints.
+  * Fetches USGS NLCD land-use maps to automatically generate local surface roughness CSV outputs matching the grid spacing.
+  * Dual-projection system supporting local relative UTM meters or flat-earth projections.
+  * Advanced high-quality offline mockup/synthetic data generation when running in restricted or sandboxed environments without network access.
+
 Boundary Condition & Weather Processing
 ---------------------------------------
 
