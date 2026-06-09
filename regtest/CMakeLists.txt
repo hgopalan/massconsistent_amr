@@ -628,6 +628,8 @@ message(STATUS "  physics/holtslag_stability/    : Holtslag-De Bruin stability f
 message(STATUS "  physics/landuse_powerlaw/      : Land use-based power-law exponents")
 message(STATUS "  physics/diurnal_temperature/   : Diurnal temperature profile")
 message(STATUS "  physics/vegetation_roughness/  : Vegetation attenuation factor for roughness")
+message(STATUS "  physics/thermodynamic_lid/     : Thermodynamic diurnal mixing height growth models")
+message(STATUS "  physics/obrien_adjustment/     : O'Brien column-wise vertical velocity adjustment")
 message(STATUS "  dispersion/puff_gaussian/         : Basic Gaussian puff dispersion on uniform wind")
 message(STATUS "  dispersion/puff_terrain/          : Puff dispersion on terrain-following wind field")
 message(STATUS "  dispersion/puff_buildings/        : Puff dispersion with building wake effects")

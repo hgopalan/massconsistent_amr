@@ -397,6 +397,38 @@ are correctly computed from pressure gradients and latitude.
     ageostrophic_air_density            = 1.225
     ageostrophic_fraction               = 0.15
 
+thermodynamic_lid
+~~~~~~~~~~~~~~~~~
+
+**Location:** ``regtest/physics/thermodynamic_lid/``
+
+**Purpose:** Validates 1-D thermodynamic convective boundary layer (CBL) mixing height growth models.
+
+**Physics:** Integrates surface heat flux over time to calculate mixing height development.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_thermodynamic_lid   = true
+    heat_flux_file             = flux.csv
+    time_series_file           = time_series.csv
+
+obrien_adjustment
+~~~~~~~~~~~~~~~~~
+
+**Location:** ``regtest/physics/obrien_adjustment/``
+
+**Purpose:** Validates O'Brien column-wise vertical velocity adjustment procedure.
+
+**Physics:** Redistributes vertical velocity errors proportionally across the column.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_obrien_adjustment   = true
+
 Surface Flux Diagnostics and Refinement Features
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
