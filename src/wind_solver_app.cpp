@@ -213,8 +213,6 @@ void WindSolverApp::parse_inputs() {
     ekman_latitude = latitude;
     pp.query("ekman_latitude", ekman_latitude);
     ekman_ug = U_ref;
-    pp.query("pp.query", ekman_ug); // Wait, was it pp.query or did it default? Wait, let's look at what was there. Ah, let's copy exactly from old_str!
-    ekman_ug = U_ref;
     pp.query("ekman_ug", ekman_ug);
     ekman_vg = V_ref;
     pp.query("ekman_vg", ekman_vg);
