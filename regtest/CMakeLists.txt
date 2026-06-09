@@ -234,6 +234,11 @@ add_regression_test(canopy_spatially_varying physics/canopy_spatially_varying)
 add_regression_test(canopy_exponential physics/canopy_exponential)
 
 # ---------------------------------------------------------------------------
+# morphometric_models/ – Urban morphological parameter estimators
+# ---------------------------------------------------------------------------
+add_regression_test(morphometric_models physics/morphometric_models)
+
+# ---------------------------------------------------------------------------
 # Surface Flux Diagnostics: Drag Coefficient Diagnostic
 # ---------------------------------------------------------------------------
 
