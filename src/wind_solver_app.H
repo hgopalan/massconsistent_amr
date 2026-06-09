@@ -166,6 +166,7 @@ private:
     amrex::Real anisotropy_ri_beta = 0.5;
     amrex::Real anisotropy_fr_min = 0.1;
     amrex::Real idw_gamma = 1.0;
+    amrex::Real idw_exponent = 2.0;
 
     // Stability
     bool enable_stability_correction = false;
@@ -410,6 +411,8 @@ private:
     // Divergence damping filter
     bool enable_divergence_damping = false;
     amrex::Real damping_coefficient = -1.0;
+    amrex::Real damping_coefficient_h = -1.0;
+    amrex::Real damping_coefficient_v = -1.0;
     int damping_iterations = 1;
 
     // Perturbation pressure gradient

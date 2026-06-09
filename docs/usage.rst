@@ -159,6 +159,9 @@ Parameter Reference
    * - ``idw_gamma``
      - ``1.0``
      - Anisotropic vertical scaling parameter :math:`\gamma` for 3D meteorological interpolation. A value :math:`\gamma \gg 1` penalizes vertical distances to preserve atmospheric profile stratification.
+   * - ``idw_exponent``
+     - ``2.0``
+     - User-configurable exponent parameter for Inverse Distance Weighting (IDW) interpolation. Higher values control the smoothness and local influence of interpolated station observations.
    * - **MLMG Solver Parameters**
      -
      -
@@ -289,6 +292,7 @@ Terrain & Initialization
 * **use_height_dependent_alpha_v** (Boolean, Default: ``false``): Flag to enable linear variation of vertical anisotropy with height.
 * **alpha_v_surface**, **alpha_v_top** (Real, Default: ``alpha_v``): Vertical anisotropy weighting at ground and top boundaries.
 * **idw_gamma** (Real, Default: ``1.0``): Vertical distance penalty factor for 3D meteorological interpolation.
+* **idw_exponent** (Real, Default: ``2.0``): Exponent parameter for Inverse Distance Weighting (IDW) interpolation.
 * **synthetic_type** (String, Default: ``multi_gaussian_hill``): Model type for synthetic terrain (``gaussian_hill``, ``multi_gaussian_hill``).
 * **synthetic_xmin**, **synthetic_xmax**, **synthetic_ymin**, **synthetic_ymax** (Real, Default: ``0.0`` / ``300.0``): Bounds of the generated synthetic terrain [m].
 * **synthetic_nx**, **synthetic_ny** (Integer, Default: ``11``): Horizontal grid resolution for synthetic terrain generation.
@@ -361,6 +365,8 @@ Atmospheric Physics & Boundary Layer Dynamics
 * **heat_flux_theta_star** (Real, Default: ``0.0``): Temperature scaling parameter for heat flux diagnostic.
 * **enable_divergence_damping** (Boolean, Default: ``false``): Enable spatial divergence damping filtering.
 * **damping_coefficient** (Real, Default: ``0.1``): Divergence damping filter coefficient.
+* **damping_coefficient_h** (Real, Default: uses damping_coefficient): Horizontal divergence damping filter coefficient.
+* **damping_coefficient_v** (Real, Default: uses damping_coefficient): Vertical divergence damping filter coefficient.
 * **damping_iterations** (Integer, Default: ``5``): Number of divergence damping smoothing iterations.
 * **enable_perturbation_pressure** (Boolean, Default: ``false``): Enable full perturbation pressure equation solve.
 * **pressure_tol_rel** (Real, Default: ``1.e-6``): Relative convergence tolerance for perturbation pressure.

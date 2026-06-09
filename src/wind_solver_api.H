@@ -87,6 +87,7 @@ struct WindSolverState {
     amrex::Real alpha_h;   // Horizontal Lagrange anisotropy factor
     amrex::Real alpha_v;   // Vertical Lagrange anisotropy factor
     amrex::Real idw_gamma; // Vertical scaling parameter for 3D IDW meteorological interpolation
+    amrex::Real idw_exponent; // Exponent parameter for Inverse Distance Weighting (IDW) interpolation
     
     // Cell-local spatially-varying anisotropy parameters
     bool enable_cell_local_anisotropy;

@@ -430,6 +430,11 @@ add_regression_test(froude_scaling physics/froude_scaling)
 # ---------------------------------------------------------------------------
 add_regression_test(ageostrophic_balance physics/ageostrophic_balance)
 
+# ---------------------------------------------------------------------------
+# divergence_damping/ – Divergence damping filter
+# ---------------------------------------------------------------------------
+add_regression_test(divergence_damping physics/divergence_damping)
+
 # ===========================================================================
 # Surface Flux Diagnostics and Refinement Features
 # ===========================================================================
