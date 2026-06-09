@@ -53,7 +53,14 @@ def test_single_parameter_sweep(inputs_file, terrain_dir):
     try:
         # Construct Python path to parameter_sensitivity.py
         script_dir = os.path.dirname(os.path.abspath(inputs_file))
-        repo_root = os.path.dirname(os.path.dirname(script_dir))
+        curr = Path(script_dir)
+        repo_root = None
+        for parent in [curr] + list(curr.parents):
+            if (parent / "tools").is_dir():
+                repo_root = parent
+                break
+        if repo_root is None:
+            repo_root = curr.parent.parent.parent
         tools_dir = os.path.join(repo_root, "tools")
         param_sens_script = os.path.join(tools_dir, "parameter_sensitivity.py")
         

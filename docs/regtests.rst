@@ -33,7 +33,7 @@ Python-side file validation:
   enabled on the Gaussian hill terrain and verifies end-to-end execution.
 * ``synthetic_turbulence_full_validation`` inspects the generated BTS and
   metadata files and optionally exercises BTS-to-VTK conversion.
-* ``regtest/openfast_export_regression/test_openfast_export.py`` validates BTS
+* ``regtest/turbulence/openfast_export_regression/test_openfast_export.py`` validates BTS
   header layout, metadata consistency, and physical parameter ranges for the
   standalone export path.
 
@@ -47,7 +47,7 @@ Test Descriptions
 flat_terrain
 ^^^^^^^^^^^^
 
-**Location:** ``regtest/flat_terrain/``
+**Location:** ``regtest/terrain/flat_terrain/``
 
 **Purpose:** Verifies that the MLMG Poisson solver converges on the simplest
 possible geometry — a flat domain with all terrain elevations set to z = 0.
@@ -81,7 +81,7 @@ converges immediately and the post-correction divergence should be negligible.
 gaussian_hill
 ^^^^^^^^^^^^^
 
-**Location:** ``regtest/gaussian_hill/``
+**Location:** ``regtest/terrain/gaussian_hill/``
 
 **Purpose:** Verifies terrain-following wind initialisation and mass-consistent
 correction on a realistic hill geometry.
@@ -121,7 +121,7 @@ The test also writes a terrain-aligned CSV extract at 15 m AGL.
 gaussian_hill_weno5
 ^^^^^^^^^^^^^^^^^^^
 
-**Location:** ``regtest/gaussian_hill_weno5/``
+**Location:** ``regtest/terrain/gaussian_hill_weno5/``
 
 **Purpose:** Verifies that WENO-5 derivative computations produce consistent results
 compared to the standard central-difference method on the same terrain geometry.
@@ -162,7 +162,7 @@ produces physically consistent results.
 wake_single_building
 ^^^^^^^^^^^^^^^^^^^^
 
-**Location:** ``regtest/wake_single_building/``
+**Location:** ``regtest/wakes/wake_single_building/``
 
 **Purpose:** Verifies the Röckle (1990) building wake model for a single rectangular
 building on flat terrain.
@@ -213,7 +213,7 @@ The mass-consistency solver then adjusts the flow to ensure ∇·\ **u** = 0.
 raws_synthetic
 ^^^^^^^^^^^^^^
 
-**Location:** ``regtest/raws_synthetic/``
+**Location:** ``regtest/terrain/raws_synthetic/``
 
 **Purpose:** Validates the RAWS (Remote Automated Weather Station) initialization
 mode by reading sparse velocity observations from a CSV file and using
@@ -244,7 +244,7 @@ divergence-free flow.
 surface_data_synthetic
 ^^^^^^^^^^^^^^^^^^^^^^
 
-**Location:** ``regtest/surface_data_synthetic/``
+**Location:** ``regtest/terrain/surface_data_synthetic/``
 
 **Purpose:** Validates the ``surface_data`` initialization mode designed for
 HRRR-style inputs. Reads surface parameters (friction velocity, roughness length,
@@ -283,7 +283,7 @@ The following tests validate advanced boundary condition and wind profile featur
 diurnal_roughness
 ~~~~~~~~~~~~~~~~~
 
-**Location:** ``regtest/diurnal_roughness/``
+**Location:** ``regtest/physics/diurnal_roughness/``
 
 **Purpose:** Tests time-dependent variation of aerodynamic roughness length z₀(t) 
 following a diurnal cycle. Validates that the sinusoidal modulation is correctly 
@@ -302,7 +302,7 @@ applied to the initial log-law profiles.
 bl_decay
 ~~~~~~~~
 
-**Location:** ``regtest/bl_decay/``
+**Location:** ``regtest/physics/bl_decay/``
 
 **Purpose:** Verifies exponential wind decay above the boundary layer depth. 
 Tests that wind speed decays correctly in the region above z_BL.
@@ -321,7 +321,7 @@ Tests that wind speed decays correctly in the region above z_BL.
 momentum_flux
 ~~~~~~~~~~~~~
 
-**Location:** ``regtest/momentum_flux/``
+**Location:** ``regtest/physics/momentum_flux/``
 
 **Purpose:** Validates computation and output of momentum flux diagnostic fields 
 (τ_x, τ_y, u*). Ensures correct friction velocity and shear stress calculation 
@@ -336,7 +336,7 @@ and output in plotfile.
 richardson_diagnostic
 ~~~~~~~~~~~~~~~~~~~~~~
 
-**Location:** ``regtest/richardson_diagnostic/``
+**Location:** ``regtest/physics/richardson_diagnostic/``
 
 **Purpose:** Tests Richardson number computation and boundary layer depth diagnosis. 
 Validates that the critical Richardson number (Ri ≈ 0.25) correctly identifies 
@@ -360,7 +360,7 @@ the boundary layer top.
 froude_scaling
 ~~~~~~~~~~~~~~
 
-**Location:** ``regtest/froude_scaling/``
+**Location:** ``regtest/physics/froude_scaling/``
 
 **Purpose:** Validates height-dependent terrain blocking intensity modification through 
 Froude number scaling. Tests that blocking intensity varies realistically with height 
@@ -379,7 +379,7 @@ and wind speed.
 ageostrophic_balance
 ~~~~~~~~~~~~~~~~~~~~
 
-**Location:** ``regtest/ageostrophic_balance/``
+**Location:** ``regtest/physics/ageostrophic_balance/``
 
 **Purpose:** Tests geostrophic wind balance at domain boundaries with proper 
 Coriolis parameter computation. Validates that ageostrophic wind components 
@@ -403,7 +403,7 @@ Surface Flux Diagnostics and Refinement Features
 flux_diagnostics_feature
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Location:** ``regtest/flux_diagnostics_feature/``
+**Location:** ``regtest/physics/flux_diagnostics_feature/``
 
 **Purpose:** Verifies that surface flux diagnostic fields are computed correctly,
 including sensible heat flux (SHF), latent heat flux (LHF), momentum flux (τ), and
@@ -442,7 +442,7 @@ coefficients using the logarithmic profile at the surface layer.
 landuse_classification
 ^^^^^^^^^^^^^^^^^^^^^^
 
-**Location:** ``regtest/landuse_classification/``
+**Location:** ``regtest/physics/landuse_classification/``
 
 **Purpose:** Verifies that NLCD (National Land Cover Database)-compatible land-use
 classification correctly maps land-use categories to aerodynamic roughness lengths (z₀).
@@ -484,7 +484,7 @@ between categories.
 directional_bias_correction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Location:** ``regtest/directional_bias_correction/``
+**Location:** ``regtest/physics/directional_bias_correction/``
 
 **Purpose:** Verifies that systematic directional and speed biases from NWP model output
 are correctly applied to the initial wind field. This feature corrects common model errors
@@ -526,7 +526,7 @@ the specified rotation and speed adjustment relative to an uncorrected case.
 Adding New Tests
 ----------------
 
-1. Create a new sub-directory under ``regtest/``, e.g. ``regtest/my_test/``.
+1. Create a new sub-directory under the appropriate category under ``regtest/``, e.g. ``regtest/physics/my_test/``.
 
 2. Add a terrain file ``terrain.csv`` (X Y Z columns).
 
@@ -536,7 +536,7 @@ Adding New Tests
 
    .. code-block:: cmake
 
-       add_regression_test(my_test my_test)
+       add_regression_test(my_test physics/my_test)
 
 5. Re-run CMake to pick up the new test::
 

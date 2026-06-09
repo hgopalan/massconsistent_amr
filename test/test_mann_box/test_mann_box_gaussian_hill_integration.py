@@ -12,7 +12,7 @@ This test validates the complete workflow:
 
 Requires:
   - Built wind solver with Python bindings
-  - Gaussian Hill test case (regtest/gaussian_hill/)
+  - Gaussian Hill test case (regtest/terrain/gaussian_hill/)
 """
 
 import os
@@ -24,7 +24,7 @@ import numpy as np
 # Add paths
 TEST_DIR = Path(__file__).resolve().parent
 SRC_PYTHON_DIR = TEST_DIR.parent.parent / "src" / "python"
-REGTEST_DIR = TEST_DIR.parent.parent / "regtest" / "gaussian_hill"
+REGTEST_DIR = TEST_DIR.parent.parent / "regtest" / "terrain" / "gaussian_hill"
 sys.path.insert(0, str(SRC_PYTHON_DIR))
 
 try:
@@ -48,7 +48,7 @@ def test_gaussian_hill_with_mann_box():
     # Check regtest directory
     if not REGTEST_DIR.exists():
         print(f"ERROR: Gaussian Hill test case not found at {REGTEST_DIR}")
-        print("Expected directory structure: regtest/gaussian_hill/")
+        print("Expected directory structure: regtest/terrain/gaussian_hill/")
         return 1
     
     inputs_file = REGTEST_DIR / "inputs.i"

@@ -462,11 +462,11 @@ def main():
 Examples:
 
   # Single parameter sweep
-  %(prog)s --inputs regtest/gaussian_hill/inputs.i --param z0 \\
+  %(prog)s --inputs regtest/terrain/gaussian_hill/inputs.i --param z0 \\
            --range 0.001 0.1 --steps 10 --output sensitivity_z0.csv
 
   # Multi-parameter sweep
-  %(prog)s --inputs regtest/gaussian_hill/inputs.i \\
+  %(prog)s --inputs regtest/terrain/gaussian_hill/inputs.i \\
            --multi-param z0 alpha_v \\
            --ranges 0.001 0.1 0.5 2.0 \\
            --steps 5 5 \\
