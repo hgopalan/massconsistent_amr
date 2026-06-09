@@ -101,8 +101,24 @@ def utm_project(lat: float, lon: float, lat_ref: float, lon_ref: float) -> Tuple
     if not PYPROJ_AVAILABLE:
         return flat_earth_project(lat, lon, lat_ref, lon_ref)
 
-    # Determine UTM zone
-    zone = int((lon_ref + 180) / 6) + 1
+    # Determine UTM zone with Norway / Svalbard exceptions
+    zone = int((lon_ref + 180.0) / 6.0) + 1
+    # Limit to valid 1-60 zone range
+    zone = max(1, min(60, zone))
+    
+    # Special exceptions for Norway and Svalbard
+    if 56.0 <= lat_ref < 64.0 and 3.0 <= lon_ref < 12.0:
+        zone = 32
+    elif 72.0 <= lat_ref < 84.0:
+        if 0.0 <= lon_ref < 9.0:
+            zone = 31
+        elif 9.0 <= lon_ref < 21.0:
+            zone = 33
+        elif 21.0 <= lon_ref < 33.0:
+            zone = 35
+        elif 33.0 <= lon_ref < 42.0:
+            zone = 37
+            
     hemisphere = 'north' if lat_ref >= 0 else 'south'
     
     try:
@@ -254,11 +270,22 @@ def process_tiff_data(tiff_bytes: bytes, nx: int, ny: int, is_dem: bool) -> np.n
                           else rasterio.enums.Resampling.nearest)
         
         with rasterio.open(temp_path) as src:
+            # Check Y-axis resolution step in geotransform to validate spatial orientation.
+            # Usually transform.e is negative, meaning row 0 represents the northern-most latitude.
+            transform = src.transform
+            y_scale = transform.e if transform else -1.0
+            
             data = src.read(
                 1,
                 out_shape=(ny, nx),
                 resampling=resampling_alg
             )
+            
+            # If y_scale is positive, row 0 represents the southern-most latitude (South at top).
+            # Flip the array vertically so row 0 is always North (lat_max) to match the caller's assumption.
+            if y_scale > 0:
+                data = np.flipud(data)
+                
             return data.astype(np.float32)
     finally:
         if os.path.exists(temp_path):
