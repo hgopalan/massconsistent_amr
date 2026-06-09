@@ -276,7 +276,7 @@ def process_tiff_data(tiff_bytes: bytes, nx: int, ny: int, is_dem: bool) -> np.n
             if not transform:
                 raise ValueError("Raster geotransform is missing, cannot determine spatial orientation.")
                 
-            vertical_pixel_size = transform.e
+            y_resolution = transform.e
             
             data = src.read(
                 1,
@@ -284,9 +284,9 @@ def process_tiff_data(tiff_bytes: bytes, nx: int, ny: int, is_dem: bool) -> np.n
                 resampling=resampling_alg
             )
             
-            # If vertical_pixel_size is positive, row 0 represents the southern-most latitude (South at top).
+            # If y_resolution is positive, row 0 represents the southern-most latitude (South at top).
             # Flip the array vertically so row 0 is always North (lat_max) to match the caller's assumption.
-            if vertical_pixel_size > 0:
+            if y_resolution > 0:
                 data = np.flipud(data)
                 
             return data.astype(np.float32)
