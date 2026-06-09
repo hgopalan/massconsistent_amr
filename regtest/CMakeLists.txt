@@ -82,6 +82,11 @@ add_regression_test(gaussian_hill_weno5 terrain/gaussian_hill_weno5)
 add_regression_test(raws_synthetic terrain/raws_synthetic)
 
 # ===========================================================================
+# calmet_idw/ – CALMET-style IDW interpolation features test
+# ===========================================================================
+add_regression_test(calmet_idw terrain/calmet_idw)
+
+# ===========================================================================
 # topographic_shielding/ – central ridge with topographic barrier shielding
 # ===========================================================================
 add_regression_test(topographic_shielding terrain/topographic_shielding)
@@ -265,6 +270,11 @@ add_regression_test(stability_unstable physics/stability_unstable)
 # ekman_veer/ – Ekman spiral wind veer correction
 # ---------------------------------------------------------------------------
 add_regression_test(ekman_veer physics/ekman_veer)
+
+# ---------------------------------------------------------------------------
+# ekman_spiral/ – Analytical Ekman spiral profile initialization
+# ---------------------------------------------------------------------------
+add_regression_test(ekman_spiral physics/ekman_spiral)
 
 # ---------------------------------------------------------------------------
 # Anisotropy and Refinement: Height-Dependent Anisotropy

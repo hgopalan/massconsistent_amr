@@ -44,7 +44,8 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       const std::vector<Real>& terrain_h = {},
                                       Real x_lo = 0.0, Real y_lo = 0.0,
                                       Real dx = 1.0, Real dy = 1.0,
-                                      int nx = 0, int ny = 0);
+                                      int nx = 0, int ny = 0,
+                                      Real rmax = -1.0);
 
 struct WindSolverRuntimeData {
     Gpu::DeviceVector<Real> terrain_device;
@@ -311,10 +312,12 @@ std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
                                       const std::vector<Real>& terrain_h,
                                       Real x_lo, Real y_lo,
                                       Real dx, Real dy,
-                                      int nx, int ny)
+                                      int nx, int ny,
+                                      Real rmax)
 {
     return WindInterpolation::idw_velocity_3d(xq, yq, zq, x, y, z, ux_data, uy_data, k,
-                                              gamma, enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny);
+                                              gamma, enable_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
+                                              rmax);
 }
 
 void parse_inputs(WindSolverState& state, const std::string& inputs_file)
@@ -352,9 +355,25 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.alpha_h = 1.0;
     state.alpha_v = 1.0;
     state.idw_gamma = 1.0;
+    state.idw_rmax1 = -1.0;
+    state.idw_rmax2 = -1.0;
+    state.idw_r1 = -1.0;
+    state.idw_r2 = -1.0;
+    state.ekman_latitude = 45.0;
+    state.ekman_ug = 10.0;
+    state.ekman_vg = 0.0;
+    state.ekman_Km = 5.0;
     pp.query("alpha_h", state.alpha_h);
     pp.query("alpha_v", state.alpha_v);
     pp.query("idw_gamma", state.idw_gamma);
+    pp.query("idw_rmax1", state.idw_rmax1);
+    pp.query("idw_rmax2", state.idw_rmax2);
+    pp.query("idw_r1", state.idw_r1);
+    pp.query("idw_r2", state.idw_r2);
+    pp.query("ekman_latitude", state.ekman_latitude);
+    pp.query("ekman_ug", state.ekman_ug);
+    pp.query("ekman_vg", state.ekman_vg);
+    pp.query("ekman_Km", state.ekman_Km);
 
     // Cell-local spatially-varying anisotropy
     state.enable_cell_local_anisotropy = false;
@@ -399,7 +418,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.init_mode = "loglaw";
     pp.query("init_mode", state.init_mode);
-    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data") {
+    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral") {
         throw std::runtime_error("invalid init_mode: " + state.init_mode);
     }
 
@@ -991,6 +1010,47 @@ void initialize_wind_field(WindSolverState& state)
                 }
             });
         }
+    } else if (state.init_mode == "ekman_spiral") {
+        const Real lat = state.ekman_latitude;
+        const Real Ug = state.ekman_ug;
+        const Real Vg = state.ekman_vg;
+        const Real Km = state.ekman_Km;
+        const Real pi_val = MathConstants::pi;
+        const Real omega = 7.27e-5;
+        const Real f_coriolis = 2.0 * omega * std::sin(lat * pi_val / 180.0);
+        const Real abs_f = std::abs(f_coriolis);
+        const Real a_ekman = (abs_f > 1.0e-8) ? std::sqrt(abs_f / (2.0 * Km)) : 0.0;
+
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    if (abs_f > Real(1.0e-8)) {
+                        Real exp_term = std::exp(-a_ekman * z_agl);
+                        Real cos_term = std::cos(a_ekman * z_agl);
+                        Real sin_term = std::sin(a_ekman * z_agl);
+                        if (f_coriolis >= Real(0.0)) {
+                            vel(i, j, k, 0) = Ug * (Real(1.0) - exp_term * cos_term) - Vg * exp_term * sin_term;
+                            vel(i, j, k, 1) = Vg * (Real(1.0) - exp_term * cos_term) + Ug * exp_term * sin_term;
+                        } else {
+                            vel(i, j, k, 0) = Ug * (Real(1.0) - exp_term * cos_term) + Vg * exp_term * sin_term;
+                            vel(i, j, k, 1) = Vg * (Real(1.0) - exp_term * cos_term) - Ug * exp_term * sin_term;
+                        }
+                    } else {
+                        vel(i, j, k, 0) = Ug;
+                        vel(i, j, k, 1) = Vg;
+                    }
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
     } else if (state.init_mode == "uniform") {
         const Real u_uniform = state.uniform_U;
         const Real v_uniform = state.uniform_V;
@@ -1023,20 +1083,64 @@ void initialize_wind_field(WindSolverState& state)
         std::vector<Real> vel_v_host(static_cast<std::size_t>(state.nx) * state.ny * state.nz);
         for (int k = 0; k < state.nz; ++k) {
             const Real zc = z_lo + (k + Real(0.5)) * dz;
+            const Real rmax = (k == 0) ? state.idw_rmax1 : state.idw_rmax2;
+            const Real R_param = (k == 0) ? state.idw_r1 : state.idw_r2;
             for (int j = 0; j < state.ny; ++j) {
                 const Real yc = state.ymin + (j + Real(0.5)) * state.dy;
                 for (int i = 0; i < state.nx; ++i) {
                     const Real xc = state.xmin + (i + Real(0.5)) * state.dx;
+                    Real d_min = std::numeric_limits<Real>::max();
+                    bool any_station_within_rmax = false;
+                    for (std::size_t s = 0; s < x_vel.size(); ++s) {
+                        Real dx_s = x_vel[s] - xc;
+                        Real dy_s = y_vel[s] - yc;
+                        Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
+                        if (rmax <= Real(0.0) || dist <= rmax) {
+                            any_station_within_rmax = true;
+                            if (dist < d_min) {
+                                d_min = dist;
+                            }
+                        }
+                    }
+
                     auto uv = idw_velocity_3d(xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel, 6,
                                               state.idw_gamma,
                                               state.enable_topographic_shielding,
                                               g_wind_solver_runtime->terrain_host,
                                               state.xmin, state.ymin,
                                               state.dx, state.dy,
-                                              state.nx, state.ny);
+                                              state.nx, state.ny,
+                                              rmax);
                     std::size_t idx = (static_cast<std::size_t>(k) * state.ny + j) * state.nx + i;
-                    vel_u_host[idx] = uv.first;
-                    vel_v_host[idx] = uv.second;
+                    
+                    Real u_final = uv.first;
+                    Real v_final = uv.second;
+
+                    if (R_param > Real(0.0)) {
+                        Real speed_ref = std::sqrt(state.U_ref * state.U_ref + state.V_ref * state.V_ref);
+                        Real u_bg = 0.0, v_bg = 0.0;
+                        if (speed_ref > Real(1.0e-10)) {
+                            Real z_agl = zc - g_wind_solver_runtime->terrain_host[j * state.nx + i];
+                            if (z_agl > Real(0.0)) {
+                                Real ustar_bg = speed_ref * 0.41 / std::log((state.z_ref + state.z0) / state.z0);
+                                Real speed_bg = (ustar_bg / 0.41) * std::log((z_agl + state.z0) / state.z0);
+                                u_bg = speed_bg * state.U_ref / speed_ref;
+                                v_bg = speed_bg * state.V_ref / speed_ref;
+                            }
+                        }
+
+                        if (!any_station_within_rmax) {
+                            u_final = u_bg;
+                            v_final = v_bg;
+                        } else {
+                            Real weight_bg = (d_min / R_param) * (d_min / R_param);
+                            u_final = (uv.first + weight_bg * u_bg) / (Real(1.0) + weight_bg);
+                            v_final = (uv.second + weight_bg * v_bg) / (Real(1.0) + weight_bg);
+                        }
+                    }
+                    
+                    vel_u_host[idx] = u_final;
+                    vel_v_host[idx] = v_final;
                 }
             }
         }
