@@ -19,7 +19,10 @@ import argparse
 import math
 import numpy as np
 
-# Try importing parsing packages
+# Named Constants for Meteorology
+VON_KARMAN = 0.41
+DEFAULT_Z0 = 0.1
+
 try:
     import xarray as xr
     XARRAY_AVAILABLE = True
@@ -244,14 +247,14 @@ def fetch_or_parse_nam(args, x_target, y_target):
             ustar = ds['FRICV_surface'].values
         else:
             speed_10m = np.sqrt(u10**2 + v10**2)
-            ustar = 0.41 * speed_10m / np.log((10.0 + 0.1) / 0.1)
+            ustar = VON_KARMAN * speed_10m / np.log((10.0 + DEFAULT_Z0) / DEFAULT_Z0)
             
         if 'sfcr' in ds:
             z0 = ds['sfcr'].values
         elif 'SFCR_surface' in ds:
             z0 = ds['SFCR_surface'].values
         else:
-            z0 = 0.1 * np.ones_like(x_src)
+            z0 = DEFAULT_Z0 * np.ones_like(x_src)
             
         # Extract 3D fields
         # Note: isobaricInhPa or sigma layers could be present
@@ -364,7 +367,7 @@ def main():
     terrain_pts = read_terrain_csv(terrain_path)
     if terrain_pts is None:
         print(f"ERROR: Could not read terrain file at {terrain_path}")
-        return 1
+        sys.exit(1)
         
     x_terr = terrain_pts[:, 0]
     y_terr = terrain_pts[:, 1]

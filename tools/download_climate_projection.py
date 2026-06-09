@@ -159,8 +159,6 @@ def main():
                 },
                 'climate_download.zip'
             )
-            # In sandbox environments, this block will fail or hit timeout, fallback is invoked:
-            raise RuntimeError("API authentication config not found.")
         except Exception as e:
             print(f"WARNING: CDS API download failed or unavailable ({e}). Reverting to offline high-fidelity generator.")
             directions, speeds, joint_probs = generate_synthetic_projection(args)
