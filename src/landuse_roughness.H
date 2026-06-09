@@ -54,6 +54,17 @@ enum class LandUseCategory : int {
 };
 
 // ============================================================================
+// Compute overwater wave-induced roughness dynamically using Charnock's relationship
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_charnock_roughness(amrex::Real charnock_alpha, amrex::Real ustar) noexcept
+{
+    const amrex::Real g = amrex::Real(9.81);
+    const amrex::Real nu = amrex::Real(1.5e-5);
+    return charnock_alpha * ustar * ustar / g + amrex::Real(0.11) * nu / std::max(ustar, amrex::Real(1.0e-5));
+}
+
+// ============================================================================
 // Get representative aerodynamic roughness for a land-use category
 //
 // Returns the midpoint z0 value for the given land-use category.

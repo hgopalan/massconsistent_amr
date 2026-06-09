@@ -519,6 +519,8 @@ add_regression_test(power_law_profile_bl power_law_profile_bl)
 add_regression_test(deaves_harris deaves_harris)
 add_regression_test(capping_lid capping_lid)
 add_regression_test(multi_gaussian_hill multi_gaussian_hill)
+add_regression_test(charnock_overwater charnock_overwater)
+add_regression_test(precipitation_stability precipitation_stability)
 
 # ===========================================================================
 # High-Yield Parameterizations (Surface Roughness, Coriolis, Windbreaks)

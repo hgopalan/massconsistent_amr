@@ -444,7 +444,17 @@ void WindSolverApp::parse_inputs() {
     
     // Land-use Roughness Classification
     pp.query("enable_landuse_roughness", enable_landuse_roughness);
+    bool enable_landuse_classification = false;
+    pp.query("enable_landuse_classification", enable_landuse_classification);
+    if (enable_landuse_classification) {
+        enable_landuse_roughness = true;
+    }
     pp.query("landuse_file", landuse_file_class);
+    pp.query("charnock_alpha", charnock_alpha);
+
+    // Precipitation Parameters
+    pp.query("precipitation_file", precipitation_file);
+    pp.query("precipitation_stability_threshold", precipitation_stability_threshold);
     
     // Directional Bias Correction
     pp.query("enable_directional_bias", enable_directional_bias);
@@ -1023,6 +1033,18 @@ void WindSolverApp::setup_geometry_and_mesh() {
         }
     }
 
+    if (!precipitation_file.empty()) {
+        std::ifstream check_file(precipitation_file);
+        if (check_file.good()) {
+            WindIO::read_precipitation_file(precipitation_file,
+                                            precipitation_times,
+                                            precipitation_rates);
+        } else {
+            amrex::Print() << "wind_solver: WARNING - precipitation file specified but not found: "
+                           << precipitation_file << "\n";
+        }
+    }
+
     amrex::Print() << "wind_solver: terrain reading time = " 
                    << (amrex::second() - t_phase) << " s\n";
 
@@ -1307,6 +1329,57 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         amrex::Print() << "\nwind_solver: TIME STEP " << (time_step + 1) << " / " 
                      << num_time_steps << "\n";
     }
+
+    current_precipitation_rate = 0.0;
+    if (!precipitation_times.empty()) {
+        Real current_time = enable_time_varying ? time_series_times[time_step] : Real(0.0);
+        if (precipitation_times.size() == 1) {
+            current_precipitation_rate = precipitation_rates[0];
+        } else if (current_time <= precipitation_times.front()) {
+            current_precipitation_rate = precipitation_rates.front();
+        } else if (current_time >= precipitation_times.back()) {
+            current_precipitation_rate = precipitation_rates.back();
+        } else {
+            for (std::size_t m = 0; m < precipitation_times.size() - 1; ++m) {
+                if (current_time >= precipitation_times[m] && current_time <= precipitation_times[m+1]) {
+                    Real t0 = precipitation_times[m];
+                    Real t1 = precipitation_times[m+1];
+                    Real r0 = precipitation_rates[m];
+                    Real r1 = precipitation_rates[m+1];
+                    Real factor = (current_time - t0) / (t1 - t0);
+                    current_precipitation_rate = r0 + factor * (r1 - r0);
+                    break;
+                }
+            }
+        }
+        amrex::Print() << "wind_solver: current precipitation rate = " << current_precipitation_rate << " mm/h\n";
+    }
+
+    if (enable_pg_stability) {
+        Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+        PGStabilityClass pg_class = pasquill_gifford_class(speed_ref, solar_radiation, is_nighttime, cloud_cover);
+        
+        if (current_precipitation_rate > precipitation_stability_threshold) {
+            if (pg_class == PGStabilityClass::A || pg_class == PGStabilityClass::B || pg_class == PGStabilityClass::C) {
+                pg_class = PGStabilityClass::D; // Force Neutral
+                amrex::Print() << "wind_solver: Precipitation rate exceeds threshold. Adjusting unstable PGT stability class to Neutral (D).\n";
+            }
+        }
+        stability_length = pg_class_to_obukhov_length(pg_class);
+        enable_stability_correction = true;
+    } else if (enable_stability_correction) {
+        if (stability_length < 0.0 && current_precipitation_rate > precipitation_stability_threshold) {
+            stability_length = 10000.0; // Force Neutral
+            amrex::Print() << "wind_solver: Precipitation rate exceeds threshold. Adjusting unstable Obukhov length to Neutral (10000.0 m).\n";
+        }
+    }
+    
+    if (wall_function_enable_stability) {
+        if (wall_function_stability_length < 0.0 && current_precipitation_rate > precipitation_stability_threshold) {
+            wall_function_stability_length = 10000.0; // Force Neutral
+            amrex::Print() << "wind_solver: Precipitation rate exceeds threshold. Adjusting unstable wall function Obukhov length to Neutral (10000.0 m).\n";
+        }
+    }
     
     vel0_ptr->setVal(0.0);
     lam_ptr->setVal(0.0);
@@ -1316,46 +1389,106 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
     amrex::Print() << "wind_solver: initializing wind field with mode: " << init_mode << "\n";
 
     std::vector<Real> z0_h(static_cast<std::size_t>(nx) * ny, z0);
+    std::vector<Real> landuse_h(static_cast<std::size_t>(nx) * ny, -1.0);
     const Real* d_z0_pos_ptr = nullptr;
+    const Real* d_landuse_pos_ptr = nullptr;
     
-    if (init_mode == "loglaw" && use_z0_file) {
-        amrex::Print() << "wind_solver: reading position-dependent roughness from " << z0_file << "\n";
-        std::vector<Real> x_z0, y_z0, z0_data;
-        WindIO::read_roughness_file(z0_file, x_z0, y_z0, z0_data);
-        
-        for (int j = 0; j < ny; ++j) {
-            for (int i = 0; i < nx; ++i) {
-                Real xc = x_lo + (i + Real(0.5)) * dx;
-                Real yc = y_lo + (j + Real(0.5)) * dy;
-                
-                Real z0_interp = z0;
-                Real wsum = 0.0;
-                Real z0_sum = 0.0;
-                std::vector<std::pair<Real, int>> d2(x_z0.size());
-                for (std::size_t m = 0; m < x_z0.size(); ++m) {
-                    Real dx_pt = xc - x_z0[m];
-                    Real dy_pt = yc - y_z0[m];
-                    d2[m] = {dx_pt * dx_pt + dy_pt * dy_pt, static_cast<int>(m)};
-                }
-                std::sort(d2.begin(), d2.end());
-                
-                const int n_pts = std::min(6, static_cast<int>(d2.size()));
-                for (int m = 0; m < n_pts; ++m) {
-                    Real dist = std::sqrt(d2[m].first);
-                    if (dist < Real(1.0e-12)) {
-                        z0_interp = z0_data[d2[m].second];
-                        wsum = 1.0;
-                        break;
+    if (init_mode == "loglaw" && (use_z0_file || enable_landuse_roughness)) {
+        if (enable_landuse_roughness) {
+            std::string lu_file = landuse_file_class.empty() ? landuse_file : landuse_file_class;
+            if (lu_file.empty()) {
+                amrex::Abort("wind_solver: enable_landuse_roughness is true but no landuse_file is specified!");
+            }
+            amrex::Print() << "wind_solver: reading landuse classification for roughness from " << lu_file << "\n";
+            std::vector<Real> x_lu, y_lu, landuse_data;
+            WindIO::read_roughness_file(lu_file, x_lu, y_lu, landuse_data);
+            
+            for (int j = 0; j < ny; ++j) {
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + Real(0.5)) * dx;
+                    Real yc = y_lo + (j + Real(0.5)) * dy;
+                    
+                    Real landuse_interp = -1.0;
+                    Real wsum = 0.0;
+                    Real lu_sum = 0.0;
+                    std::vector<std::pair<Real, int>> d2(x_lu.size());
+                    for (std::size_t m = 0; m < x_lu.size(); ++m) {
+                        Real dx_pt = xc - x_lu[m];
+                        Real dy_pt = yc - y_lu[m];
+                        d2[m] = {dx_pt * dx_pt + dy_pt * dy_pt, static_cast<int>(m)};
                     }
-                    Real w = Real(1.0) / (dist * dist);
-                    wsum += w;
-                    z0_sum += w * z0_data[d2[m].second];
+                    std::sort(d2.begin(), d2.end());
+                    
+                    const int n_pts = std::min(6, static_cast<int>(d2.size()));
+                    for (int m = 0; m < n_pts; ++m) {
+                        Real dist = std::sqrt(d2[m].first);
+                        if (dist < Real(1.0e-12)) {
+                            landuse_interp = landuse_data[d2[m].second];
+                            wsum = 1.0;
+                            break;
+                        }
+                        Real w = Real(1.0) / (dist * dist);
+                        wsum += w;
+                        lu_sum += w * landuse_data[d2[m].second];
+                    }
+                    if (wsum > Real(0.0)) {
+                        landuse_interp = lu_sum / wsum;
+                    }
+                    
+                    int lu_type = static_cast<int>(std::round(landuse_interp));
+                    landuse_h[static_cast<std::size_t>(j) * nx + i] = Real(lu_type);
+                    
+                    Real z0_val = get_z0_from_landuse(lu_type);
+                    z0_h[static_cast<std::size_t>(j) * nx + i] = z0_val;
                 }
-                if (wsum > Real(0.0)) {
-                    z0_interp = z0_sum / wsum;
+            }
+            
+            d_landuse_pos.resize(landuse_h.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, landuse_h.begin(), landuse_h.end(), d_landuse_pos.begin());
+            d_landuse_pos_ptr = d_landuse_pos.data();
+            
+            use_z0_file = true; // treat as having spatially varying roughness
+        }
+        
+        if (use_z0_file && !enable_landuse_roughness) {
+            amrex::Print() << "wind_solver: reading position-dependent roughness from " << z0_file << "\n";
+            std::vector<Real> x_z0, y_z0, z0_data;
+            WindIO::read_roughness_file(z0_file, x_z0, y_z0, z0_data);
+            
+            for (int j = 0; j < ny; ++j) {
+                for (int i = 0; i < nx; ++i) {
+                    Real xc = x_lo + (i + Real(0.5)) * dx;
+                    Real yc = y_lo + (j + Real(0.5)) * dy;
+                    
+                    Real z0_interp = z0;
+                    Real wsum = 0.0;
+                    Real z0_sum = 0.0;
+                    std::vector<std::pair<Real, int>> d2(x_z0.size());
+                    for (std::size_t m = 0; m < x_z0.size(); ++m) {
+                        Real dx_pt = xc - x_z0[m];
+                        Real dy_pt = yc - y_z0[m];
+                        d2[m] = {dx_pt * dx_pt + dy_pt * dy_pt, static_cast<int>(m)};
+                    }
+                    std::sort(d2.begin(), d2.end());
+                    
+                    const int n_pts = std::min(6, static_cast<int>(d2.size()));
+                    for (int m = 0; m < n_pts; ++m) {
+                        Real dist = std::sqrt(d2[m].first);
+                        if (dist < Real(1.0e-12)) {
+                            z0_interp = z0_data[d2[m].second];
+                            wsum = 1.0;
+                            break;
+                        }
+                        Real w = Real(1.0) / (dist * dist);
+                        wsum += w;
+                        z0_sum += w * z0_data[d2[m].second];
+                    }
+                    if (wsum > Real(0.0)) {
+                        z0_interp = z0_sum / wsum;
+                    }
+                    
+                    z0_h[static_cast<std::size_t>(j) * nx + i] = z0_interp;
                 }
-                
-                z0_h[static_cast<std::size_t>(j) * nx + i] = z0_interp;
             }
         }
         
@@ -1813,9 +1946,14 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         const Real cap_dy = dy;
         const Real cap_y_center = y_lo + Real(0.5) * (y_hi - y_lo);
 
+        const bool enable_landuse_roughness_val = enable_landuse_roughness;
+        const Real* d_landuse_pos_ptr_val = d_landuse_pos_ptr;
+        const Real charnock_alpha_val = charnock_alpha;
+
         for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = vel0_ptr->array(mfi);
+            auto adap_rough = adaptive_roughness_ptr->array(mfi);
 
             amrex::ParallelFor(bx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -1849,6 +1987,24 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         ustar_local = (log_term > Real(1.0e-10)) 
                             ? kappa_cap * speed_ref_local / log_term : Real(0.0);
                     }
+
+                    if (enable_landuse_roughness_val && d_landuse_pos_ptr_val) {
+                        int lu_type = static_cast<int>(std::round(d_landuse_pos_ptr_val[j * nx_cap + i]));
+                        if (lu_type == static_cast<int>(LandUseCategory::WATER)) {
+                            Real z0_water = compute_charnock_roughness(charnock_alpha_val, ustar_local);
+                            z0_local = z0_water;
+                            if (use_pos_z0 && z0_local > Real(1.0e-10)) {
+                                Real speed_ref_denom = std::log((z_ref_cap + z0_cap) / z0_cap);
+                                Real speed_ref_local = (speed_ref_denom > Real(1.0e-10)) 
+                                    ? ustar_cap * speed_ref_denom / kappa_cap : Real(0.0);
+                                Real log_term = std::log((z_ref_cap + z0_local) / z0_local);
+                                ustar_local = (log_term > Real(1.0e-10)) 
+                                    ? kappa_cap * speed_ref_local / log_term : Real(0.0);
+                            }
+                        }
+                    }
+
+                    adap_rough(i, j, k) = z0_local;
                     
                     if (use_elev_scaling && elev_height_scale > Real(1.0e-10)) {
                         Real scale = elevation_wind_scaling(Real(1.0), terrain_elev, 
@@ -1920,6 +2076,24 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         ustar_local = (log_term > Real(1.0e-10)) 
                             ? kappa_cap * speed_ref_local / log_term : Real(0.0);
                     }
+
+                    if (enable_landuse_roughness_val && d_landuse_pos_ptr_val) {
+                        int lu_type = static_cast<int>(std::round(d_landuse_pos_ptr_val[j * nx_cap + i]));
+                        if (lu_type == static_cast<int>(LandUseCategory::WATER)) {
+                            Real z0_water = compute_charnock_roughness(charnock_alpha_val, ustar_local);
+                            z0_local = z0_water;
+                            if (use_pos_z0 && z0_local > Real(1.0e-10)) {
+                                Real speed_ref_denom = std::log((z_ref_cap + z0_cap) / z0_cap);
+                                Real speed_ref_local = (speed_ref_denom > Real(1.0e-10)) 
+                                    ? ustar_cap * speed_ref_denom / kappa_cap : Real(0.0);
+                                Real log_term = std::log((z_ref_cap + z0_local) / z0_local);
+                                ustar_local = (log_term > Real(1.0e-10)) 
+                                    ? kappa_cap * speed_ref_local / log_term : Real(0.0);
+                            }
+                        }
+                    }
+
+                    adap_rough(i, j, k) = z0_local;
                     
                     if (use_elev_scaling && elev_height_scale > Real(1.0e-10)) {
                         Real scale = elevation_wind_scaling(Real(1.0), terrain_elev, 
@@ -4188,6 +4362,10 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const Real cap_bl_depth_param = bl_depth_param;
     const Real richardson_critical = this->richardson_critical;
 
+    const bool enable_landuse_roughness_val = enable_landuse_roughness;
+    const Real* d_landuse_pos_ptr_diag = d_landuse_pos.data();
+    const Real charnock_alpha_val = charnock_alpha;
+
     for (MFIter mfi(output); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         const int k_lo_box = bx.smallEnd(2);
@@ -4236,13 +4414,30 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             Real tau_x = Real(0.0);
             Real tau_y = Real(0.0);
             
+            Real z0_local = use_pos_z0 ? d_z0_pos_ptr_diag[j * nx_cap_out + i] : z0_cap;
+
             if (z_agl > Real(0.0) && u_mag > Real(1.0e-6)) {
-                Real z0_local = use_pos_z0 ? d_z0_pos_ptr_diag[j * nx_cap_out + i] : z0_cap;
                 z0_local = std::max(z0_local, Real(1.0e-6));
                 
                 Real log_term = std::log((z_agl + z0_local) / z0_local);
                 if (log_term > Real(0.1)) {
                     ustar_local = kappa_diag * u_mag / log_term;
+                }
+                
+                if (enable_landuse_roughness_val && d_landuse_pos_ptr_diag) {
+                    int lu_type = static_cast<int>(std::round(d_landuse_pos_ptr_diag[j * nx_cap_out + i]));
+                    if (lu_type == static_cast<int>(LandUseCategory::WATER)) {
+                        Real z0_water = compute_charnock_roughness(charnock_alpha_val, ustar_local);
+                        z0_local = z0_water;
+                        z0_local = std::max(z0_local, Real(1.0e-6));
+                        log_term = std::log((z_agl + z0_local) / z0_local);
+                        if (log_term > Real(0.1)) {
+                            ustar_local = kappa_diag * u_mag / log_term;
+                        }
+                    }
+                }
+                
+                if (log_term > Real(0.1)) {
                     heat_flux = rho_air * cp_air * ustar_local * theta_star;
                     Cd = (kappa_diag / log_term) * (kappa_diag / log_term);
                     
@@ -4316,7 +4511,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             
             out(i,j,k,18) = cap_enable_terrain_analysis ? Real(ttype_arr(i,j,k)) : Real(0.0);
             out(i,j,k,19) = cap_enable_terrain_analysis ? tslope_arr(i,j,k) : Real(0.0);
-            out(i,j,k,20) = cap_enable_terrain_analysis ? adap_rough_arr(i,j,k) : z0_cap;
+            out(i,j,k,20) = cap_enable_terrain_analysis ? adap_rough_arr(i,j,k) : z0_local;
             
             if (cap_has_turb) {
                 Real u_openfast = u + turb_fluc(i,j,k,0);

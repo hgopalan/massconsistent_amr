@@ -457,6 +457,36 @@ void read_time_series_file(const std::string& filename,
                    << " time points from " << filename << "\n";
 }
 
+// Read precipitation file: time precip_rate (whitespace or comma separated; '#' comments)
+void read_precipitation_file(const std::string& filename,
+                             std::vector<Real>& times,
+                             std::vector<Real>& rates)
+{
+    std::ifstream f(filename);
+    if (!f.is_open())
+        amrex::Abort("wind_solver: cannot open precipitation file: " + filename);
+
+    std::string line;
+    while (std::getline(f, line)) {
+        // strip comments
+        auto pos = line.find('#');
+        if (pos != std::string::npos) line = line.substr(0, pos);
+        // replace commas with spaces
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::istringstream ss(line);
+        Real t, rate;
+        if (ss >> t >> rate) {
+            times.push_back(t);
+            rates.push_back(rate);
+        }
+    }
+    if (times.empty())
+        amrex::Abort("wind_solver: no data read from precipitation file: " + filename);
+
+    amrex::Print() << "wind_solver: read " << times.size()
+                   << " precipitation data points from " << filename << "\n";
+}
+
 // Read multi-point vertical profile CSV files of speed/direction.
 // Format: X, Y, Z, Speed, Direction (degrees)
 void read_vertical_profile_csv(const std::string& filename,

@@ -368,6 +368,14 @@ private:
     // Landuse classification
     bool enable_landuse_roughness = false;
     std::string landuse_file_class = "";
+    amrex::Real charnock_alpha = 0.011;
+
+    // Precipitation
+    std::string precipitation_file = "";
+    std::vector<amrex::Real> precipitation_times;
+    std::vector<amrex::Real> precipitation_rates;
+    amrex::Real current_precipitation_rate = 0.0;
+    amrex::Real precipitation_stability_threshold = 1.0;
 
     // Directional bias
     bool enable_directional_bias = false;
@@ -525,6 +533,7 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_terrain_h;
     amrex::Gpu::DeviceVector<amrex::Real> d_obstacle_h;
     amrex::Gpu::DeviceVector<amrex::Real> d_z0_pos;
+    amrex::Gpu::DeviceVector<amrex::Real> d_landuse_pos;
     amrex::Gpu::DeviceVector<amrex::Real> d_canopy_height;
     amrex::Gpu::DeviceVector<amrex::Real> d_frontal_area_index;
     

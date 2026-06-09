@@ -70,6 +70,8 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Tunable multigrid solver** — Configurable MLMG parameters and bottom solver selection for performance optimization
 - **Surface Flux Diagnostics** — Computes friction velocity, momentum flux, drag coefficient, sensible/latent heat flux
 - **Land-use Roughness Classification** — Categorical z₀ mapping from NLCD/IGBP land-use categories
+- **Dynamic Overwater Wave-Induced Roughness (Charnock's Relation)** — Computes aerodynamic roughness length dynamically over water grid cells using Charnock's relationship ($z_0 = \alpha_{ch} \frac{u_*^2}{g} + 0.11 \frac{\nu}{u_*}$) to account for wave height as a function of friction velocity.
+- **Precipitation-Induced Atmospheric Stability Adjustments** — Automatically adjusts atmospheric stability indices (PGT classes or Monin-Obukhov lengths) toward neutral/stable regimes when local precipitation rates exceed a critical threshold (e.g., > 1 mm/h) from a time-varying precipitation input file.
 - **Directional Bias Correction** — Corrects systematic wind direction and speed biases from NWP models
 - **3D Meteorological Ingestion (NetCDF)** — Horizontal, terrain-aware vertical, and temporal interpolation of 3D NWP model outputs (e.g. WRF, GFS) into the solver grid. Includes anisotropic Inverse Distance Weighting (IDW) with vertical scaling parameter γ ≫ 1 to preserve vertical atmospheric profiles.
 - **Topographic Barrier Shielding (CALMET-style)** — Zeroes out or heavily penalizes interpolation weights from stations across high terrain obstacles/ridges, preventing observations in one valley from unphysically influencing adjacent valleys
