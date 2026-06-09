@@ -273,7 +273,10 @@ def process_tiff_data(tiff_bytes: bytes, nx: int, ny: int, is_dem: bool) -> np.n
             # Check Y-axis resolution step in geotransform to validate spatial orientation.
             # Usually transform.e is negative, meaning row 0 represents the northern-most latitude.
             transform = src.transform
-            y_scale = transform.e if transform else -1.0
+            if not transform:
+                raise ValueError("Raster geotransform is missing, cannot determine spatial orientation.")
+                
+            vertical_pixel_size = transform.e
             
             data = src.read(
                 1,
@@ -281,9 +284,9 @@ def process_tiff_data(tiff_bytes: bytes, nx: int, ny: int, is_dem: bool) -> np.n
                 resampling=resampling_alg
             )
             
-            # If y_scale is positive, row 0 represents the southern-most latitude (South at top).
+            # If vertical_pixel_size is positive, row 0 represents the southern-most latitude (South at top).
             # Flip the array vertically so row 0 is always North (lat_max) to match the caller's assumption.
-            if y_scale > 0:
+            if vertical_pixel_size > 0:
                 data = np.flipud(data)
                 
             return data.astype(np.float32)
@@ -446,15 +449,16 @@ def main() -> int:
     points = []
     for j in range(args.ny):
         lat = args.lat_min + j * (args.lat_max - args.lat_min) / (args.ny - 1)
+        row_idx = args.ny - 1 - j
         for i in range(args.nx):
             lon = args.lon_min + i * (args.lon_max - args.lon_min) / (args.nx - 1)
             
             # Extract elevation and land use code
-            elev = float(dem_data[args.ny - 1 - j, i])
+            elev = float(dem_data[row_idx, i])
             if np.isnan(elev):
                 elev = 0.0
             
-            lc_code = int(np.round(lc_data[args.ny - 1 - j, i])) if lc_data is not None else 71
+            lc_code = int(np.round(lc_data[row_idx, i])) if lc_data is not None else 71
             
             # Apply chosen projection
             if args.projection == 'utm':
