@@ -245,6 +245,13 @@ print(f"Annual Energy Production (AEP): {{results['aep_kwh']:.2f}} kWh")"""
         lon_min = args.lon_min if args.lon_min is not None else args.lon - 0.1
         lon_max = args.lon_max if args.lon_max is not None else args.lon + 0.1
         
+        if lat_min == lat_max:
+            lat_min -= 0.005
+            lat_max += 0.005
+        if lon_min == lon_max:
+            lon_min -= 0.005
+            lon_max += 0.005
+        
         nx_t = args.nx
         ny_t = args.ny
         

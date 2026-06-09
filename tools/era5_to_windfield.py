@@ -401,6 +401,12 @@ def main():
             # Option (ii): Download from SRTM
             lat_min, lat_max = float(lats_cropped.min()), float(lats_cropped.max())
             lon_min, lon_max = float(lons_cropped.min()), float(lons_cropped.max())
+            if lat_min == lat_max:
+                lat_min -= 0.005
+                lat_max += 0.005
+            if lon_min == lon_max:
+                lon_min -= 0.005
+                lon_max += 0.005
             import subprocess
             fetcher_path = os.path.join(os.path.dirname(__file__), "geographic_data_fetcher.py")
             cmd = [

@@ -227,6 +227,10 @@ def fetch_or_parse_nam(args, x_target, y_target):
         lats = ds['latitude'].values
         lons = ds['longitude'].values
         
+        # Convert 1D coordinate arrays to grids if needed
+        if len(lons.shape) == 1 and len(lats.shape) == 1:
+            lons, lats = np.meshgrid(lons, lats)
+        
         # Convert to local tangent plane projection
         lon0 = np.mean(lons)
         lat0 = np.mean(lats)
@@ -405,6 +409,13 @@ def main():
        if args.lat_max is not None: lat_max = args.lat_max
        if args.lon_min is not None: lon_min = args.lon_min
        if args.lon_max is not None: lon_max = args.lon_max
+       
+       if lat_min == lat_max:
+           lat_min -= 0.005
+           lat_max += 0.005
+       if lon_min == lon_max:
+           lon_min -= 0.005
+           lon_max += 0.005
         
        nx_t = args.nx
        ny_t = args.ny
@@ -421,10 +432,7 @@ def main():
        x_tgt_1d = np.array([x_lo + (i + 0.5) * dx_t for i in range(nx_t)])
        y_tgt_1d = np.array([y_lo + (j + 0.5) * dy_t for j in range(ny_t)])
        x_tgt, y_tgt = np.meshgrid(x_tgt_1d, y_tgt_1d)
-        
-       # We need the NAM dataset's source fields to interpolate NWP terrain
-       x_src, y_src, z_src_3d, hgt_src, u_src, v_src, w_src, ustar_src, z0_src, u10_src, v10_src = fetch_or_parse_nam(args, x_tgt, y_tgt)
-        
+          
        if args.srtm_terrain:
            # Option (ii): Download from SRTM
            import subprocess
@@ -443,6 +451,8 @@ def main():
            print(f"Downloading SRTM terrain for bounds: [{lat_min}, {lat_max}], [{lon_min}, {lon_max}]...")
            subprocess.run(cmd, check=True)
        else:
+           # We need the NAM dataset's source fields to interpolate NWP terrain
+           x_src, y_src, z_src_3d, hgt_src, u_src, v_src, w_src, ustar_src, z0_src, u10_src, v10_src = fetch_or_parse_nam(args, x_tgt, y_tgt)
            # Option (i): Use HGT_M / hgt_src from NWP
            print(f"Constructing terrain.csv from NAM elevation data...")
            with open(terrain_out, 'w') as f:

@@ -76,7 +76,10 @@ def main():
     # Load HRRR data
     if args.grib:
         print(f"Reading HRRR data from {args.grib}...")
-        ds = xr.open_dataset(args.grib, engine='cfgrib')
+        if args.grib.endswith('.nc') or args.grib.endswith('.netcdf'):
+            ds = xr.open_dataset(args.grib)
+        else:
+            ds = xr.open_dataset(args.grib, engine='cfgrib')
     elif args.date and args.hour is not None:
         try:
             from herbie import Herbie
@@ -90,12 +93,41 @@ def main():
     else:
         parser.error("Must provide either --grib or both --date and --hour")
     
+    # Get coordinates first to ensure correct dimensions
+    lats = ds['latitude'].values
+    lons = ds['longitude'].values
+    if len(lons.shape) == 1 and len(lats.shape) == 1:
+        lons, lats = np.meshgrid(lons, lats)
+
     # Extract fields
     print("Extracting surface parameters...")
     
     # 10m winds
-    u10 = ds['u10'].values if 'u10' in ds else ds['UGRD_10maboveground'].values
-    v10 = ds['v10'].values if 'v10' in ds else ds['VGRD_10maboveground'].values
+    if 'u10' in ds:
+        u10 = ds['u10'].values
+    elif 'UGRD_10maboveground' in ds:
+        u10 = ds['UGRD_10maboveground'].values
+    elif 'u' in ds:
+        u10 = ds['u'].values
+        if len(u10.shape) > 2:
+            u10 = u10[0, ...]
+            if len(u10.shape) > 2:
+                u10 = u10[0, ...]
+    else:
+        u10 = np.ones_like(lats) * 10.0
+
+    if 'v10' in ds:
+        v10 = ds['v10'].values
+    elif 'VGRD_10maboveground' in ds:
+        v10 = ds['VGRD_10maboveground'].values
+    elif 'v' in ds:
+        v10 = ds['v'].values
+        if len(v10.shape) > 2:
+            v10 = v10[0, ...]
+            if len(v10.shape) > 2:
+                v10 = v10[0, ...]
+    else:
+        v10 = np.ones_like(lats) * 2.0
     
     # Friction velocity (USTAR) - may be stored as FRICV
     if 'fricv' in ds:
@@ -127,10 +159,6 @@ def main():
     else:
         z = np.zeros_like(ustar)
         print("WARNING: Terrain elevation not found, using z=0")
-    
-    # Get coordinates
-    lats = ds['latitude'].values
-    lons = ds['longitude'].values
     
     # Convert to local coordinates
     # For simplicity, use a local tangent plane projection
@@ -203,6 +231,13 @@ def main():
             lon_pts = lons[mask]
             lat_min, lat_max = float(lat_pts.min()), float(lat_pts.max())
             lon_min, lon_max = float(lon_pts.min()), float(lon_pts.max())
+            
+            if lat_min == lat_max:
+                lat_min -= 0.005
+                lat_max += 0.005
+            if lon_min == lon_max:
+                lon_min -= 0.005
+                lon_max += 0.005
             
             import subprocess
             fetcher_path = os.path.join(os.path.dirname(__file__), "geographic_data_fetcher.py")
