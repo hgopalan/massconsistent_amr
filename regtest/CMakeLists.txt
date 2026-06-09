@@ -58,84 +58,84 @@ endfunction()
 # ===========================================================================
 # flat_terrain/ – flat domain (all z = 0), trivial mass-consistency check
 # ===========================================================================
-add_regression_test(flat_terrain flat_terrain)
-add_regression_test(wire_loading wire_loading)
+add_regression_test(flat_terrain terrain/flat_terrain)
+add_regression_test(wire_loading terrain/wire_loading)
 
 # ===========================================================================
 # flatirons_turbines/ – Sloping Flatirons NREL terrain with wind turbines
 # ===========================================================================
-add_regression_test(flatirons_turbines flatirons_turbines)
+add_regression_test(flatirons_turbines terrain/flatirons_turbines)
 
 # ===========================================================================
 # gaussian_hill/ – Gaussian hill terrain, terrain-following log-law wind
 # ===========================================================================
-add_regression_test(gaussian_hill gaussian_hill)
+add_regression_test(gaussian_hill terrain/gaussian_hill)
 
 # ===========================================================================
 # gaussian_hill_weno5/ – Gaussian hill with WENO-5 derivatives
 # ===========================================================================
-add_regression_test(gaussian_hill_weno5 gaussian_hill_weno5)
+add_regression_test(gaussian_hill_weno5 terrain/gaussian_hill_weno5)
 
 # ===========================================================================
 # raws_synthetic/ – Gaussian hill with RAWS wind initialization (IDW interp)
 # ===========================================================================
-add_regression_test(raws_synthetic raws_synthetic)
+add_regression_test(raws_synthetic terrain/raws_synthetic)
 
 # ===========================================================================
 # topographic_shielding/ – central ridge with topographic barrier shielding
 # ===========================================================================
-add_regression_test(topographic_shielding topographic_shielding)
+add_regression_test(topographic_shielding terrain/topographic_shielding)
 
 # ===========================================================================
 # surface_data_synthetic/ – Gaussian hill with surface_data initialization
 # ===========================================================================
-add_regression_test(surface_data_synthetic surface_data_synthetic)
+add_regression_test(surface_data_synthetic terrain/surface_data_synthetic)
 
 # ===========================================================================
 # uniform_wind/ – Gaussian hill with uniform wind initialization
 # ===========================================================================
-add_regression_test(uniform_wind uniform_wind)
+add_regression_test(uniform_wind terrain/uniform_wind)
 
 # ===========================================================================
 # powerlaw_flat/ – Power-law wind profile on flat terrain
 # ===========================================================================
-add_regression_test(powerlaw_flat powerlaw_flat)
+add_regression_test(powerlaw_flat terrain/powerlaw_flat)
 
 # ===========================================================================
 # powerlaw_gaussian/ – Power-law wind profile on Gaussian hill
 # ===========================================================================
-add_regression_test(powerlaw_gaussian powerlaw_gaussian)
+add_regression_test(powerlaw_gaussian terrain/powerlaw_gaussian)
 
 # ===========================================================================
 # powerlaw_building_flat/ – Power-law profile with buildings on flat terrain
 # ===========================================================================
-add_regression_test(powerlaw_building_flat powerlaw_building_flat)
+add_regression_test(powerlaw_building_flat terrain/powerlaw_building_flat)
 
 # ===========================================================================
 # powerlaw_building_terrain/ – Power-law profile with buildings on terrain
 # ===========================================================================
-add_regression_test(powerlaw_building_terrain powerlaw_building_terrain)
+add_regression_test(powerlaw_building_terrain terrain/powerlaw_building_terrain)
 
 # ===========================================================================
 # buildings_flat/ – Buildings (union of boxes) on flat terrain
 # ===========================================================================
-add_regression_test(buildings_flat buildings_flat)
+add_regression_test(buildings_flat buildings/buildings_flat)
 
 # ===========================================================================
 # buildings_csv/ – Buildings from CSV file on flat terrain
 # ===========================================================================
-add_regression_test(buildings_csv buildings_csv)
+add_regression_test(buildings_csv buildings/buildings_csv)
 
 # ===========================================================================
 # buildings_terrain/ – Buildings on Gaussian hill (terrain-aligned)
 # ===========================================================================
-add_regression_test(buildings_terrain buildings_terrain)
+add_regression_test(buildings_terrain buildings/buildings_terrain)
 
 # ===========================================================================
 # wake_single_building/ – Single building wake model (Röckle formulation)
 # ===========================================================================
-add_regression_test(wake_single_building wake_single_building)
-add_regression_test(wake_non_rectangular_sloped wake_non_rectangular_sloped)
+add_regression_test(wake_single_building wakes/wake_single_building)
+add_regression_test(wake_non_rectangular_sloped wakes/wake_non_rectangular_sloped)
 
 # ===========================================================================
 # Advanced features
@@ -145,27 +145,27 @@ add_regression_test(wake_non_rectangular_sloped wake_non_rectangular_sloped)
 # ---------------------------------------------------------------------------
 # rooftop_vortex/ – Rooftop vortex parameterization in building cavity zones
 # ---------------------------------------------------------------------------
-add_regression_test(rooftop_vortex rooftop_vortex)
+add_regression_test(rooftop_vortex wakes/rooftop_vortex)
 
 # ---------------------------------------------------------------------------
 # building_oriented/ – Arbitrary building orientation effects on wake model
 # ---------------------------------------------------------------------------
-add_regression_test(building_oriented building_oriented)
+add_regression_test(building_oriented buildings/building_oriented)
 
 # ---------------------------------------------------------------------------
 # building_array/ – Building array configurations
 # ---------------------------------------------------------------------------
-add_regression_test(building_array building_array)
+add_regression_test(building_array buildings/building_array)
 
 # ---------------------------------------------------------------------------
 # porous_buildings/ – Building porosity model for porous structures
 # ---------------------------------------------------------------------------
-add_regression_test(porous_buildings porous_buildings)
+add_regression_test(porous_buildings buildings/porous_buildings)
 
 # ---------------------------------------------------------------------------
 # multiheight_extraction/ – Multi-height wind field extraction (new feature)
 # ---------------------------------------------------------------------------
-add_regression_test(multiheight_extraction multiheight_extraction)
+add_regression_test(multiheight_extraction diagnostics/multiheight_extraction)
 
 # ===========================================================================
 # Wall function tests
@@ -174,22 +174,22 @@ add_regression_test(multiheight_extraction multiheight_extraction)
 # ---------------------------------------------------------------------------
 # wall_function_flat/ – Basic wall function test on flat terrain
 # ---------------------------------------------------------------------------
-add_regression_test(wall_function_flat wall_function_flat)
+add_regression_test(wall_function_flat physics/wall_function_flat)
 
 # ---------------------------------------------------------------------------
 # wall_function_stable/ – Wall function with stable stability corrections
 # ---------------------------------------------------------------------------
-add_regression_test(wall_function_stable wall_function_stable)
+add_regression_test(wall_function_stable physics/wall_function_stable)
 
 # ---------------------------------------------------------------------------
 # wall_function_unstable/ – Wall function with unstable stability corrections
 # ---------------------------------------------------------------------------
-add_regression_test(wall_function_unstable wall_function_unstable)
+add_regression_test(wall_function_unstable physics/wall_function_unstable)
 
 # ---------------------------------------------------------------------------
 # wall_function_adaptive/ – Wall function with adaptive activation
 # ---------------------------------------------------------------------------
-add_regression_test(wall_function_adaptive wall_function_adaptive)
+add_regression_test(wall_function_adaptive physics/wall_function_adaptive)
 # ---------------------------------------------------------------------------
 # Thermal Stratification and Kinematic BC tests
 # ---------------------------------------------------------------------------
@@ -197,22 +197,22 @@ add_regression_test(wall_function_adaptive wall_function_adaptive)
 # ---------------------------------------------------------------------------
 # buoyancy_stratification/ – Thermal stratification with buoyancy effects
 # ---------------------------------------------------------------------------
-add_regression_test(buoyancy_stratification buoyancy_stratification)
+add_regression_test(buoyancy_stratification physics/buoyancy_stratification)
 
 # ---------------------------------------------------------------------------
 # buoyancy_rhs/ – Buoyancy RHS method (source term in lambda equation)
 # ---------------------------------------------------------------------------
-add_regression_test(buoyancy_rhs buoyancy_rhs)
+add_regression_test(buoyancy_rhs physics/buoyancy_rhs)
 
 # ---------------------------------------------------------------------------
 # terrain_kinematic_bc/ – Kinematic terrain-following boundary condition
 # ---------------------------------------------------------------------------
-add_regression_test(terrain_kinematic_bc terrain_kinematic_bc)
+add_regression_test(terrain_kinematic_bc physics/terrain_kinematic_bc)
 
 # ---------------------------------------------------------------------------
 # combined_thermal_terrain/ – Combined buoyancy and kinematic BC features
 # ---------------------------------------------------------------------------
-add_regression_test(combined_thermal_terrain combined_thermal_terrain)
+add_regression_test(combined_thermal_terrain physics/combined_thermal_terrain)
 
 # ---------------------------------------------------------------------------
 # Canopy model tests
@@ -221,17 +221,17 @@ add_regression_test(combined_thermal_terrain combined_thermal_terrain)
 # ---------------------------------------------------------------------------
 # canopy_forest/ – Forest canopy with MacDonald et al. (2000) parameterization
 # ---------------------------------------------------------------------------
-add_regression_test(canopy_forest canopy_forest)
+add_regression_test(canopy_forest physics/canopy_forest)
 
 # ---------------------------------------------------------------------------
 # canopy_spatially_varying/ – Spatially-varying forest canopy parameters
 # ---------------------------------------------------------------------------
-add_regression_test(canopy_spatially_varying canopy_spatially_varying)
+add_regression_test(canopy_spatially_varying physics/canopy_spatially_varying)
 
 # ---------------------------------------------------------------------------
 # canopy_exponential/ – Exponential canopy profile model
 # ---------------------------------------------------------------------------
-add_regression_test(canopy_exponential canopy_exponential)
+add_regression_test(canopy_exponential physics/canopy_exponential)
 
 # ---------------------------------------------------------------------------
 # Surface Flux Diagnostics: Drag Coefficient Diagnostic
@@ -240,7 +240,7 @@ add_regression_test(canopy_exponential canopy_exponential)
 # ---------------------------------------------------------------------------
 # drag_diagnostic/ – Drag coefficient and heat flux diagnostics with varying roughness
 # ---------------------------------------------------------------------------
-add_regression_test(drag_diagnostic drag_diagnostic)
+add_regression_test(drag_diagnostic physics/drag_diagnostic)
 
 # ---------------------------------------------------------------------------
 # Stability Corrections: Non-Neutral Stability Corrections (Businger-Dyer)
@@ -249,17 +249,17 @@ add_regression_test(drag_diagnostic drag_diagnostic)
 # ---------------------------------------------------------------------------
 # stability_stable/ – Stable atmospheric conditions with L > 0
 # ---------------------------------------------------------------------------
-add_regression_test(stability_stable stability_stable)
+add_regression_test(stability_stable physics/stability_stable)
 
 # ---------------------------------------------------------------------------
 # stability_unstable/ – Unstable atmospheric conditions with L < 0
 # ---------------------------------------------------------------------------
-add_regression_test(stability_unstable stability_unstable)
+add_regression_test(stability_unstable physics/stability_unstable)
 
 # ---------------------------------------------------------------------------
 # ekman_veer/ – Ekman spiral wind veer correction
 # ---------------------------------------------------------------------------
-add_regression_test(ekman_veer ekman_veer)
+add_regression_test(ekman_veer physics/ekman_veer)
 
 # ---------------------------------------------------------------------------
 # Anisotropy and Refinement: Height-Dependent Anisotropy
@@ -268,7 +268,7 @@ add_regression_test(ekman_veer ekman_veer)
 # ---------------------------------------------------------------------------
 # alphav_height/ – Height-dependent vertical anisotropy coefficient
 # ---------------------------------------------------------------------------
-add_regression_test(alphav_height alphav_height)
+add_regression_test(alphav_height physics/alphav_height)
 
 # ---------------------------------------------------------------------------
 # Elevation and Scaling: Elevation-Dependent Wind Scaling
@@ -277,7 +277,7 @@ add_regression_test(alphav_height alphav_height)
 # ---------------------------------------------------------------------------
 # elevation_scaling/ – Terrain elevation effects on wind speed
 # ---------------------------------------------------------------------------
-add_regression_test(elevation_scaling elevation_scaling)
+add_regression_test(elevation_scaling physics/elevation_scaling)
 
 # ---------------------------------------------------------------------------
 # Transient Effects: Time-Varying Boundary Conditions
@@ -286,7 +286,7 @@ add_regression_test(elevation_scaling elevation_scaling)
 # ---------------------------------------------------------------------------
 # time_varying/ – Time-varying wind boundary conditions
 # ---------------------------------------------------------------------------
-add_regression_test(time_varying time_varying)
+add_regression_test(time_varying physics/time_varying)
 
 # ===========================================================================
 # Advanced Diagnostic and Physical Parameterization Features
@@ -295,37 +295,37 @@ add_regression_test(time_varying time_varying)
 # ---------------------------------------------------------------------------
 # divergence_source/ – Divergence source terms for convective plumes
 # ---------------------------------------------------------------------------
-add_regression_test(divergence_source divergence_source)
+add_regression_test(divergence_source physics/divergence_source)
 
 # ---------------------------------------------------------------------------
 # holtslag_stability/ – Holtslag-De Bruin stability functions
 # ---------------------------------------------------------------------------
-add_regression_test(holtslag_stability holtslag_stability)
+add_regression_test(holtslag_stability physics/holtslag_stability)
 
 # ---------------------------------------------------------------------------
 # landuse_powerlaw/ – Land use-based power-law exponents
 # ---------------------------------------------------------------------------
-add_regression_test(landuse_powerlaw landuse_powerlaw)
+add_regression_test(landuse_powerlaw physics/landuse_powerlaw)
 
 # ---------------------------------------------------------------------------
 # diurnal_temperature/ – Diurnal temperature profile
 # ---------------------------------------------------------------------------
-add_regression_test(diurnal_temperature diurnal_temperature)
+add_regression_test(diurnal_temperature physics/diurnal_temperature)
 
 # ---------------------------------------------------------------------------
 # vegetation_roughness/ – Vegetation attenuation factor for roughness
 # ---------------------------------------------------------------------------
-add_regression_test(vegetation_roughness vegetation_roughness)
+add_regression_test(vegetation_roughness physics/vegetation_roughness)
 
 # ---------------------------------------------------------------------------
 # katabatic_flow/ – Katabatic/anabatic slope flows parameterization
 # ---------------------------------------------------------------------------
-add_regression_test(katabatic_flow katabatic_flow)
+add_regression_test(katabatic_flow physics/katabatic_flow)
 
 # ---------------------------------------------------------------------------
 # wake_huber_snyder/ – Huber-Snyder wake model (alternative to Röckle)
 # ---------------------------------------------------------------------------
-add_regression_test(wake_huber_snyder wake_huber_snyder)
+add_regression_test(wake_huber_snyder wakes/wake_huber_snyder)
 
 # ===========================================================================
 # Puff Dispersion Tests
@@ -334,67 +334,67 @@ add_regression_test(wake_huber_snyder wake_huber_snyder)
 # ---------------------------------------------------------------------------
 # puff_gaussian/ – Basic Gaussian puff dispersion on uniform wind
 # ---------------------------------------------------------------------------
-add_regression_test(puff_gaussian puff_gaussian)
+add_regression_test(puff_gaussian dispersion/puff_gaussian)
 
 # ---------------------------------------------------------------------------
 # puff_terrain/ – Puff dispersion on terrain-following wind field
 # ---------------------------------------------------------------------------
-add_regression_test(puff_terrain puff_terrain)
+add_regression_test(puff_terrain dispersion/puff_terrain)
 
 # ---------------------------------------------------------------------------
 # puff_buildings/ – Puff dispersion with building wake effects
 # ---------------------------------------------------------------------------
-add_regression_test(puff_buildings puff_buildings)
+add_regression_test(puff_buildings dispersion/puff_buildings)
 
 # ---------------------------------------------------------------------------
 # puff_canopy/ – Puff dispersion with canopy drag effects
 # ---------------------------------------------------------------------------
-add_regression_test(puff_canopy puff_canopy)
+add_regression_test(puff_canopy dispersion/puff_canopy)
 
 # ---------------------------------------------------------------------------
 # puff_deposition/ – Puff dispersion with dry deposition on ground
 # ---------------------------------------------------------------------------
-add_regression_test(puff_deposition puff_deposition)
+add_regression_test(puff_deposition dispersion/puff_deposition)
 
 # ---------------------------------------------------------------------------
 # puff_scavenging_decay/ – Puff wet deposition and dynamic decay
 # ---------------------------------------------------------------------------
-add_regression_test(puff_scavenging_decay puff_scavenging_decay)
+add_regression_test(puff_scavenging_decay dispersion/puff_scavenging_decay)
 
 # ---------------------------------------------------------------------------
 # puff_coupled_full/ – Fully coupled puff dispersion with all features
 # ---------------------------------------------------------------------------
-add_regression_test(puff_coupled_full puff_coupled_full)
+add_regression_test(puff_coupled_full dispersion/puff_coupled_full)
 
 # ---------------------------------------------------------------------------
 # puff_downwash_single_time/ – Single time instance cavity trapping test
 # ---------------------------------------------------------------------------
-add_regression_test(puff_downwash_single_time puff_downwash_single_time)
+add_regression_test(puff_downwash_single_time dispersion/puff_downwash_single_time)
 
 # ---------------------------------------------------------------------------
 # puff_downwash_multi_time/ – Multiple time instances for wake recirculation
 # ---------------------------------------------------------------------------
-add_regression_test(puff_downwash_multi_time puff_downwash_multi_time)
+add_regression_test(puff_downwash_multi_time dispersion/puff_downwash_multi_time)
 
 # ---------------------------------------------------------------------------
 # puff_aloha_features/ – ALOHA-style Infiltration, TV emissions, and Threat Zones
 # ---------------------------------------------------------------------------
-add_regression_test(puff_aloha_features puff_aloha_features)
+add_regression_test(puff_aloha_features dispersion/puff_aloha_features)
 
 # ---------------------------------------------------------------------------
 # lpdm_terrain/ – Lagrangian Particle Dispersion Model on terrain
 # ---------------------------------------------------------------------------
-add_regression_test(lpdm_terrain lpdm_terrain)
+add_regression_test(lpdm_terrain dispersion/lpdm_terrain)
 
 # ---------------------------------------------------------------------------
 # lpdm_drift_spatial_lid/ – LPDM with drift correction and spatially-varying capping lid
 # ---------------------------------------------------------------------------
-add_regression_test(lpdm_drift_spatial_lid lpdm_drift_spatial_lid)
+add_regression_test(lpdm_drift_spatial_lid dispersion/lpdm_drift_spatial_lid)
 
 # ---------------------------------------------------------------------------
 # terrain_following_steep/ – Terrain-following coordinates on steep terrain
 # ---------------------------------------------------------------------------
-add_regression_test(terrain_following_steep terrain_following_steep)
+add_regression_test(terrain_following_steep terrain/terrain_following_steep)
 
 # ===========================================================================
 # Advanced Boundary Conditions & Wind Profile Features
@@ -403,32 +403,32 @@ add_regression_test(terrain_following_steep terrain_following_steep)
 # ---------------------------------------------------------------------------
 # diurnal_roughness/ – Diurnal roughness length variations z₀(t)
 # ---------------------------------------------------------------------------
-add_regression_test(diurnal_roughness diurnal_roughness)
+add_regression_test(diurnal_roughness physics/diurnal_roughness)
 
 # ---------------------------------------------------------------------------
 # bl_decay/ – Exponential boundary layer wind decay
 # ---------------------------------------------------------------------------
-add_regression_test(bl_decay bl_decay)
+add_regression_test(bl_decay physics/bl_decay)
 
 # ---------------------------------------------------------------------------
 # momentum_flux/ – Momentum flux output fields (τ_x, τ_y, u*)
 # ---------------------------------------------------------------------------
-add_regression_test(momentum_flux momentum_flux)
+add_regression_test(momentum_flux physics/momentum_flux)
 
 # ---------------------------------------------------------------------------
 # richardson_diagnostic/ – Richardson number boundary layer depth diagnostic
 # ---------------------------------------------------------------------------
-add_regression_test(richardson_diagnostic richardson_diagnostic)
+add_regression_test(richardson_diagnostic physics/richardson_diagnostic)
 
 # ---------------------------------------------------------------------------
 # froude_scaling/ – Froude number height scaling with terrain blocking
 # ---------------------------------------------------------------------------
-add_regression_test(froude_scaling froude_scaling)
+add_regression_test(froude_scaling physics/froude_scaling)
 
 # ---------------------------------------------------------------------------
 # ageostrophic_balance/ – Ageostrophic wind balance boundary conditions
 # ---------------------------------------------------------------------------
-add_regression_test(ageostrophic_balance ageostrophic_balance)
+add_regression_test(ageostrophic_balance physics/ageostrophic_balance)
 
 # ===========================================================================
 # Surface Flux Diagnostics and Refinement Features
@@ -437,30 +437,30 @@ add_regression_test(ageostrophic_balance ageostrophic_balance)
 # ---------------------------------------------------------------------------
 # flux_diagnostics_feature/ – Surface flux diagnostics (SHF, LHF, momentum flux, drag coefficient)
 # ---------------------------------------------------------------------------
-add_regression_test(flux_diagnostics_feature flux_diagnostics_feature)
+add_regression_test(flux_diagnostics_feature physics/flux_diagnostics_feature)
 
 # ---------------------------------------------------------------------------
 # landuse_classification/ – NLCD-compatible land-use classification and z0 lookup
 # ---------------------------------------------------------------------------
-add_regression_test(landuse_classification landuse_classification)
+add_regression_test(landuse_classification physics/landuse_classification)
 
 # ---------------------------------------------------------------------------
 # directional_bias_correction/ – Directional and speed bias correction for NWP models
 # ---------------------------------------------------------------------------
-add_regression_test(directional_bias_correction directional_bias_correction)
+add_regression_test(directional_bias_correction physics/directional_bias_correction)
 
 # ---------------------------------------------------------------------------
 # Adaptive parameterization features
 # ---------------------------------------------------------------------------
 
 # wake_blending_adaptive/ – Wake deficit superposition refinement
-add_regression_test(wake_blending_adaptive wake_blending_adaptive)
+add_regression_test(wake_blending_adaptive wakes/wake_blending_adaptive)
 
 # ri_b_stability_selection/ – Conditional stability model selection
-add_regression_test(ri_b_stability_selection ri_b_stability_selection)
+add_regression_test(ri_b_stability_selection physics/ri_b_stability_selection)
 
 # orographic_activation_thresholds/ – Orographic model activation thresholds
-add_regression_test(orographic_activation_thresholds orographic_activation_thresholds)
+add_regression_test(orographic_activation_thresholds physics/orographic_activation_thresholds)
 
 # ===========================================================================
 # synthetic_turbulence_full/ – Complete synthetic turbulence pipeline
@@ -471,9 +471,8 @@ add_regression_test(orographic_activation_thresholds orographic_activation_thres
 # - Time-series generation with temporal correlations
 # - BTS Export: OpenFAST-compatible binary format output
 # ============================================================================= 
-add_regression_test(synthetic_turbulence_full synthetic_turbulence_full)
-add_python_regression_test(synthetic_turbulence_full_validation synthetic_turbulence_full
-                          test_synthetic_turbulence.py)
+add_regression_test(synthetic_turbulence_full turbulence/synthetic_turbulence_full)
+add_python_regression_test(synthetic_turbulence_full_validation turbulence/synthetic_turbulence_full test_synthetic_turbulence.py)
 
 # ===========================================================================
 # IEC 61400-1:2019 Spectral Synthesis Tests
@@ -485,99 +484,89 @@ add_python_regression_test(synthetic_turbulence_full_validation synthetic_turbul
 # iec61400_von_karman/ – IEC Category B with Von Kármán spectrum
 # -----------------------------------------------------------------------
 # Validates IEC61400 intensity model parser and Von Kármán spectrum synthesis
-add_regression_test(iec61400_von_karman iec61400_von_karman)
+add_regression_test(iec61400_von_karman turbulence/iec61400_von_karman)
 
 # -----------------------------------------------------------------------
 # iec61400_kaimal/ – IEC Category A with Kaimal spectrum
 # -----------------------------------------------------------------------
 # Validates Kaimal spectrum model and PowerLaw coherence model
-add_regression_test(iec61400_kaimal iec61400_kaimal)
+add_regression_test(iec61400_kaimal turbulence/iec61400_kaimal)
 
 # -----------------------------------------------------------------------
 # iec61400_category_c/ – IEC Category C with QuadraticExponential coherence
 # -----------------------------------------------------------------------
 # Validates low-turbulence sites (Category C) and QuadraticExponential coherence
-add_regression_test(iec61400_category_c iec61400_category_c)
+add_regression_test(iec61400_category_c turbulence/iec61400_category_c)
 
 # -----------------------------------------------------------------------
 # iec61400_categories/ – Python-based regression tests
 # -----------------------------------------------------------------------
 # Python unit tests for IEC 61400 spectral models across all categories
-add_python_regression_test(iec61400_categories_regtest iec61400_categories
-                          test_iec61400_categories.py)
+add_python_regression_test(iec61400_categories_regtest turbulence/iec61400_categories test_iec61400_categories.py)
 
 # ===========================================================================
 # field_output_test/ – Unified field output (21 diagnostic fields)
 # ===========================================================================
-add_regression_test(field_output_test field_output_test)
+add_regression_test(field_output_test diagnostics/field_output_test)
 
 # ===========================================================================
 # New easy-to-implement features tests
 # ===========================================================================
-add_regression_test(pasquill_gifford pasquill_gifford)
-add_regression_test(power_law_profile_bl power_law_profile_bl)
-add_regression_test(deaves_harris deaves_harris)
-add_regression_test(capping_lid capping_lid)
-add_regression_test(multi_gaussian_hill multi_gaussian_hill)
-add_regression_test(charnock_overwater charnock_overwater)
-add_regression_test(precipitation_stability precipitation_stability)
-add_python_regression_test(thermodynamic_lid thermodynamic_lid test_thermodynamic_lid.py)
-add_regression_test(obrien_adjustment obrien_adjustment)
-add_python_regression_test(obrien_adjustment_validation obrien_adjustment verify_obrien.py)
+add_regression_test(pasquill_gifford physics/pasquill_gifford)
+add_regression_test(power_law_profile_bl physics/power_law_profile_bl)
+add_regression_test(deaves_harris physics/deaves_harris)
+add_regression_test(capping_lid physics/capping_lid)
+add_regression_test(multi_gaussian_hill terrain/multi_gaussian_hill)
+add_regression_test(charnock_overwater physics/charnock_overwater)
+add_regression_test(precipitation_stability physics/precipitation_stability)
+add_python_regression_test(thermodynamic_lid physics/thermodynamic_lid test_thermodynamic_lid.py)
+add_regression_test(obrien_adjustment physics/obrien_adjustment)
+add_python_regression_test(obrien_adjustment_validation physics/obrien_adjustment verify_obrien.py)
 
 # ===========================================================================
 # High-Yield Parameterizations (Surface Roughness, Coriolis, Windbreaks)
 # ===========================================================================
-add_regression_test(canopy_lai_profiles canopy_lai_profiles)
-add_regression_test(coriolis_meridional coriolis_meridional)
-add_regression_test(subgrid_windbreaks subgrid_windbreaks)
+add_regression_test(canopy_lai_profiles physics/canopy_lai_profiles)
+add_regression_test(coriolis_meridional physics/coriolis_meridional)
+add_regression_test(subgrid_windbreaks buildings/subgrid_windbreaks)
 
 # ===========================================================================
 # parameter_sensitivity_test/ – Parameter sensitivity sweep tool
 # ===========================================================================
-add_python_regression_test(parameter_sensitivity_test parameter_sensitivity_test 
-                          test_parameter_sensitivity.py)
+add_python_regression_test(parameter_sensitivity_test diagnostics/parameter_sensitivity_test test_parameter_sensitivity.py)
 
-add_python_regression_test(wire_loading_validation wire_loading verify_wire_loading.py)
+add_python_regression_test(wire_loading_validation terrain/wire_loading verify_wire_loading.py)
 
 # ===========================================================================
 # Cell-Local Spatially-Varying Variational Anisotropy
 # ===========================================================================
-add_regression_test(cell_local_anisotropy_base cell_local_anisotropy)
+add_regression_test(cell_local_anisotropy_base physics/cell_local_anisotropy)
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
-  add_python_regression_test(cell_local_anisotropy_python cell_local_anisotropy
-                            test_cell_local_anisotropy.py)
+  add_python_regression_test(cell_local_anisotropy_python physics/cell_local_anisotropy test_cell_local_anisotropy.py)
 endif()
 
 # ===========================================================================
 # Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
 # ===========================================================================
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
-  add_python_regression_test(analytical_wake_extensions analytical_wake_extensions
-                            test_phase2_analytical_wake_extensions.py)
-  add_python_regression_test(analytical_wake_new_features analytical_wake_new_features
-                            test_analytical_wake_new_features.py)
-  add_python_regression_test(aep_dispersion aep_dispersion
-                            test_aep_dispersion.py)
-  add_python_regression_test(phase3_advanced_wake_models phase3_advanced_wake_models
-                            test_phase3_advanced_wake_models.py)
-  add_python_regression_test(bastankhah_deflection bastankhah_deflection
-                            test_bastankhah_deflection.py)
-  add_python_regression_test(wildfire_levelset_coupling wildfire_levelset_coupling
-                            test_wildfire_coupling.py)
+  add_python_regression_test(analytical_wake_extensions wakes/analytical_wake_extensions test_phase2_analytical_wake_extensions.py)
+  add_python_regression_test(analytical_wake_new_features wakes/analytical_wake_new_features test_analytical_wake_new_features.py)
+  add_python_regression_test(aep_dispersion wakes/aep_dispersion test_aep_dispersion.py)
+  add_python_regression_test(phase3_advanced_wake_models wakes/phase3_advanced_wake_models test_phase3_advanced_wake_models.py)
+  add_python_regression_test(bastankhah_deflection wakes/bastankhah_deflection test_bastankhah_deflection.py)
+  add_python_regression_test(wildfire_levelset_coupling physics/wildfire_levelset_coupling test_wildfire_coupling.py)
 else()
-  message(STATUS "  analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
-  message(STATUS "  aep_dispersion: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
-  message(STATUS "  phase3_advanced_wake_models: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
-  message(STATUS "  wildfire_levelset_coupling: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  wakes/analytical_wake_extensions: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  wakes/aep_dispersion: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  wakes/phase3_advanced_wake_models: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
+  message(STATUS "  physics/wildfire_levelset_coupling: skipped (requires -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON)")
 endif()
 
 # ===========================================================================
 # netcdf_ingestion/ – NetCDF 3D wind parsing and ingestion regtests
 # ===========================================================================
-add_regression_test(netcdf_cpp_ingestion netcdf_cpp_ingestion)
-add_python_regression_test(netcdf_ingestion_regtest netcdf_ingestion 
-                          test_netcdf_ingestion.py)
+add_regression_test(netcdf_cpp_ingestion diagnostics/netcdf_cpp_ingestion)
+add_python_regression_test(netcdf_ingestion_regtest diagnostics/netcdf_ingestion test_netcdf_ingestion.py)
 
 # ---------------------------------------------------------------------------
 # Custom target: make regtest
@@ -592,87 +581,89 @@ add_custom_target(regtest
 # ---------------------------------------------------------------------------
 message(STATUS "")
 message(STATUS "Regression tests:")
-message(STATUS "  flat_terrain/          : mass-consistent solver on flat terrain (dx=dy=dz=50 m, 2x2x2 grid)")
-message(STATUS "  gaussian_hill/         : terrain-following wind on a Gaussian hill (dx=dy=30 m, dz=25 m)")
-message(STATUS "  gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives (dx=dy=30 m, dz=25 m)")
-message(STATUS "  raws_synthetic/        : Gaussian hill with RAWS wind initialization (IDW interpolation)")
-message(STATUS "  topographic_shielding/ : Central ridge with topographic barrier shielding (IDW interpolation)")
-message(STATUS "  surface_data_synthetic/: Gaussian hill with surface_data initialization (HRRR-style)")
-message(STATUS "  uniform_wind/          : Gaussian hill with uniform wind initialization")
-message(STATUS "  powerlaw_flat/         : Power-law wind profile on flat terrain")
-message(STATUS "  powerlaw_gaussian/     : Power-law wind profile on Gaussian hill")
-message(STATUS "  powerlaw_building_flat/: Power-law profile with buildings on flat terrain")
-message(STATUS "  powerlaw_building_terrain/: Power-law profile with buildings on terrain")
-message(STATUS "  buildings_flat/        : Buildings (union of boxes) on flat terrain")
-message(STATUS "  buildings_csv/         : Buildings from CSV file on flat terrain")
-message(STATUS "  buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
-message(STATUS "  wake_single_building/  : Single building wake model (Röckle formulation)")
-message(STATUS "  wake_non_rectangular_sloped/: Non-rectangular and sloped building wakes")
-message(STATUS "  rooftop_vortex/        : Rooftop vortex in building cavity zones")
-message(STATUS "  building_oriented/     : Arbitrary building orientation effects")
-message(STATUS "  building_array/        : Building array configurations")
-message(STATUS "  porous_buildings/      : Building porosity model for porous structures")
-message(STATUS "  multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
-message(STATUS "  wall_function_flat/    : Wall function on flat terrain")
-message(STATUS "  wall_function_stable/  : Wall function with stable atmospheric corrections")
-message(STATUS "  wall_function_unstable/: Wall function with unstable atmospheric corrections")
-message(STATUS "  wall_function_adaptive/: Wall function with adaptive grid resolution activation")
-message(STATUS "  buoyancy_stratification/: Thermal stratification with buoyancy effects")
-message(STATUS "  buoyancy_rhs/          : Buoyancy RHS method (source term in lambda equation)")
-message(STATUS "  terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
-message(STATUS "  combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
-message(STATUS "  canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
-message(STATUS "  canopy_spatially_varying/: Spatially-varying canopy height and frontal area index")
-message(STATUS "  canopy_exponential/    : Exponential canopy profile model")
-message(STATUS "  canopy_lai_profiles/   : Vertical Leaf Area Index (LAI) profiles")
-message(STATUS "  coriolis_meridional/   : Coriolis Meridional Beta-Effect and scaled Ekman veer")
-message(STATUS "  subgrid_windbreaks/    : Sub-grid windbreaks and directional barrier drag")
-message(STATUS "  drag_diagnostic/       : Drag coefficient and heat flux diagnostics")
-message(STATUS "  stability_stable/      : Non-neutral stability (stable conditions, L > 0)")
-message(STATUS "  stability_unstable/    : Non-neutral stability (unstable conditions, L < 0)")
-message(STATUS "  ekman_veer/            : Ekman spiral wind veer correction (Coriolis effects)")
-message(STATUS "  alphav_height/         : Height-dependent vertical anisotropy coefficient")
-message(STATUS "  elevation_scaling/     : Terrain elevation effects on wind speed")
-message(STATUS "  time_varying/          : Time-varying wind boundary conditions")
-message(STATUS "  divergence_source/     : Divergence source terms for convective plumes")
-message(STATUS "  holtslag_stability/    : Holtslag-De Bruin stability functions")
-message(STATUS "  landuse_powerlaw/      : Land use-based power-law exponents")
-message(STATUS "  diurnal_temperature/   : Diurnal temperature profile")
-message(STATUS "  vegetation_roughness/  : Vegetation attenuation factor for roughness")
-message(STATUS "  puff_gaussian/         : Basic Gaussian puff dispersion on uniform wind")
-message(STATUS "  puff_terrain/          : Puff dispersion on terrain-following wind field")
-message(STATUS "  puff_buildings/        : Puff dispersion with building wake effects")
-message(STATUS "  puff_canopy/           : Puff dispersion with canopy drag effects")
-message(STATUS "  puff_coupled_full/     : Fully coupled puff dispersion with all features")
-message(STATUS "  puff_downwash_single_time/ : Single time step cavity trapping (AERMOD PRIME)")
-message(STATUS "  puff_downwash_multi_time/  : Multiple time steps wake recirculation and plume deformation")
-message(STATUS "  lpdm_terrain/          : Lagrangian Particle Dispersion Model on terrain")
-message(STATUS "  terrain_following_steep/ : Terrain-following coordinates on steep terrain")
-message(STATUS "  diurnal_roughness/     : Diurnal roughness length variations z₀(t)")
-message(STATUS "  bl_decay/              : Exponential boundary layer wind decay above BL depth")
-message(STATUS "  momentum_flux/         : Momentum flux output fields (τ_x, τ_y, u*)")
-message(STATUS "  richardson_diagnostic/ : Richardson number boundary layer depth diagnostic")
-message(STATUS "  froude_scaling/        : Froude number height scaling with terrain blocking")
-message(STATUS "  ageostrophic_balance/  : Ageostrophic wind balance boundary conditions")
+message(STATUS "  terrain/flat_terrain/          : mass-consistent solver on flat terrain (dx=dy=dz=50 m, 2x2x2 grid)")
+message(STATUS "  terrain/gaussian_hill/         : terrain-following wind on a Gaussian hill (dx=dy=30 m, dz=25 m)")
+message(STATUS "  terrain/gaussian_hill_weno5/   : Gaussian hill with WENO-5 derivatives (dx=dy=30 m, dz=25 m)")
+message(STATUS "  terrain/raws_synthetic/        : Gaussian hill with RAWS wind initialization (IDW interpolation)")
+message(STATUS "  terrain/topographic_shielding/ : Central ridge with topographic barrier shielding (IDW interpolation)")
+message(STATUS "  terrain/surface_data_synthetic/: Gaussian hill with surface_data initialization (HRRR-style)")
+message(STATUS "  terrain/uniform_wind/          : Gaussian hill with uniform wind initialization")
+message(STATUS "  terrain/powerlaw_flat/         : Power-law wind profile on flat terrain")
+message(STATUS "  terrain/powerlaw_gaussian/     : Power-law wind profile on Gaussian hill")
+message(STATUS "  terrain/powerlaw_building_flat/: Power-law profile with buildings on flat terrain")
+message(STATUS "  terrain/powerlaw_building_terrain/: Power-law profile with buildings on terrain")
+message(STATUS "  buildings/buildings_flat/        : Buildings (union of boxes) on flat terrain")
+message(STATUS "  buildings/buildings_csv/         : Buildings from CSV file on flat terrain")
+message(STATUS "  buildings/buildings_terrain/     : Buildings on Gaussian hill (terrain-aligned)")
+message(STATUS "  wakes/wake_single_building/  : Single building wake model (Röckle formulation)")
+message(STATUS "  wakes/wake_non_rectangular_sloped/: Non-rectangular and sloped building wakes")
+message(STATUS "  wakes/rooftop_vortex/        : Rooftop vortex in building cavity zones")
+message(STATUS "  buildings/building_oriented/     : Arbitrary building orientation effects")
+message(STATUS "  buildings/building_array/        : Building array configurations")
+message(STATUS "  buildings/porous_buildings/      : Building porosity model for porous structures")
+message(STATUS "  diagnostics/multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
+message(STATUS "  physics/wall_function_flat/    : Wall function on flat terrain")
+message(STATUS "  physics/wall_function_stable/  : Wall function with stable atmospheric corrections")
+message(STATUS "  physics/wall_function_unstable/: Wall function with unstable atmospheric corrections")
+message(STATUS "  physics/wall_function_adaptive/: Wall function with adaptive grid resolution activation")
+message(STATUS "  physics/buoyancy_stratification/: Thermal stratification with buoyancy effects")
+message(STATUS "  physics/buoyancy_rhs/          : Buoyancy RHS method (source term in lambda equation)")
+message(STATUS "  physics/terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
+message(STATUS "  physics/combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
+message(STATUS "  physics/canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
+message(STATUS "  physics/canopy_spatially_varying/: Spatially-varying canopy height and frontal area index")
+message(STATUS "  physics/canopy_exponential/    : Exponential canopy profile model")
+message(STATUS "  physics/canopy_lai_profiles/   : Vertical Leaf Area Index (LAI) profiles")
+message(STATUS "  physics/coriolis_meridional/   : Coriolis Meridional Beta-Effect and scaled Ekman veer")
+message(STATUS "  buildings/subgrid_windbreaks/    : Sub-grid windbreaks and directional barrier drag")
+message(STATUS "  physics/drag_diagnostic/       : Drag coefficient and heat flux diagnostics")
+message(STATUS "  physics/stability_stable/      : Non-neutral stability (stable conditions, L > 0)")
+message(STATUS "  physics/stability_unstable/    : Non-neutral stability (unstable conditions, L < 0)")
+message(STATUS "  physics/ekman_veer/            : Ekman spiral wind veer correction (Coriolis effects)")
+message(STATUS "  physics/alphav_height/         : Height-dependent vertical anisotropy coefficient")
+message(STATUS "  physics/elevation_scaling/     : Terrain elevation effects on wind speed")
+message(STATUS "  physics/time_varying/          : Time-varying wind boundary conditions")
+message(STATUS "  physics/divergence_source/     : Divergence source terms for convective plumes")
+message(STATUS "  physics/holtslag_stability/    : Holtslag-De Bruin stability functions")
+message(STATUS "  physics/landuse_powerlaw/      : Land use-based power-law exponents")
+message(STATUS "  physics/diurnal_temperature/   : Diurnal temperature profile")
+message(STATUS "  physics/vegetation_roughness/  : Vegetation attenuation factor for roughness")
+message(STATUS "  physics/thermodynamic_lid/     : Thermodynamic diurnal mixing height growth models")
+message(STATUS "  physics/obrien_adjustment/     : O'Brien column-wise vertical velocity adjustment")
+message(STATUS "  dispersion/puff_gaussian/         : Basic Gaussian puff dispersion on uniform wind")
+message(STATUS "  dispersion/puff_terrain/          : Puff dispersion on terrain-following wind field")
+message(STATUS "  dispersion/puff_buildings/        : Puff dispersion with building wake effects")
+message(STATUS "  dispersion/puff_canopy/           : Puff dispersion with canopy drag effects")
+message(STATUS "  dispersion/puff_coupled_full/     : Fully coupled puff dispersion with all features")
+message(STATUS "  dispersion/puff_downwash_single_time/ : Single time step cavity trapping (AERMOD PRIME)")
+message(STATUS "  dispersion/puff_downwash_multi_time/  : Multiple time steps wake recirculation and plume deformation")
+message(STATUS "  dispersion/lpdm_terrain/          : Lagrangian Particle Dispersion Model on terrain")
+message(STATUS "  terrain/terrain_following_steep/ : Terrain-following coordinates on steep terrain")
+message(STATUS "  physics/diurnal_roughness/     : Diurnal roughness length variations z₀(t)")
+message(STATUS "  physics/bl_decay/              : Exponential boundary layer wind decay above BL depth")
+message(STATUS "  physics/momentum_flux/         : Momentum flux output fields (τ_x, τ_y, u*)")
+message(STATUS "  physics/richardson_diagnostic/ : Richardson number boundary layer depth diagnostic")
+message(STATUS "  physics/froude_scaling/        : Froude number height scaling with terrain blocking")
+message(STATUS "  physics/ageostrophic_balance/  : Ageostrophic wind balance boundary conditions")
 message(STATUS "")
 message(STATUS "Core Surface and Wind Profile Features (Surface Flux Diagnostics and Refinement):")
-message(STATUS "  flux_diagnostics_feature/       : Surface flux diagnostics (SHF, LHF, momentum flux, Cd)")
-message(STATUS "  landuse_classification/         : NLCD land-use classification and z0 lookup")
-message(STATUS "  directional_bias_correction/    : Wind direction and speed bias correction")
+message(STATUS "  physics/flux_diagnostics_feature/       : Surface flux diagnostics (SHF, LHF, momentum flux, Cd)")
+message(STATUS "  physics/landuse_classification/         : NLCD land-use classification and z0 lookup")
+message(STATUS "  physics/directional_bias_correction/    : Wind direction and speed bias correction")
 message(STATUS "")
 message(STATUS "Adaptive Parameterization Features")
-message(STATUS "  wake_blending_adaptive/         : Wake deficit superposition refinement")
-message(STATUS "  ri_b_stability_selection/       : Conditional stability model selection")
-message(STATUS "  orographic_activation_thresholds/ : Orographic model activation thresholds")
+message(STATUS "  wakes/wake_blending_adaptive/         : Wake deficit superposition refinement")
+message(STATUS "  physics/ri_b_stability_selection/       : Conditional stability model selection")
+message(STATUS "  physics/orographic_activation_thresholds/ : Orographic model activation thresholds")
 message(STATUS "")
 message(STATUS "Output & Integration Features")
-message(STATUS "  synthetic_turbulence_full/      : synthetic turbulence pipeline (spectral synthesis + BTS export)")
-message(STATUS "  iec61400_von_karman/            : IEC 61400-1:2019 Category B with Von Kármán spectrum")
-message(STATUS "  iec61400_kaimal/                : IEC 61400-1:2019 Category A with Kaimal spectrum")
-message(STATUS "  iec61400_category_c/            : IEC 61400-1:2019 Category C with QuadraticExponential coherence")
+message(STATUS "  turbulence/synthetic_turbulence_full/      : synthetic turbulence pipeline (spectral synthesis + BTS export)")
+message(STATUS "  turbulence/iec61400_von_karman/            : IEC 61400-1:2019 Category B with Von Kármán spectrum")
+message(STATUS "  turbulence/iec61400_kaimal/                : IEC 61400-1:2019 Category A with Kaimal spectrum")
+message(STATUS "  turbulence/iec61400_category_c/            : IEC 61400-1:2019 Category C with QuadraticExponential coherence")
 message(STATUS "  iec61400_categories_regtest/    : Python unit tests for IEC 61400 spectral models (20 tests)")
-message(STATUS "  field_output_test/              : Unified field output with 21 diagnostic fields")
-message(STATUS "  parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
-message(STATUS "  analytical_wake_extensions: Analytical turbine wake deficit, deflection, and added turbulence models")
+message(STATUS "  diagnostics/field_output_test/              : Unified field output with 21 diagnostic fields")
+message(STATUS "  diagnostics/parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
+message(STATUS "  wakes/analytical_wake_extensions: Analytical turbine wake deficit, deflection, and added turbulence models")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")

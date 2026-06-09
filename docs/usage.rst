@@ -241,8 +241,335 @@ Parameter Reference
      - ``0.0``
      - Surface sensible heat flux in W/m² used for buoyant wake destruction (only applied when > 0).
    * - ``buoyant_wake_destruction_coeff``
-     - ``0.005``
-     - Buoyant wake destruction proportionality constant in m²/W.
+    - ``0.005``
+    - Buoyant wake destruction proportionality constant in m²/W.
+
+Input Variables Sectioned by Physics
+------------------------------------
+
+This section lists all possible configuration variables that can be provided in the input file, organized by their respective physical and computational categories.
+
+Core Domain & Solver Settings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **dx**, **dy**, **dz** (Real, Default: ``30.0``): Computational grid spacing in the X, Y, and Z directions [m].
+* **domain_height** (Real, Default: ``300.0``): Computational domain vertical height above maximum terrain [m].
+* **max_grid_size** (Integer, Default: ``32``): Maximum AMReX box size per dimension.
+* **mlmg_verbose** (Integer, Default: ``1``): Multigrid solver verbosity level (0 to 4).
+* **tol_rel** (Real, Default: ``1.e-8``): Relative convergence tolerance for multigrid solver.
+* **mlmg_max_iter** (Integer, Default: ``200``): Maximum number of multigrid solver iterations.
+* **mlmg_max_fmg_iter** (Integer, Default: ``0``): Maximum Full Multigrid iterations.
+* **mlmg_pre_smooth** (Integer, Default: ``2``): Pre-smoothing iterations in multigrid.
+* **mlmg_post_smooth** (Integer, Default: ``2``): Post-smoothing iterations in multigrid.
+* **mlmg_bottom_solver** (String, Default: ``default``): Bottom solver type (``default``, ``bicgstab``, ``cg``, ``smoother``).
+* **deriv_method** (String, Default: ``central``): Spatial derivative discretization scheme (``central``, ``weno3``, ``weno5``).
+* **plot_file** (String, Default: ``plt_wind``): Prefix of the output AMReX plotfile.
+* **extract_agl** (List of Reals, Default: none): Sampling heights above ground level [m] for 2D CSV extraction.
+* **extract_k** (List of Integers, Default: none): Grid vertical indices to extract data at.
+* **extract_file** (String, Default: ``wind_extract.csv``): Filename for terrain-aligned CSV extraction output.
+
+Terrain & Initialization
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **terrain_file** (String, Default: ``terrain.csv``): Path to CSV containing terrain X Y Z points, or ``synthetic``.
+* **init_mode** (String, Default: ``loglaw``): Wind initialization mode (``loglaw``, ``uniform``, ``raws``, ``surface_data``, ``powerlaw``, ``windfield``).
+* **U_ref**, **V_ref** (Real, Default: ``10.0`` / ``0.0``): Reference wind components [m/s] at reference height ``z_ref``.
+* **z_ref** (Real, Default: ``10.0``): Reference height above local terrain [m].
+* **z0** (Real, Default: ``0.1``): Default aerodynamic roughness length [m].
+* **uniform_U**, **uniform_V** (Real, Default: none): Uniform wind components [m/s] used in ``uniform`` mode.
+* **powerlaw_exponent** (Real, Default: ``0.143``): Exponent coefficient for power-law profiles.
+* **landuse_file** (String, Default: none): Path to land-use classification CSV file.
+* **velocity_file** (String, Default: none): Path to sparse station wind observations CSV file.
+* **surface_data_file** (String, Default: none): Path to HRRR-style surface observations CSV file.
+* **windfield_file** (String, Default: none): Path to pre-mapped 3D windfield CSV data.
+* **z0_file** (String, Default: none): Path to spatially-varying aerodynamic roughness CSV file.
+* **use_spatial_alpha_coefficients** (Boolean, Default: ``false``): Flag to enable spatially-varying alpha weighting.
+* **alpha_coefficients_file** (String, Default: none): Path to spatially-varying alpha coefficients CSV file.
+* **alpha_h**, **alpha_v** (Real, Default: ``1.0``): Global horizontal and vertical weighting scaling parameters.
+* **use_height_dependent_alpha_v** (Boolean, Default: ``false``): Flag to enable linear variation of vertical anisotropy with height.
+* **alpha_v_surface**, **alpha_v_top** (Real, Default: ``alpha_v``): Vertical anisotropy weighting at ground and top boundaries.
+* **idw_gamma** (Real, Default: ``1.0``): Vertical distance penalty factor for 3D meteorological interpolation.
+* **synthetic_type** (String, Default: ``multi_gaussian_hill``): Model type for synthetic terrain (``gaussian_hill``, ``multi_gaussian_hill``).
+* **synthetic_xmin**, **synthetic_xmax**, **synthetic_ymin**, **synthetic_ymax** (Real, Default: ``0.0`` / ``300.0``): Bounds of the generated synthetic terrain [m].
+* **synthetic_nx**, **synthetic_ny** (Integer, Default: ``11``): Horizontal grid resolution for synthetic terrain generation.
+* **synthetic_peak**, **synthetic_sigma**, **synthetic_center_x**, **synthetic_center_y** (Real, Default: none): Structural parameters for single Gaussian hill synthetic terrain.
+* **synthetic_peaks**, **synthetic_sigmas**, **synthetic_centers_x**, **synthetic_centers_y** (List of Reals, Default: none): Structural parameters lists for multi-Gaussian hill synthetic terrain.
+* **enable_terrain_analysis** (Boolean, Default: ``false``): Enable automatic slope and roughness terrain classification.
+* **slope_threshold_moderate**, **slope_threshold_steep** (Real, Default: ``15.0`` / ``30.0``): Terrain analysis slope angle classification thresholds [degrees].
+* **roughness_factor_moderate**, **roughness_factor_steep** (Real, Default: ``1.5`` / ``2.5``): Aerodynamic roughness scale multipliers based on slope.
+* **transition_zone_width** (Real, Default: ``100.0``): Spatial transition zone width [m].
+* **enable_transition_smoothing** (Boolean, Default: ``false``): Enable vertical smoothing across transition boundaries.
+* **transition_height_scale** (Real, Default: ``50.0``): Vertical transition height decay scale [m].
+* **transition_layer_height** (Real, Default: ``100.0``): Base height of transition layer [m].
+
+Atmospheric Physics & Boundary Layer Dynamics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **enable_stability_correction** (Boolean, Default: ``false``): Enable Monin-Obukhov atmospheric stability profile corrections.
+* **stability_length** (Real, Default: ``1.e10``): Obukhov length [m] (positive for stable, negative for unstable).
+* **use_holtslag_stability** (Boolean, Default: ``false``): Enable Holtslag stability functions for stable conditions.
+* **enable_pg_stability** (Boolean, Default: ``false``): Enable Pasquill-Gifford atmospheric stability classification scheme.
+* **solar_radiation** (Real, Default: ``0.0``): Incoming solar radiation [W/m²] for PG stability estimation.
+* **is_nighttime** (Boolean, Default: ``false``): Nighttime flag for PG stability.
+* **cloud_cover** (Real, Default: ``0.0``): Cloud cover fraction (0.0 to 1.0) for PG stability.
+* **enable_capping_lid** (Boolean, Default: ``false``): Enable capping lid boundary layer top constraint.
+* **capping_lid_height** (Real, Default: ``500.0``): Boundary layer height for capping lid [m].
+* **enable_elevation_scaling** (Boolean, Default: ``false``): Enable terrain-elevation-dependent wind speed scaling.
+* **elevation_scaling_factor** (Real, Default: ``0.1``): Intensity factor of the elevation scaling effect.
+* **elevation_height_scale** (Real, Default: ``100.0``): Height decay scale of the elevation scaling effect [m].
+* **enable_ekman_veer** (Boolean, Default: ``false``): Enable Coriolis Ekman spiral wind direction veer.
+* **latitude** (Real, Default: ``45.0``): Geographical latitude [degrees] for Coriolis force computation.
+* **ekman_veer_total** (Real, Default: ``30.0``): Total direction veer angle across the boundary layer [degrees].
+* **ekman_veer_height** (Real, Default: ``500.0``): Vertical extent height of the Ekman veer [m].
+* **enable_wind_direction_gradient** (Boolean, Default: ``false``): Enable linear vertical shear of the wind direction.
+* **wind_direction_shear_rate** (Real, Default: ``0.05``): Direction shear rate [deg/m].
+* **enable_fetch_roughness_transition** (Boolean, Default: ``false``): Enable downwind internal boundary layer development at roughness transitions.
+* **fetch_transition_blending_height** (Real, Default: ``50.0``): Height scale of internal boundary layer blending [m].
+* **enable_diurnal_roughness** (Boolean, Default: ``false``): Enable time-dependent sinusoidal modulation of roughness length z0(t).
+* **roughness_amplitude** (Real, Default: ``0.3``): Diurnal oscillation amplitude.
+* **roughness_phase_offset** (Real, Default: ``0.0``): Diurnal oscillation phase offset [hours].
+* **enable_bl_decay** (Boolean, Default: ``false``): Enable exponential wind speed decay above the boundary layer top.
+* **bl_depth_param** (Real, Default: ``200.0``): Boundary layer depth parameter [m].
+* **decay_height_scale** (Real, Default: ``100.0``): Vertical decay height scale above the boundary layer [m].
+* **bl_transition_height** (Real, Default: ``50.0``): Boundary layer transition height zone [m].
+* **enable_bl_depth_diagnostic** (Boolean, Default: ``false``): Enable Richardson-number-based boundary layer depth diagnostic.
+* **richardson_critical** (Real, Default: ``0.25``): Critical Richardson number threshold for boundary layer top.
+* **richardson_min_wind_shear** (Real, Default: ``0.001``): Minimum wind shear threshold for Richardson calculation.
+* **enable_froude_height_scaling** (Boolean, Default: ``false``): Scale terrain blocking intensity using local Froude height scaling.
+* **enable_ageostrophic_balance** (Boolean, Default: ``false``): Enable ageostrophic wind balance boundary conditions.
+* **ageostrophic_latitude** (Real, Default: ``45.0``): Latitude for ageostrophic force balance [degrees].
+* **ageostrophic_pressure_grad_x**, **ageostrophic_pressure_grad_y** (Real, Default: ``0.0``): Prescribed horizontal pressure gradients [Pa/m].
+* **ageostrophic_air_density** (Real, Default: ``1.225``): Reference air density [kg/m³].
+* **ageostrophic_fraction** (Real, Default: ``1.0``): Inclusion fraction of ageostrophic components.
+* **enable_flux_diagnostics** (Boolean, Default: ``false``): Enable surface layer energy and momentum flux computations.
+* **flux_compute_sensible_heat**, **flux_compute_latent_heat** (Boolean, Default: ``false``): Flags to calculate sensible and latent heat flux components.
+* **flux_theta_star** (Real, Default: ``0.1``): Prescribed scale temperature parameter for surface energy flux.
+* **flux_q_star** (Real, Default: ``0.001``): Prescribed scale moisture parameter for latent heat flux.
+* **charnock_alpha** (Real, Default: ``0.011``): Charnock parameter used for wind-speed-dependent overwater roughness.
+* **precipitation_file** (String, Default: none): Path to precipitation rate spatial CSV file.
+* **precipitation_stability_threshold** (Real, Default: ``1.0``): Rainfall rate threshold [mm/hr] for eroding stable layers.
+* **enable_directional_bias** (Boolean, Default: ``false``): Enable systematic direction and speed bias correction.
+* **bias_direction_offset** (Real, Default: ``0.0``): Wind direction bias correction offset [degrees].
+* **bias_speed_factor** (Real, Default: ``1.0``): Wind speed bias scale factor.
+* **bias_periodic_enabled** (Boolean, Default: ``false``): Enable time-varying periodic bias offset.
+* **bias_periodic_amplitude** (Real, Default: ``5.0``): Amplitude of periodic bias oscillations [degrees].
+* **enable_simplified_richardson** (Boolean, Default: ``false``): Enable bulk Richardson method for conditional stability selection.
+* **enable_coriolis_latitude** (Boolean, Default: ``false``): Enable geographical latitude-based scaling of Coriolis parameter.
+* **domain_latitude** (Real, Default: ``45.0``): Latitude of computational domain [degrees].
+* **enable_power_law_profile** (Boolean, Default: ``false``): Enable power-law profile wind initialization.
+* **enable_heat_flux_diagnostics** (Boolean, Default: ``false``): Enable diagnostic calculation of surface sensible and latent heat fluxes.
+* **heat_flux_theta_star** (Real, Default: ``0.0``): Temperature scaling parameter for heat flux diagnostic.
+* **enable_divergence_damping** (Boolean, Default: ``false``): Enable spatial divergence damping filtering.
+* **damping_coefficient** (Real, Default: ``0.1``): Divergence damping filter coefficient.
+* **damping_iterations** (Integer, Default: ``5``): Number of divergence damping smoothing iterations.
+* **enable_perturbation_pressure** (Boolean, Default: ``false``): Enable full perturbation pressure equation solve.
+* **pressure_tol_rel** (Real, Default: ``1.e-6``): Relative convergence tolerance for perturbation pressure.
+* **pressure_max_iter** (Integer, Default: ``100``): Maximum iterations for pressure multigrid solver.
+* **pressure_scale** (Real, Default: ``1.0``): Hydrostatic scaling parameter for pressure.
+* **enable_cell_local_anisotropy** (Boolean, Default: ``false``): Enable spatially-varying cell-local anisotropy coefficients.
+* **anisotropy_source** (String, Default: ``slope``): Driving mechanism for local anisotropy variation (``slope``, ``stability``).
+* **anisotropy_slope_scale** (Real, Default: ``1.0``): Sensitivity coefficient of slope-driven anisotropy.
+* **anisotropy_decay_height** (Real, Default: ``100.0``): Height decay scale of local anisotropy variations [m].
+* **anisotropy_ri_gamma**, **anisotropy_ri_beta** (Real, Default: ``2.0`` / ``0.5``): Scaling exponents for stability-driven anisotropy.
+* **anisotropy_fr_min** (Real, Default: ``0.1``): Minimum Froude number limit for stability anisotropy.
+
+Complex Topographic Physics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **enable_topographic_shielding** (Boolean, Default: ``false``): Enable topographic barrier sheltering IDW interpolation penalty.
+* **enable_thermal_circulation** (Boolean, Default: ``false``): Enable coastline-thermal sea-breeze circulation parameterization.
+* **thermal_temperature_contrast** (Real, Default: ``10.0``): Land-sea temperature contrast [K].
+* **thermal_reference_temperature** (Real, Default: ``293.0``): Reference air temperature [K].
+* **thermal_coefficient** (Real, Default: ``0.5``): Coastline sea-breeze flow intensity scaling parameter.
+* **thermal_vertical_decay_height** (Real, Default: ``200.0``): Vertical extent limit height of thermal flow [m].
+* **thermal_distance_scale** (Real, Default: ``2000.0``): Horizontal width of thermal sea-breeze transition zone [m].
+* **thermal_coastline_x**, **thermal_coastline_y** (Real, Default: ``0.0``): Center point coordinates representing the coastline.
+* **thermal_coast_normal_x**, **thermal_coast_normal_y** (Real, Default: ``1.0`` / ``0.0``): Unit direction vector normal to the coastline pointing from water to land.
+* **land_sea_mask_file** (String, Default: none): Path to binary land-sea mask CSV representing sea=0, land=1.
+* **enable_terrain_blocking** (Boolean, Default: ``false``): Enable stable flow terrain blocking parameterization.
+* **terrain_blocking_brunt_vaisala_frequency** (Real, Default: ``0.01``): Brunt-Väisälä frequency [rad/s] for stable layering.
+* **terrain_blocking_reduction_factor** (Real, Default: ``0.8``): Reference wind reduction scale inside blocked region.
+* **terrain_blocking_transition_froude** (Real, Default: ``1.0``): Critical Froude number below which terrain blocking triggers.
+* **terrain_blocking_flank_enhancement** (Real, Default: ``0.2``): Speedup enhancement factor of deflected flow bypassing terrain flanks.
+* **terrain_blocking_lapse_rate** (Real, Default: ``-0.0065``): Temperature vertical lapse rate [K/m].
+* **terrain_blocking_reference_temperature** (Real, Default: ``288.15``): Ground surface reference temperature [K].
+* **enable_slope_flows** (Boolean, Default: ``false``): Enable mountain katabatic (night downslope) or anabatic (day upslope) flow parameterization.
+* **slope_flow_temperature_diff** (Real, Default: ``-5.0``): Temperature deficit between surface and ambient air [K] (negative for katabatic, positive for anabatic).
+* **slope_flow_reference_temperature** (Real, Default: ``288.0``): Reference background temperature [K].
+* **slope_flow_empirical_coefficient** (Real, Default: ``0.1``): Slope flow speed velocity scaling parameter.
+* **slope_flow_vertical_decay_height** (Real, Default: ``50.0``): Vertical extent decay scale of slope flow jet [m].
+* **slope_flow_min_slope** (Real, Default: ``5.0``): Minimum slope angle [degrees] required to activate slope flow jet.
+* **enable_valley_channeling** (Boolean, Default: ``false``): Enable subgrid mountain valley wind channeling parameterization.
+* **valley_axis_angle_deg** (Real, Default: ``0.0``): Angle of the valley centerline axis relative to North [degrees].
+* **valley_width** (Real, Default: ``500.0``): Valley crosswind width scale [m].
+* **valley_depth** (Real, Default: ``200.0``): Valley depth scale [m].
+* **valley_channeling_strength_max** (Real, Default: ``0.5``): Maximum wind direction steering strength coefficient.
+* **valley_speedup_factor_narrow** (Real, Default: ``0.3``): Speedup acceleration multiplier inside valley narrows.
+* **valley_slowdown_factor_wide** (Real, Default: ``0.2``): Flow deceleration scale inside valley wide basins.
+* **enable_gap_flow** (Boolean, Default: ``false``): Enable wind speedup channeling inside mountain passes and gaps.
+* **gap_flow_orientation** (Real, Default: ``0.0``): Angle of gap axis relative to North [degrees].
+* **gap_flow_width**, **gap_flow_depth** (Real, Default: ``100.0`` / ``50.0``): Structural width and depth parameters of the gap [m].
+* **gap_flow_pressure_coefficient** (Real, Default: ``0.2``): Pressure gradient acceleration scaling factor inside gap.
+* **gap_flow_speedup_max** (Real, Default: ``1.5``): Maximum speedup multiplier.
+* **gap_flow_center_x**, **gap_flow_center_y** (Real, Default: ``0.0``): Spatial coordinate center of the gap [m].
+* **gap_flow_transition_width** (Real, Default: ``200.0``): Axial length scale of gap entrance/exit transition zone [m].
+* **gap_flow_vertical_extent** (Real, Default: ``100.0``): Vertical extent height limit of gap flow speedup [m].
+
+Canopy, Vegetation & Shelter Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **enable_canopy** (Boolean, Default: ``false``): Enable forest canopy momentum sink drag parameterization.
+* **canopy_file** (String, Default: none): Path to spatially varying canopy parameters CSV file.
+* **canopy_height** (Real, Default: ``15.0``): Uniform forest canopy top height [m].
+* **frontal_area_index** (Real, Default: ``0.1``): Frontal leaf area index used for drag density calculation.
+* **plan_area_index** (Real, Default: ``0.1``): Plan area index used for zero-plane displacement height.
+* **canopy_drag_coeff** (Real, Default: ``0.2``): Canopy drag coefficient (typical range 0.1 to 0.3).
+* **canopy_attenuation** (Real, Default: ``2.0``): Exponential wind speed decay scale parameter inside canopy.
+* **use_exponential_profile** (Boolean, Default: ``false``): Enable Shaw-Pereira exponential velocity decay profiling inside vegetation.
+* **canopy_profile_type** (String, Default: ``forest``): Type of canopy structure (``forest``, ``crop``, ``grass``).
+* **enable_windbreaks** (Boolean, Default: ``false``): Enable subgrid shelterbelt and windbreak line-segment drag.
+* **windbreaks_file** (String, Default: none): Path to windbreaks definition CSV file.
+* **enable_vegetation_roughness** (Boolean, Default: ``false``): Enable vegetation leaf density attenuation of surface roughness.
+* **vegetation_state** (Real, Default: ``1.0``): Vegetation seasonal state index (e.g. green leaf-area index fraction).
+* **vegetation_state_type** (Integer, Default: ``0``): Mapping code for vegetation seasonal types.
+
+Obstacles & Buildings
+~~~~~~~~~~~~~~~~~~~~~
+
+* **building_file** (String, Default: none): Path to buildings CSV specification file.
+* **enable_wake** (Boolean, Default: ``false``): Enable building wake parameterization (e.g. Röckle building model).
+* **wake_model_type** (String, Default: ``rockle``): Building wake parameterization (``rockle``, ``huber_snyder``, ``aermod_prime``).
+* **wake_c1**, **wake_c2** (Real, Default: ``0.9`` / ``0.3``): Cavity recirculation and downwind wake length parameters.
+* **wake_separation_length** (Real, Default: ``3.0``): Multiplier for downwind wake separation length scale.
+* **wake_superposition** (String, Default: ``rss``): Multi-building wake deficit superposition method (``rss``, ``linear``, ``max``).
+* **enable_street_canyon** (Boolean, Default: ``false``): Enable street canyon wind speed reduction for parallel building arrays.
+* **street_canyon_reduction** (Real, Default: ``0.5``): Speed reduction factor inside canyon cavities.
+* **enable_building_porosity** (Boolean, Default: ``false``): Enable porosity drag model for porous building structures.
+* **building_porosity_file** (String, Default: none): Path to building-by-building porosity properties CSV file.
+* **default_building_porosity** (Real, Default: ``0.0``): Default building porosity fraction (0.0 represents solid, 1.0 is open air).
+* **porosity_drag_coefficient** (Real, Default: ``2.0``): Drag scaling coefficient of the porous structure.
+* **enable_wall_functions** (Boolean, Default: ``false``): Enable wall function boundary conditions.
+* **enable_terrain_wall_function** (Boolean, Default: ``false``): Enable wall functions on terrain surface.
+* **enable_flat_surface_wall_function** (Boolean, Default: ``false``): Enable wall functions on flat bottom boundary.
+* **enable_building_wall_function** (Boolean, Default: ``false``): Enable wall functions on building solid walls.
+* **wall_function_z0_building**, **wall_function_z0_flat** (Real, Default: ``0.1`` / ``0.05``): Roughness lengths used inside wall functions [m].
+* **wall_function_blend_height** (Real, Default: ``10.0``): Vertical blending height of wall functions [m].
+* **wall_function_max_distance** (Real, Default: ``50.0``): Maximum spatial distance of wall function influence [m].
+* **wall_function_flat_surface_elevation** (Real, Default: ``0.0``): Elevation coordinate of flat bottom boundary [m].
+* **wall_function_enable_flat_surface** (Boolean, Default: ``false``): Enable presence of flat bottom surface.
+* **wall_function_min_wall_distance** (Real, Default: ``0.1``): Minimum wall distance cutoff [m] to prevent singularity.
+* **wall_function_enable_stability** (Boolean, Default: ``false``): Enable non-neutral Monin-Obukhov corrections inside wall functions.
+* **wall_function_stability_length** (Real, Default: ``1.e10``): Obukhov length inside wall functions [m].
+* **wall_function_enable_adaptive** (Boolean, Default: ``false``): Enable adaptive wall function activation based on local grid resolution.
+* **wall_function_adaptive_threshold** (Real, Default: ``0.05``): Relative resolution threshold for wall functions.
+* **wall_function_adaptive_min_cells** (Integer, Default: ``3``): Minimum grid cells inside boundary layer.
+
+Turbine Wakes & Deflection / Steering
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **enable_turbine_wake** (Boolean, Default: ``false``): Enable analytical turbine wake modeling.
+* **turbine_file** (String, Default: none): Path to turbines CSV layout file.
+* **turbine_wake_model_type** (String, Default: ``jensen``): Wake model type (``jensen``, ``bastankhah_gaussian``, ``turbopark``, ``gch``).
+* **turbine_wake_superposition** (String, Default: ``quadratic``): Deficit superposition method (``quadratic``, ``linear``, ``max``).
+* **jensen_kw** (Real, Default: ``0.075``): Jensen wake expansion decay constant.
+* **gaussian_ka** (Real, Default: ``0.05``): Bastankhah Gaussian wake expansion decay constant.
+* **turbopark_c1** (Real, Default: ``0.38``): TurbOPark expansion scaling parameter.
+* **ambient_ti** (Real, Default: ``0.075``): Ambient turbulence intensity parameter.
+* **enable_jimenez_deflection** (Boolean, Default: ``false``): Enable Jimenez wake centerline deflection model.
+* **jimenez_kd** (Real, Default: ``0.05``): Jimenez yaw deflection decay parameter.
+* **enable_bastankhah_deflection** (Boolean, Default: ``false``): Enable Bastankhah & Porté-Agel (2016) wake deflection model.
+* **wake_added_turbulence_model** (String, Default: ``none``): Analytical wake-added TI model (``none``, ``crespo_hernandez``, ``frandsen``).
+* **enable_wake_ground_interaction** (Boolean, Default: ``false``): Enable ground reflection boundary condition for wakes.
+* **wake_ground_damping_scale** (Real, Default: ``1.0``): Ground reflection damping factor.
+* **surface_sensible_heat_flux** (Real, Default: ``0.0``): Sensible heat flux [W/m²] for buoyant wake destruction.
+* **buoyant_wake_destruction_coeff** (Real, Default: ``0.005``): Buoyant wake destruction scale parameter [m²/W].
+
+Puff Dispersion & LPDM Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **enable_puff** (Boolean, Default: ``false``): Enable Lagrangian Puff Dispersion Model solver.
+* **enable_lpdm** (Boolean, Default: ``false``): Enable Lagrangian Particle Dispersion Model solver.
+* **particles_per_step** (Integer, Default: ``100``): Number of particles emitted per step in LPDM.
+* **lpdm_random_seed** (Integer, Default: ``12345``): Random seed integer for particle random walk generator.
+* **source_x**, **source_y**, **source_z** (Real, Default: ``0.0``): Computational coordinate coordinates of release source [m].
+* **emission_rate** (Real, Default: ``1.0``): Pollutant mass emission rate [kg/s].
+* **emission_duration** (Real, Default: ``10.0``): Mass emission duration [seconds].
+* **enable_indoor_infiltration** (Boolean, Default: ``false``): Enable indoor building infiltration concentration calculation.
+* **ach** (Real, Default: ``0.5``): Air changes per hour for indoor building infiltration calculation.
+* **emissions_file** (String, Default: none): Path to CSV file containing time-varying emission rates.
+* **threshold_red**, **threshold_orange**, **threshold_yellow**, **threshold_lfl** (Real, Default: none): Threat zone concentration thresholds for ALOHA threat analysis.
+* **threat_zones_output** (String, Default: none): Filename to write threat zone boundaries to.
+* **K_h**, **K_v** (Real, Default: ``1.0`` / ``0.1``): Horizontal and vertical turbulent diffusivities [m²/s].
+* **sigma_y0**, **sigma_z0** (Real, Default: ``1.0``): Initial puff sizing parameters [m].
+* **enable_height_dependent_K** (Boolean, Default: ``false``): Enable vertical variation of turbulent diffusivity.
+* **K_profile** (String, Default: ``uniform``): Diffusivity profile model (``uniform``, ``powerlaw``).
+* **K_power_law_exponent**, **K_reference_height** (Real, Default: ``0.15`` / ``10.0``): Height-dependent diffusivity power-law parameter.
+* **enable_decay** (Boolean, Default: ``false``): Enable first-order pollutant concentration decay.
+* **decay_constant** (Real, Default: ``1.e-4``): Chemical decay rate coefficient [s⁻¹].
+* **enable_plume_rise** (Boolean, Default: ``false``): Enable buoyant/momentum plume rise.
+* **heat_flux** (Real, Default: ``0.0``): Heat emission rate of source [W] for plume rise.
+* **dt_puff** (Real, Default: ``1.0``): Time step size for dispersion integration [seconds].
+* **n_steps_puff** (Integer, Default: ``100``): Number of integration steps to execute.
+* **output_freq_puff** (Integer, Default: ``10``): Plot file output frequency in steps.
+* **enable_adaptive_time_stepping** (Boolean, Default: ``false``): Enable CFL-limited adaptive time stepping.
+* **cfl_limit** (Real, Default: ``0.5``): Maximum allowable CFL number for dispersion stability.
+* **U_wind**, **V_wind**, **W_wind** (Real, Default: ``0.0``): Prescribed constant transport wind components [m/s] in standalone puff solver.
+* **enable_terrain_reflection** (Boolean, Default: ``true``): Enable perfect reflection at terrain surface.
+* **use_image_source** (Boolean, Default: ``false``): Use image source reflection method on flat ground.
+* **capping_lid_file** (String, Default: none): Path to CSV file containing spatially-varying capping lid heights.
+* **enable_building_masking** (Boolean, Default: ``false``): Zero out concentration inside solid building volumes.
+* **enable_wake_diffusivity** (Boolean, Default: ``false``): Enable enhanced diffusivity inside building wakes and cavity zones.
+* **wake_enhancement_cavity**, **wake_enhancement_far** (Real, Default: ``5.0`` / ``2.0``): Diffusivity enhancement factors inside building wakes.
+* **enable_cavity_trapping** (Boolean, Default: ``false``): Enable cavity trapping and slow release of pollutants downwind of buildings.
+* **enable_plume_deformation** (Boolean, Default: ``false``): Enable wind-shear-driven deformation of puff ellipsoid.
+* **aermod_prime_cavity_factor** (Real, Default: ``0.5``): AERMOD PRIME cavity trapping calibration coefficient.
+* **cavity_recirculation_strength** (Real, Default: ``0.5``): Recirculation wind speed scaling factor.
+* **enable_turbine_wake_diffusivity** (Boolean, Default: ``false``): Enable enhanced diffusivity inside wind turbine wakes.
+* **turbine_wake_diffusivity_factor** (Real, Default: ``3.0``): Diffusivity multiplier scale inside turbine wakes.
+* **enable_canopy_effects** (Boolean, Default: ``false``): Enable canopy wind sheltering and enhanced diffusivity inside canopy.
+* **canopy_enhancement_factor**, **canopy_sheltering_factor** (Real, Default: ``2.0`` / ``0.5``): Canopy diffusivity enhancement and sheltering coefficients.
+* **enable_canopy_deposition** (Boolean, Default: ``false``): Enable leaf surface pollutant deposition.
+* **enable_settling** (Boolean, Default: ``false``): Enable gravitational settling of heavy aerosol particles.
+* **particle_density**, **particle_diameter** (Real, Default: ``1000.0`` / ``1.e-5``): Particle density [kg/m³] and physical diameter [m].
+* **air_viscosity**, **gravity** (Real, Default: ``1.8e-5`` / ``9.81``): Physical dynamic viscosity of air [Pa·s] and gravity [m/s²].
+* **enable_puff_deposition** (Boolean, Default: ``false``): Enable dry deposition loss on ground surface.
+* **enable_wet_deposition** (Boolean, Default: ``false``): Enable precipitation scavenging washout of puff.
+* **scavenging_coeff_base** (Real, Default: ``1.e-4``): Base scavenging coefficient [s⁻¹].
+* **precipitation_rate** (Real, Default: ``0.0``): Rain precipitation intensity rate [mm/hr].
+* **scavenging_exponent** (Real, Default: ``0.8``): Washout precipitation intensity exponent scale.
+* **enable_dynamic_decay** (Boolean, Default: ``false``): Enable weather-dependent chemical decay.
+* **temp_ref**, **temp_coeff**, **rh_ref**, **rh_coeff**, **solar_ref**, **solar_coeff** (Real, Default: none): Meteorological decay coefficients.
+* **ambient_temp**, **ambient_rh**, **ambient_solar** (Real, Default: none): Prescribed ambient temperature [K], relative humidity, and solar radiation.
+
+Synthetic Turbulence & Spectral Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **enable_synthetic_turbulence** (Boolean, Default: ``false``): Enable terrain-aware synthetic turbulence pipeline.
+* **turbulence_spectrum_model** (String, Default: ``VonKarman``): Turbulent spectrum (``VonKarman``, ``Kaimal``, ``Mann``, ``Davenport``, ``Harris``).
+* **turbulence_intensity_model** (String, Default: ``PowerLaw``): Turbulence intensity profile (``PowerLaw``, ``IEC``, ``Uniform``).
+* **turbulence_coherence_model** (String, Default: ``Gaussian``): Spatial coherence model (``Gaussian``, ``PowerLaw``, ``QuadraticExponential``, ``none``).
+* **turbulence_intensity_ref** (Real, Default: ``0.12``): Reference turbulence intensity at hub height.
+* **turbulence_z_intensity_ref** (Real, Default: ``90.0``): Reference height for turbulence intensity profile [m].
+* **turbulence_intensity_exponent** (Real, Default: ``0.143``): Vertical exponent factor for PowerLaw intensity profile.
+* **turbulence_hub_height** (Real, Default: ``90.0``): Hub height for IEC spectrum parameters [m].
+* **turbulence_iec_category** (String, Default: ``B``): IEC 61400-1 turbulence category (``A``, ``B``, ``C``).
+* **turbulence_coherence_powerlaw_exponent** (Real, Default: ``0.5``): Coherence decay exponent for powerlaw model.
+* **turbulence_length_scale_u**, **turbulence_length_scale_v**, **turbulence_length_scale_w** (Real, Default: ``340.2`` / ``113.4`` / ``27.7``): Integral turbulence scales [m].
+* **turbulence_coherence_decay_vertical**, **turbulence_coherence_decay_lateral** (Real, Default: ``12.0`` / ``12.0``): Spatial decay factors of coherence.
+* **turbulence_anisotropy_ratio_v**, **turbulence_anisotropy_ratio_w** (Real, Default: ``0.8`` / ``0.5``): Variance ratios relative to u-component.
+* **mann_length_scale_u**, **mann_length_scale_v**, **mann_length_scale_w** (Real, Default: none): Integral scales for Mann model.
+* **mann_variance_u**, **mann_variance_v**, **mann_variance_w** (Real, Default: none): Component variances for Mann model.
+* **mann_asymmetry_parameter** (Real, Default: ``3.9``): Shear distortion anisotropy parameter for Mann model.
+* **mann_eddy_lifetime** (Real, Default: ``0.1``): Eddy lifetime parameter for Mann model.
+* **mann_terrain_adaptation_factor** (Real, Default: ``1.0``): Terrain adaptation scaling factor for Mann model.
+* **turbulence_random_seed** (Integer, Default: ``12345``): Random seed integer for spectral phase synthesis.
+* **turbulence_enable_stability_correction** (Boolean, Default: ``false``): Enable Monin-Obukhov atmospheric stability spectrum corrections.
+* **turbulence_monin_obukhov_length** (Real, Default: ``1.e10``): Obukhov length for turbulence spectrum [m].
+* **turbulence_stability_parameterization** (String, Default: ``MoninObukhov``): Stability correction scheme (``MoninObukhov``, ``Richardson``).
+* **turbulence_export_format** (String, Default: ``bts``): Export format for synthetic turbulence output (``bts``, ``Bladed``, ``vtk``, ``none``).
+* **turbulence_output_file** (String, Default: ``turbulence.bts``): Output binary filename for synthetic turbulence export.
+* **enable_terrain_aware_masking** (Boolean, Default: ``false``): Enable terrain-aware masking below ground level.
+* **terrain_mask_transition_height** (Real, Default: ``50.0``): Blending transition layer height above terrain [m].
 
 File Formats
 ------------

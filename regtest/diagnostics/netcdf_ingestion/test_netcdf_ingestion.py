@@ -12,6 +12,7 @@ import sys
 import subprocess
 import numpy as np
 import netCDF4 as nc
+from pathlib import Path
 
 def generate_synthetic_datasets():
     """Generate synthetic NetCDF files for testing."""
@@ -170,7 +171,16 @@ def run_cmd(cmd):
 def main():
     # Set paths
     test_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_dir = os.path.dirname(os.path.dirname(test_dir))
+    curr = Path(test_dir)
+    repo_dir = None
+    for parent in [curr] + list(curr.parents):
+        if (parent / "tools").is_dir():
+            repo_dir = parent
+            break
+    if repo_dir is None:
+        repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(test_dir)))
+    else:
+        repo_dir = str(repo_dir)
     parser_script = os.path.join(repo_dir, "tools", "netcdf_to_windfield.py")
     
     # Copy inputs and terrain files to current working directory

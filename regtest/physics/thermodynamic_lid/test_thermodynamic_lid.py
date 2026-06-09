@@ -5,16 +5,25 @@ import re
 from pathlib import Path
 
 def run_solver(extra_args=[]):
-    exe = Path(__file__).parent.parent.parent / "build" / "wind_solver"
+    curr = Path(__file__).resolve()
+    repo_root = None
+    for parent in [curr] + list(curr.parents):
+        if (parent / "CMakeLists.txt").is_file() and (parent / "tools").is_dir():
+            repo_root = parent
+            break
+    if repo_root is None:
+        repo_root = Path(__file__).parent.parent.parent.parent
+
+    exe = repo_root / "build" / "wind_solver"
     if not exe.exists():
-        exe = Path(__file__).parent.parent.parent / "build" / "Release" / "wind_solver"
+        exe = repo_root / "build" / "Release" / "wind_solver"
     if not exe.exists():
-        exe = Path(__file__).parent.parent.parent / "build" / "Debug" / "wind_solver"
+        exe = repo_root / "build" / "Debug" / "wind_solver"
     if not exe.exists():
         # Fallback to searching
-        matches = list(Path(__file__).parent.parent.parent.glob("**/wind_solver"))
+        matches = list(repo_root.glob("**/wind_solver"))
         if not matches:
-            matches = list(Path(__file__).parent.parent.parent.glob("**/wind_solver.exe"))
+            matches = list(repo_root.glob("**/wind_solver.exe"))
         if matches:
             exe = matches[0]
         else:
