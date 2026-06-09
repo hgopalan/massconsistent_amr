@@ -23,6 +23,7 @@
 
 #include "puff_models.H"
 #include "lpdm_models.H"
+#include "thermodynamic_lid_models.H"
 #include "turbine_wake_models.H"
 #include "solver_math_constants.H"
 
@@ -563,6 +564,26 @@ int main(int argc, char* argv[])
         pp.query("enable_capping_lid", enable_capping_lid);
         pp.query("capping_lid_height", capping_lid_height);
         pp.query("capping_lid_file", capping_lid_file);
+
+        ThermodynamicLidParams thermo_lid_params;
+        std::vector<Real> thermo_lid_flux_times;
+        std::vector<Real> thermo_lid_flux_values;
+        parse_thermodynamic_lid_inputs(thermo_lid_params);
+        if (thermo_lid_params.enabled) {
+            enable_capping_lid = true;
+            capping_lid_height = thermo_lid_params.initial_zi;
+            if (!thermo_lid_params.flux_file.empty()) {
+                std::ifstream check_file(thermo_lid_params.flux_file);
+                if (check_file.good()) {
+                    read_thermodynamic_flux_file(thermo_lid_params.flux_file,
+                                                 thermo_lid_flux_times,
+                                                 thermo_lid_flux_values);
+                } else {
+                    amrex::Print() << "puff_solver: WARNING - thermodynamic lid flux file specified but not found: "
+                                   << thermo_lid_params.flux_file << "\n";
+                }
+            }
+        }
         
         std::vector<Real> x_lid_pts, y_lid_pts, z_lid_pts;
         if (!capping_lid_file.empty()) {
@@ -905,6 +926,10 @@ int main(int argc, char* argv[])
         
         for (int step = 0; step < n_steps_puff; ++step) {
             Real time = step * dt_puff;
+            Real current_capping_lid_height = capping_lid_height;
+            if (thermo_lid_params.enabled) {
+                current_capping_lid_height = compute_thermodynamic_zi(time, thermo_lid_params, thermo_lid_flux_times, thermo_lid_flux_values);
+            }
             
             Real current_emission_rate = emission_rate;
             if (!emissions_profile.empty()) {
@@ -991,7 +1016,7 @@ int main(int argc, char* argv[])
                 }
                     
                 // Get local capping lid height
-                Real local_capping_lid_height = capping_lid_height;
+                Real local_capping_lid_height = current_capping_lid_height;
                 if (!x_lid_pts.empty()) {
                     local_capping_lid_height = interpolate_terrain_height(
                         p.x, p.y, x_lid_pts, y_lid_pts, z_lid_pts);
@@ -1172,7 +1197,7 @@ int main(int argc, char* argv[])
                 }
                     
                 // Get local capping lid height
-                Real local_capping_lid_height = capping_lid_height;
+                Real local_capping_lid_height = current_capping_lid_height;
                 if (!x_lid_pts.empty()) {
                     local_capping_lid_height = interpolate_terrain_height(
                         puff.x, puff.y, x_lid_pts, y_lid_pts, z_lid_pts);
@@ -1330,7 +1355,7 @@ int main(int argc, char* argv[])
                             Real C = 0.0;
                             for (const auto& puff : puffs) {
                                 if ((enable_terrain_reflection || enable_capping_lid) && use_image_source) {
-                                    Real local_capping_lid_height = capping_lid_height;
+                                   Real local_capping_lid_height = current_capping_lid_height;
                                     if (!x_lid_pts.empty()) {
                                         local_capping_lid_height = interpolate_terrain_height(
                                             x, y, x_lid_pts, y_lid_pts, z_lid_pts);
