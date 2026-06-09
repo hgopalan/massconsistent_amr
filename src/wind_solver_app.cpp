@@ -1289,6 +1289,7 @@ void WindSolverApp::allocate_data_fields() {
         const Real y_lo_cap = y_lo;
         const Real dx_cap = dx;
         const Real dy_cap = dy;
+        const Real idw_exponent_cap = idw_exponent;
         
         for (MFIter mfi(*alpha_h_field_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -1303,7 +1304,7 @@ void WindSolverApp::allocate_data_fields() {
                 
                 auto alpha_vals = WindInterpolation::idw_alpha_coefficients_gpu(xc, yc,
                     d_x_alpha_ptr, d_y_alpha_ptr,
-                    d_alpha_h_ptr, d_alpha_v_ptr, n_alpha_pts, 6, idw_exponent);
+                    d_alpha_h_ptr, d_alpha_v_ptr, n_alpha_pts, 6, idw_exponent_cap);
                 
                 alpha_h_arr(i, j, k) = alpha_vals.first;
                 alpha_v_arr(i, j, k) = alpha_vals.second;
