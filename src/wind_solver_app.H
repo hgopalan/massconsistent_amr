@@ -166,6 +166,10 @@ private:
     amrex::Real anisotropy_ri_beta = 0.5;
     amrex::Real anisotropy_fr_min = 0.1;
     amrex::Real idw_gamma = 1.0;
+    amrex::Real idw_rmax1 = -1.0;
+    amrex::Real idw_rmax2 = -1.0;
+    amrex::Real idw_r1 = -1.0;
+    amrex::Real idw_r2 = -1.0;
 
     // Stability
     bool enable_stability_correction = false;
@@ -300,6 +304,12 @@ private:
     amrex::Real ekman_veer_total = 20.0;
     amrex::Real ekman_veer_height = 200.0;
     amrex::Real ekman_veer_total_rad = 0.0;
+
+    // Analytical Ekman Spiral vertical profile initialization parameters
+    amrex::Real ekman_latitude = 45.0;
+    amrex::Real ekman_ug = 10.0;
+    amrex::Real ekman_vg = 0.0;
+    amrex::Real ekman_Km = 5.0;
 
     // Wind Direction Gradient
     bool enable_wind_direction_gradient = false;

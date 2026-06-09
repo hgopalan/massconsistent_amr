@@ -101,7 +101,7 @@ Parameter Reference
      -
    * - ``init_mode``
      - ``loglaw``
-     - Wind field initialization method: ``loglaw`` (log-law profile), ``uniform`` (constant wind), ``raws`` (interpolate from RAWS file), ``surface_data`` (HRRR surface parameters), ``powerlaw`` (power-law profile), ``windfield`` (reads pre-mapped CSV data).
+     - Wind field initialization method: ``loglaw`` (log-law profile), ``uniform`` (constant wind), ``raws`` (interpolate from RAWS file), ``surface_data`` (HRRR surface parameters), ``powerlaw`` (power-law profile), ``windfield`` (reads pre-mapped CSV data), ``ekman_spiral`` (analytical classical Ekman spiral profile).
    * - ``U_ref``
      - ``10.0``
      - Reference wind x-component [m/s] at height ``z_ref``.
@@ -159,6 +159,33 @@ Parameter Reference
    * - ``idw_gamma``
      - ``1.0``
      - Anisotropic vertical scaling parameter :math:`\gamma` for 3D meteorological interpolation. A value :math:`\gamma \gg 1` penalizes vertical distances to preserve atmospheric profile stratification.
+   * - ``idw_rmax1``
+     - ``-1.0``
+     - CALMET-style maximum horizontal radius of influence [m] for surface layer meteorological station interpolation (value <= 0 ignores the limit).
+   * - ``idw_rmax2``
+     - ``-1.0``
+     - CALMET-style maximum horizontal radius of influence [m] for upper-air layers meteorological station interpolation (value <= 0 ignores the limit).
+   * - ``idw_r1``
+     - ``-1.0``
+     - Blending weighting parameter [m] for surface layer Step 1 vs. Step 2 weighting (value <= 0 disables blending).
+   * - ``idw_r2``
+     - ``-1.0``
+     - Blending weighting parameter [m] for upper-air layers Step 1 vs. Step 2 weighting (value <= 0 disables blending).
+   * - **Analytical Ekman Spiral Initialization Parameters**
+     -
+     -
+   * - ``ekman_latitude``
+     - ``45.0``
+     - Latitude [degrees] for analytical Ekman spiral profile initialization (defaults to ``latitude``).
+   * - ``ekman_ug``
+     - ``10.0``
+     - Geostrophic wind x-component [m/s] for analytical Ekman spiral profile initialization (defaults to ``U_ref``).
+   * - ``ekman_vg``
+     - ``0.0``
+     - Geostrophic wind y-component [m/s] for analytical Ekman spiral profile initialization (defaults to ``V_ref``).
+   * - ``ekman_Km``
+     - ``5.0``
+     - Vertical eddy viscosity coefficient [m^2/s] for analytical Ekman spiral profile initialization.
    * - **MLMG Solver Parameters**
      -
      -

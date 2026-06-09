@@ -78,9 +78,9 @@ void WindSolverApp::parse_inputs() {
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
         init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield" &&
-        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl") {
+        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', or 'powerlaw_above_bl')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', or 'ekman_spiral')");
     }
 
     pp.query("U_ref", U_ref);
@@ -189,6 +189,20 @@ void WindSolverApp::parse_inputs() {
     pp.query("alpha_h", alpha_h);
     pp.query("alpha_v", alpha_v);
     pp.query("idw_gamma", idw_gamma);
+    pp.query("idw_rmax1", idw_rmax1);
+    pp.query("idw_rmax2", idw_rmax2);
+    pp.query("idw_r1", idw_r1);
+    pp.query("idw_r2", idw_r2);
+
+    // Analytical Ekman Spiral vertical profile initialization parameters
+    ekman_latitude = latitude;
+    pp.query("ekman_latitude", ekman_latitude);
+    ekman_ug = U_ref;
+    pp.query("ekman_ug", ekman_ug);
+    ekman_vg = V_ref;
+    pp.query("ekman_vg", ekman_vg);
+    ekman_Km = Real(5.0);
+    pp.query("ekman_Km", ekman_Km);
 
     // Height-dependent alpha_v
     pp.query("use_height_dependent_alpha_v", use_height_dependent_alpha_v);
@@ -2364,6 +2378,51 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 }
             });
         }
+    } else if (init_mode == "ekman_spiral") {
+        const Real lat = ekman_latitude;
+        const Real Ug = ekman_ug;
+        const Real Vg = ekman_vg;
+        const Real Km = ekman_Km;
+        const Real pi_val = 3.14159265358979323846;
+        const Real omega = 7.27e-5;
+        const Real f_coriolis = 2.0 * omega * std::sin(lat * pi_val / 180.0);
+        const Real abs_f = std::abs(f_coriolis);
+        const Real a_ekman = (abs_f > 1.0e-8) ? std::sqrt(abs_f / (2.0 * Km)) : 0.0;
+
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    if (abs_f > Real(1.0e-8)) {
+                        Real exp_term = std::exp(-a_ekman * z_agl);
+                        Real cos_term = std::cos(a_ekman * z_agl);
+                        Real sin_term = std::sin(a_ekman * z_agl);
+                        if (f_coriolis >= Real(0.0)) {
+                            vel(i, j, k, 0) = Ug * (Real(1.0) - exp_term * cos_term) - Vg * exp_term * sin_term;
+                            vel(i, j, k, 1) = Vg * (Real(1.0) - exp_term * cos_term) + Ug * exp_term * sin_term;
+                        } else {
+                            vel(i, j, k, 0) = Ug * (Real(1.0) - exp_term * cos_term) + Vg * exp_term * sin_term;
+                            vel(i, j, k, 1) = Vg * (Real(1.0) - exp_term * cos_term) - Ug * exp_term * sin_term;
+                        }
+                    } else {
+                        vel(i, j, k, 0) = Ug;
+                        vel(i, j, k, 1) = Vg;
+                    }
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
     } else if (init_mode == "uniform") {
         const Real u_uniform = uniform_U;
         const Real v_uniform = uniform_V;
@@ -2479,16 +2538,60 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
 
         for (int k = 0; k < nz; ++k) {
             Real zc = z_lo_cap + (k + Real(0.5)) * dz_cap;
+            Real rmax = (k == 0) ? idw_rmax1 : idw_rmax2;
+            Real R_param = (k == 0) ? idw_r1 : idw_r2;
             for (int j = 0; j < ny; ++j) {
                 Real yc = y_lo + (j + Real(0.5)) * dy;
                 for (int i = 0; i < nx; ++i) {
                     Real xc = x_lo + (i + Real(0.5)) * dx;
+                    Real d_min = std::numeric_limits<Real>::max();
+                    bool any_station_within_rmax = false;
+                    for (std::size_t s = 0; s < x_vel.size(); ++s) {
+                        Real dx_s = x_vel[s] - xc;
+                        Real dy_s = y_vel[s] - yc;
+                        Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
+                        if (rmax <= Real(0.0) || dist < rmax) {
+                            any_station_within_rmax = true;
+                            if (dist < d_min) {
+                                d_min = dist;
+                            }
+                        }
+                    }
+
                     auto [ux_interp, uy_interp] = WindInterpolation::idw_velocity_3d(
                         xc, yc, zc, x_vel, y_vel, z_vel, ux_vel, uy_vel, 6,
-                        idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny);
+                        idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
+                        rmax);
+                    
+                    Real u_final = ux_interp;
+                    Real v_final = uy_interp;
+
+                    if (R_param > Real(0.0)) {
+                        Real speed_ref = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+                        Real u_bg = 0.0, v_bg = 0.0;
+                        if (speed_ref > Real(1.0e-10)) {
+                            Real z_agl = zc - terrain_h[j * nx + i];
+                            if (z_agl > Real(0.0)) {
+                                Real ustar_bg = speed_ref * Real(0.41) / std::log((z_ref + z0) / z0);
+                                Real speed_bg = (ustar_bg / Real(0.41)) * std::log((z_agl + z0) / z0);
+                                u_bg = speed_bg * U_ref / speed_ref;
+                                v_bg = speed_bg * V_ref / speed_ref;
+                            }
+                        }
+
+                        if (!any_station_within_rmax) {
+                            u_final = u_bg;
+                            v_final = v_bg;
+                        } else {
+                            Real weight_bg = (d_min / R_param) * (d_min / R_param);
+                            u_final = (ux_interp + weight_bg * u_bg) / (Real(1.0) + weight_bg);
+                            v_final = (uy_interp + weight_bg * v_bg) / (Real(1.0) + weight_bg);
+                        }
+                    }
+
                     std::size_t idx = (static_cast<std::size_t>(k) * ny + j) * nx + i;
-                    vel_u_h[idx] = ux_interp;
-                    vel_v_h[idx] = uy_interp;
+                    vel_u_h[idx] = u_final;
+                    vel_v_h[idx] = v_final;
                 }
             }
         }
@@ -2858,13 +2961,15 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
 
         for (int k = 0; k < nz; ++k) {
             Real zc = z_lo_cap + (k + Real(0.5)) * dz_cap;
+            Real rmax = (k == 0) ? idw_rmax1 : idw_rmax2;
             for (int j = 0; j < ny; ++j) {
                 Real yc = y_lo + (j + Real(0.5)) * dy;
                 for (int i = 0; i < nx; ++i) {
                     Real xc = x_lo + (i + Real(0.5)) * dx;
                     auto [ux_interp, uy_interp, uz_interp] = WindInterpolation::idw_velocity_3d_full(
                         xc, yc, zc, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf, 6,
-                        idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny);
+                        idw_gamma, enable_topographic_shielding, terrain_h, x_lo, y_lo, dx, dy, nx, ny,
+                        rmax);
                     std::size_t idx = (static_cast<std::size_t>(k) * ny_cap + j) * nx_cap + i;
                     vel_u_h[idx] = ux_interp;
                     vel_v_h[idx] = uy_interp;
