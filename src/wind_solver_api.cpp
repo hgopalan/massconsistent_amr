@@ -884,7 +884,7 @@ void initialize_wind_field(WindSolverState& state)
         const Real Ug = state.ekman_ug;
         const Real Vg = state.ekman_vg;
         const Real Km = state.ekman_Km;
-        const Real pi_val = 3.14159265358979323846;
+        const Real pi_val = MathConstants::pi;
         const Real omega = 7.27e-5;
         const Real f_coriolis = 2.0 * omega * std::sin(lat * pi_val / 180.0);
         const Real abs_f = std::abs(f_coriolis);
@@ -964,7 +964,7 @@ void initialize_wind_field(WindSolverState& state)
                         Real dx_s = x_vel[s] - xc;
                         Real dy_s = y_vel[s] - yc;
                         Real dist = std::sqrt(dx_s * dx_s + dy_s * dy_s);
-                        if (rmax <= Real(0.0) || dist < rmax) {
+                        if (rmax <= Real(0.0) || dist <= rmax) {
                             any_station_within_rmax = true;
                             if (dist < d_min) {
                                 d_min = dist;

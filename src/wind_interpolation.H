@@ -279,7 +279,7 @@ inline std::pair<Real, Real> idw_velocity_3d(Real xq, Real yq, Real zq,
         Real dy_val = y[i] - yq;
         if (rmax > Real(0.0)) {
             Real d2D_sq = dx_val * dx_val + dy_val * dy_val;
-            if (d2D_sq >= rmax * rmax) {
+            if (d2D_sq > rmax * rmax) {
                 continue; // Skip station if it's beyond rmax
             }
         }
@@ -365,7 +365,7 @@ inline std::tuple<Real, Real, Real> idw_velocity_3d_full(Real xq, Real yq, Real 
         Real dy_val = y[i] - yq;
         if (rmax > Real(0.0)) {
             Real d2D_sq = dx_val * dx_val + dy_val * dy_val;
-            if (d2D_sq >= rmax * rmax) {
+            if (d2D_sq > rmax * rmax) {
                 continue; // Skip station if it's beyond rmax
             }
         }
