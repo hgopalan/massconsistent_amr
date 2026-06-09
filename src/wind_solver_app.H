@@ -418,6 +418,9 @@ private:
     int pressure_max_iter = 100;
     amrex::Real pressure_scale = 0.5;
 
+    // O'Brien Vertical Velocity Adjustment
+    bool enable_obrien_w_adjustment = false;
+
     // Multi-scale terrain analysis
     bool enable_terrain_analysis = false;
     amrex::Real slope_threshold_moderate = 0.1;

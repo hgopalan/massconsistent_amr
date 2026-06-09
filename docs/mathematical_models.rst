@@ -143,6 +143,30 @@ The anisotropic Poisson equation is solved using the following boundary conditio
 * **Lateral (y-faces)**: Neumann :math:`\frac{\partial\lambda}{\partial y} = 0` (no flow adjustment normal to lateral faces)
 * **Ground and Top (z-faces)**: Neumann :math:`\frac{\partial\lambda}{\partial z} = 0` (no flow adjustment normal to ground/top)
 
+O'Brien Vertical Velocity Adjustment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To precisely satisfy the vertical velocity boundary constraint (i.e., :math:`w = 0` at the domain top) without relying solely on the elliptic Poisson solver, the solver supports the O'Brien (1970) vertical velocity adjustment procedure (enabled via ``enable_obrien_w_adjustment = true``).
+
+In this procedure, vertical divergence residuals are redistributed column-wise before the Poisson solve. First, the horizontal divergence is integrated from the first cell above terrain height (:math:`k_{\text{start}}`) to the top level (:math:`k_{\text{top}}`) to obtain the calculated vertical velocity profile :math:`w_{\text{calc}}(z)`:
+
+.. math::
+
+   w_{\text{calc}}(z) = w(k_{\text{start}}) - \int_{z(k_{\text{start}})}^z \left(\frac{\partial u}{\partial x} + \frac{\partial v}{\partial y}\right) dz'
+
+The residual vertical velocity at the top boundary is:
+
+.. math::
+
+   E = w_{\text{calc}}(z(k_{\text{top}})) - w_{\text{target}}
+
+where :math:`w_{\text{target}} = 0.0`. O'Brien's polynomial weighting scheme then adjusts the vertical velocity profile column-wise:
+
+.. math::
+
+   w_{\text{adjusted}}(z) = w_{\text{calc}}(z) - \frac{(z - z(k_{\text{start}}))^2}{(z(k_{\text{top}}) - z(k_{\text{start}}))^2} E
+
+This ensures :math:`w_{\text{adjusted}}(z(k_{\text{top}})) = 0.0` exactly, and because the vertical boundary condition for :math:`\lambda` is Neumann (:math:`\frac{\partial\lambda}{\partial z} = 0`), this top boundary condition on :math:`w` is precisely preserved throughout the subsequent Poisson solve and velocity correction step.
+
 Advanced Boundary Layer Physics
 -------------------------------
 
