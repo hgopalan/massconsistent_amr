@@ -164,6 +164,15 @@ void WindSolverApp::parse_inputs() {
     if (enable_bridge_loading && !bridge_file.empty()) {
         BridgeLoading::read_bridges_file(bridge_file, bridges);
     }
+
+    // General Structure Loading Assessment parameters (buildings, towers, antennas)
+    pp.query("enable_structure_loading", enable_structure_loading);
+    pp.query("structure_file", structure_file);
+    pp.query("structure_output_file", structure_output_file);
+
+    if (enable_structure_loading && !structure_file.empty()) {
+        StructureLoading::read_structures_file(structure_file, structures);
+    }
     
     // Street canyon parameters
     pp.query("enable_street_canyon", enable_street_canyon);
@@ -5047,6 +5056,54 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                 nx, ny, nz
             );
             BridgeLoading::write_bridge_output_file(bridge_output_file, bridges, time_step);
+        }
+    }
+
+    // Process general structure loading if enabled
+    if (enable_structure_loading) {
+        // Reuse or create host arrays for structure processing
+        if (u_host.empty()) {
+            u_host.assign(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+            v_host.assign(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+            w_host.assign(static_cast<std::size_t>(nx) * ny * nz, 0.0);
+
+            for (amrex::MFIter mfi(*vel_c_ptr, false); mfi.isValid(); ++mfi) {
+                const amrex::Box& bx = mfi.validbox();
+#ifdef AMREX_USE_GPU
+                amrex::FArrayBox host_fab(bx, vel_c_ptr->nComp(), amrex::The_Pinned_Arena());
+                host_fab.copy<amrex::RunOn::Device>((*vel_c_ptr)[mfi], bx);
+                amrex::Gpu::streamSynchronize();
+                auto const& arr = host_fab.const_array();
+#else
+                auto const& arr = vel_c_ptr->const_array(mfi);
+#endif
+                for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                    for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+                        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                            std::size_t idx = static_cast<std::size_t>(i) 
+                                            + static_cast<std::size_t>(nx) * (static_cast<std::size_t>(j) 
+                                            + static_cast<std::size_t>(ny) * k);
+                            u_host[idx] = arr(i, j, k, 0);
+                            v_host[idx] = arr(i, j, k, 1);
+                            w_host[idx] = arr(i, j, k, 2);
+                        }
+                    }
+                }
+            }
+
+            amrex::ParallelDescriptor::ReduceRealSum(u_host.data(), u_host.size());
+            amrex::ParallelDescriptor::ReduceRealSum(v_host.data(), v_host.size());
+            amrex::ParallelDescriptor::ReduceRealSum(w_host.data(), w_host.size());
+        }
+
+        if (!structures.empty()) {
+            StructureLoading::process_structure_loading_pregathered(
+                structures, u_host, v_host, w_host,
+                x_lo, y_lo, zs_min,
+                dx, dy, dz,
+                nx, ny, nz
+            );
+            StructureLoading::write_structure_output_file(structure_output_file, structures, time_step);
         }
     }
 
