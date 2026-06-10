@@ -21,7 +21,7 @@ max_grid_size = 32
 # Wind profile setup (Log-law with reference wind)
 init_mode = loglaw
 U_ref = 7.5
-V_ref = 6.0
+V_ref = 15.0
 z_ref = 10.0
 z0 = 0.1
 
