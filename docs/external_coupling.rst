@@ -17,7 +17,7 @@ The coupling code is located in: ``tests_and_examples/phreeqc_coupling/``
 
 The directory contains 11 standalone example scripts demonstrating core capabilities:
 
-1. **01_wind_field_bc.py** — Wind velocity as boundary condition for pore-water advection
+1. **wind_field_bc.py** — Wind velocity as boundary condition for pore-water advection
 2. **02_temperature_profile_bc.py** — Temperature profile extraction from wind solver
 3. **03_precipitation_recharge.py** — Infiltration mapping and recharge calculations
 4. **04_kv_dispersivity.py** — Vertical permeability and dispersivity extraction
