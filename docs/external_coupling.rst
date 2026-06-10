@@ -235,3 +235,103 @@ The Python API enables coupling between `massconsistent_amr` and `pyWildfire` so
    # Finalize
    fire.finalize()
    wind.finalize()
+
+
+Agricultural Drone Operations & Pest Management
+-----------------------------------------------
+
+Overview
+~~~~~~~~
+
+The Agricultural Drone Operations & Pest Management module provides specialized modeling for agricultural drone pesticide application, spray drift, and crop canopy deposition. Drones spraying liquid pesticides, herbicides, or biological agents operate close to complex terrain and vegetation in the atmospheric boundary layer.
+
+This module supports:
+- **Drone Path Representation**: Loading and interpolating multi-variable flight telemetry (3D coordinates, speed, heading, flow rates).
+- **Dynamic Point Sources**: Simulating moving Lagrangian particles (LPDM) and Gaussian Puffs originating from translating spray nozzles.
+- **Mass Emission Regulation**: Converting volumetric nozzle flow rates to physical pesticide active ingredient mass flow with velocity-dependent scaling.
+
+Mathematical Model
+~~~~~~~~~~~~~~~~~~
+
+Drone Trajectory & Interpolation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A flight trajectory is defined by discrete state vectors :math:`\mathbf{S}_n = (t_n, x_n, y_n, z_n, U_n, \theta_n, Q_n, a_n)`, where :math:`U_n` is flight speed, :math:`\theta_n` is drone heading, :math:`Q_n` is the volumetric nozzle flow rate, and :math:`a_n` is the binary active spray flag.
+
+For any arbitrary time :math:`t_n \le t \le t_{n+1}`, the state variables are linearly interpolated:
+
+.. math::
+
+   x(t) = x_n + \frac{x_{n+1} - x_n}{t_{n+1} - t_n} (t - t_n)
+
+Nozzle Mass Emission Regulation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Nozzle flow rate :math:`Q(t)` [L/min] is converted to pesticide active ingredient mass emission rate :math:`S_m(t)` [g/s] using the formulation fluid density :math:`\rho_{\text{form}}` [g/L] and active ingredient mass fraction :math:`f_{\text{active}}`:
+
+.. math::
+
+   S_m(t) = \frac{Q(t)}{60} \cdot \rho_{\text{form}} \cdot f_{\text{active}} \cdot a(t)
+
+If speed-dependent rate regulation is enabled to maintain constant ground deposition density despite speed variations, the emission scales relative to the base calibration flight speed :math:`U_{\text{base}}`:
+
+.. math::
+
+   S_m(t) = S_{m,\text{base}}(t) \cdot \left( \frac{U(t)}{U_{\text{base}}} \right)
+
+Dynamic Moving Source Dispersion
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Emitted pesticide mass is transported as moving sources:
+
+1. **Gaussian Puffs**: Puffs of mass :math:`M_p = S_m(t) \cdot \Delta t` are released at the drone's instantaneous position :math:`\mathbf{x}_d(t)`. Puffs are advected with the 3D wind velocity :math:`\mathbf{u}(\mathbf{x}_p)` and grow over time with horizontal and vertical diffusivities :math:`K_h` and :math:`K_v`. Ground deposition and reflection are modeled using image sources.
+
+2. **Lagrangian Particles (LPDM)**: Dispersed droplets are modeled as discrete particles carrying mass fractions. At each step, new particles are emitted from the nozzle and advected via:
+
+   .. math::
+
+     x_p(t + \Delta t) = x_p(t) + u_p \Delta t + \xi_x \sqrt{2 K_h \Delta t}
+
+   where :math:`\xi_p \sim \mathcal{N}(0, 1)` represents turbulent stochastic diffusion.
+
+Python API Usage
+~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from wind_solver import WindSolver
+   from agricultural_drone import DroneTrajectory, MassEmissionRegulator, DronePuffDispersion
+
+   # 1. Load flight telemetry
+   trajectory = DroneTrajectory.from_csv("flight_telemetry.csv")
+
+   # 2. Configure pesticide regulator (10% active ingredient, 1000 g/L density)
+   regulator = MassEmissionRegulator(
+      formulation_density=1000.0,
+      active_fraction=0.1,
+      base_speed=5.0,
+      speed_dependent=True
+   )
+
+   # 3. Solve microclimate wind field over complex terrain
+   wind = WindSolver("inputs.i")
+   wind.solve()
+
+   # 4. Initialize and execute moving source dispersion
+   dispersion = DronePuffDispersion()
+   dispersion.simulate(
+      trajectory=trajectory,
+      regulator=regulator,
+      wind_solver=wind,
+      dt=1.0,
+      K_h=1.2,
+      K_v=0.6,
+      enable_ground_reflection=True
+   )
+
+   # 5. Extract 3D pesticide active ingredient concentration map [g/m³]
+   concentration = dispersion.concentration  # shape: (nz, ny, nx)
+   print(f"Peak concentration: {concentration.max():.4f} g/m³")
+
+   wind.finalize()
+
