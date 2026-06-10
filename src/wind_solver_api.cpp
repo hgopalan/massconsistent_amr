@@ -399,6 +399,41 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("anisotropy_ri_beta", state.anisotropy_ri_beta);
     pp.query("anisotropy_fr_min", state.anisotropy_fr_min);
     pp.query("temperature_gradient", state.temperature_gradient);
+    
+    // 3D Scalar transport parameters
+    state.enable_3d_scalars = false;
+    state.enable_temperature_transport = false;
+    state.enable_moisture_transport = false;
+    state.temperature_diffusivity = 2.5e-5;
+    state.moisture_diffusivity = 2.2e-5;
+    state.scalar_dt = -1.0;
+    state.scalar_cfl = 0.8;
+    state.multi_step_corrector_steps = 1;
+    
+    pp.query("enable_3d_scalars", state.enable_3d_scalars);
+    pp.query("enable_temperature_transport", state.enable_temperature_transport);
+    pp.query("enable_moisture_transport", state.enable_moisture_transport);
+    pp.query("temperature_diffusivity", state.temperature_diffusivity);
+    pp.query("moisture_diffusivity", state.moisture_diffusivity);
+    pp.query("scalar_dt", state.scalar_dt);
+    pp.query("scalar_cfl", state.scalar_cfl);
+    pp.query("multi_step_corrector_steps", state.multi_step_corrector_steps);
+    
+    // Mixing length turbulence model parameters
+    state.enable_mixing_length_turbulence = true;
+    state.mixing_length_coefficient = 0.1;
+    state.von_karman = 0.41;
+    state.zground = 0.1;
+    
+    pp.query("enable_mixing_length_turbulence", state.enable_mixing_length_turbulence);
+    pp.query("mixing_length_coefficient", state.mixing_length_coefficient);
+    pp.query("von_karman", state.von_karman);
+    pp.query("zground", state.zground);
+    
+    // If any transport is enabled, automatically enable 3D scalars
+    if (state.enable_temperature_transport || state.enable_moisture_transport) {
+        state.enable_3d_scalars = true;
+    }
 
     state.mlmg_verbose = 1;
     state.tol_rel = 1.e-8;

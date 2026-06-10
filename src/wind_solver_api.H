@@ -58,6 +58,12 @@ struct WindSolverState {
     std::unique_ptr<amrex::MultiFab> shf;      // Sensible heat flux [W/m²]
     std::unique_ptr<amrex::MultiFab> lhf;      // Latent heat flux [W/m²]
     
+    // 3D Scalar transport fields
+    std::unique_ptr<amrex::MultiFab> temp_3d;      // 3D temperature field [K]
+    std::unique_ptr<amrex::MultiFab> moisture_3d;  // 3D moisture field [kg/kg]
+    std::unique_ptr<amrex::MultiFab> temp_3d_old;  // Temperature from previous time step [K]
+    std::unique_ptr<amrex::MultiFab> moisture_3d_old; // Moisture from previous time step [kg/kg]
+    
     // Grid parameters
     int nx, ny, nz;
     double dx, dy, dz;
@@ -218,6 +224,22 @@ struct WindSolverState {
     bool solved;
     int mlmg_iters;
     amrex::Real mlmg_res;
+    
+    // 3D Scalar transport parameters
+    bool enable_3d_scalars = false;              // Enable 3D temperature and moisture fields
+    bool enable_temperature_transport = false;   // Enable temperature transport equation solving
+    bool enable_moisture_transport = false;      // Enable moisture transport equation solving
+    amrex::Real temperature_diffusivity = 2.5e-5; // Thermal diffusivity [m²/s]
+    amrex::Real moisture_diffusivity = 2.2e-5;   // Moisture diffusivity [m²/s]
+    amrex::Real scalar_dt = -1.0;                // Time step for scalar transport (negative = auto-compute via CFL)
+    amrex::Real scalar_cfl = 0.8;                // CFL number for scalar transport
+    int multi_step_corrector_steps = 1;          // Number of corrector iterations for temperature-dependent mass-consistent solve
+    
+    // Mixing length model parameters for eddy diffusivity
+    bool enable_mixing_length_turbulence = true; // Use mixing length model for eddy diffusivity
+    amrex::Real mixing_length_coefficient = 0.1; // Proportionality constant for mixing length: l = coeff * Δz
+    amrex::Real von_karman = 0.41;               // Von Kármán constant
+    amrex::Real zground = 0.1;                   // Ground roughness for mixing length calculation [m]
 };
 
 // Global singleton instance

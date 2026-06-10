@@ -61,6 +61,13 @@ void WindSolverApp::execute() {
         initialize_wind_fields(time_step);
         execute_poisson_solve(time_step);
         apply_divergence_corrections(time_step);
+        
+        // Solve scalar transport equations after wind field solution
+        if (enable_3d_scalars && (enable_temperature_transport || enable_moisture_transport)) {
+            amrex::Real dt_transport = compute_adaptive_dt_transport();
+            solve_transport_equations(time_step, dt_transport);
+        }
+        
         compute_diagnostics_and_output(time_step);
     }
     amrex::Print() << "wind_solver: ========================================\n";
@@ -420,6 +427,27 @@ void WindSolverApp::parse_inputs() {
     // Kinematic Terrain-Following Boundary Condition
     pp.query("enable_terrain_kinematic_bc", enable_terrain_kinematic_bc);
     pp.query("terrain_bc_relaxation", terrain_bc_relaxation);
+    
+    // 3D Scalar Transport Parameters
+    pp.query("enable_3d_scalars", enable_3d_scalars);
+    pp.query("enable_temperature_transport", enable_temperature_transport);
+    pp.query("enable_moisture_transport", enable_moisture_transport);
+    pp.query("temperature_diffusivity", temperature_diffusivity);
+    pp.query("moisture_diffusivity", moisture_diffusivity);
+    pp.query("scalar_dt", scalar_dt);
+    pp.query("scalar_cfl", scalar_cfl);
+    pp.query("multi_step_corrector_steps", multi_step_corrector_steps);
+    
+    // Mixing length turbulence model parameters
+    pp.query("enable_mixing_length_turbulence", enable_mixing_length_turbulence);
+    pp.query("mixing_length_coefficient", mixing_length_coefficient);
+    pp.query("von_karman", von_karman);
+    pp.query("zground", zground);
+    
+    // If any transport is enabled, automatically enable 3D scalars
+    if (enable_temperature_transport || enable_moisture_transport) {
+        enable_3d_scalars = true;
+    }
 
     // Ekman Spiral Wind Veer Correction
     pp.query("enable_ekman_veer", enable_ekman_veer);
@@ -1505,6 +1533,19 @@ void WindSolverApp::allocate_data_fields() {
     adaptive_roughness_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 0);
     adaptive_stability_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 0);
     temp_ptr           = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 0);
+    
+    // Allocate 3D scalar transport fields if enabled
+    if (enable_3d_scalars) {
+        temp_3d_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 1);
+        moisture_3d_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 1);
+        temp_3d_old_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 1);
+        moisture_3d_old_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 1);
+        
+        temp_3d_ptr->setVal(temperature_reference);
+        moisture_3d_ptr->setVal(0.0);
+        temp_3d_old_ptr->setVal(temperature_reference);
+        moisture_3d_old_ptr->setVal(0.0);
+    }
 
     lambda_damped_ptr->setVal(0.0);
     p_prime_ptr->setVal(0.0);
@@ -5622,4 +5663,220 @@ std::vector<StreetCanyon> WindSolverApp::detect_street_canyons(
         }
     }
     return canyons;
+}
+
+// ============================================================================
+// 3D Scalar Transport Implementation
+// ============================================================================
+
+amrex::Real WindSolverApp::compute_adaptive_dt_transport() {
+    // Compute adaptive time step based on CFL criterion
+    // dt_cfl = CFL * min(dx, dy, dz) / max(u, v, w)
+    
+    if (scalar_dt > 0.0) {
+       return scalar_dt;  // Use user-specified time step if provided
+    }
+    
+    amrex::Real u_max = 0.0;
+    
+    // Find maximum velocity magnitude
+    for (amrex::MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
+       const auto& box = mfi.validbox();
+       const auto& vel_arr = vel_c_ptr->array(mfi);
+        
+       amrex::ParallelFor(box, [=](int i, int j, int k) noexcept {
+           amrex::Real u = vel_arr(i, j, k, 0);
+           amrex::Real v = vel_arr(i, j, k, 1);
+           amrex::Real w = vel_arr(i, j, k, 2);
+           amrex::Real vmag = std::sqrt(u*u + v*v + w*w);
+           u_max = amrex::max(u_max, vmag);
+       });
+    }
+    
+    // Global max
+    amrex::ParallelDescriptor::ReduceRealMax(u_max);
+    
+    // Avoid division by zero
+    if (u_max < 1.0e-10) {
+       u_max = 1.0e-10;
+    }
+    
+    amrex::Real dz_min = amrex::min({dx, dy, dz});
+    amrex::Real dt_cfl = scalar_cfl * dz_min / u_max;
+    
+    amrex::Print() << "wind_solver: computed adaptive transport dt = " << dt_cfl << " s (u_max = " << u_max << " m/s)\n";
+    
+    return dt_cfl;
+}
+
+void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kappa_eddy) {
+    // Compute eddy diffusivity using mixing length model
+    // K_eddy = (l_m)^2 * |∇u|
+    // where l_m = mixing length (based on von Karman and height)
+    
+    kappa_eddy.setVal(0.0);
+    
+    if (!enable_mixing_length_turbulence) {
+       return;
+    }
+    
+    for (amrex::MFIter mfi(kappa_eddy); mfi.isValid(); ++mfi) {
+       const auto& box = mfi.validbox();
+       const auto& kappa_arr = kappa_eddy.array(mfi);
+       const auto& vel_arr = vel_c_ptr->array(mfi);
+       const auto& terrain_arr = terrain_type_ptr->array(mfi);
+        
+       amrex::ParallelFor(box, [=](int i, int j, int k) noexcept {
+           // Get cell-center height
+           amrex::Real z_cell = amrex::min(z_hi, zmin + (Real(k) + 0.5) * dz);
+            
+           // Compute mixing length: l_m = κ * (z + z0) for z > 0
+           amrex::Real z_eff = std::max(z_cell - terrain_arr(i, j, 0), 1.0e-3);
+           amrex::Real l_m = von_karman * (z_eff + z0) * mixing_length_coefficient;
+            
+           // Compute velocity gradient magnitude (simplified: vertical shear)
+           amrex::Real du_dz = 0.0;
+           amrex::Real dv_dz = 0.0;
+            
+           if (k < nz - 1) {
+               du_dz = (vel_arr(i, j, k+1, 0) - vel_arr(i, j, k, 0)) / dz;
+               dv_dz = (vel_arr(i, j, k+1, 1) - vel_arr(i, j, k, 1)) / dz;
+           }
+            
+           amrex::Real shear_mag = std::sqrt(du_dz*du_dz + dv_dz*dv_dz);
+            
+           // K_eddy = (l_m)^2 * |∇u|
+           kappa_eddy(i, j, k) = l_m * l_m * shear_mag;
+       });
+    }
+}
+
+void WindSolverApp::solve_transport_equations(int time_step, amrex::Real dt_transport) {
+    // Solve scalar transport equations for temperature and moisture
+    // ∂ϕ/∂t + u·∇ϕ = ∇·(K_eff ∇ϕ)
+    // where K_eff = K_mol + K_eddy
+    
+    amrex::Print() << "wind_solver: solving scalar transport equations with dt = " << dt_transport << " s\n";
+    
+    if (enable_temperature_transport && temp_3d_ptr) {
+       solve_scalar_transport(*temp_3d_ptr, *temp_3d_old_ptr, *vel_c_ptr, 
+                             temperature_diffusivity, dt_transport, "temperature");
+    }
+    
+    if (enable_moisture_transport && moisture_3d_ptr) {
+       solve_scalar_transport(*moisture_3d_ptr, *moisture_3d_old_ptr, *vel_c_ptr,
+                             moisture_diffusivity, dt_transport, "moisture");
+    }
+}
+
+void WindSolverApp::solve_scalar_transport(
+    amrex::MultiFab& scalar_new,
+    const amrex::MultiFab& scalar_old,
+    const amrex::MultiFab& vel,
+    amrex::Real diffusivity,
+    amrex::Real dt,
+    const std::string& scalar_name)
+{
+    // Simple explicit forward Euler scheme with diffusion
+    // scalar_new = scalar_old - dt * u·∇scalar + dt * ∇·(K_eff ∇scalar)
+    
+    using namespace amrex;
+    
+    // Temporary field for intermediate calculations
+    MultiFab scalar_adv(scalar_old.boxArray(), scalar_old.DistributionMap(), 1, 1);
+    MultiFab kappa_eddy(scalar_old.boxArray(), scalar_old.DistributionMap(), 1, 0);
+    
+    // Compute eddy diffusivity with mixing length model
+    compute_eddy_diffusivity_mixing_length(kappa_eddy);
+    
+    // Copy old scalar values
+    scalar_adv.copy(scalar_old, 0, 0, 1, 1);
+    
+    // Step 1: Advection (semi-Lagrangian or upstream differencing)
+    for (MFIter mfi(scalar_adv); mfi.isValid(); ++mfi) {
+       const auto& bx = mfi.validbox();
+       auto& adv_arr = scalar_adv.array(mfi);
+       const auto& scalar_arr = scalar_old.array(mfi);
+       const auto& vel_arr = vel.array(mfi);
+        
+       ParallelFor(bx, [=](int i, int j, int k) noexcept {
+           amrex::Real u = vel_arr(i, j, k, 0);
+           amrex::Real v = vel_arr(i, j, k, 1);
+           amrex::Real w = vel_arr(i, j, k, 2);
+            
+           // Upstream differencing for advection
+           amrex::Real dscalar_dx = 0.0, dscalar_dy = 0.0, dscalar_dz = 0.0;
+            
+           if (u > 0.0 && i > bx.smallEnd(0)) {
+               dscalar_dx = (scalar_arr(i, j, k) - scalar_arr(i-1, j, k)) / dx;
+           } else if (u < 0.0 && i < bx.bigEnd(0)) {
+               dscalar_dx = (scalar_arr(i+1, j, k) - scalar_arr(i, j, k)) / dx;
+           }
+            
+           if (v > 0.0 && j > bx.smallEnd(1)) {
+               dscalar_dy = (scalar_arr(i, j, k) - scalar_arr(i, j-1, k)) / dy;
+           } else if (v < 0.0 && j < bx.bigEnd(1)) {
+               dscalar_dy = (scalar_arr(i, j+1, k) - scalar_arr(i, j, k)) / dy;
+           }
+            
+           if (w > 0.0 && k > bx.smallEnd(2)) {
+               dscalar_dz = (scalar_arr(i, j, k) - scalar_arr(i, j, k-1)) / dz;
+           } else if (w < 0.0 && k < bx.bigEnd(2)) {
+               dscalar_dz = (scalar_arr(i, j, k+1) - scalar_arr(i, j, k)) / dz;
+           }
+            
+           // Update with advection
+           adv_arr(i, j, k) -= dt * (u * dscalar_dx + v * dscalar_dy + w * dscalar_dz);
+       });
+    }
+    
+    // Step 2: Diffusion using finite differences
+    scalar_new.setVal(0.0);
+    
+    for (MFIter mfi(scalar_new); mfi.isValid(); ++mfi) {
+       const auto& bx = mfi.validbox();
+       auto& new_arr = scalar_new.array(mfi);
+       const auto& adv_arr = scalar_adv.array(mfi);
+       const auto& kappa_arr = kappa_eddy.array(mfi);
+        
+       ParallelFor(bx, [=](int i, int j, int k) noexcept {
+           amrex::Real K_eff_x = 0.0, K_eff_y = 0.0, K_eff_z = 0.0;
+           amrex::Real d2scalar_dx2 = 0.0, d2scalar_dy2 = 0.0, d2scalar_dz2 = 0.0;
+            
+           // Total effective diffusivity (molecular + eddy)
+           amrex::Real K_eddy_cell = kappa_arr(i, j, k);
+            
+           // X-direction
+           if (i > bx.smallEnd(0) && i < bx.bigEnd(0)) {
+               K_eff_x = diffusivity + K_eddy_cell;
+               d2scalar_dx2 = (adv_arr(i+1, j, k) - 2.0*adv_arr(i, j, k) + adv_arr(i-1, j, k)) / (dx*dx);
+           }
+            
+           // Y-direction
+           if (j > bx.smallEnd(1) && j < bx.bigEnd(1)) {
+               K_eff_y = diffusivity + K_eddy_cell;
+               d2scalar_dy2 = (adv_arr(i, j+1, k) - 2.0*adv_arr(i, j, k) + adv_arr(i, j-1, k)) / (dy*dy);
+           }
+            
+           // Z-direction
+           if (k > bx.smallEnd(2) && k < bx.bigEnd(2)) {
+               K_eff_z = diffusivity + K_eddy_cell;
+               d2scalar_dz2 = (adv_arr(i, j, k+1) - 2.0*adv_arr(i, j, k) + adv_arr(i, j, k-1)) / (dz*dz);
+           }
+            
+           // Final update
+           new_arr(i, j, k) = adv_arr(i, j, k) + dt * (
+               K_eff_x * d2scalar_dx2 + 
+               K_eff_y * d2scalar_dy2 + 
+               K_eff_z * d2scalar_dz2
+           );
+       });
+    }
+    
+    // Copy boundary conditions from old field
+    scalar_new.copy(scalar_old, 0, 0, 1, 0);  // Copy ghost cells
+    scalar_new.FillBoundary(geom.periodicity());
+    
+    // Update old field for next time step
+    scalar_old.copy(scalar_new, 0, 0, 1, 0);
 }

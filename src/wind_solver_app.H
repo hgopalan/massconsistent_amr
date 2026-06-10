@@ -45,6 +45,19 @@ public:
     void execute_poisson_solve(int time_step);
     void apply_divergence_corrections(int time_step);
     void compute_diagnostics_and_output(int time_step);
+    
+    // 3D Scalar transport methods
+    void solve_transport_equations(int time_step, amrex::Real dt_transport);
+    void solve_scalar_transport(
+        amrex::MultiFab& scalar_new,
+        const amrex::MultiFab& scalar_old,
+        const amrex::MultiFab& vel,
+        amrex::Real diffusivity,
+        amrex::Real dt,
+        const std::string& scalar_name);
+    void compute_eddy_diffusivity_mixing_length(
+        amrex::MultiFab& kappa_eddy);
+    amrex::Real compute_adaptive_dt_transport();
 
 private:
     std::vector<StreetCanyon> detect_street_canyons(
@@ -468,6 +481,22 @@ private:
     bool enable_transition_smoothing = false;
     amrex::Real transition_height_scale = 100.0;
     amrex::Real transition_layer_height = 300.0;
+    
+    // 3D Scalar transport parameters
+    bool enable_3d_scalars = false;              // Enable 3D temperature and moisture fields
+    bool enable_temperature_transport = false;   // Enable temperature transport equation solving
+    bool enable_moisture_transport = false;      // Enable moisture transport equation solving
+    amrex::Real temperature_diffusivity = 2.5e-5; // Thermal diffusivity [m²/s]
+    amrex::Real moisture_diffusivity = 2.2e-5;   // Moisture diffusivity [m²/s]
+    amrex::Real scalar_dt = -1.0;                // Time step for scalar transport (negative = auto-compute via CFL)
+    amrex::Real scalar_cfl = 0.8;                // CFL number for scalar transport
+    int multi_step_corrector_steps = 1;          // Number of corrector iterations for temperature-dependent mass-consistent solve
+    
+    // Mixing length model parameters for eddy diffusivity
+    bool enable_mixing_length_turbulence = true; // Use mixing length model for eddy diffusivity
+    amrex::Real mixing_length_coefficient = 0.1; // Proportionality constant for mixing length: l = coeff * Δz
+    amrex::Real von_karman = 0.41;               // Von Kármán constant
+    amrex::Real zground = 0.1;                   // Ground roughness for mixing length calculation [m]
 
     // Extraction
     std::vector<amrex::Real> extract_agl_list;
@@ -559,6 +588,12 @@ private:
     std::unique_ptr<amrex::MultiFab> adaptive_roughness_ptr;
     std::unique_ptr<amrex::MultiFab> adaptive_stability_ptr;
     std::unique_ptr<amrex::MultiFab> temp_ptr;
+    
+    // 3D Scalar transport fields
+    std::unique_ptr<amrex::MultiFab> temp_3d_ptr;        // 3D temperature field [K]
+    std::unique_ptr<amrex::MultiFab> moisture_3d_ptr;    // 3D moisture field [kg/kg]
+    std::unique_ptr<amrex::MultiFab> temp_3d_old_ptr;    // Temperature from previous time step
+    std::unique_ptr<amrex::MultiFab> moisture_3d_old_ptr; // Moisture from previous time step
 
     // Diagnostics & Output fields
     std::unique_ptr<amrex::MultiFab> synthetic_turbulence_fluc_ptr;
