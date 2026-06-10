@@ -5728,9 +5728,9 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
     
     for (amrex::MFIter mfi(kappa_eddy); mfi.isValid(); ++mfi) {
        const auto& box = mfi.validbox();
-       const auto& kappa_arr = kappa_eddy.array(mfi);
-       const auto& vel_arr = vel_c_ptr->array(mfi);
-       const auto& terrain_arr = terrain_type_ptr->array(mfi);
+       auto kappa_arr = kappa_eddy.array(mfi);
+       auto vel_arr = vel_c_ptr->array(mfi);
+       auto terrain_arr = terrain_type_ptr->array(mfi);
         
        amrex::ParallelFor(box, [=](int i, int j, int k) noexcept {
            // Get cell-center height
@@ -5802,8 +5802,8 @@ void WindSolverApp::solve_scalar_transport(
     for (MFIter mfi(scalar_adv); mfi.isValid(); ++mfi) {
        const auto& bx = mfi.validbox();
        auto adv_arr = scalar_adv.array(mfi);
-       const auto& scalar_arr = scalar_old.array(mfi);
-       const auto& vel_arr = vel.array(mfi);
+       auto scalar_arr = scalar_old.array(mfi);
+       auto vel_arr = vel.array(mfi);
         
        ParallelFor(bx, [=](int i, int j, int k) noexcept {
            amrex::Real u = vel_arr(i, j, k, 0);
@@ -5842,8 +5842,8 @@ void WindSolverApp::solve_scalar_transport(
     for (MFIter mfi(scalar_new); mfi.isValid(); ++mfi) {
        const auto& bx = mfi.validbox();
        auto new_arr = scalar_new.array(mfi);
-       const auto& adv_arr = scalar_adv.array(mfi);
-       const auto& kappa_arr = kappa_eddy.array(mfi);
+       auto adv_arr = scalar_adv.array(mfi);
+       auto kappa_arr = kappa_eddy.array(mfi);
         
        ParallelFor(bx, [=](int i, int j, int k) noexcept {
            amrex::Real K_eff_x = 0.0, K_eff_y = 0.0, K_eff_z = 0.0;
