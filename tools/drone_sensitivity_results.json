@@ -1,0 +1,210 @@
+{
+    "nozzle_diameter": [
+        {
+            "parameter_value": 100,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 9.615399854460707,
+            "off_target_drift_g": 10.31037339672708,
+            "drift_percentage": 15.088351312283535,
+            "efficiency_percentage": 14.071316860186403
+        },
+        {
+            "parameter_value": 150,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 29.08722202614978,
+            "off_target_drift_g": 9.97632951509094,
+            "drift_percentage": 14.599506607450161,
+            "efficiency_percentage": 42.5666663797314
+        },
+        {
+            "parameter_value": 200,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 29.08722202614978,
+            "off_target_drift_g": 9.97632951509094,
+            "drift_percentage": 14.599506607450161,
+            "efficiency_percentage": 42.5666663797314
+        },
+        {
+            "parameter_value": 250,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 29.08722202614978,
+            "off_target_drift_g": 9.97632951509094,
+            "drift_percentage": 14.599506607450161,
+            "efficiency_percentage": 42.5666663797314
+        },
+        {
+            "parameter_value": 300,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 51.21718735687578,
+            "off_target_drift_g": 4.700661383535304,
+            "drift_percentage": 6.879016658832154,
+            "efficiency_percentage": 74.95198149786701
+        },
+        {
+            "parameter_value": 400,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 51.21718735687578,
+            "off_target_drift_g": 4.700661383535304,
+            "drift_percentage": 6.879016658832154,
+            "efficiency_percentage": 74.95198149786701
+        },
+        {
+            "parameter_value": 500,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 51.21718735687578,
+            "off_target_drift_g": 4.700661383535304,
+            "drift_percentage": 6.879016658832154,
+            "efficiency_percentage": 74.95198149786701
+        }
+    ],
+    "flight_altitude": [
+        {
+            "parameter_value": 2.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 48.81372445658946,
+            "off_target_drift_g": 5.309311545675887,
+            "drift_percentage": 7.769724213184228,
+            "efficiency_percentage": 71.4347187169602
+        },
+        {
+            "parameter_value": 3.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 37.75913155076575,
+            "off_target_drift_g": 8.657327777087286,
+            "drift_percentage": 12.669260161591152,
+            "efficiency_percentage": 55.257265684047454
+        },
+        {
+            "parameter_value": 4.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 29.08722202614978,
+            "off_target_drift_g": 9.97632951509094,
+            "drift_percentage": 14.599506607450161,
+            "efficiency_percentage": 42.5666663797314
+        },
+        {
+            "parameter_value": 6.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 20.865088287632314,
+            "off_target_drift_g": 7.990282919387213,
+            "drift_percentage": 11.693096955200803,
+            "efficiency_percentage": 30.534275542876564
+        },
+        {
+            "parameter_value": 8.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 18.707907543097235,
+            "off_target_drift_g": 3.343921444511664,
+            "drift_percentage": 4.893543577334144,
+            "efficiency_percentage": 27.37742567282523
+        },
+        {
+            "parameter_value": 10.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 17.94579850162836,
+            "off_target_drift_g": 1.5490479040496883,
+            "drift_percentage": 2.266899371780032,
+            "efficiency_percentage": 26.26214414872444
+        }
+    ],
+    "wind_speed": [
+        {
+            "parameter_value": 0.5,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 36.99437654760177,
+            "off_target_drift_g": 0.0948617325420782,
+            "drift_percentage": 0.1388220476225535,
+            "efficiency_percentage": 54.13811202088065
+        },
+        {
+            "parameter_value": 1.5,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 34.50394396552425,
+            "off_target_drift_g": 3.50700764738731,
+            "drift_percentage": 5.132206313249724,
+            "efficiency_percentage": 50.49357653491355
+        },
+        {
+            "parameter_value": 3.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 29.08722202614978,
+            "off_target_drift_g": 9.97632951509094,
+            "drift_percentage": 14.599506607450161,
+            "efficiency_percentage": 42.5666663797314
+        },
+        {
+            "parameter_value": 5.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 24.706656031419264,
+            "off_target_drift_g": 15.98669892114702,
+            "drift_percentage": 23.395169152898085,
+            "efficiency_percentage": 36.15608199719894
+        },
+        {
+            "parameter_value": 7.5,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 21.41642410547921,
+            "off_target_drift_g": 25.11905178096214,
+            "drift_percentage": 36.75958797213973,
+            "efficiency_percentage": 31.341108447042753
+        },
+        {
+            "parameter_value": 10.0,
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 18.571859971734394,
+            "off_target_drift_g": 32.275177427291496,
+            "drift_percentage": 47.231966966768056,
+            "efficiency_percentage": 27.178331665952783
+        }
+    ],
+    "atmospheric_stability": [
+        {
+            "parameter_value": "A",
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 39.9471651115219,
+            "off_target_drift_g": 7.715053146713733,
+            "drift_percentage": 11.29032167811766,
+            "efficiency_percentage": 58.459266016861335
+        },
+        {
+            "parameter_value": "B",
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 36.70904437428786,
+            "off_target_drift_g": 8.160044236263227,
+            "drift_percentage": 11.941528150629116,
+            "efficiency_percentage": 53.720552742860306
+        },
+        {
+            "parameter_value": "C",
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 33.31127757400302,
+            "off_target_drift_g": 9.15304015212968,
+            "drift_percentage": 13.394692905555633,
+            "efficiency_percentage": 48.748211083906874
+        },
+        {
+            "parameter_value": "D",
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 29.08722202614978,
+            "off_target_drift_g": 9.97632951509094,
+            "drift_percentage": 14.599506607450161,
+            "efficiency_percentage": 42.5666663797314
+        },
+        {
+            "parameter_value": "E",
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 23.74086746974021,
+            "off_target_drift_g": 10.986364804016304,
+            "drift_percentage": 16.077607030267764,
+            "efficiency_percentage": 34.742732882546655
+        },
+        {
+            "parameter_value": "F",
+            "total_emitted_g": 68.33333333333331,
+            "on_target_deposition_g": 20.31424687166036,
+            "off_target_drift_g": 13.652680738004582,
+            "drift_percentage": 19.979532787323784,
+            "efficiency_percentage": 29.728166153649315
+        }
+    ]
+}
