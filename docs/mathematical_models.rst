@@ -1,30 +1,31 @@
 .. _mathematical_models:
 
-Mathematical Models
-===================
+Mathematical Model
+==================
 
-This page documents the mathematical models, physical parameterizations, and numerical formulations available in ``massconsistent_amr``. Each section is documented with references to the scientific literature supporting its implementation. For full citations, see the :ref:`references page <references>`.
+This page documents the mathematical models, physical parameterizations, and atmospheric formulations available in ``massconsistent_amr``.
 
-.. contents:: Topics
-   :local:
-   :depth: 2
+Mass-Consistent Solver
+----------------------
 
-Core Mass-Consistent Wind Solver
---------------------------------
+Basic Governing Equations
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The primary solver implements the variational, mass-consistent wind field adjustment methodology based on Sherman (1978) and Mathiesen (1987). This diagnostic model adjusts an initial wind profile over complex terrain to enforce mass conservation while minimizing alterations to the initial flow field. The practical implementation follows the QUIC-URB architecture (Pardyjak & Brown, 2001).
+The mass-consistent wind solver implements the variational wind field adjustment methodology based on Sherman (1978) and Mathiesen (1987). This diagnostic model adjusts an initial wind profile over complex terrain to satisfy mass conservation (∇·**u** = 0) while minimizing alterations to the initial flow field.
 
 Terrain Interpolation
-~~~~~~~~~~~~~~~~~~~~~
-An arbitrary-density terrain point cloud (X, Y, Z) is ingested from a CSV file. The terrain elevation :math:`z_{\text{terrain}}(i,j)` at each grid column center is interpolated from the six nearest data points using inverse-distance weighting (IDW):
+^^^^^^^^^^^^^^^^^^^^^
+
+An arbitrary-density terrain point cloud (X, Y, Z) is read from a CSV file. The terrain elevation :math:`z_{\text{terrain}}(i,j)` at each grid column center is obtained by inverse-distance weighting (IDW) interpolation from the six nearest data points:
 
 .. math::
 
-   z_{\text{terrain}}(x,y) = \frac{\sum_{n=1}^6 w_n z_n}{\sum_{n=1}^6 w_n}, \quad w_n = \frac{1}{( (x - x_n)^2 + (y - y_n)^2 )^2}
+   z_{\text{terrain}}(x,y) = \frac{\sum_{n=1}^6 w_n z_n}{\sum_{n=1}^6 w_n}, \quad w_n = \frac{1}{\left( (x - x_n)^2 + (y - y_n)^2 \right)^2}
 
 Wind Profile Initialization
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The initial velocity components :math:`(u_0, v_0, w_0)` are computed for every cell. Above the local terrain surface, the default **log-law** wind profile is constructed at height above ground level (AGL), following Monin-Obukhov similarity theory (Monin & Obukhov, 1954; Stull, 1988):
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The initial velocity components :math:`(u_0, v_0, w_0)` are computed for every cell. Above the local terrain surface, the default **log-law** wind profile is constructed at height above ground level (AGL), following Monin-Obukhov similarity theory:
 
 .. math::
 
@@ -36,47 +37,33 @@ The initial velocity components :math:`(u_0, v_0, w_0)` are computed for every c
    v_0(z_{\text{agl}}) = \frac{u_*}{\kappa}\,\ln\!\left(\frac{z_{\text{agl}}+z_0}{z_0}\right) \hat{u}_y, \quad
    w_0(z_{\text{agl}}) = 0
 
-where :math:`\kappa = 0.41` is the von Kármán constant (von Kármán, 1948), :math:`z_0` is the aerodynamic roughness length, and the friction velocity :math:`u_*` is obtained from the reference wind speed :math:`|\mathbf{U}_{\text{ref}}|` at reference height :math:`z_{\text{ref}}`:
+where :math:`\kappa = 0.41` is the von Kármán constant, :math:`z_0` is the aerodynamic roughness length, and the friction velocity :math:`u_*` is obtained from the reference wind speed :math:`|\mathbf{U}_{\text{ref}}|` at reference height :math:`z_{\text{ref}}`:
 
 .. math::
 
    u_* = \frac{\kappa\,|\mathbf{U}_{\text{ref}}|}{\ln\!\left(\dfrac{z_{\text{ref}}+z_0}{z_0}\right)}
 
 Topographic Barrier Shielding
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-In complex terrain, observations from meteorological stations located in different valleys can unphysically distort the initial interpolated wind field if they are separated by high ridges. To address this, the solver supports CALMET-style topographic barrier shielding.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When ``enable_topographic_shielding = true`` is configured, the interpolation weight between a query grid cell :math:`(x_q, y_q, z_q)` and a station :math:`(x_i, y_i, z_i)` is heavily penalized (by a factor of :math:`10^{-5}`) if the direct line-of-sight segment connecting them intersects the terrain height field :math:`z_{\text{terrain}}(x, y)`.
+Observations from meteorological stations can distort the initial interpolated wind field across high ridges. To address this, CALMET-style topographic barrier shielding is supported.
 
-Specifically, along the line-of-sight parametrized by :math:`t \in [0, 1]`:
+When ``enable_topographic_shielding = true`` is configured, the interpolation weight between a query grid cell :math:`(x_q, y_q, z_q)` and a station :math:`(x_i, y_i, z_i)` is penalized by a factor of :math:`10^{-5}` if the direct line-of-sight segment intersects the terrain height field :math:`z_{\text{terrain}}(x, y)`:
 
 .. math::
 
    x(t) = x_q + t(x_i - x_q), \quad y(t) = y_q + t(y_i - y_q), \quad z(t) = z_q + t(z_i - z_q)
 
-The blocking condition is checked at discrete intervals:
-
-.. math::
-
-   z_{\text{terrain}}(x(t), y(t)) > z(t)
-
-If blocking is detected, the weight :math:`w_i` for that station is reduced:
-
-.. math::
-
-   w_i \leftarrow w_i \times 10^{-5}
-
-If all nearest stations are blocked for a given query cell, the solver dynamically falls back to unpenalized weights to avoid numerical division-by-zero and preserve signal continuity.
-
 Variational Formulation
-~~~~~~~~~~~~~~~~~~~~~~~
-The corrected wind field :math:`\mathbf{u} = (u,v,w)` is obtained by minimizing the volume integral of the difference between the adjusted and initial velocity fields, weighted by directional penalty coefficients (Sherman, 1978; Mathiesen, 1987):
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The corrected wind field :math:`\mathbf{u} = (u,v,w)` is obtained by minimizing the volume integral of the difference between the adjusted and initial velocity fields, weighted by horizontal and vertical anisotropy coefficients:
 
 .. math::
 
    E(u,v,w,\lambda) = \int\!\left[\frac{(u-u_0)^2}{\alpha_h^2} + \frac{(v-v_0)^2}{\alpha_h^2} + \frac{(w-w_0)^2}{\alpha_v^2} + \lambda \left(\frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} + \frac{\partial w}{\partial z}\right)\right]\mathrm{d}V
 
-where :math:`\lambda` is a Lagrange multiplier field, and :math:`\alpha_h`, :math:`\alpha_v` are horizontal and vertical anisotropy coefficients. Taking the variation with respect to :math:`u, v, w` and setting it to zero yields the adjusted velocities:
+where :math:`\lambda` is a Lagrange multiplier field, and :math:`\alpha_h`, :math:`\alpha_v` are horizontal and vertical penalty coefficients. Taking the variation with respect to :math:`u, v, w` and setting it to zero yields:
 
 .. math::
 
@@ -84,1011 +71,343 @@ where :math:`\lambda` is a Lagrange multiplier field, and :math:`\alpha_h`, :mat
    v = v_0 - \alpha_h^2 \frac{\partial\lambda}{\partial y}, \quad
    w = w_0 - \alpha_v^2 \frac{\partial\lambda}{\partial z}
 
-Taking the variation with respect to :math:`\lambda` yields the mass-conservation constraint:
-
-.. math::
-
-   \frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} + \frac{\partial w}{\partial z} = 0
-
-Substituting the adjusted velocities into the divergence equation results in the anisotropic Poisson equation for :math:`\lambda`:
+Substituting the adjusted velocities into the divergence equation :math:`\nabla \cdot \mathbf{u} = 0` results in the anisotropic Poisson equation for :math:`\lambda`:
 
 .. math::
 
    -\left(\alpha_h^2\frac{\partial^2\lambda}{\partial x^2} + \alpha_h^2\frac{\partial^2\lambda}{\partial y^2} + \alpha_v^2\frac{\partial^2\lambda}{\partial z^2}\right) = -\nabla\cdot\mathbf{u}_0
 
 Cell-Local Spatially-Varying Variational Anisotropy
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To model atmospheric flows with high physical fidelity under non-uniform stability conditions and steep topography, ``massconsistent_amr`` supports a cell-local, 3D spatially-varying anisotropic weighting tensor :math:`\mathbf{A}(x, y, z) = \mathrm{diag}(\alpha_h^2, \alpha_h^2, \alpha_v^2)`. In this formulation, the anisotropy coefficients vary cell-locally, and the variable-coefficient elliptic Poisson equation is solved:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. math::
-
-   -\left[ \frac{\partial}{\partial x}\left(\alpha_h^2 \frac{\partial \lambda}{\partial x}\right) + \frac{\partial}{\partial y}\left(\alpha_h^2 \frac{\partial \lambda}{\partial y}\right) + \frac{\partial}{\partial z}\left(\alpha_v^2 \frac{\partial \lambda}{\partial z}\right) \right] = -\nabla \cdot \mathbf{u}_0
-
-where :math:`\alpha_h(i,j,k)` is held at :math:`\alpha_{h,\text{base}}`, and the vertical coefficient :math:`\alpha_v(i,j,k)` adapts cell-locally based on three physical factors:
-
-1. **Local Terrain Slope**: Flow over steep topography is forced to be terrain-following. The local terrain slope is computed and decays with height above ground level (AGL) to reduce vertical adjustment near steep faces:
-
-.. math::
-
-   f_{\text{slope}} = \exp\left( -\frac{\text{slope}_{\text{surface}} \exp(-z_{\text{agl}}/d_{\text{decay}})}{\text{slope\_scale}} \right)
-
-2. **Local Richardson Number**: Characterizes buoyancy-driven versus shear-driven turbulence:
-
-.. math::
-
-   Ri = \frac{g}{\theta_{\text{ref}}} \frac{\partial \theta / \partial z}{(\partial u/\partial z)^2 + (\partial v/\partial z)^2}
-
-Under stable conditions (:math:`Ri > 0`), vertical motion is suppressed, so :math:`\alpha_v` is reduced: :math:`f_{\text{Ri}} = \exp(-\gamma_{\text{Ri}} Ri)`. Under unstable convective conditions (:math:`Ri < 0`), vertical mixing is enhanced: :math:`f_{\text{Ri}} = 1.0 + \beta_{\text{Ri}} (-Ri)`.
-
-3. **Local Froude Number**: Characterizes terrain-blocking in stable stratification (:math:`N^2 > 0`):
-
-.. math::
-
-   Fr = \frac{\sqrt{u^2+v^2}}{N \cdot \max(10, z_{\text{agl}})}
-
-where :math:`N = \sqrt{\frac{g}{\theta_{\text{ref}}} \frac{\partial\theta}{\partial z}}` is the Brunt-Väisälä frequency. When :math:`Fr < 1.0`, vertical flow is blocked and deflected horizontally around the obstacles, modeled by reducing :math:`\alpha_v`: :math:`f_{\text{Fr}} = 1.0 - \exp(-Fr^2)`.
-
-The combined cell-local vertical anisotropy is then:
+To model atmospheric flows under steep topography and non-uniform stability conditions, a cell-local vertical anisotropy coefficient :math:`\alpha_v(i,j,k)` is computed:
 
 .. math::
 
    \alpha_v(i,j,k) = \alpha_{v,\text{base}} \times f_{\text{slope}} \times f_{\text{Ri}} \times f_{\text{Fr}}
 
-clamped to a physically reasonable range :math:`[0.05\alpha_{v,\text{base}}, 2.0\alpha_{v,\text{base}}]`.
-
-Boundary Conditions
-~~~~~~~~~~~~~~~~~~~
-The anisotropic Poisson equation is solved using the following boundary conditions:
-* **Inflow/Outflow (x-faces)**: Dirichlet :math:`\lambda = 0` (preserves the boundary velocity)
-* **Lateral (y-faces)**: Neumann :math:`\frac{\partial\lambda}{\partial y} = 0` (no flow adjustment normal to lateral faces)
-* **Ground and Top (z-faces)**: Neumann :math:`\frac{\partial\lambda}{\partial z} = 0` (no flow adjustment normal to ground/top)
+where:
+- :math:`f_{\text{slope}} = \exp\left( -\frac{\text{slope}_{\text{surface}} \exp(-z_{\text{agl}}/d_{\text{decay}})}{\text{slope\_scale}} \right)` forces terrain-following flow over steep slopes.
+- :math:`f_{\text{Ri}}` characterizes local atmospheric stability based on the Richardson number :math:`Ri`.
+- :math:`f_{\text{Fr}}` suppresses vertical motion and models horizontal deflection when Froude number :math:`Fr < 1.0` in stable stratification.
 
 O'Brien Vertical Velocity Adjustment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To precisely satisfy the vertical velocity boundary constraint (i.e., :math:`w = 0` at the domain top) without relying solely on the elliptic Poisson solver, the solver supports the O'Brien (1970) vertical velocity adjustment procedure (enabled via ``enable_obrien_w_adjustment = true``).
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In this procedure, vertical divergence residuals are redistributed column-wise before the Poisson solve. First, the horizontal divergence is integrated from the first cell above terrain height (:math:`k_{\text{start}}`) to the top level (:math:`k_{\text{top}}`) to obtain the calculated vertical velocity profile :math:`w_{\text{calc}}(z)`:
+To satisfy the vertical velocity boundary constraint (i.e., :math:`w = 0` at the domain top), the O'Brien (1970) vertical velocity adjustment procedure integrates the horizontal divergence column-wise to redistribute vertical velocity corrections.
 
-.. math::
+Advanced Enhancement of the Solver
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   w_{\text{calc}}(z) = w(k_{\text{start}}) - \int_{z(k_{\text{start}})}^z \left(\frac{\partial u}{\partial x} + \frac{\partial v}{\partial y}\right) dz'
+Non-Neutral Stability Coupling
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The residual vertical velocity at the top boundary is:
-
-.. math::
-
-   E = w_{\text{calc}}(z(k_{\text{top}})) - w_{\text{target}}
-
-where :math:`w_{\text{target}} = 0.0`. O'Brien's polynomial weighting scheme then adjusts the vertical velocity profile column-wise:
+Under non-neutral stability conditions, Monin-Obukhov similarity theory corrections are applied to the initial wind profile:
 
 .. math::
 
-   w_{\text{adjusted}}(z) = w_{\text{calc}}(z) - \frac{(z - z(k_{\text{start}}))^2}{(z(k_{\text{top}}) - z(k_{\text{start}}))^2} E
+   u_0(z_{\text{agl}}) = \frac{u_*}{\kappa} \left[ \ln\left(\frac{z_{\text{agl}}+z_0}{z_0}\right) - \psi_m\left(\frac{z_{\text{agl}}}{L}\right) \right]
 
-This ensures :math:`w_{\text{adjusted}}(z(k_{\text{top}})) = 0.0` exactly, and because the vertical boundary condition for :math:`\lambda` is Neumann (:math:`\frac{\partial\lambda}{\partial z} = 0`), this top boundary condition on :math:`w` is precisely preserved throughout the subsequent Poisson solve and velocity correction step.
+where :math:`L` is the Obukhov length. Stability correction functions :math:`\psi_m` follow Businger-Dyer (for unstable atmospheres, :math:`L < 0`) or Holtslag-De Bruin (for stable atmospheres, :math:`L > 0`) formulations.
 
-Advanced Boundary Layer Physics
--------------------------------
+Gravity Wave Representation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To represent complex microscale atmospheric dynamics, several physical models are integrated. These follow established boundary layer meteorology theory (Stull, 1988; Högström, 1996).
-
-Atmospheric Stability (Monin-Obukhov Similarity Theory)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The log-law wind profile can be adjusted for non-neutral thermal stratification using stability corrections (Businger et al., 1971; Dyer, 1974). The corrected profile follows:
+In stable atmospheres over mountain ranges, gravity waves can generate significant large-scale oscillations. The buoyancy frequency (Brunt-Väisälä frequency) is computed as:
 
 .. math::
 
-   u(z) = \frac{u_*}{\kappa}\left[\ln\left(\frac{z_{\text{agl}}+z_0}{z_0}\right) - \psi_m\left(\frac{z_{\text{agl}}}{L}\right) + \psi_m\left(\frac{z_0}{L}\right)\right]
+   N = \sqrt{\frac{g}{\Theta} \frac{\partial \Theta}{\partial z}}
 
-where :math:`L` is the Obukhov length characterizing atmospheric stability (positive for stable, negative for unstable) (Monin & Obukhov, 1954).
+The solver incorporates a gravity wave dispersion relation to model phase tilt with height and vertically-coherent velocity fluctuations over complex mountain profiles.
 
-For **stable conditions** (:math:`\zeta = z_{\text{agl}}/L > 0`), the Holtslag-De Bruin formulation is used (Holtslag & De Bruin, 1988):
+Orographic Precipitation-Flow Interaction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. math::
-
-   \psi_m(\zeta) = -5\zeta
-
-For **unstable conditions** (:math:`\zeta < 0`):
+Orographic precipitation modifies atmospheric stability via latent heat release during phase changes:
 
 .. math::
 
-   \psi_m(\zeta) = 2\ln\left(\frac{1+x}{2}\right) + \ln\left(\frac{1+x^2}{2}\right) - 2\arctan(x) + \frac{\pi}{2}
+   Q_{\text{latent}} = L_v \times C_{\text{condensation}}
 
-where :math:`x = (1 - 16\zeta)^{1/4}`.
+Cloud condensation heating reduces the local Richardson number :math:`Ri`, inducing flow acceleration and modifying stability-dependent vertical coupling.
 
-Bulk Richardson Stability Model Selection
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The solver automatically selects between Businger-Dyer and Holtslag-De Bruin stability models based on the bulk Richardson number :math:`Ri_b`:
+Coupled Surface-Atmosphere Modeling
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. math::
+Coupling with fire spread models utilizes the sensible heat flux feedback:
+1. The solver provides the 3D terrain-following wind field to the fire front propagation model.
+2. The fire model returns the local sensible heat flux :math:`H_s`.
+3. The wind solver updates surface temperature boundary conditions, altering vertical stability and generating convective draft flows.
 
-   Ri_b = \frac{g}{\theta_{\text{ref}}} \frac{\Delta\theta \cdot h}{U^2}
+Building Modeling - Röckle and other models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-where :math:`\Delta\theta` is the potential temperature difference, and :math:`h` is height above ground level.
-* **Weak Stability (:math:`Ri_b < 0.1`)**: Uses Businger-Dyer functions.
-* **Strong Stability (:math:`Ri_b \ge 0.1`)**: Uses Holtslag-De Bruin functions to represent strong vertical shear damping.
+Solid structures read from a buildings CSV file are masked by setting velocity components to zero inside building volumes. Their aerodynamic wakes are modeled using three parameterizations:
 
-Spatially-Varying Diagnostic Boundary Layer Height
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To determine the mixing depth and boundary layer height :math:`z_i(x,y)` dynamically over complex terrain and variable thermal conditions, the solver implements a column-scanning bulk Richardson number (:math:`Ri_b`) profile method when ``enable_bl_depth_diagnostic = true``.
+1. **Röckle (1990) Model** — Parameterizes flow cavity, displacement zone, and far-wake regions in urban street canyons.
+2. **Huber-Snyder Model** — Power-law wake deficit formulation based on building height and frontal area.
+3. **AERMOD PRIME Model** — Computes building downwash and vertical vortex circulation behind solid obstacles.
 
-The diagnostic scans each vertical grid column from the first cell above ground level, :math:`k_{\text{start}}`, up to the top of the domain. At each level :math:`k`, the bulk Richardson number is calculated using the local height above ground level :math:`z_{\text{agl}}` and the potential temperature difference relative to the surface cell:
+Street Canyon Vortex Parameterization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. math::
-
-   Ri_b(z_{\text{agl}}) = \frac{g}{\theta_s} \frac{[\theta(z_{\text{agl}}) - \theta_s] \cdot z_{\text{agl}}}{u^2(z_{\text{agl}}) + v^2(z_{\text{agl}})}
-
-where :math:`\theta_s` is the surface potential temperature at :math:`k_{\text{start}}`, and :math:`u(z_{\text{agl}}), v(z_{\text{agl}})` are horizontal wind components.
-
-The boundary layer depth :math:`z_i(x,y)` is diagnosed as the height above ground where :math:`Ri_b` first exceeds the critical Richardson number :math:`Ri_c` (configured via ``richardson_critical``, defaulting to 0.25). Linear interpolation between grid levels is used to compute the precise transition height. If :math:`Ri_b` never exceeds :math:`Ri_c`, the boundary layer is assumed to extend to the top of the domain.
-
-Multi-Station Vertical Blending using Sounding Profiles
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-When ``init_mode = sounding`` is selected, the wind field is initialized using meteorological upper-air soundings (radiosondes). The vertical wind profile at each sounding station :math:`s` is first interpolated from its discrete measurement levels to the grid cell height :math:`z_c` using either natural cubic splines or log-linear interpolation in the vertical coordinate.
-
-Once the vertical profiles are interpolated to the target level :math:`z_c`, the wind components are horizontally blended across the computational domain using 2D Inverse Distance Weighting (IDW):
+Within dense building street canyons, wind velocity is modified to capture wake recirculation vortices. The vortex recirculation velocity is modeled as:
 
 .. math::
 
-   U(x_c, y_c, z_c) = \frac{\sum_{s} w_s U_s(z_c)}{\sum_{s} w_s}, \quad V(x_c, y_c, z_c) = \frac{\sum_{s} w_s V_s(z_c)}{\sum_{s} w_s}
+   u_{\text{vortex}}(x, z) = U_H \cdot C_{\text{vortex}} \cdot \sin\left(\pi \frac{x}{L_r}\right) \cdot \cos\left(\pi \frac{z}{H}\right)
 
-where the horizontal distance weight is :math:`w_s = (d_s)^{-p}`, with :math:`d_s` being the horizontal distance between the grid cell center :math:`(x_c, y_c)` and the sounding station :math:`(X_s, Y_s)`, and :math:`p` is the user-configured IDW exponent.
-
-Marine Boundary Layer Diagnostic Mixing Height
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-When ``enable_marine_bl = true``, the boundary layer mixing height :math:`z_i(x,y)` is dynamically calculated over water cells (land-use category 11) using a diagnostic thermal-mechanical mixing depth equation:
-
-.. math::
-
-   z_i = \sqrt{h_{\text{mech}}^2 + h_{\text{conv}}^2}
-
-where:
-* **Mechanical mixing height** (:math:`h_{\text{mech}}`) is driven by friction velocity :math:`u_*` and Coriolis parameter :math:`f = 2\Omega\sin\phi`:
-
-  .. math::
-
-     h_{\text{mech}} = 0.2 \frac{u_*}{|f|}
-
-* **Convective mixing height** (:math:`h_{\text{conv}}`) is driven by the air-sea potential temperature difference :math:`\Delta T = T_{\text{air}} - T_{\text{sea}}`. Under unstable conditions (:math:`\Delta T < 0`), the convective mixing depth is diagnosed as:
-
-  .. math::
-
-     h_{\text{conv}} = 0.3 \left( \frac{g \cdot C_H \cdot U_{\text{mag}} \cdot (-\Delta T)}{T_{\text{sea}} \cdot |f|^3} \right)^{1/2}
-
-  where :math:`g = 9.81\,\text{m/s}^2`, :math:`C_H = 0.0014` is the bulk heat transfer coefficient over water, :math:`U_{\text{mag}}` is the local wind speed, and :math:`T_{\text{sea}}` is the sea-surface temperature (SST).
-
-Jackson-Hunt Orographic Speed-up Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Wind acceleration over convex terrain features (ridges, hill tops) and deceleration in valleys is parameterized using the Jackson and Hunt (1975) model, which has been validated experimentally over low hills (Ayotte et al., 1994; Belcher et al., 1994):
-
-.. math::
-
-   \Delta U_{\text{speedup}}(z) = U_0(z) \cdot \left[ a \cdot \kappa_s \cdot L \cdot \left( \frac{z}{L} \right) \exp\left(-\frac{z}{L}\right) \right]
-
-where :math:`\kappa_s` is local terrain curvature (positive for ridges, negative for valleys), :math:`L` is the half-width of the dominant terrain feature, and :math:`a` is a tuning coefficient.
-
-The model is activated based on a **Froude number and slope threshold**:
-1. **Froude number constraint**: :math:`Fr = \frac{U}{N \cdot H} > 0.1` (where :math:`N` is Brunt-Väisälä frequency, :math:`H` is obstacle height).
-2. **Slope constraint**: local slope magnitude :math:`|\nabla h| > 0.05`.
-
-Thermally-Driven Slope Flows (Katabatic & Anabatic)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Thermally-driven up-slope (anabatic, daytime) and down-slope (katabatic, nighttime) flows are parameterized as:
-
-.. math::
-
-   u_{\text{slope}}(z) = U_{\text{max}} \cdot \sin(\theta_{\text{slope}}) \cdot \left( \frac{z_{\text{agl}}}{z_{\text{max}}} \right) \exp\left( 1 - \frac{z_{\text{agl}}}{z_{\text{max}}} \right)
-
-where :math:`\theta_{\text{slope}}` is the local terrain slope angle, :math:`z_{\text{max}}` is the height of maximum slope flow velocity, and :math:`U_{\text{max}}` scales with surface sensible heat flux.
-
-Sea Breeze Circulation
-~~~~~~~~~~~~~~~~~~~~~~
-A sea breeze thermal circulation is modeled near coastlines driven by land-sea temperature contrast:
-
-.. math::
-
-   u_{\text{sea\_breeze}}(x,z) = U_{\text{sb\_max}} \cdot \sin\left(\frac{\pi x}{L_{\text{coast}}}\right) \cdot \frac{z_{\text{agl}}}{z_{\text{sb}}} \exp\left(1 - \frac{z_{\text{agl}}}{z_{\text{sb}}}\right)
-
-where :math:`L_{\text{coast}}` is the thermal influence scale, and :math:`z_{\text{sb}}` is the circulation height.
-
-Froude Number Terrain Blocking
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Under highly stable conditions, flow blocking and lateral channeling around steep mountains is parameterized when the Froude number :math:`Fr < 1`:
-
-.. math::
-
-   u_{\text{blocked}} = u_0 \cdot \left[1 - (1 - Fr) \cdot \exp\left(-\frac{z_{\text{agl}}}{H_c}\right)\right]
-
-where :math:`H_c` is the critical dividing stream height.
-
-Canopy and Obstacle Modeling
-----------------------------
+Canopy Modeling
+~~~~~~~~~~~~~~~
 
 MacDonald Forest Canopy Drag Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Spatiotemporally varying vegetative canopies are parameterized using MacDonald et al. (2000) and Shaw-Pereira (1982) formulations. The exponential canopy velocity decay and displacement height calculations follow established canopy aerodynamic theory (Raupach, 1994; Nakai et al., 2012). Within the canopy height (:math:`z_{\text{agl}} \le h_c`), the wind velocity decays exponentially:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Spatiotemporally varying vegetative canopies are parameterized using MacDonald et al. (2000) and Shaw-Pereira (1982) formulations. Within the canopy height (:math:`z_{\text{agl}} \le h_c`), wind velocity decays exponentially:
 
 .. math::
 
    u(z_{\text{agl}}) = u(h_c) \cdot \exp\left[ -\alpha_{\text{canopy}} \left( 1 - \frac{z_{\text{agl}}}{h_c} \right) \right]
 
-where :math:`\alpha_{\text{canopy}}` is the exponential attenuation coefficient (typically 2.0 to 4.0).
-Above the canopy height (:math:`z_{\text{agl}} > h_c`), the standard log-law profile is modified with a displacement height :math:`d`:
+where :math:`\alpha_{\text{canopy}}` is the exponential attenuation coefficient. Above the canopy height, the profile is modified with a displacement height :math:`d`:
 
 .. math::
 
    u(z_{\text{agl}}) = \frac{u_*}{\kappa} \ln\left( \frac{z_{\text{agl}} - d + z_0}{z_0} \right)
 
-where :math:`d` and effective :math:`z_0` are computed based on canopy plan area index :math:`\lambda_p` and frontal area index :math:`\lambda_f`.
-
-Building Wake Modeling (Röckle, Huber-Snyder, AERMOD PRIME)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Solid structures read from a buildings CSV file are masked (zero velocity inside). Their aerodynamic wakes are modeled using three selectable parameterizations applied to the initial wind field. These implementations follow regulatory and wind engineering standards:
-
-1. **Röckle (1990) Model** — Empirical cavity and far-wake parameterization for urban flows (Röckle, 1990).
-2. **Huber-Snyder (EPA) Model** — Power-law wake deficit formulation from wind engineering (Huber & Snyder, 1982; Snyder, 1981).
-3. **AERMOD PRIME (EPA) Model** — Regulatory model for building downwash (Cimorelli et al., 2005; EPA 2005).
-   * Cavity length :math:`L_r = c_1 \cdot H` (where :math:`H` is building height).
-   * Cavity velocity deficit: :math:`u_{\text{deficit}} = c_2 \cdot U_H` with vertical rooftop vortex circulation patterns.
-   * Far-wake velocity deficit decays linearly to zero at distance :math:`L_f = 3H`.
-
-2. **Huber-Snyder (EPA) Model**:
-   * Cavity length scales with building aspect ratio: :math:`L_c = 0.5 \cdot H \cdot \sqrt{W/H}`.
-   * Far-wake velocity deficit uses a power-law decay: :math:`u_{\text{deficit}} \propto \frac{1}{\sqrt{x/L_c}}` extending to :math:`5H`.
-
-3. **AERMOD PRIME (EPA) Model**:
-   * Uses Projected Building Area (PBA) perpendicular to wind direction to compute effective building dimensions.
-   * Far-wake velocity deficit decays exponentially: :math:`u_{\text{deficit}} \propto \exp\left(-1.5 \frac{x-L_c}{10H - L_c}\right)`.
-
-**Adaptive Wake Superposition and Blending**:
-Instead of exclusive zone assignments, overlapping wakes from multiple buildings are smoothly blended using distance-weighted exponential functions:
-
-.. math::
-
-   w_i = \exp\left(-\frac{d_i}{L_{\text{blend}}}\right)
-
-where :math:`d_i` is distance to building :math:`i`'s wake boundary, and :math:`L_{\text{blend}} \approx 0.5 H`.
-
-Building Street Canyon Vortex Parameterization (QUIC-URB Style)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-When parallel buildings are aligned perpendicular to the ambient wind direction, the solver identifies street canyons geometrically, computes their aspect ratio (:math:`H/W`), and overwrites the initial wind field inside the canyon with a parameterized, solenoidal (divergence-free) recirculating vortex profile before the Poisson solve (Pardyjak & Brown, 2001; Brown et al., 2000):
-
-* **Solenoidal Vortex Velocity Components**:
-  
-  .. math::
-
-     u_{\text{vortex}}(x, z) = -C_{\text{vortex}} \cdot U_{\text{ambient}} \cdot \cos\left(\pi \frac{z}{H}\right) \cdot \sin\left(\pi \frac{x - x_{\text{up}}}{W}\right)
-
-  .. math::
-
-     w_{\text{vortex}}(x, z) = C_{\text{vortex}} \cdot U_{\text{ambient}} \cdot \left(\frac{H}{W}\right) \cdot \sin\left(\pi \frac{z}{H}\right) \cdot \cos\left(\pi \frac{x - x_{\text{up}}}{W}\right)
-
-* **Regime-Dependent Vortex Strength**:
-  * For skimming flow (:math:`H/W > 0.7`): :math:`C_{\text{vortex}} = 0.25` (full recirculation).
-  * For wake interference flow (:math:`0.3 < H/W \le 0.7`): :math:`C_{\text{vortex}}` scales linearly from 0 to 0.25.
-  * For isolated roughness flow (:math:`H/W \le 0.3`): :math:`C_{\text{vortex}} = 0.0`.
+Turbine Wake Modeling
+~~~~~~~~~~~~~~~~~~~~~
 
 Analytical Wind Turbine Wake Models
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The solver supports analytical turbine wake deficits for wind energy applications, following established models in wind farm design and optimization:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1. **Jensen (Park) Model** (Jensen, 1983; Katic et al., 1986) — Classic linear wake expansion model widely used in wind farm calculations.
-   
-   .. math::
-   
-      R_w(x_{\text{down}}) = R_0 + k_w \cdot x_{\text{down}}
-
-   .. math::
-   
-      \Delta U = U_0 \cdot \frac{1 - \sqrt{1 - C_T}}{(1 + 2 k_w x_{\text{down}} / D)^2}
-
-2. **Bastankhah (Gaussian) Model** (Bastankhah & Porté-Agel, 2014) — Gaussian wake deficit based on top-hat distribution, widely used in wind energy applications.
-   
-   .. math::
-   
-      \sigma_w(x_{\text{down}}) = k_a \cdot x_{\text{down}} + \epsilon \cdot D
- 
-   .. math::
-   
-      \frac{\Delta U}{U_0} = \left( 1 - \sqrt{1 - \frac{C_T}{8 (\sigma_w / D)^2}} \right) \cdot \exp\left( - \frac{r^2}{2 \sigma_w^2} \right)
-
-3. **TurbOPark Model** — A self-similar Gaussian deficit model that uses a wake expansion parameter based on local turbulence intensity, implemented from wind energy research (Crespo et al., 1999; Frandsen et al., 2006):
-   
-   .. math::
-   
-      \sigma_w(x_{\text{down}}) = \sigma_0 + k_w \cdot x_{\text{down}}
-      
-   where :math:`\sigma_0 = 0.25 D` is the initial wake width at the rotor disk and the wake expansion rate :math:`k_w` is parameterized by:
-
-   .. math::
-
-      k_w = c_1 \cdot TI_{\text{local}}
-
-   with empirical scaling coefficient :math:`c_1 \approx 0.38`.
-
-4. **Gauss-Curl Hybrid (GCH) Model** (Martínez-Tossas & Meneveau, 2019; Qian & Ishihara, 2016; Howland et al., 2016) — An advanced model that resolves secondary steering effects (including counter-rotating vortex pairs) generated by yawed turbines.
-   
-   The spanwise and vertical vortices are resolved in a right-handed Cartesian coordinate system with:
-
-   * :math:`x_{\text{down}}` positive in the downstream/streamwise direction.
-   * :math:`y` positive in the spanwise direction (extending to the observer's left when looking downstream, equivalent to the port side of the turbine).
-   * :math:`z` positive vertically upwards.
-
-   The initial strength of the counter-rotating vortex pair :math:`\Gamma_0` is computed as:
-
-   .. math::
-
-      \Gamma_0 = \frac{1}{2} C_T D U_{\infty} \cos^2(\gamma) \sin(\gamma)
-
-   and the vortex circulation strength decays exponentially downstream according to:
-
-   .. math::
-
-      \Gamma(x_{\text{down}}) = \Gamma_0 \exp\left( -c_{\text{decay}} \frac{x_{\text{down}}}{D} \right)
-
-   where :math:`c_{\text{decay}} = 0.1` is the empirical decay scaling coefficient. The spanwise :math:`v_{\text{vortex}}` and vertical :math:`w_{\text{vortex}}` velocity perturbations induced by the vortex cores at :math:`(y_c, z_c) = (\pm 0.5D, \pm 0.25D)` are calculated as:
-
-   .. math::
-
-      v_{\text{vortex}}(y,z) = \frac{\Gamma(x_{\text{down}})}{2\pi} \left[ \frac{z - z_c}{(y - y_c)^2 + (z - z_c)^2} - \frac{z + z_c}{(y - y_c)^2 + (z + z_c)^2} \right]
-
-   .. math::
-
-      w_{\text{vortex}}(y,z) = -\frac{\Gamma(x_{\text{down}})}{2\pi} \left[ \frac{y - y_c}{(y - y_c)^2 + (z - z_c)^2} - \frac{y + y_c}{(y - y_c)^2 + (z + z_c)^2} \right]
-
-   These induced crosswind velocities steer downstream turbine wakes directly within the 3D velocity grid, fully capturing multi-turbine secondary steering without the computational expense of full CFD.
-
-Wake Deficit Superposition Methods
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To combine velocity deficits from multiple overlapping upstream turbine wakes at a grid point, the solver supports three superposition options:
-
-1. **Quadratic Superposition (RSS)** (default):
-   The combined deficit :math:`\Delta u_{\text{comb}}` is the root-sum-squares of the individual deficits:
-
-   .. math::
-
-      \Delta u_{\text{comb}} = \sqrt{\sum_{i} \Delta u_i^2}
-
-2. **Linear Superposition**:
-   The combined deficit is the linear sum of individual deficits (applied as a direct product of speed reduction factors):
-
-   .. math::
-
-      \Delta u_{\text{comb}} = \sum_{i} \Delta u_i
-
-3. **Maximum Deficit Superposition (MAX)**:
-   The combined deficit is the maximum of the individual deficits:
-
-   .. math::
-
-      \Delta u_{\text{comb}} = \max_i(\Delta u_i)
-
-Wake Centerline Deflection Models
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-1. **Jimenez Model** (Jimenez, 2010):
-    To model yawed wind turbine wakes, the Jimenez wake deflection model computes the wake centerline deflection :math:`y_{\text{offset}}(x_{\text{down}})` due to thrust-induced lateral force components:
+Wind turbine wakes are simulated using three analytical formulations:
+1. **Jensen (Park) Model:** Assumes a linear wake expansion: :math:`D_{\text{wake}}(x) = D + 2 k_w x`.
+2. **Bastankhah Gaussian Model:** Models a self-similar Gaussian velocity deficit.
+3. **TurbOPark Model:** Uses a wake expansion rate :math:`k_w` parameterized by local turbulence intensity :math:`I_t`:
 
 .. math::
 
-   \theta_0 = \frac{C_T}{2} \cos^2(\gamma) \sin(\gamma)
+   \sigma_{\text{wake}}(x) = \sigma_0 + \int_0^x k_w(I_t(x')) dx'
 
-The deflection angle :math:`\theta` decays with downstream distance as:
+Wake Deficit Superposition
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. math::
+To combine velocity deficits from multiple overlapping upstream turbine wakes, the solver supports:
+- **Linear Superposition:** Sum of velocity deficits.
+- **Sum of Squares (quadratic):** Root-sum-of-squares of velocity deficits.
+- **Geometric Superposition:** Conserves momentum across overlapping rotor disks.
 
-   \theta(x_{\text{down}}) = \frac{\theta_0}{\left(1 + 2 \beta_{\text{def}} \frac{x_{\text{down}}}{D}\right)^2}
+Wake Centerline Deflection & Yaw
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Integrating the deflection angle along the downstream path yields the transverse wake offset:
-
-.. math::
-
-   y_{\text{offset}}(x_{\text{down}}) = D \cdot \theta_0 \cdot \frac{1}{2 \beta_{\text{def}}} \left( 1 - \frac{1}{1 + 2 \beta_{\text{def}} \frac{x_{\text{down}}}{D}} \right)
-
-where :math:`\gamma` is the yaw angle and :math:`\beta_{\text{def}} = k_d` is the deflection decay coefficient (configured via `jimenez_kd`, defaulting to 0.05).
-
-2. **Bastankhah & Porté-Agel Model (2016)** (Bastankhah & Porté-Agel, 2016):
-    The Bastankhah & Porté-Agel wake deflection model is a closed-form mass-and-momentum-conserving analytical formulation for Gaussian wakes in yawed conditions. The initial skew angle at the rotor is given by:
+To simulate yawed wind turbine operations, wake centerline deflection :math:`y_{\text{offset}}` is computed using the Jimenez deflection model or the mass-and-momentum-conserving Bastankhah deflection model:
 
 .. math::
 
-   \theta_{c0} = \frac{0.3 \gamma}{\cos \gamma} \left(1 - \sqrt{1 - C_T \cos \gamma}\right)
+   \theta_{\text{skew}} \approx \frac{1.425 \gamma}{\cos \gamma} (1 - \sqrt{1 - C_t})
 
-The deflection :math:`\delta(x_{\text{down}})` is computed separately for near and far wake regions bounded by the near-wake length :math:`x_0`:
+Vertical Wake Deflection (Tilt)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* For :math:`x_{\text{down}} \le x_0` (near-wake):
-
-  .. math::
-
-     \delta(x_{\text{down}}) = \tan(\theta_{c0}) \cdot x_{\text{down}}
-
-* For :math:`x_{\text{down}} > x_0` (far-wake):
-
-  .. math::
-
-     \delta(x_{\text{down}}) = \tan(\theta_{c0}) \cdot x_0 + \theta_{c0} \frac{E_0}{5.2} \sqrt{\frac{\sigma_{y0} \sigma_{z0}}{k^2 M_0}} \ln \left[ \frac{(1.6 + \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} - \sqrt{M_0})}{(1.6 - \sqrt{M_0})(1.6 \sqrt{\frac{\sigma_y \sigma_z}{\sigma_{y0} \sigma_{z0}}} + \sqrt{M_0})} \right]
-
-where :math:`M_0 = C_0(2 - C_0)`, :math:`C_0 = 1 - \sqrt{1 - C_T}`, and :math:`E_0 = C_0^2 - 3 e^{1/12} C_0 + 3 e^{1/3}`.
-
-Vertical Wake Deflection (Tilt Model)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Rotor tilt angle :math:`\theta_{\text{tilt}}` (tilting the rotor disk backwards or upwards) is supported to calculate basic vertical wake deflection, which is particularly relevant for floating offshore wind turbines. The vertical wake deflection :math:`z_{\text{offset}}(x_{\text{down}})` is computed using a vertical formulation analogous to the Jimenez deflection model:
-
-.. math::
-
-   \theta_{v0} = \frac{C_T}{2} \cos^2(\theta_{\text{tilt}}) \sin(\theta_{\text{tilt}})
-
-The resulting vertical deflection offset at downstream distance :math:`x_{\text{down}}` is:
-
-.. math::
-
-   z_{\text{offset}}(x_{\text{down}}) = D \cdot \theta_{v0} \cdot \frac{1}{2 \beta_{\text{def}}} \left( 1 - \frac{1}{1 + 2 \beta_{\text{def}} \frac{x_{\text{down}}}{D}} \right)
+Rotor tilt angle :math:`\theta_{\text{tilt}}` is modeled to calculate vertical wake deflection, which is particularly critical for floating offshore wind turbine architectures.
 
 Height-Varying (Veered) Wake Orientation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Under veered atmospheric conditions, the wind direction changes continuously with height. The coordinate projection used to define "downwind" and "crosswind" directions is modified dynamically to use the local wind direction at each vertical grid level :math:`z` rather than strictly the wind direction at hub height. This is a pure algebraic coordinate transformation that captures wake twisting under atmospheric wind veer.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Analytical Wake-Added Turbulence Models
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Turbines increase local downstream turbulence intensity :math:`TI_{\text{local}} = \sqrt{TI_{\text{ambient}}^2 + \sum \Delta I_{+}^2}` via established empirical models (Crespo et al., 1999; Crespo & Hernández, 1996; Frandsen et al., 2006):
+Coordinate projections define "downwind" and "crosswind" directions using the local wind direction at each vertical grid level :math:`z` rather than strictly at hub height.
 
-1. **Crespo-Hernández Model** (Crespo & Hernández, 1996):
-   
-   .. math::
-   
-      \Delta I_{+} = c_{\text{ch1}} \cdot a^{c_{\text{ch2}}} \cdot TI_{\text{ambient}}^{c_{\text{ch3}}} \cdot \left( \frac{x_{\text{down}}}{D} \right)^{c_{\text{ch4}}}
+Analytical Wake-Added Turbulence
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   where :math:`a = \frac{1 - \sqrt{1 - C_T}}{2}` is the axial induction factor, and the empirical scaling coefficients are:
-   
-   * :math:`c_{\text{ch1}} = 0.73`
-   * :math:`c_{\text{ch2}} = 0.832`
-   * :math:`c_{\text{ch3}} = 0.0325`
-   * :math:`c_{\text{ch4}} = -0.32`
+Turbulence intensity additions due to rotor shearing are computed via Crespo-Hernandez or Frandsen formulations.
 
-2. **Frandsen (STF) Model** (Frandsen et al., 2006):
-   
-   .. math::
-   
-      \Delta I_{+} = \frac{1}{c_{\text{fr1}} + c_{\text{fr2}} \cdot \frac{x_{\text{down}}}{D} / \sqrt{C_T}}
+Buoyant Wake Destruction
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-   where the empirical scaling coefficients are:
-
-   * :math:`c_{\text{fr1}} = 1.5`
-   * :math:`c_{\text{fr2}} = 0.8`
-
-3. **Wake Recovery under Thermal Buoyancy (Buoyant Wake Destruction)** (Mirocha et al., 2018):
-   In highly convective, unstable atmospheres, buoyancy-driven thermals rapidly break down wind turbine wakes. This buoyant destruction is parameterized by increasing the downstream decay rates of wake-added turbulence proportionally to the surface sensible heat flux :math:`H_s` (only when :math:`H_s > 0`):
-
-   * For the **Crespo-Hernández** model, the decay exponent :math:`c_{\text{ch4}}` is modified as:
-
-     .. math::
-
-        c_{\text{ch4}} = -0.32 \cdot (1.0 + \beta_{\text{buoy}} \cdot H_s)
-
-   * For the **Frandsen** model, the decay coefficient :math:`c_{\text{fr2}}` is modified as:
-
-     .. math::
-
-        c_{\text{fr2}} = 0.8 \cdot (1.0 + \beta_{\text{buoy}} \cdot H_s)
-
-   where :math:`H_s` is the surface sensible heat flux in W/m² (parameter ``surface_sensible_heat_flux``), and :math:`\beta_{\text{buoy}}` is the buoyant wake destruction coefficient in m²/W (parameter ``buoyant_wake_destruction_coeff``, default 0.005).
-
-The wake centerline conforms perfectly to local terrain height, bending over hills:
+In highly convective atmospheres, buoyancy-driven thermals rapidly break down wind turbine wakes:
 
 .. math::
 
-   z_{\text{centerline}} = z_{\text{terrain}}(x,y) + H_{\text{hub}}
+   k_{\text{buoy}}(x) = k_w + \beta_{\text{buoy}} \cdot H_s \cdot \left(\frac{x}{D}\right)
 
-The wake expansion rates are scaled dynamically based on atmospheric stability factor :math:`F_{\text{stability}} \propto \tanh(H_{\text{hub}}/L)`.
+where :math:`H_s` is the surface sensible heat flux.
 
-Wake-Ground Interaction (Mirroring & Shear-Damping)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To account for ground boundary effects on expanding wakes, an analytical mirroring technique is used. A symmetric "mirror" turbine is placed below the local terrain surface at height :math:`-H_{\text{hub}}`. The total deficit is obtained by superposing the physical and mirrored wake deficits.
+Wake-Ground Interaction
+^^^^^^^^^^^^^^^^^^^^^^^
 
-Additionally, to represent the high-shear surface layer damping when wakes overlap with the terrain, a shear-damping factor :math:`F_{\text{damp}}` is applied to both deficits:
+An analytical mirroring technique places a symmetric "mirror" turbine below the ground surface. A shear-damping factor :math:`F_{\text{damp}}` representing surface shear boundary layers is applied:
 
 .. math::
 
-   F_{\text{damp}} = 1 - \exp\left( -\frac{z_{\text{agl}}}{d_{\text{scale}}} \right)
-
-where :math:`z_{\text{agl}}` is the height above ground level and :math:`d_{\text{scale}} = 0.25 \cdot D` (configurable via `wake_ground_damping_scale`).
+   F_{\text{damp}}(z_{\text{agl}}) = 1.0 - \exp\left( - \frac{z_{\text{agl}}}{d_{\text{scale}}} \right)
 
 Annual Energy Production (AEP) Calculator
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The Python-side ``AEPCalculator`` computes the annual energy production of a wind farm over a multi-directional and multi-speed wind rose. Let :math:`N_{\theta}` be the number of wind direction sectors (e.g. 12 or 36 sectors, corresponding to :math:`\theta \in [0, 360)`), and :math:`N_U` be the number of wind speed bins.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The joint probability distribution of wind speed and direction is given by :math:`P(\theta_i, U_j)` such that:
-
-.. math::
-
-   \sum_{i=1}^{N_{\theta}} \sum_{j=1}^{N_U} P(\theta_i, U_j) = 1
-
-For each wind state :math:`(\theta_i, U_j)`, the mass-consistent wind solver calculates the local inflow wind speed :math:`u_{\text{inflow}, t}(\theta_i, U_j)` at each wind turbine :math:`t \in \{1, \dots, N_T\}` taking into account terrain, masking, yaw, wake deficits, and secondary steering.
-
-The power output :math:`P_{t}(u_{\text{inflow}, t})` of turbine :math:`t` is interpolated from its power curve. The total Annual Energy Production (in kWh) is the weighted sum of power outputs over all states, multiplied by the number of hours in a year (8760):
+The solver integrates wind speed distributions with power curves to evaluate localized farm-level AEP:
 
 .. math::
 
-   \text{AEP} = 8760 \times \sum_{i=1}^{N_{\theta}} \sum_{j=1}^{N_U} P(\theta_i, U_j) \left( \sum_{t=1}^{N_T} P_t\left(u_{\text{inflow}, t}(\theta_i, U_j)\right) \right)
+   \text{AEP} = N_h \sum_{i=1}^{N_{\theta}} \sum_{j=1}^{N_U} f(\theta_i, U_j) P_t\left( u_{\text{inflow}, t}(\theta_i, U_j) \right)
 
-where:
-
-* :math:`P_t` is the turbine power in kW.
-* :math:`8760` is the total number of hours in a non-leap year.
-* Wind direction is defined using standard meteorological conventions. Here, :math:`\theta` represents the direction from which the wind blows (0° = North, 90° = East, 180° = South, 270° = West).
-* The solver automatically rotates the inflow velocity vector to align with this meteorological convention before executing the mass-consistent Poisson solve on the Cartesian computational grid.
-
-Gaussian Puff Dispersion Model
+3D Scalar Transport and Mixing
 ------------------------------
 
-The passive Gaussian puff model couples wind transport with chemical/physical decay and deposition processes (Csanady, 1973; Seinfeld & Pandis, 2016):
+1-D Solver
+~~~~~~~~~~
 
-Concentration Superposition
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The concentration field is computed as a sum of discrete Gaussian-shaped puffs:
+A vertical 1-D mixing solver models vertical profiles of scalar variables. It solves 1-D vertical diffusion equations to simulate surface layer transition heights and boundary layer mixing.
+
+3-D Solver including Turbulence
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The transport of scalar fields (e.g., temperature :math:`T`, moisture :math:`q`) is governed by the 3D advection-diffusion-reaction equation:
 
 .. math::
 
-    C(x,y,z,t) = \sum_i \frac{m_i}{(2\pi)^{3/2} \sigma_{x,i} \sigma_{y,i} \sigma_{z,i}} \exp\left(-\frac{(x-x_i)^2}{2\sigma_{x,i}^2} - \frac{(y-y_i)^2}{2\sigma_{y,i}^2} - \frac{(z-z_i)^2}{2\sigma_{z,i}^2}\right)
+   \frac{\partial \phi}{\partial t} + \mathbf{u} \cdot \nabla \phi = \nabla \cdot \left( K_{\text{eff}} \nabla \phi \right) + S_{\phi}
+
+where :math:`\phi` is the scalar concentration, :math:`\mathbf{u}` is the mass-consistent velocity, and the effective diffusivity is:
+
+.. math::
+
+   K_{\text{eff}} = K_{\text{molecular}} + K_{\text{eddy}}
+
+The eddy diffusivity :math:`K_{\text{eddy}}` is parameterized using a mixing-length turbulence model:
+
+.. math::
+
+   K_{\text{eddy}} = l_m^2 \left| \nabla \mathbf{u} \right|, \quad l_m = c_m \cdot \min( z_{\text{agl}}, h_{\text{canopy}} )
+
+Other Features
+~~~~~~~~~~~~~~
+
+Spatially-Varying Diagnostic Boundary Layer Height
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The planetary boundary layer height :math:`h_{pbl}` is diagnostically determined using bulk Richardson number profiles:
+
+.. math::
+
+   Ri_b(z) = \frac{g ( \theta_v(z) - \theta_{v,\text{surface}} ) z}{\theta_{v,\text{surface}} ( u(z)^2 + v(z)^2 )}
+
+The boundary layer height :math:`h_{pbl}` is the level where :math:`Ri_b` exceeds a critical threshold :math:`Ri_{cr} \approx 0.25`.
+
+Dispersion Model
+----------------
+
+Puff Model
+~~~~~~~~~~
+
+The Lagrangian Puff Dispersion Model tracks discrete three-dimensional Gaussian puffs:
+
+.. math::
+
+   C(x,y,z,t) = \frac{Q}{(2\pi)^{3/2} \sigma_x \sigma_y \sigma_z} \exp\left[ -\frac{(x-x_p)^2}{2\sigma_x^2} - \frac{(y-y_p)^2}{2\sigma_y^2} \right] \left( \exp\left[ -\frac{(z-z_p)^2}{2\sigma_z^2} \right] + \exp\left[ -\frac{(z+z_p)^2}{2\sigma_z^2} \right] \right)
 
 Puff Advection & Growth
-~~~~~~~~~~~~~~~~~~~~~~~
-Puff centers drift with the local wind velocity :math:`\mathbf{u}(\mathbf{r}_i)` and grow due to turbulent diffusion :math:`K`:
+^^^^^^^^^^^^^^^^^^^^^^^
 
-.. math::
-
-   \mathbf{r}_i(t + \Delta t) = \mathbf{r}_i(t) + \mathbf{u}(\mathbf{r}_i) \Delta t, \quad
-   \sigma(t + \Delta t) = \sqrt{\sigma^2(t) + 2 K \Delta t}
-
-Height-Dependent Diffusivity :math:`K(z)`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Vertical eddy diffusivity :math:`K_v(z)` scales with height using power-law profiles:
-
-.. math::
-
-   K_v(z) = K_0 \cdot \left( \frac{z_{\text{agl}}}{z_{\text{ref}}} \right)^n
-
-where :math:`n = 0.5` for neutral, :math:`1.2` for unstable, and :math:`0.3` for stable boundary layers.
+Puffs are advected by the local mass-consistent wind vector. The puff spreading standard deviations :math:`\sigma_x, \sigma_y, \sigma_z` grow analytically based on downwind travel time and Pasquill-Gifford atmospheric stability classes.
 
 Briggs Plume Rise
-~~~~~~~~~~~~~~~~~
-Buoyant exhaust plumes rise according to Briggs (1975) formula, which is the standard in environmental dispersion modeling (Briggs, 1975, 1984; Ooms et al., 1972):
+^^^^^^^^^^^^^^^^^
+
+For buoyant thermal releases, Briggs plume rise formulas compute the vertical plume centerline elevation offset :math:`\Delta z` due to initial thermal momentum and buoyancy fluxes.
+
+Dry Deposition & Chemical Decay
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Deposition settling velocities remove mass near the surface, while chemical decay is modeled via first-order ambient-driven reaction kinetics: :math:`\frac{d M}{dt} = -k_{\text{decay}} M`.
+
+LPDM Model
+~~~~~~~~~~
+
+The Lagrangian Particle Dispersion Model tracks ensembles of independent particles. The trajectory of each particle is governed by Langevin stochastic differential equations:
 
 .. math::
 
-   \Delta h = \frac{1.6 F^{1/3} x^{2/3}}{u}, \quad F = \frac{g \cdot Q_H}{\rho \cdot c_p \cdot T}
+   dx_i = \left( u_i + \frac{\partial K_{ij}}{\partial x_j} \right) dt + \sqrt{2 K_{ii}} dW_i
 
-where :math:`Q_H` is the thermal power release, and :math:`F` is the buoyancy flux.
+where :math:`u_i` is the mean wind velocity component, :math:`K_{ij}` is the eddy diffusivity tensor, and :math:`dW_i` represents independent Wiener processes.
 
-Dry Deposition and Gravitational Settling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Mass removal due to ground deposition is computed when a puff overlaps the terrain surface (:math:`z_{\text{agl}} < 3 \sigma_z`). The deposition velocity is computed using Stokes' Law and particle settling theory (Slinn & Slinn, 1980; Slinn et al., 1978):
+Synthetic Fluctuations
+----------------------
 
-.. math::
+IEC Model
+~~~~~~~~~
 
-   \Delta m = C_{\text{ground}} \cdot v_d \cdot A_{\text{eff}} \cdot \Delta t
+The IEC 61400-1 model generates time-series velocity fluctuations on a 2D vertical plane:
+- **Kaimal Spectrum:** Models the velocity power spectral density for wind turbine design.
+- **Von Karman Spectrum:** An alternative spectral density formulation.
+- **Coherence Model:** Enforces spatial correlation across the rotor plane using exponential decay.
 
-where :math:`v_d` is the deposition/settling velocity, and :math:`A_{\text{eff}} \approx \pi (2 \sigma_y)^2` is the footprint area.
+Mann Model
+~~~~~~~~~~
 
-Ambient-Condition-Driven Chemical Decay
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Puff chemical molecular parameters and first-order exponential decay are coupled (Atkinson, 1994; Finlayson-Pitts & Pitts, 2000):
-
-.. math::
-
-   m_i(t) = m_i(0) \exp(-\lambda_{\text{decay}} t)
-
-where :math:`\lambda_{\text{decay}}` is the first-order reaction/decay constant.
-
-Synthetic Turbulence & Fluctuations
------------------------------------
-
-To synthesize terrain-aware turbulent fluctuations, the model uses spectral pipelines coupled with physical boundaries (Panofsky & Dutton, 1984; Veers, 1988).
-
-Spectral Models
-~~~~~~~~~~~~~~~
-Turbulent velocity fluctuations can be synthesized using multiple advanced spectral models. These include standard isotropic/sheared models from wind engineering standards (IEC 61400-1, 2019; Sathe et al., 2011) and full anisotropic spectral tensor formulations (Mann Box).
-
-IEC 61400-1 Spectral Models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The standard wind input models defined in IEC 61400-1:2019 (IEC, 2019) specify turbulence parameters for wind turbine design and certification, supporting the **Normal Turbulence Model (NTM)** and **Extreme Turbulence Model (ETM)**.
-
-* **Turbine Power Classes**:
-  
-  - **Class I**: High wind sites, reference speed :math:`V_{\text{ref}} = 50.0 \text{ m/s}`, :math:`V_{\text{avg}} = 10.0 \text{ m/s}`, reference turbulence intensity :math:`I_{\text{ref}} = 0.18`.
-  - **Class II**: Medium wind sites, reference speed :math:`V_{\text{ref}} = 42.5 \text{ m/s}`, :math:`V_{\text{avg}} = 8.5 \text{ m/s}`, reference turbulence intensity :math:`I_{\text{ref}} = 0.18`.
-  - **Class III**: Low wind sites, reference speed :math:`V_{\text{ref}} = 37.5 \text{ m/s}`, :math:`V_{\text{avg}} = 7.5 \text{ m/s}`, reference turbulence intensity :math:`I_{\text{ref}} = 0.18`.
-
-* **Spectral Scales**:
-  The longitudinal scale parameter :math:`\Lambda_u` is defined as a function of height :math:`z`:
-  
-  .. math::
-  
-     \Lambda_u = \begin{cases} 0.7 z & \text{if } z < 60\text{ m} \\ 42\text{ m} & \text{if } z \ge 60\text{ m} \end{cases}
-  
-  The integral length scales for Kaimal and Von Kármán spectra map to :math:`\Lambda_u` via:
-  
-  .. math::
-  
-     L_u = 8.1 \Lambda_u, \quad L_v = 2.7 \Lambda_u, \quad L_w = 0.67 \Lambda_u
-  
-  The target velocity standard deviations are specified by:
-  
-  .. math::
-  
-     \sigma_u = \sigma, \quad \sigma_v = 0.8\sigma, \quad \sigma_w = 0.5\sigma
-
-* **Von Kármán Spectrum Formulation**:
-  The streamwise (u-component) spectral density is given by (von Kármán, 1948; Panofsky & Dutton, 1984):
-  
-  .. math::
-  
-     S_u(f) = \frac{4 L_u \sigma_u^2}{(1 + 70.8 \hat{f}^2)^{5/6}}
-  
-  where :math:`\hat{f} = \frac{f L_u}{U_{\text{mean}}}` is the normalized frequency.
-
-* **Kaimal Spectrum Formulation**:
-  The streamwise (u-component) spectral density is given by (Kaimal et al., 1976):
-  
-  .. math::
-  
-     S_u(f) = \frac{4 L_u \sigma_u^2 \hat{f}}{(1 + 6 \hat{f})^{5/3}}
-  
-  where :math:`\hat{f} = \frac{f L_u}{U_{\text{mean}}}` is the normalized frequency.
-
-* **Coherence Formulations**:
-  Cross-component spatial correlations are modeled using directional coherence matrices between velocity components at different heights:
-  
-  .. math::
-  
-     \text{Coh}_{ij}(\Delta z, f) = \text{exp}\left( -k \frac{|\Delta z| f}{U_{\text{mean}}} \right)
-  
-  where :math:`k` is a decay parameter. Supported models include:
-  
-  - **Gaussian**: :math:`\text{Coh}(\Delta z, f) = \text{exp}(-k \cdot \Delta z^2)`
-  - **Exponential**: :math:`\text{Coh}(\Delta z, f) = \text{exp}(-k \cdot |\Delta z|)`
-  - **Power-law**: :math:`\text{Coh}(\Delta z, f) = (1 + k \cdot |\Delta z|)^{-m}`
-
-Mann Box Anisotropic Spectral Tensor Model
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The Mann Box model (Mann, 1994; Mann et al., 2016) represents a fully anisotropic 3D turbulent velocity field, capturing sheared spectral tensors and cross-component correlations over complex terrain.
-
-* **Diagonal Spectral Components** (Energy Spectra):
-  The energy spectrum for each velocity component :math:`i \in \{u, v, w\}` is defined as:
-  
-  .. math::
-  
-     S_{ii}(k) = \frac{8 \sqrt{\frac{3}{11\pi}} \cdot \sigma_i^2 L_i}{k \cdot \left[ 1 + \left( \frac{k L_i}{\alpha} \right)^2 \right]^{5/6}}
-  
-  where :math:`k` is the wavenumber, :math:`L_i` is the component integral length scale, :math:`\sigma_i^2` is the velocity variance, and :math:`\alpha` is the asymmetry parameter.
-
-* **Off-Diagonal Spectral Components** (Cross-Spectra):
-  The cross-spectral components represent cross-correlation between different velocity components (satisfying the Cauchy-Schwarz inequality :math:`|S_{ij}|^2 \le S_{ii} S_{jj}`):
-  
-  .. math::
-  
-     S_{ij}(k) = \eta_{ij} \sqrt{S_{ii}(k) S_{jj}(k)} \exp\left( -\left( \frac{k L_{\text{harmonic}}}{300} \right)^2 \right)
-  
-  where :math:`\eta_{ij}` is the coherence factor (e.g., :math:`\eta_{uv}=0.75, \eta_{uw}=0.50, \eta_{vw}=0.65`) and :math:`L_{\text{harmonic}}` is the harmonic mean scale:
-  
-  .. math::
-  
-     L_{\text{harmonic}} = \frac{2 L_i L_j}{L_i + L_j}
-
-* **Terrain Adaptation**:
-  In complex terrain, local slopes modify the length scales and spectral components continuously, dynamically scaling energy in the streamwise direction to represent accelerated windward flows and sheared separation over ridge crests.
-
-Terrain-Aware Masking
-~~~~~~~~~~~~~~~~~~~~~
-To prevent unphysical fluctuation penetration into terrain, a 3D mask is applied to the synthesized fluctuations. The mask :math:`M(z_{\text{agl}})` transitions smoothly from zero inside the terrain to unity far above:
+The Mann Box model generates a 3D block of anisotropic velocity fluctuations. The spectral tensor of velocity fluctuations :math:`\Phi_{ij}(\mathbf{k})` is computed by solving the linearized Navier-Stokes equations under uniform shear:
 
 .. math::
 
-   M(z_{\text{agl}}) = \begin{cases}
-   0.0 & \text{if } z_{\text{agl}} \le 0 \\
-   \frac{1}{2}\left[1 - \cos\left(\frac{\pi z_{\text{agl}}}{h_t}\right)\right] & \text{if } 0 < z_{\text{agl}} < h_t \\
-   1.0 & \text{if } z_{\text{agl}} \ge h_t
-   \end{cases}
+   \frac{d \Phi_{ij}}{dt} + k_k \frac{dU_i}{dx_k} \Phi_{kj} + k_k \frac{dU_j}{dx_k} \Phi_{ik} = \nu k^2 \Phi_{ij}
 
-where :math:`h_t` is a transition height (typically 2 to 4 cells tall). The smooth cosine ramp ensures :math:`C^1` continuity at both boundaries, preserving approximate mass conservation.
-
-3D Scalar Transport with Mixing Length Turbulence
--------------------------------------------------
-
-The solver supports optional 3D transport equations for passive scalars such as temperature and moisture. After the mass-consistent wind field is computed, scalar fields are advected and diffused using an explicit scheme with eddy diffusivity parameterization.
-
-Scalar Transport Equations
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-For each scalar field :math:`\phi` (temperature or moisture), the advection-diffusion equation is solved:
-
-.. math::
-
-   \frac{\partial \phi}{\partial t} + \nabla \cdot (\mathbf{u} \phi) = \nabla \cdot (K_{\text{eff}} \nabla \phi)
-
-where :math:`\mathbf{u}` is the solved mass-consistent wind field, and :math:`K_{\text{eff}}` is the effective diffusivity combining molecular and turbulent contributions:
-
-.. math::
-
-   K_{\text{eff}} = K_{\text{mol}} + K_{\text{eddy}}
-
-**Molecular Diffusion**:
-* **Temperature**: :math:`K_{\text{mol}} \approx 2.5 \times 10^{-5}` m²/s (thermal diffusivity)
-* **Moisture**: :math:`K_{\text{mol}} \approx 2.2 \times 10^{-5}` m²/s
-
-**Eddy Diffusivity via Mixing Length Model**:
-The turbulent eddy diffusivity is parameterized using the Prandtl mixing length closure (Prandtl, 1925; Stull, 1988):
-
-.. math::
-
-   K_{\text{eddy}} = (l_m)^2 \, |\nabla \mathbf{u}|
-
-where the mixing length :math:`l_m` is computed as:
-
-.. math::
-
-   l_m(z) = \kappa (z + z_0) \cdot c_m
-
-Here:
-* :math:`\kappa = 0.41` is the von Kármán constant
-* :math:`z` is the height above terrain
-* :math:`z_0` is the aerodynamic roughness length
-* :math:`c_m` is a coefficient (typically 0.1) relating mixing length to distance from the surface
-* :math:`|\nabla \mathbf{u}| = \sqrt{(\partial u/\partial z)^2 + (\partial v/\partial z)^2 + \ldots}` is the velocity shear magnitude
-
-This formulation captures enhanced turbulent mixing in shear-dominated flows near the surface while decaying with height.
-
-Numerical Discretization
-~~~~~~~~~~~~~~~~~~~~~~~~
-The scalar transport equation is discretized using:
-
-1. **Upstream Differencing for Advection**: Conservative upstream scheme for CFL stability
-2. **Finite Differences for Diffusion**: Central differences for the diffusive flux :math:`\nabla \cdot (K_{\text{eff}} \nabla \phi)`
-3. **Forward Euler Time Integration**: Explicit time stepping with adaptive CFL-based time stepping
-
-Adaptive Time Stepping
-~~~~~~~~~~~~~~~~~~~~~~
-To ensure stability, the time step is computed dynamically from the CFL criterion:
-
-.. math::
-
-   \Delta t = \text{CFL} \cdot \frac{\min(\Delta x, \Delta y, \Delta z)}{\max(|u|, |v|, |w|)}
-
-where :math:`\text{CFL}` is a user-specified parameter (typically 0.8) that ensures :math:`\Delta t < 1` in Courant units.
-
-Configuration Parameters
-~~~~~~~~~~~~~~~~~~~~~~~~
-Users can enable scalar transport via ParmParse input parameters:
-
-* ``enable_3d_scalars`` : Master switch for 3D scalar fields (auto-enabled if any transport is requested)
-* ``enable_temperature_transport`` : Solve temperature transport equation (default: false)
-* ``enable_moisture_transport`` : Solve moisture transport equation (default: false)
-* ``temperature_diffusivity`` : Molecular thermal diffusivity [m²/s] (default: 2.5e-5)
-* ``moisture_diffusivity`` : Molecular moisture diffusivity [m²/s] (default: 2.2e-5)
-* ``scalar_cfl`` : CFL number for adaptive time stepping (default: 0.8)
-* ``scalar_dt`` : Fixed time step (if positive); negative triggers adaptive (default: -1.0)
-* ``enable_mixing_length_turbulence`` : Enable eddy diffusivity via mixing length (default: true)
-* ``mixing_length_coefficient`` : Coefficient :math:`c_m` in mixing length formula (default: 0.1)
-* ``von_karman`` : Von Kármán constant (default: 0.41)
-* ``zground`` : Ground roughness for mixing length [m] (default: 0.1)
-
-Backward Compatibility
-~~~~~~~~~~~~~~~~~~~~~~
-By default, all scalar transport features are disabled, ensuring complete backward compatibility with existing simulations. Users must explicitly enable ``enable_temperature_transport`` or ``enable_moisture_transport`` to activate the new solvers.
-
-Advanced Numerical Solver Enhancements
---------------------------------------
-
-These numerical techniques improve accuracy and convergence speed of the AMReX-based multigrid solver.
-
-Divergence Damping Filter
-~~~~~~~~~~~~~~~~~~~~~~~~~
-After solving the mass-consistency Poisson equation, the Lagrange multiplier field :math:`\lambda` may contain high-frequency noise from discretization. An implicit damping filter is applied:
-
-.. math::
-
-   \lambda_{\text{filtered}} = \lambda - \varepsilon \nabla^2 \lambda
-
-where :math:`\varepsilon = 0.05 \cdot \min(\Delta x, \Delta y, \Delta z)^2` is an automated damping coefficient. This smoothing reduces spurious divergence :math:`\nabla \cdot \mathbf{u}` by 30-50% without affecting physical wind profiles.
-
-Perturbation Pressure Gradient
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To enhance pressure-velocity coupling in high-resolution, complex flow scenarios, an optional perturbation pressure Poisson equation is solved:
-
-.. math::
-
-   \nabla^2 p' = -\nabla \cdot (\mathbf{u} \cdot \nabla \mathbf{u})
-
-And the velocity field is updated:
-
-.. math::
-
-   \mathbf{u}_{\text{corrected}} = \mathbf{u} - \frac{1}{\rho} \nabla p'
-
-This is useful for flow blocking or strong vertical convective accelerations.
-
-Multi-Scale Terrain Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The local topography is classified based on slope magnitude :math:`|\nabla h|`:
-* **Flat (:math:`|\nabla h| < 0.1`)**: Standard log-law profile, unperturbed roughness :math:`z_0`.
-* **Moderate (:math:`0.1 \le |\nabla h| < 0.3`)**: Aerodynamic roughness length adjusted by factor :math:`(1 + 0.2)`.
-* **Steep (:math:`|\nabla h| \ge 0.3`)**: :math:`z_0` adjusted by :math:`(1 + 0.8)`, and subgrid-scale terrain drag parameterization is applied.
-
-Surface-Layer-to-Mixed-Layer Transition
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Discontinuities in vertical wind shear at the boundary layer top are eliminated using S-curve smoothstep blending:
-
-.. math::
-
-   u(z) = [1 - w(z)] u_{\text{loglaw}}(z) + w(z) u_{\text{mixed}}(z)
-
-where the weight function :math:`w(z)` blends smoothly over a transition width :math:`h_{\text{blend}}` around the transition height :math:`z_{\text{trans}}`.
-
-Limitations and Future Work
-----------------------------
+The shear distortion equations are integrated numerically. The 3D velocity box is rotated cell-locally using a terrain-following tensor transformation to align turbulence with local topography.
 
 Infrastructure Vulnerability Assessment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------------------
 
-Overhead Electrical Power Lines (Wire Loading)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Bridge Loading Assessment
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The wind solver includes a dedicated module to assess the vulnerability of overhead power transmission lines and telecommunications cables to wind-induced mechanical loading and thermal rating constraints.
+The solver computes wind loading along discrete segments of bridge decks:
+- **Vertical Drag:** Forces normal to the bridge deck.
+- **Lateral Sway:** Out-of-plane drag forces.
+- **Vortex-Induced Resonance:** Predicts Strouhal shedding frequencies :math:`f_{\text{vortex}} = St \cdot U / D` and compares them to natural structural frequencies.
+- **Comfort Assessment:** Evaluates vertical and lateral accelerations against ISO 6954 human comfort standards.
 
-**Physical Models**:
+General Structure Loading Assessment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. **Aerodynamic Drag on Cylindrical Conductors**:
-   
-   The aerodynamic drag force on a conductor segment perpendicular to the wind is computed as:
-   
-   .. math::
-       F_d = \frac{1}{2} \rho u_\perp^2 C_d d L
-   
-   where:
-   - :math:`\rho` = air density [kg/m³] (hardcoded to 1.225 kg/m³)
-   - :math:`u_\perp` = wind speed component perpendicular to the span [m/s]
-   - :math:`C_d` = aerodynamic drag coefficient [dimensionless] (typically 1.0 for bare cylinders)
-   - :math:`d` = conductor outer diameter [m]
-   - :math:`L` = segment length [m]
+Computes wind loading on tall buildings, towers, and antennas:
+- **Static Base Shear:** Drag force integrated over structural height.
+- **Dynamic Amplification:** Accounts for turbulent gust response factors (Davenport formulation).
+- **Lateral Deflection:** Approximates structural bending using cantilever beam bending equations.
+- **Fragility Curves:** Lognormal cumulative damage probabilities as a function of wind speed:
 
-2. **Steady-State Conductor Temperature Balance**:
-   
-   The solver solves for the steady-state conductor temperature :math:`T_s` [K] such that heat input equals heat output:
-   
-   .. math::
-       Q_c + Q_r = Q_s + Q_J
-   
-   where:
-   - :math:`Q_c` = convective cooling (forced + natural convection) [W/m]
-   - :math:`Q_r` = radiative cooling [W/m]
-   - :math:`Q_s` = solar heating [W/m]
-   - :math:`Q_J` = Joule heating from current [W/m]
+.. math::
 
-   **Forced Convection** (wind-driven):
-   
-   The Nusselt number for a cylinder in crossflow is computed using correlations:
-   
-   .. math::
-       Nu = 1.011 + 0.371 \, Re^{0.52}  \quad \text{(for large } Re \text{)}
-   
-   where :math:`Re = \frac{\rho u_\perp d}{\mu}` is the Reynolds number and :math:`\mu` is the dynamic viscosity of air.
-   
-   Convective heat transfer is then:
-   
-   .. math::
-       Q_c = \pi k_f Nu (T_s - T_a)
-   
-   where :math:`k_f` is the thermal conductivity of air and :math:`T_a` is the ambient air temperature.
+   P(\text{damage} | U) = \Phi\left[ \frac{\ln(U / U_{\text{median}})}{\beta} \right]
 
-   **Natural Convection**:
-   
-   When wind speeds are low, natural convection dominates. The Grashof number governs the strength of natural convection:
-   
-   .. math::
-       Gr = \frac{g \beta |T_s - T_a| d^3}{\nu^2}
-   
-   The Nusselt number for natural convection around a horizontal cylinder is:
-   
-   .. math::
-       Nu_{nat} = 0.48 (Gr \cdot Pr)^{0.25}
-   
-   where :math:`Pr = 0.71` is the Prandtl number of air.
+Wire/Transmission Line Loading Assessment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   **Radiative Cooling**:
-   
-   .. math::
-       Q_r = \pi d \epsilon \sigma (T_s^4 - T_a^4)
-   
-   where :math:`\epsilon` is the thermal emissivity and :math:`\sigma = 5.670374419 \times 10^{-8}` W/(m²·K⁴) is the Stefan-Boltzmann constant.
+Computes wind loading and thermal response for electrical transmission lines:
+- **Conductor Drag:** Transverse force on conductors.
+- **Thermal Energy Balance (IEEE 738):** Solves the steady-state heat balance equation:
 
-   **Solar Heating**:
-   
-   .. math::
-       Q_s = \alpha G_s d
-   
-   where :math:`\alpha` is the solar absorptivity and :math:`G_s` is the solar radiation intensity [W/m²].
+.. math::
 
-   **Joule Heating**:
-   
-   .. math::
-       Q_J = I^2 R
-   
-   where :math:`I` is the operating electrical current [A] and :math:`R` is the AC electrical resistance [ohm/m].
+   I^2 R = q_{\text{convection}}(T_c, U_{\text{wind}}) + q_{\text{radiation}}(T_c) - q_{\text{solar}}
 
-3. **Dynamic Line Rating (DLR) / Ampacity Limit**:
-   
-   The maximum allowable current before the conductor reaches a critical temperature limit (default 373.15 K / 100°C) is back-calculated from the heat balance equation, solving for :math:`I_{max}`:
-   
-   .. math::
-       I_{max} = \sqrt{\frac{Q_c + Q_r - Q_s}{R}}
-   
-   This DLR represents the maximum current the conductor can safely carry without overheating.
+where convective cooling :math:`q_{\text{convection}}` is a nonlinear function of local wind speed.
+- **Dynamic Ampacity Rating:** Calculates maximum allowable current :math:`I_{\text{max}}` such that conductor temperature remains below structural safety limits.
 
-4. **Conductor Sway Angle**:
-   
-   The mechanical deflection angle of the conductor from vertical is estimated as:
-   
-   .. math::
-       \theta_{sway} = \arctan\left(\frac{F_{d,avg}}{F_g}\right)
-   
-   where :math:`F_{d,avg}` is the average drag force per unit length and :math:`F_g = \rho_{mass} g` is the gravitational force per unit length.
+Case Study Scenarios in Complex Terrain
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Interpolation to Wire Spans**:
+Altamont Pass 500 kV Transmission Line
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Wire span coordinates are discretized into segments matching the grid resolution. At each segment midpoint, 3D wind velocities (u, v, w) and ambient temperature are interpolated from the solved wind field. The perpendicular wind component :math:`u_\perp` is extracted by projecting the velocity vector onto the plane perpendicular to the span direction.
+This scenario models gap flow wind acceleration through Altamont Pass, CA, evaluating dynamic line rating, conductor sag, and wind drag along 300 transmission line spans. It demonstrates the utility of mass-consistent flow modeling over coarse NOAA forecasts.
 
-**Output Metrics**:
+Gorge Bridge Crossing
+^^^^^^^^^^^^^^^^^^^^^
 
-For each wire span, the solver reports:
-- Average and maximum wind speed along the span
-- Total integrated drag force [N]
-- Peak drag force per unit length [N/m]
-- Steady-state conductor temperature [K]
-- Dynamic Line Rating (ampacity limit) [A]
-- Average conductor sway angle [degrees]
+This scenario models canyon wind channeling and vertical wind shear across a deep gorge. It computes lateral sway, bending moments, and vortex shedding frequencies along the bridge span, comparing structural response to ISO comfort standards.
 
-**References**:
+Urban Heat Island Building
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- IEEE Std 738™-2017: *IEEE Standard for Calculating the Current-Temperature Relationship of Bare Overhead Conductors*
-- CIGRE TB 208 (2014): *Thermal behaviour of overhead conductors*
-- Cigre WG B2.12.19 (2002): *Mechanical constraints and design requirements*
-
-Bridge and General Structure Vulnerability (Future Extension)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Future work will extend the solver with wind loading assessment modules for:
-
-- **Bridge Decks**: Vertical and lateral sway, resonance matching with vortex shedding, suspension cable tension.
-- **Tall Structures** (buildings, communication towers, antennas): Base shear forces, moment stability, fragility curves.
-- **Composite Infrastructure Networks**: Risk aggregation across multiple correlated assets.
-
-Limitations
-~~~~~~~~~~~
-
-1. **Physics**:
-   * **Diagnostic Nature**: The solver assumes steady-state mass consistency. Time-dependent fluctuations and transient atmospheric dynamics are parameterized rather than solved prognostically.
-   * **Simplified Street Canyon & Obstacles**: While we now explicitly model recirculating street canyon vortices using geometric detection and parameterized solenoidal vortex profiles, canopy drag and basic Oke (1988) algorithms assume homogeneous cell sizes.
-   * **Uncoupled Fire-Wind Feedback**: Currently, there is no direct thermal or buoyant feedback from fire fronts (e.g. from wildfire_levelset) back to the wind field.
-
-2. **Numerics**:
-   * **Uniform Vertical Resolution**: While horizontal mesh spacing is flexible, vertical grid spacing is constant, making near-surface gradients expensive to resolve.
-   * **Interpolation Schemes**: Spatially varying initial conditions rely on local spatial interpolations (such as nearest-neighbor or basic IDW) rather than full high-order 3D trilinear interpolation.
-
-3. **Machine Learning (ML)**:
-   * **Surrogate Modeling Absence**: No machine learning surrogates are currently integrated to speed up or replace the multi-level multigrid (MLMG) Poisson solve.
-
-Future Work
-~~~~~~~~~~~
-
-1. **Physics**:
-   * **Prognostic Coupling**: Integrate dynamic momentum source terms and time-dependent atmospheric forcing.
-   * **Active Wind-Fire Feedback**: Implement local sensible heat and buoyancy feedback driven by fire front perimeters to simulate fire-induced winds.
-   * **Advanced Canopy Models**: Integrate Leaf Area Density (LAD) vertical profiles and Cionco drag-force parameterizations.
-
-2. **Numerics**:
-   * **Stretched Vertical Grids**: Support stretched or terrain-following coordinates with finer grid spacing near the ground surface.
-   * **Adaptive Mesh Refinement (AMR)**: Fully utilize AMReX's block-structured AMR capability to dynamically refine the mesh around complex buildings and steep terrain ridges.
-
-3. **Machine Learning (ML)**:
-   * **Surrogate ML Solvers**: Integrate deep learning surrogates (e.g., convolutional neural networks or Fourier Neural Operators) trained on Large Eddy Simulation (LES) data to generate extremely fast, highly realistic initial fields.
-   * **Physics-Informed Neural Networks (PINNs)**: Explore PINN-based solvers to enforce mass-consistency in non-Cartesian domains, accelerating or replacing traditional multigrid cycles.
-
+This scenario simulates street canyon wind acceleration and thermal buoyancy effects within a dense block of tall buildings. It evaluates static and dynamic base shear, lateral deflection, and structural fragility curves.

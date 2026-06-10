@@ -713,8 +713,8 @@ A complete working input example::
 See Also
 --------
 
-- :ref:`phreeqc_coupling` — Reactive transport coupling
-- :ref:`api_reference` — API documentation
+- :ref:`external_coupling` — Reactive transport coupling
+- :ref:`python_api` — API documentation
 - `AMReX Documentation <https://amrex-codes.github.io>`_
 - `AMR-Wind Project <https://github.com/Exawind/amr-wind>`_
 

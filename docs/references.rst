@@ -587,7 +587,7 @@ Terrain Modeling & Complex Topography Effects
   Large-scale topographic flow patterns and nonlinear terrain interactions.
 
 Database & Empirical Data
-^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * **NREL Wind Toolkit (2015)**. *National Solar Radiation Database (NSRDB)*. https://nsrdb.nrel.gov/
    

@@ -139,6 +139,7 @@ The Lagrangian Particle Dispersion Model tracks large ensembles of independent c
      x_i(t + \Delta t) = x_i(t) + \bar{u}_i(x) \Delta t + \sqrt{2 K_{ii} \Delta t} \cdot \xi
 
   where :math:`\xi` represents a standard normal random variable generated using a high-quality pseudorandom number generator initialized by ``lpdm_random_seed``.
+
 - **Interpolation:** Particle local wind speeds :math:`\bar{u}_i` and eddy diffusivities :math:`K_{ii}` are interpolated using local trilinear shape functions from the cell-centered AMReX MultiFab grid.
 
 Synthetic Fluctuations
@@ -191,4 +192,5 @@ Overhead electrical wires are assessed for thermal sag and dynamic ampacity usin
      I^2 R - h(T_c - T_a) - \varepsilon \sigma (T_c^4 - T_a^4) - q_{solar} = 0
 
   for the conductor temperature :math:`T_c` under the influence of wind-speed dependent convective cooling :math:`h = f(\mathbf{u}_{\text{local}})`.
+
 - **Dynamic Ampacity Extraction:** Given a maximum allowable temperature threshold :math:`T_{c,\text{max}}`, the solver analytically extracts the maximum allowable current :math:`I_{\text{max}}` (ampacity).
