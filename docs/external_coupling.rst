@@ -18,7 +18,7 @@ The PHREEQC coupling framework enables wind-driven geochemical simulations for c
 Documentation
 ^^^^^^^^^^^^^
 
-User guides and API references are available in ``docs/phreeqc_coupling/``:
+Comprehensive documentation is available in ``docs/phreeqc_coupling/``:
 
 - **User Guide** (`docs/phreeqc_coupling/user_guide.md`) — Practical workflows for 11 core capabilities
 - **API Reference** (`docs/phreeqc_coupling/api_reference.md`) — 40+ functions and classes with signatures
