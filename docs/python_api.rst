@@ -331,6 +331,13 @@ The full pesticide spraying simulation executes through five highly-coordinated 
 5. **Crop Canopy Interception & Deposition Mapping**:
    Spatially distributed forest/crop canopy properties (height, Leaf Area Index, Frontal Area Index) are mapped to 2D arrays. Descending droplets are intercepted by the foliage layer using empirical deposition velocity models. Deposits are recorded into canopy-top, lower-foliage, and ground registers, allowing complete mass conservation validation.
 
+.. figure:: drone_deposition_plot.png
+   :width: 100%
+   :align: center
+   :alt: Agricultural Drone Deposition & Drift
+
+   *Figure: 2D visualization of crop deposition and off-target spray drift under crosswind.*
+
 Validation, Sensitivity Analysis & Operational Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Two production-grade automated tools are provided under the ``tools/`` directory:

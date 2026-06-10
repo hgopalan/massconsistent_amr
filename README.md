@@ -117,6 +117,34 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **FLORIS & PyWake integration** — Export wind data to FLORIS wind farm simulation format, and format resolved wind fields as PyWake Site or WAsPGridSite objects
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
 
+## Agricultural Drone Spraying Walkthrough
+
+The repository includes a comprehensive, production-grade suite for modeling agricultural drone spraying operations, evaluating spray drift, and optimizing weather windows.
+
+### Realistic Farm Case Simulation Walkthrough
+A typical simulation proceeds as follows:
+1. **Trajectory Parsing & Interpolation**: Drone flight logs (telemetry data) containing 3D positions, speed, heading, and nozzle state are loaded and interpolated continuously over time using the ``DroneTrajectory`` class.
+2. **Mass Flow Scaling**: Volumetric nozzle flow rate (L/min) is dynamically scaled to physical pesticide mass release (g/s) using the ``MassEmissionRegulator`` class.
+3. **Transport & Downwash**: Droplets are classified into size bins (fine, medium, coarse), advected by the 3D mass-consistent wind solver field, pushed downward/sideways by analytical rotor downwash (including ground-effect spreading), and settle due to gravitational forces (Stokes' law with Cunningham slip correction).
+4. **Physicochemical Decay**: Droplets undergo temperature- and humidity-dependent evaporation (Tetens equation & d² law) and photo-chemical degradation.
+5. **Canopy Interception & Deposition Mapping**: Spatially-varying canopy foliage (Leaf Area Index, Frontal Area Index) intercepts descending droplets. Deposition is mapped onto ground, lower foliage, and canopy-top registers. Mass conservation is rigorously validated across all compartments.
+
+The image below illustrates a realistic farm case simulation under a crosswind, showcasing the target swath and off-target spray drift:
+
+![Agricultural Drone Deposition & Drift](docs/drone_deposition_plot.png)
+
+To run the sensitivity analysis, weather window optimizer, or the regression test:
+```bash
+# Run sensitivity analysis across nozzles, wind, and stability
+python3 tools/drone_sensitivity_analysis.py
+
+# Run weather window optimization against scenario library
+python3 tools/weather_window_optimizer.py
+
+# Execute the realistic farm case regression test
+python3 regtest/dispersion/realistic_farm_case/test_realistic_farm_case.py
+```
+
 ## Synthetic Turbulence
 
 The solver synthesizes **terrain-aware turbulent fluctuations** using:
