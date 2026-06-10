@@ -552,7 +552,7 @@ Future Extensions
 See Also
 --------
 
-- :ref:`validation_optimization` — Validation framework documentation
-- :ref:`python_api` — Python bindings and examples
+- :ref:`Validation framework documentation <validation_optimization>`
+- :ref:`Python bindings and examples <python_api>`
 - ``tests_and_examples/mann_box/`` — Comprehensive test suite
 - ``regtest/turbulence/`` — Regression test cases

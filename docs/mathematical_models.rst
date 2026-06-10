@@ -3,7 +3,7 @@
 Mathematical Models
 ===================
 
-This page documents the mathematical models, physical parameterizations, and numerical formulations available in ``massconsistent_amr``. Each section is documented with references to the scientific literature supporting its implementation. For full citations, see the :ref:`references` page.
+This page documents the mathematical models, physical parameterizations, and numerical formulations available in ``massconsistent_amr``. Each section is documented with references to the scientific literature supporting its implementation. For full citations, see the :ref:`references page <references>`.
 
 .. contents:: Topics
    :local:

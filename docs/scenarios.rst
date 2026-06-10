@@ -337,4 +337,4 @@ Key literature supporting these scenarios:
 - Oke, T. R. (1988). Street design and urban canopy layer climate. *Energy and Buildings*, 11(3), 103–113.
 - Yokoyama, H., Oikawa, S., & Miyashita, K. (2010). Large-eddy simulation of thermal effects on wind characteristics over an urban canopy. *Journal of Wind Engineering and Industrial Aerodynamics*, 98(8–9), 405–413.
 
-Complete reference database with additional citations for wind engineering, fluid mechanics, and computational methods is available in :ref:`references`.
+Complete reference database with additional citations for wind engineering, fluid mechanics, and computational methods is available in :ref:`the complete reference section <references>`.

@@ -493,8 +493,8 @@ Documentation & References
 See Also
 --------
 
-- :ref:`mann_model` — Full Mann Box tensor documentation
-- :ref:`iec61400_synthesis` — IEC turbulence models
-- :ref:`validation_optimization` — Validation framework details
-- :ref:`python_api` — Python API reference
-- :ref:`code_structure` — Implementation architecture
+- :ref:`Full Mann Box tensor documentation <mann_model>`
+- :ref:`IEC turbulence models <iec61400_synthesis>`
+- :ref:`Validation framework details <validation_optimization>`
+- :ref:`Python API reference <python_api>`
+- :ref:`Implementation architecture <code_structure>`

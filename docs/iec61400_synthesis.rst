@@ -562,10 +562,10 @@ Future Extensions
 See Also
 --------
 
-- :ref:`mann_model` — Full anisotropic spectral tensor documentation
-- :ref:`mathematical_models` — Physics formulations
-- :ref:`validation_optimization` — Validation framework
-- :ref:`python_api` — Python bindings reference
+- :ref:`Full anisotropic spectral tensor documentation <mann_model>`
+- :ref:`Physics formulations <mathematical_models>`
+- :ref:`Validation framework <validation_optimization>`
+- :ref:`Python bindings reference <python_api>`
 - IEC 61400-1:2019 standard document
 
 References

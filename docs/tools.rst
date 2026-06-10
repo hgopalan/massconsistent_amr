@@ -79,7 +79,7 @@ Boundary Condition & Weather Processing
 
 NetCDF Wind Field Parser (``netcdf_to_windfield.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Parses 3D meteorological outputs (WRF, GFS) in NetCDF format, performs coordinate transformations, un-staggers Arakawa-C variables, and interpolates in space and time to produce solver-ready 3D windfield files. See the :ref:`usage` guide for complete parameters.
+Parses 3D meteorological outputs (WRF, GFS) in NetCDF format, performs coordinate transformations, un-staggers Arakawa-C variables, and interpolates in space and time to produce solver-ready 3D windfield files. See the :ref:`usage guide for complete parameters <usage>`.
 
 HRRR Surface Parameter Extractor (``hrrr_to_surface_data.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -437,7 +437,7 @@ Memory
 References
 ----------
 
-Comprehensive literature references for infrastructure vulnerability assessment are maintained in the main :ref:`references` section. Key topics include:
+Comprehensive literature references for infrastructure vulnerability assessment are maintained in the main :ref:`references section <references>`. Key topics include:
 
 - **Bridge Aerodynamics & Wind Loading** — Davenport gust response factors, Simiu & Scanlan aeroelasticity, Norberg vortex shedding
 - **Structural Dynamics & Fragility Curves** — Cornell probabilistic damage assessment, FEMA HAZUS fragility databases
@@ -448,4 +448,4 @@ Comprehensive literature references for infrastructure vulnerability assessment 
 - **Numerical & Computational Methods** — Blocken CFD best practices, ASCE wind tunnel testing standards
 - **Terrain & Topography** — Jackson & Hunt hill flow, Belcher wind over hills review
 
-See :ref:`references` for complete citations and additional context.
+See :ref:`complete citations and additional context <references>` for more information.
