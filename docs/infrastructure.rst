@@ -433,3 +433,19 @@ Memory
 - **Structure:** ~600 bytes per structure
 - **Wire:** ~400 bytes per span
 - **Total:** Negligible (<1% of solver memory for typical cases)
+
+References
+----------
+
+Comprehensive literature references for infrastructure vulnerability assessment are maintained in the main :ref:`references` section. Key topics include:
+
+- **Bridge Aerodynamics & Wind Loading** — Davenport gust response factors, Simiu & Scanlan aeroelasticity, Norberg vortex shedding
+- **Structural Dynamics & Fragility Curves** — Cornell probabilistic damage assessment, FEMA HAZUS fragility databases
+- **Transmission Line Thermal Ratings** — IEEE 738 standard, CIGRE dynamic line rating methodology
+- **Gap Flow & Orographic Effects** — Delparte Altamont Pass physics, Grubisic ridge flow acceleration
+- **Urban Canopy & Heat Island** — Oke boundary layer climates, Grimmond & Oke urban roughness, Yokoyama thermal coupling
+- **Vortex-Induced Vibration** — Williamson & Govardhan VIV mechanisms, Parkinson flow-induced oscillations
+- **Numerical & Computational Methods** — Blocken CFD best practices, ASCE wind tunnel testing standards
+- **Terrain & Topography** — Jackson & Hunt hill flow, Belcher wind over hills review
+
+See :ref:`references` for complete citations and additional context.

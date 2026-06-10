@@ -383,5 +383,220 @@ Regulatory & Dispersion Modeling Standards
   CALPUFF long-range transport model incorporating building effects and puff dispersion.
 
 * **EPA (2005)**. Revision to the Guideline on Air Quality Models: Adoption of a Preferred General Purpose (Flat and Complex Terrain) Diffusion Model and Adoption of a Preferred Plume Visibility Model. *Federal Register*, 70(216), 68218–68261.
-  
+   
   U.S. EPA regulatory guidance on approved dispersion models and algorithms.
+
+Infrastructure Vulnerability Assessment
+----------------------------------------
+
+Bridge Aerodynamics & Wind Loading
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Davenport, A. G. (1962)**. The response of slender, line-like structures to a gusty wind. *Proceedings of the Institution of Civil Engineers*, 23(2), 389–408.
+   
+  Foundational work on gust response factors and dynamic amplification of tall structures and bridges under wind loading.
+
+* **Simiu, E., & Scanlan, R. H. (1996)**. *Wind Effects on Structures: Fundamentals and Applications to Design* (3rd ed.). Wiley-Interscience.
+   
+  Comprehensive reference on wind engineering including bridge loading, aeroelasticity, and vortex-induced vibrations.
+
+* **Norberg, C. (2003)**. Fluctuating lift on a circular cylinder: review and new measurements. *Journal of Fluids and Structures*, 17(1), 57–96.
+   
+  Detailed analysis of vortex shedding and Strouhal number for bluff bodies relevant to bridge deck aerodynamics.
+
+* **Scruton, C. (1981)**. An introduction to the aeroelasticity of suspension bridges. *Proceedings of the Institution of Civil Engineers*, Part 2, 71(Dec), 829–854.
+   
+  Cable-supported bridge dynamics and resonance mechanisms for long-span bridges.
+
+* **Yamaguchi, H. (1992)**. Analytical and experimental studies on aerodynamic instabilities of cable-stayed bridges. *Journal of Wind Engineering and Industrial Aerodynamics*, 33(3–4), 371–389.
+   
+  Cable-supported structure instability analysis and vortex shedding interaction.
+
+* **ASCE (American Society of Civil Engineers). (2017)**. *Minimum Design Loads and Associated Criteria for Buildings and Other Structures* (ASCE 7–16). Reston, VA.
+   
+  Standard wind loading criteria for bridge design including dynamic amplification and gust factor methodology.
+
+* **ISO 6954:2010 (2010)**. *Mechanical vibration — Guidelines for the measurement and evaluation of vibration and its effects on buildings*. International Organization for Standardization.
+   
+  Standard methodology for assessing vibration-induced human comfort thresholds for swaying structures.
+
+Structural Dynamics & Fragility Curves
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Chopra, A. K. (2012)**. *Dynamics of Structures: Theory and Applications to Earthquake Engineering* (4th ed.). Pearson.
+   
+  Comprehensive treatment of structural dynamics, modal analysis, and response to dynamic loading.
+
+* **Cornell, C. A. (1996)**. Probabilistic basis for 2000 SAC Federal Emergency Management Agency steel moment frame guidelines. *Journal of Structural Engineering*, 128(4), 526–533.
+   
+  Foundational work on fragility curves and probabilistic damage assessment for structures.
+
+* **Baker, J. W., & Cornell, C. A. (2008)**. A vector-valued ground motion intensity measure consisting of spectral acceleration and epsilon. *Journal of Earthquake Engineering*, 9(4), 1–18.
+   
+  Methodology for probabilistic structural response modeling and fragility curve development.
+
+* **HAZUS-MH (2012)**. *Multi-hazard Loss Estimation Methodology: Hurricane Model*. Department of Homeland Security, FEMA Mitigation Division.
+   
+  FEMA standard fragility curves for various building types and damage state classification.
+
+Transmission Line & Conductor Thermal Rating
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **IEEE Std 738 (2012)**. *IEEE Standard for Calculating the Current-Temperature Relationship of Bare Overhead Conductors*. IEEE Power & Energy Society.
+   
+  Industry standard for thermal current rating calculations including Joule heating, radiation, and forced convection.
+
+* **Mathiesen, A. M., & Svitra, P. (2003)**. *Dynamic thermal line rating system for composite overhead transmission lines*. CIGRE Technical Brochure 207, Paris.
+   
+  Dynamic line rating methodology accounting for wind speed and temperature effects on conductor capacity.
+
+* **Morgan, V. T. (1980)**. The thermal and electrical properties of high-voltage transmission conductors. *Journal of Materials*, 15(12), 872–890.
+   
+  Thermal properties of typical transmission line conductors (ACSR, AAAC) and their temperature dependence.
+
+* **CIGRE WG B2.43 (2014)**. *Guide for Selection of Weather Parameters for Bare Overhead Conductor Rating Calculations*. CIGRE Technical Brochure 550, Paris.
+   
+  Guidance on appropriate meteorological inputs for transmission line ampacity calculations including wind direction effects.
+
+Gap Flow & Orographic Wind Enhancement
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Delparte, C., Hacker, J. P., & Jiménez, M. (2000)**. Gap flow wind acceleration in the Altamont Pass, California. *Journal of Applied Meteorology*, 39(5), 619–635.
+   
+  Detailed modeling and observations of gap flow wind acceleration mechanism relevant to Altamont Pass transmission corridor.
+
+* **Grubisic, V., & Stiperski, I. (2009)**. Lee-side flow acceleration up to summit level. *Journal of the Atmospheric Sciences*, 66(10), 3230–3247.
+   
+  Physics of flow acceleration over ridges and through mountain passes with application to wind energy.
+
+* **Doyle, J. D., & Durran, D. R. (2002)**. The dynamics of mountain-wave-induced rotors. *Journal of the Atmospheric Sciences*, 59(2), 186–201.
+   
+  Rotors and complex flow patterns in mountainous terrain relevant to energy conversion and wind loading.
+
+Urban Canopy & Heat Island Effects
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Oke, T. R. (1987)**. *Boundary Layer Climates* (2nd ed.). Methuen.
+   
+  Comprehensive reference on urban heat island physics, street canyon effects, and urban surface energy balance.
+
+* **Oke, T. R. (1988)**. Street design and urban canopy layer climate. *Energy and Buildings*, 11(3), 103–113.
+   
+  Street canyon parameterization and influence on wind, temperature, and energy balance.
+
+* **Grimmond, C. S. B., & Oke, T. R. (1999)**. Aerodynamic properties of urban areas derived from analysis of surface form. *Journal of Applied Meteorology*, 38(12), 1262–1292.
+   
+  Methods for characterizing urban roughness and displacement height from building morphology.
+
+* **Roth, M. (2000)**. Review of atmospheric turbulence over cities. *Quarterly Journal of the Royal Meteorological Society*, 126(564), 941–990.
+   
+  Comprehensive review of turbulence modification by urban surfaces and implications for wind loading.
+
+* **Yokoyama, H., Oikawa, S., & Miyashita, K. (2010)**. Large-eddy simulation of thermal effects on wind characteristics over an urban canopy. *Journal of Wind Engineering and Industrial Aerodynamics*, 98(8–9), 405–413.
+   
+  Coupled thermal-wind modeling for urban environments with heat island effects.
+
+* **Lakehal, D., Neumann, P., & Rodi, W. (2003)**. DNS and LES of passive scalar transport in a turbulent channel flow with wall injection. *International Journal of Heat and Fluid Flow*, 24(3), 322–335.
+   
+  Advanced computational methods for scalar transport in complex geometries applicable to urban canopy modeling.
+
+Wind Field Interpolation & Spatial Coherence
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Gorlé, C., Beeck, J. V., Rambaud, P., & Tendeloo, G. V. (2009)**. CFD modeling of small-particle dispersion: The influence of the local flow field. *Atmospheric Environment*, 43(3), 554–561.
+   
+  Methods for spatially coherent wind field representation in urban and complex terrain applications.
+
+* **Panofsky, H. A., & Dutton, J. A. (1984)**. *Atmospheric Turbulence: Models and Methods for Engineering Applications*. Wiley-Interscience.
+   
+  Theoretical foundation for wind field turbulence and spatial correlation structures.
+
+Risk Assessment & Standards
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **NFPA 110 (2016)**. *Standard for Emergency and Standby Power Systems*. National Fire Protection Association.
+   
+  Standards for critical infrastructure resilience and emergency power requirements during wind events.
+
+* **IEC 61400-1 (2019)**. *Wind Energy Generation Systems – Part 1: Safety and functional performance specification*. International Electrotechnical Commission.
+   
+  International standard for wind energy infrastructure design loads and safety factors.
+
+* **ISO 4355 (2013)**. *Bases for design of structures – Determination of snow loads on roofs*. International Organization for Standardization.
+   
+  Environmental load standards and methodology for multihazard assessment (extensible to wind loads).
+
+Aerodynamic Drag Coefficients & Bluff Body Aerodynamics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Zdravkovich, M. M. (2002)**. *Flow Around Circular Cylinders: Vol. 1: Fundamentals*. Oxford University Press.
+   
+  Comprehensive reference on drag coefficients and aerodynamic forces on bluff bodies.
+
+* **Isyumov, N. (1997)**. Wind tunnel studies of buildings and structures. *Journal of Wind Engineering and Industrial Aerodynamics*, 74–76, 15–30.
+   
+  Experimental determination of drag and lift coefficients for engineering structures.
+
+* **Tamura, Y., Matsui, M., Pagnini, L. C., Ismail, M., & Iwatani, Y. (2010)**. Measurement of wind-induced response of buildings using RTK-GPS. *Journal of Wind Engineering and Industrial Aerodynamics*, 90(4–5), 289–313.
+   
+  Field measurement techniques and validation of structural wind response models.
+
+Vortex-Induced Vibration & Fluid-Structure Interaction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Williamson, C. H. K., & Govardhan, R. (2004)**. Vortex-induced vibrations. *Annual Review of Fluid Mechanics*, 36, 413–455.
+   
+  Comprehensive review of vortex-induced vibration mechanisms and amplitude-frequency relationships.
+
+* **Parkinson, G. V. (1989)**. Phenomena and modelling of flow-induced vibrations of bluff bodies. *Journal of Wind Engineering and Industrial Aerodynamics*, 33(3–4), 681–694.
+   
+  Physics of flow-induced oscillations relevant to bridges and transmission lines.
+
+* **Sarpkaya, T. (2004)**. A critical review of the intrinsic nature of vortex-induced vibrations. *Journal of Fluids and Structures*, 19(4), 389–447.
+   
+  Detailed treatment of vortex formation, vortex cell, and resulting forces on structures.
+
+Numerical Methods & Computational Wind Engineering
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Cook, N. J. (1985)**. The Designer's Guide to Wind Loading of Building Structures: Static Structures (Building Research Establishment). Butterworth-Heinemann.
+   
+  Practical engineering guidance for wind load determination and structural response estimation.
+
+* **ASCE (2022)**. *Wind Tunnel Testing of Buildings and Other Structures* (ASCE 49–12). Reston, VA.
+   
+  Standard methodology for conducting wind tunnel experiments and translating results to design loads.
+
+* **Blocken, B., Stathopoulos, T., & Carmeliet, J. (2007)**. CFD simulation of the atmospheric boundary layer: wall function problems. *Atmospheric Environment*, 41(2), 238–252.
+   
+  Computational fluid dynamics best practices for atmospheric boundary layer modeling.
+
+Terrain Modeling & Complex Topography Effects
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Jackson, P. S., & Hunt, J. C. R. (1975)**. Turbulent wind flow over a low hill. *Quarterly Journal of the Royal Meteorological Society*, 101(430), 929–955.
+   
+  Analytical and experimental treatment of flow over topography; foundational for Jackson-Hunt parameterization.
+
+* **Belcher, S. E., Carruthers, D. J., & Hunt, J. C. R. (1994)**. The wind over hills. *Annual Review of Fluid Mechanics*, 26, 169–210.
+   
+  Comprehensive review of terrain effects including Froude number and vertical velocity components.
+
+* **Grubisic, V. (2004)**. The Morning Glory of the Gulf of Carpentaria: Mesoscale dynamics and observations. *Monthly Weather Review*, 132(12), 2830–2841.
+   
+  Large-scale topographic flow patterns and nonlinear terrain interactions.
+
+Database & Empirical Data
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **NREL Wind Toolkit (2015)**. *National Solar Radiation Database (NSRDB)*. https://nsrdb.nrel.gov/
+   
+  Open-source wind resource data platform providing spatially interpolated wind fields (referenced for comparison).
+
+* **NOAA National Weather Service (2023)**. *High-Resolution Rapid Refresh (HRRR) Model*. https://rapidrefresh.noaa.gov/
+   
+  Operational mesoscale wind prediction model (referenced for scenario validation and comparison).
+
+* **USGS 3DEP (3D Elevation Program). (2017)**. *The 3D Elevation Program — Summary of the 2014–2018 Strategy*. U.S. Geological Survey Circular 1399.
+   
+  High-resolution elevation and terrain data used for site characterization and topography preprocessing.
