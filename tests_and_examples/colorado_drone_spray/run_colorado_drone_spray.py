@@ -135,7 +135,12 @@ def run_workflow():
 
     # 5. Initialize and Run Puff Dispersion Solver coupled with WindSolver
     print(f"\n--- 4. Running Puff Dispersion Simulation ---")
-    puff_model = DronePuffDispersion()
+    puff_model = DronePuffDispersion(
+        xmin=wind.xmin, xmax=wind.xmax,
+        ymin=wind.ymin, ymax=wind.ymax,
+        zmin=wind.zmin, zmax=wind.zmax,
+        dx=wind.dx, dy=wind.dy, dz=wind.dz
+    )
     
     # Run simulation
     print("Executing dynamic advection-dispersion simulation loop...")
