@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-07_sulfide_oxidation.py - Wind-Dependent Sulfide Oxidation Rate Computation
+sulfide_oxidation.py - Wind-Dependent Sulfide Oxidation Rate Computation
 
 Demonstrates how wind speed modulates sulfide mineral oxidation rates and
 resulting acid mine drainage chemistry. Integrates kinetic rate laws with

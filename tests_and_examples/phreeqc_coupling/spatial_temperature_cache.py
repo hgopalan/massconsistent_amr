@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-08_spatial_temperature_cache.py - Spatially-Varying Temperature Field Example
+spatial_temperature_cache.py - Spatially-Varying Temperature Field Example
 
 Demonstrates localized T(x,y,z) field generation for PHREEQC integration.
 Uses scenario library caching to enable fast (<30 sec) temperature exports.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-06_valley_amd_hotspots.py - AMD Hotspot Detection Example
+valley_amd_hotspots.py - AMD Hotspot Detection Example
 
 Demonstrates wind-driven acid mine drainage hotspot identification in a valley.
 Shows how wind steering and channeling create chemically active zones where

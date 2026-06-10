@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-09_dust_suppression.py - Wind-Dependent Dust Suppression
+dust_suppression.py - Wind-Dependent Dust Suppression
 
 See the main module: phreeqc_coupling.dust_suppression_lookup
 See documentation: ../../docs/phreeqc_coupling/user_guide.md (Capability #10)

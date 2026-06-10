@@ -193,7 +193,7 @@ def main():
     print("="*70)
     print("\nDemonstration of wind field export for groundwater coupling")
     
-    output_dir = Path("./01_wind_field_bc_output")
+    output_dir = Path("./wind_field_bc_output")
     output_dir.mkdir(exist_ok=True)
     
     # Step 1: Create input file

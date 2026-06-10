@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-10_leaching_efficiency_sherwood.py - Wind-Dependent Leaching Efficiency Example
+leaching_efficiency_sherwood.py - Wind-Dependent Leaching Efficiency Example
 
 Demonstrates dust suppression and Sherwood number correlations for wind-enhanced
 ore leaching. Combines dust settling (low pH effects) with mass transfer

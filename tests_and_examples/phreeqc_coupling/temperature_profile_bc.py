@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-02_temperature_profile_bc.py - Temperature Profile Extraction
+temperature_profile_bc.py - Temperature Profile Extraction
 
 Demonstrates extraction of vertical temperature profiles for temperature-dependent
 reactive transport simulations. Temperature controls reaction kinetics, mineral
@@ -146,7 +146,7 @@ def main():
     compute_seasonal_variation()
     
     # Export
-    output_dir = Path("./02_temperature_output")
+    output_dir = Path("./temperature_output")
     output_dir.mkdir(exist_ok=True)
     export_file = export_temperature_for_phreeqc(
         z_agl, T_profile,
