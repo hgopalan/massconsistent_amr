@@ -13,6 +13,8 @@ Overview
 
 The PHREEQC coupling framework provides one-way integration with geochemical reactive transport solvers for wind-driven studies: critical mineral leaching, acid mine drainage (AMD) analysis, and contaminant transport with terrain-resolved atmospheric boundary conditions.
 
+**Comprehensive Documentation:** See :ref:`phreeqc_coupling` for detailed user guide, API reference, case studies, deployment guide, and troubleshooting documentation.
+
 **Location:** ``tests_and_examples/phreeqc_coupling/``
 
 Example Scripts
