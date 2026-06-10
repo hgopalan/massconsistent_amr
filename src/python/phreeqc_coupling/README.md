@@ -20,6 +20,11 @@ The coupling framework enables:
 | `netcdf_io.py` | Data serialization (NetCDF/ASCII) | `NetCDFHandler`, `ASCIIExporter` |
 | `amd_hotspot_detector.py` | **AMD hotspot identification** | `AMDHotspotDetector`, `HotspotRiskInfo` |
 | `sulfide_oxidation.py` | **Sulfide oxidation kinetics** | `SulfideOxidationComputer`, `OxidationRateInfo` |
+| `scenario_library.py` | **Pre-computed scenario caching** | `ScenarioLibrary`, `WeatherScenario`, `build_scenario_library` |
+| `spatial_temperature_cache.py` | **Spatially-varying T field** | `SpatialTemperatureCache`, `SpatialTemperatureField` |
+| `dust_suppression_lookup.py` | **Wind-dependent dust settling** | `DustSuppressionLookup`, `compute_dust_suppression_factor` |
+| `leaching_efficiency.py` | **Sherwood-based leaching** | `SherwoodNumberLookup`, `compute_leaching_efficiency` |
+| `facility_workflow.py` | **End-to-end facility analysis** | `FacilityWorkflow`, `FacilityConfiguration` |
 
 ## Core Capabilities (Foundation)
 
@@ -58,6 +63,68 @@ The coupling framework enables:
 - `compute_sulfide_oxidation_rates(wind_solver, sulfide_locations)` - Main API
 - `wind_to_oxygen_delivery(u_speed, roughness)` - Wind enhancement correlation
 - `pyrite_oxidation_kinetics(O2_conc, temp, wind_factor)` - Full kinetic computation
+
+## Optimization Capabilities (Caching & Lookups)
+
+### Scenario Library Caching (`scenario_library.py`)
+
+- **Pre-computed Weather Scenarios** (100+ scenarios): Offline generation of representative scenarios with wind, temperature, diffusivity, and stability fields
+- **One-Time Computation Cost**: ~1-2 hours (parallelizable) for complete library
+- **Runtime Performance**: <30 seconds per export via nearest-neighbor lookup and cached interpolation
+- **Derived Quantities**: Pre-computed dust suppression, Sherwood numbers, and leaching efficiency for each scenario
+- **Storage Format**: HDF5 (efficient binary) with fallback to JSON
+
+**Key Functions:**
+- `build_scenario_library(n_scenarios=100)` - Generate offline library
+- `ScenarioLibrary.nearest_scenario(u_mag, wind_dir, T)` - Find closest scenario
+
+### Spatially-Varying Temperature Field (`spatial_temperature_cache.py`)
+
+- **Localized T(x,y,z) Export**: Fast interpolation from scenario library for each grid location
+- **Elevation Corrections**: Automatic lapse-rate adjustment for topography
+- **PHREEQC Integration**: Extract 1D temperature profiles at specific (x,y) locations for reactive transport columns
+- **Output Formats**: NetCDF and ASCII for post-processing
+
+**Key Functions:**
+- `export_spatial_temperature_with_caching(lib, u, wind_dir, T, x, y, z)` - Export spatial field
+- `SpatialTemperatureCache.export_phreeqc_boundary_conditions(field, x, y)` - Extract column profile
+
+### Wind-Dependent Dust Suppression (`dust_suppression_lookup.py`)
+
+- **Dust Settling Physics**: High wind → dust in suspension (reduced pH effect). Low wind → dust settling (acidification).
+- **Lookup Tables**: Pre-computed suppression factors vs. wind speed and particle size
+- **pH Impact Model**: Combines dust settling with pH evolution for reactive transport
+- **Particle Size Range**: 0.1-1000 μm (clay to coarse sand)
+
+**Key Functions:**
+- `compute_dust_suppression_factor(u_speed, particle_size)` - Dust suppression [0-1]
+- `compute_dust_suppression_effect_on_ph(u_speed, reference_pH)` - pH adjustment
+- `save_dust_suppression_lookup_to_csv()` - Export lookup table
+
+### Dispersion-Enhanced Leaching (`leaching_efficiency.py`)
+
+- **Sherwood Number Correlation**: Sh = 2 + 0.6·Re^0.5·Sc^0.33 (Ranz & Marshall 1952)
+- **Reynolds Number**: Re = ρ·u·D/μ (wind-dependent)
+- **Mass Transfer Coefficient**: h_MT = Sh·D_AB/D
+- **Leaching Efficiency**: Relative dissolution rate enhancement
+- **Lookup Tables**: Pre-computed Sherwood vs. wind speed and particle size (100-1000 μm)
+
+**Key Functions:**
+- `compute_leaching_efficiency(u_speed, particle_size)` - Efficiency factor
+- `compute_leaching_rate_enhancement(u_speed, rate_ref)` - Enhanced dissolution rate
+- `save_sherwood_lookup_to_csv()` - Export lookup table
+
+### End-to-End Facility Workflow (`facility_workflow.py`)
+
+- **Modular Pipeline**: (1) Wind solve → (2) Dispersion → (3) Concentration extraction → (4) PHREEQC chemistry → (5) Output
+- **Intermediate Caching**: Save wind and dispersion for fast re-runs with alternative chemistry
+- **Typical Runtime**: ~20 minutes total (wind 10 min + dispersion 2-5 min + chemistry 5-8 min)
+- **Chemistry Rerun Speedup**: ~10-15× faster with cached wind/dispersion
+
+**Key Classes:**
+- `FacilityWorkflow` - Orchestration engine with step-wise execution
+- `FacilityConfiguration` - Facility parameters (location, stack height, emission rate, etc.)
+- `StepOutput` - Step metadata (status, duration, cache files)
 
 ### Additional Features
 

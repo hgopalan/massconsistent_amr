@@ -94,9 +94,73 @@ except ImportError as e:
     __all_sulfide__ = []
     _import_error_sulfide = str(e)
 
+try:
+    from .scenario_library import (
+        ScenarioLibrary, WeatherScenario, build_scenario_library
+    )
+    __all_scenarios__ = [
+        "ScenarioLibrary", "WeatherScenario", "build_scenario_library"
+    ]
+except ImportError as e:
+    __all_scenarios__ = []
+    _import_error_scenarios = str(e)
+
+try:
+    from .spatial_temperature_cache import (
+        SpatialTemperatureCache, SpatialTemperatureField,
+        export_spatial_temperature_with_caching
+    )
+    __all_temp_cache__ = [
+        "SpatialTemperatureCache", "SpatialTemperatureField",
+        "export_spatial_temperature_with_caching"
+    ]
+except ImportError as e:
+    __all_temp_cache__ = []
+    _import_error_temp_cache = str(e)
+
+try:
+    from .dust_suppression_lookup import (
+        DustSuppressionLookup, build_dust_suppression_lookup,
+        compute_dust_suppression_factor, compute_dust_suppression_effect_on_ph
+    )
+    __all_dust__ = [
+        "DustSuppressionLookup", "build_dust_suppression_lookup",
+        "compute_dust_suppression_factor", "compute_dust_suppression_effect_on_ph"
+    ]
+except ImportError as e:
+    __all_dust__ = []
+    _import_error_dust = str(e)
+
+try:
+    from .leaching_efficiency import (
+        SherwoodNumberLookup, build_sherwood_lookup,
+        compute_leaching_efficiency, compute_leaching_rate_enhancement
+    )
+    __all_leaching__ = [
+        "SherwoodNumberLookup", "build_sherwood_lookup",
+        "compute_leaching_efficiency", "compute_leaching_rate_enhancement"
+    ]
+except ImportError as e:
+    __all_leaching__ = []
+    _import_error_leaching = str(e)
+
+try:
+    from .facility_workflow import (
+        FacilityWorkflow, FacilityConfiguration, StepOutput,
+        end_to_end_facility_analysis
+    )
+    __all_workflow__ = [
+        "FacilityWorkflow", "FacilityConfiguration", "StepOutput",
+        "end_to_end_facility_analysis"
+    ]
+except ImportError as e:
+    __all_workflow__ = []
+    _import_error_workflow = str(e)
+
 # Aggregate all successfully imported classes
 __all__ = (__all_core__ + __all_phreeqc__ + __all_orchestrator__ + __all_io__ +
-           __all_amd__ + __all_sulfide__)
+           __all_amd__ + __all_sulfide__ + __all_scenarios__ + __all_temp_cache__ +
+           __all_dust__ + __all_leaching__ + __all_workflow__)
 
 # Provide helpful error messaging if critical imports fail
 if not __all__:
