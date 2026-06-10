@@ -11,24 +11,17 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    :maxdepth: 2
    :caption: Contents:
 
-   overview
-   mathematical_models
-   code_structure
    building
-   usage
+   mathematical_models
+   numerical_methods
    python_api
-   tools
-   infrastructure
-   scenarios
-   regtests
-   validation_optimization
-   iec61400_synthesis
-   mann_model
-   advanced_solver_features
-   external_coupling
-   phreeqc_coupling
    parmparse_reference
+   tools
+   usage
+   code_structure
+   regtests
    references
+   external_coupling
 
 Overview
 ========

@@ -1,7 +1,7 @@
 .. _building:
 
-Building
-========
+Building Code
+=============
 
 Prerequisites
 -------------
