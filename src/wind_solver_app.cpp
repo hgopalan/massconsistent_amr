@@ -5732,7 +5732,7 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
        auto vel_arr = vel_c_ptr->array(mfi);
        auto terrain_arr = terrain_type_ptr->array(mfi);
         
-       amrex::ParallelFor(box, [*this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+       amrex::ParallelFor(box, [*this, kappa_arr, vel_arr, terrain_arr] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
            // Get cell-center height
            amrex::Real z_cell = zs_min + (amrex::Real(k) + 0.5) * dz;
             
