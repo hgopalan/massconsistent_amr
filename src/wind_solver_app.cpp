@@ -5805,7 +5805,7 @@ void WindSolverApp::solve_scalar_transport(
        auto scalar_arr = scalar_old.array(mfi);
        auto vel_arr = vel.array(mfi);
         
-       amrex::ParallelFor(bx, [*this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+       amrex::ParallelFor(bx, [*this, vel_arr, scalar_arr, adv_arr] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
            amrex::Real u = vel_arr(i, j, k, 0);
            amrex::Real v = vel_arr(i, j, k, 1);
            amrex::Real w = vel_arr(i, j, k, 2);
@@ -5845,7 +5845,7 @@ void WindSolverApp::solve_scalar_transport(
        auto adv_arr = scalar_adv.array(mfi);
        auto kappa_arr = kappa_eddy.array(mfi);
         
-       amrex::ParallelFor(bx, [*this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+       amrex::ParallelFor(bx, [*this, adv_arr, kappa_arr, new_arr] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
            amrex::Real K_eff_x = 0.0, K_eff_y = 0.0, K_eff_z = 0.0;
            amrex::Real d2scalar_dx2 = 0.0, d2scalar_dy2 = 0.0, d2scalar_dz2 = 0.0;
             
