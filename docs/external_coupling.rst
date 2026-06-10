@@ -294,6 +294,62 @@ Emitted pesticide mass is transported as moving sources:
 
    where :math:`\xi_p \sim \mathcal{N}(0, 1)` represents turbulent stochastic diffusion.
 
+Rotor Downwash Jet Parameterization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To capture the local downward air jet created by the drone's rotors and its influence on droplet penetration into dense crop canopies, the module implements an analytical downwash velocity field parameterization.
+
+The model represents the three core physical processes:
+
+1. **Induced Velocity (Actuator Disk Theory)**:
+   The induced downwash velocity at the rotor disk :math:`v_0` is calculated from the drone's mass :math:`M` and rotor radius :math:`R`:
+
+   .. math::
+
+      v_0 = \sqrt{\frac{M \cdot g}{2 \rho_{\text{air}} \pi R^2}}
+
+   where :math:`\rho_{\text{air}}` is air density and :math:`g = 9.81` :math:`\text{m/s}^2`.
+
+2. **Wake Deflection, Expansion & Decay**:
+   As the jet travels downward (distance :math:`\Delta z = z_d - z \ge 0`), it expands radially and centerline velocity decays:
+
+   .. math::
+
+      R_j(\Delta z) = R + \alpha_{\text{jet}} \Delta z
+
+      W_c(\Delta z) = v_0 \frac{R}{R_j(\Delta z)}
+
+   where :math:`\alpha_{\text{jet}}` is the jet expansion coefficient. The jet centerline is deflected backward due to drone flight velocity :math:`\mathbf{V}_f = (V_x, V_y)`:
+
+   .. math::
+
+      x_c = x_d - V_x \frac{\Delta z}{v_0}, \quad y_c = y_d - V_y \frac{\Delta z}{v_0}
+
+   The local downward velocity before ground effect is:
+
+   .. math::
+
+      w_{\text{wash\_down}}(r, \Delta z) = W_c(\Delta z) \exp\left(-\frac{r^2}{R_j(\Delta z)^2}\right)
+
+   where :math:`r = \sqrt{(x - x_c)^2 + (y - y_c)^2}`.
+
+3. **Ground Effect Dampening & Wall-Jet Spreading**:
+   As the downward jet approaches the terrain boundary or canopy at height :math:`z_g`, the vertical velocity is dampened and redirected into a radial outward wall-jet. For height above ground :math:`h = z - z_g`:
+
+   .. math::
+
+      f_{\text{damp}}(h) = 1.0 - \exp\left(-\left(\frac{h}{d_{\text{damp}}}\right)^2\right)
+
+      w_{\text{wash}} = - w_{\text{wash\_down}} \cdot f_{\text{damp}}(h)
+
+   The vertical momentum is converted to radial horizontal velocity :math:`v_r`, creating outward spreading close to the terrain boundary:
+
+   .. math::
+
+      v_r(r, h) = w_{\text{wash\_down}} \cdot (1.0 - f_{\text{damp}}(h)) \cdot \frac{r}{R_j} \cdot \exp\left(-\frac{h}{d_{\text{wall\_jet}}}\right)
+
+   which is then resolved into Cartesian components :math:`u_{\text{wash}}` and :math:`v_{\text{wash}}`.
+
 Python API Usage
 ~~~~~~~~~~~~~~~~
 
@@ -326,7 +382,10 @@ Python API Usage
       dt=1.0,
       K_h=1.2,
       K_v=0.6,
-      enable_ground_reflection=True
+      enable_ground_reflection=True,
+      enable_rotor_downwash=True,   # Superimpose analytical rotor downwash velocity
+      drone_mass=15.0,              # Drone mass in kg
+      rotor_radius=0.4              # Rotor radius in meters
    )
 
    # 5. Extract 3D pesticide active ingredient concentration map [g/m³]

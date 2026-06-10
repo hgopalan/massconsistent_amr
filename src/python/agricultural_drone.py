@@ -128,6 +128,117 @@ def compute_degradation_decay(mass, dt, temperature=20.0, solar_radiation=500.0,
     return float(new_mass)
 
 
+def compute_rotor_downwash(px, py, pz, drone_x, drone_y, drone_z, speed, heading,
+                           terrain=None, xmin=0.0, ymin=0.0, dx=10.0, dy=10.0,
+                           drone_mass=15.0, rotor_radius=0.4, air_density=1.2,
+                           alpha_jet=0.15, damp_scale=None, wall_jet_scale=None):
+    """
+    Computes the 3D analytical rotor downwash velocity field (u_wash, v_wash, w_wash)
+    at a query point (px, py, pz) based on the drone's state and terrain.
+    
+    Args:
+        px, py, pz (float): Coordinates of the query point [m]
+        drone_x, drone_y, drone_z (float): Coordinates of the drone [m]
+        speed (float): Flight speed of the drone [m/s]
+        heading (float): Flight heading of the drone [degrees, 0 is +X]
+        terrain (ndarray, optional): 2D array of terrain elevations [m]
+        xmin, ymin (float): Domain origin for terrain lookup [m]
+        dx, dy (float): Grid cell size for terrain lookup [m]
+        drone_mass (float): Drone mass [kg] (default 15.0)
+        rotor_radius (float): Rotor radius [m] (default 0.4)
+        air_density (float): Density of air [kg/m^3] (default 1.2)
+        alpha_jet (float): Jet expansion/entrainment coefficient (default 0.15)
+        damp_scale (float, optional): Ground dampening scale [m]. Default is 1.5 * rotor_radius.
+        wall_jet_scale (float, optional): Wall jet thickness decay scale [m]. Default is 1.0 * rotor_radius.
+        
+    Returns:
+        tuple: (u_wash, v_wash, w_wash) velocity components [m/s]
+    """
+    # Above the drone, downwash is zero
+    delta_z = drone_z - pz
+    if delta_z < 0.0:
+        return 0.0, 0.0, 0.0
+        
+    # Safeguard parameters
+    if drone_mass <= 0.0 or rotor_radius <= 0.0 or air_density <= 0.0:
+        return 0.0, 0.0, 0.0
+        
+    # 1. Induced velocity at the rotor disk (momentum theory)
+    g = 9.81
+    thrust = drone_mass * g
+    # Area of rotor disk
+    area = np.pi * rotor_radius**2
+    v0 = np.sqrt(thrust / (2.0 * air_density * area))
+    
+    # 2. Flight velocity components
+    heading_rad = np.radians(heading)
+    vx = speed * np.cos(heading_rad)
+    vy = speed * np.sin(heading_rad)
+    
+    # 3. Centerline deflection (advection of the jet downstream with altitude/distance)
+    # Transit time estimate based on induced velocity (with small safeguard)
+    v_transit = max(1e-4, v0)
+    x_deflect = -vx * (delta_z / v_transit)
+    y_deflect = -vy * (delta_z / v_transit)
+    
+    # Deflected jet center coordinates
+    xc = drone_x + x_deflect
+    yc = drone_y + y_deflect
+    
+    # Radial distance from the jet center
+    r = np.sqrt((px - xc)**2 + (py - yc)**2)
+    
+    # 4. Jet expansion and velocity decay with distance delta_z
+    R_j = rotor_radius + alpha_jet * delta_z
+    W_c = v0 * (rotor_radius / R_j)
+    
+    # Downward velocity before ground effect
+    w_wash_down = W_c * np.exp(-(r**2) / (R_j**2))
+    
+    # 5. Vortex interaction near terrain / ground effect
+    # Look up terrain height at query point and drone position
+    z_g_point = 0.0
+    z_g_drone = 0.0
+    if terrain is not None:
+        ny, nx = terrain.shape
+        # Helper to get terrain height at any (x, y)
+        def get_z_g(x, y):
+            i = int((x - xmin) / dx)
+            j = int((y - ymin) / dy)
+            i = max(0, min(nx - 1, i))
+            j = max(0, min(ny - 1, j))
+            return float(terrain[j, i])
+        z_g_point = get_z_g(px, py)
+        z_g_drone = get_z_g(drone_x, drone_y)
+        
+    # Height of query point above terrain
+    h_point = pz - z_g_point
+    if h_point <= 0.0:
+        return 0.0, 0.0, 0.0
+        
+    # Ground dampening factor (decays vertically to 0 at the ground)
+    d_damp = damp_scale if damp_scale is not None else 1.5 * rotor_radius
+    f_damp = 1.0 - np.exp(-(h_point / d_damp)**2)
+    
+    # Vertical downwash velocity
+    w_wash = -w_wash_down * f_damp
+    
+    # Outward radial wall-jet spreading
+    d_wall = wall_jet_scale if wall_jet_scale is not None else 1.0 * rotor_radius
+    # Magnitude of radial spreading velocity
+    v_r = w_wash_down * (1.0 - f_damp) * (r / R_j) * np.exp(-h_point / d_wall)
+    
+    # Horizontal components of radial wall-jet
+    if r > 1e-6:
+        u_wash = v_r * ((px - xc) / r)
+        v_wash = v_r * ((py - yc) / r)
+    else:
+        u_wash = 0.0
+        v_wash = 0.0
+        
+    return float(u_wash), float(v_wash), float(w_wash)
+
+
 class DroneTrajectory:
     """
     Represents and interpolates agricultural drone flight trajectories.
@@ -331,6 +442,9 @@ class MovingSourceDispersionModel:
         # Concentration grid [nz, ny, nx]
         self.concentration = np.zeros((self.nz, self.ny, self.nx))
         
+        # Terrain height field [ny, nx]
+        self.terrain = np.zeros((self.ny, self.nx))
+        
     def setup_grid_from_solver(self, wind_solver):
         """Configures computational grid matching the C++ WindSolver domain."""
         self.xmin = wind_solver.xmin
@@ -351,6 +465,14 @@ class MovingSourceDispersionModel:
         self.y_coords = self.ymin + (np.arange(self.ny) + 0.5) * self.dy
         self.z_coords = self.zmin + (np.arange(self.nz) + 0.5) * self.dz
         self.concentration = np.zeros((self.nz, self.ny, self.nx))
+        
+        # Set terrain from wind solver
+        if hasattr(wind_solver, 'get_terrain'):
+            self.terrain = wind_solver.get_terrain()
+        elif hasattr(wind_solver, 'terrain'):
+            self.terrain = wind_solver.terrain
+        else:
+            self.terrain = np.zeros((self.ny, self.nx))
 
     def _interpolate_wind_velocity(self, px, py, pz, u_field, v_field, w_field):
         """
@@ -419,7 +541,10 @@ class DronePuffDispersion(MovingSourceDispersionModel):
                  enable_ground_reflection=True,
                  temperature=20.0, relative_humidity=0.5, solar_radiation=500.0,
                  enable_settling=False, enable_evaporation=False, enable_degradation=False,
-                 t_half_chem_ref=3600.0, t_half_photo_ref=1800.0):
+                 t_half_chem_ref=3600.0, t_half_photo_ref=1800.0,
+                 enable_rotor_downwash=False,
+                 drone_mass=15.0, rotor_radius=0.4, air_density=1.2,
+                 alpha_jet=0.15, damp_scale=None, wall_jet_scale=None):
         """
         Executes the moving-source Gaussian Puff advection-dispersion simulation loop.
         """
@@ -514,10 +639,22 @@ class DronePuffDispersion(MovingSourceDispersionModel):
                     puff['x'], puff['y'], puff['z'], u_field, v_field, w_field
                 )
                 
+                # Rotor downwash velocity field superposition
+                u_wash, v_wash, w_wash = 0.0, 0.0, 0.0
+                if enable_rotor_downwash:
+                    u_wash, v_wash, w_wash = compute_rotor_downwash(
+                        px=puff['x'], py=puff['y'], pz=puff['z'],
+                        drone_x=drone_state['x'], drone_y=drone_state['y'], drone_z=drone_state['z'],
+                        speed=drone_state['speed'], heading=drone_state['heading'],
+                        terrain=self.terrain, xmin=self.xmin, ymin=self.ymin, dx=self.dx, dy=self.dy,
+                        drone_mass=drone_mass, rotor_radius=rotor_radius, air_density=air_density,
+                        alpha_jet=alpha_jet, damp_scale=damp_scale, wall_jet_scale=wall_jet_scale
+                    )
+                
                 # Advection drift
-                puff['x'] += u * dt
-                puff['y'] += v * dt
-                puff['z'] += (w - v_s) * dt
+                puff['x'] += (u + u_wash) * dt
+                puff['y'] += (v + v_wash) * dt
+                puff['z'] += (w + w_wash - v_s) * dt
                 puff['age'] += dt
                 
         # 3. Compile concentration grid C(x, y, z) by superposition
@@ -564,7 +701,10 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                  random_seed=42,
                  temperature=20.0, relative_humidity=0.5, solar_radiation=500.0,
                  enable_settling=False, enable_evaporation=False, enable_degradation=False,
-                 t_half_chem_ref=3600.0, t_half_photo_ref=1800.0):
+                 t_half_chem_ref=3600.0, t_half_photo_ref=1800.0,
+                 enable_rotor_downwash=False,
+                 drone_mass=15.0, rotor_radius=0.4, air_density=1.2,
+                 alpha_jet=0.15, damp_scale=None, wall_jet_scale=None):
         """
         Executes LPDM simulation loop along the drone trajectory.
         """
@@ -692,13 +832,25 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                     p['x'], p['y'], p['z'], u_field, v_field, w_field
                 )
                 
+                # Rotor downwash velocity field superposition
+                u_wash, v_wash, w_wash = 0.0, 0.0, 0.0
+                if enable_rotor_downwash:
+                    u_wash, v_wash, w_wash = compute_rotor_downwash(
+                        px=p['x'], py=p['y'], pz=p['z'],
+                        drone_x=drone_state['x'], drone_y=drone_state['y'], drone_z=drone_state['z'],
+                        speed=drone_state['speed'], heading=drone_state['heading'],
+                        terrain=self.terrain, xmin=self.xmin, ymin=self.ymin, dx=self.dx, dy=self.dy,
+                        drone_mass=drone_mass, rotor_radius=rotor_radius, air_density=air_density,
+                        alpha_jet=alpha_jet, damp_scale=damp_scale, wall_jet_scale=wall_jet_scale
+                    )
+                
                 # Stochastic random walk step
                 rand_h = np.random.normal(0.0, sigma_step_h, 2)
                 rand_v = np.random.normal(0.0, sigma_step_v)
                 
-                p['x'] += u * dt + rand_h[0]
-                p['y'] += v * dt + rand_h[1]
-                p['z'] += (w - v_s) * dt + rand_v
+                p['x'] += (u + u_wash) * dt + rand_h[0]
+                p['y'] += (v + v_wash) * dt + rand_h[1]
+                p['z'] += (w + w_wash - v_s) * dt + rand_v
                 
                 # Clamp boundary reflection (simple elastic bounce at ground)
                 if p['z'] < self.zmin:

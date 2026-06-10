@@ -16,7 +16,8 @@ sys.path.insert(0, SRC_PYTHON_DIR)
 
 from agricultural_drone import (
     DroneTrajectory, MassEmissionRegulator, DronePuffDispersion, DroneLpdDispersion,
-    compute_settling_velocity, compute_evaporative_shrinkage, compute_degradation_decay
+    compute_settling_velocity, compute_evaporative_shrinkage, compute_degradation_decay,
+    compute_rotor_downwash
 )
 
 
@@ -387,6 +388,106 @@ class TestAgriculturalDrone(unittest.TestCase):
             # Since particles can advect out or remain active, check active ones
             if p['active'] and p['x'] > 50.0:  # age > 0
                 self.assertLess(p['diameter'], p['initial_diameter'])  # Evaporation
+
+    def test_rotor_downwash_parameterization(self):
+        """Test analytical rotor downwash velocity field, ground dampening, and wall-jet."""
+        # 1. Point above the drone should have no downwash
+        u, v, w = compute_rotor_downwash(
+           px=50.0, py=50.0, pz=12.0,
+           drone_x=50.0, drone_y=50.0, drone_z=10.0,
+           speed=0.0, heading=0.0
+        )
+        self.assertEqual(u, 0.0)
+        self.assertEqual(v, 0.0)
+        self.assertEqual(w, 0.0)
+
+        # 2. Point directly below the drone should have downward vertical velocity
+        u, v, w_high = compute_rotor_downwash(
+           px=50.0, py=50.0, pz=9.0,
+           drone_x=50.0, drone_y=50.0, drone_z=10.0,
+           speed=0.0, heading=0.0
+        )
+        self.assertEqual(u, 0.0)
+        self.assertEqual(v, 0.0)
+        self.assertLess(w_high, 0.0)  # downward velocity is negative
+
+        # 3. Downward centerline velocity should decay with distance
+        _, _, w_low = compute_rotor_downwash(
+           px=50.0, py=50.0, pz=5.0,
+           drone_x=50.0, drone_y=50.0, drone_z=10.0,
+           speed=0.0, heading=0.0
+        )
+        # Centerline velocity magnitude at 5.0m should be less than at 9.0m below drone (which is 1.0m away)
+        self.assertLess(abs(w_low), abs(w_high))
+
+        # 4. Ground effect dampening
+        # Test flat terrain of height 0.0
+        terrain = np.zeros((10, 10))
+        # Point extremely close to the ground (pz = 0.01)
+        _, _, w_ground = compute_rotor_downwash(
+           px=50.0, py=50.0, pz=0.01,
+           drone_x=50.0, drone_y=50.0, drone_z=10.0,
+           speed=0.0, heading=0.0,
+           terrain=terrain, xmin=0.0, ymin=0.0, dx=10.0, dy=10.0
+        )
+        # Vertical downwash should be heavily dampened (close to 0) near the ground
+        self.assertLess(abs(w_ground), abs(w_low))
+
+        # 5. Outward radial wall-jet spreading near terrain
+        # Evaluate offset point near the ground
+        u_wall, v_wall, w_wall = compute_rotor_downwash(
+           px=51.0, py=51.0, pz=0.1,  # offset diagonally
+           drone_x=50.0, drone_y=50.0, drone_z=10.0,
+           speed=0.0, heading=0.0,
+           terrain=terrain, xmin=0.0, ymin=0.0, dx=10.0, dy=10.0
+        )
+        # Horizontal velocities should be positive (flowing outwards towards (51, 51) from (50, 50))
+        self.assertGreater(u_wall, 0.0)
+        self.assertGreater(v_wall, 0.0)
+
+        # 6. Execute simulator integrations with downwash enabled
+        traj = DroneTrajectory(
+           times=[0.0, 5.0],
+           x_pts=[50.0, 100.0],
+           y_pts=[50.0, 50.0],
+           z_pts=[10.0, 10.0],
+           speeds=[10.0, 10.0],
+           headings=[0.0, 0.0],
+           flow_rates=[1.2, 1.2],
+           active_flags=[True, True]
+        )
+        reg = MassEmissionRegulator()
+        
+        # Test Puff Solver with downwash
+        puff_model = DronePuffDispersion(
+           xmin=0.0, xmax=200.0, ymin=0.0, ymax=200.0, zmin=0.0, zmax=50.0,
+           dx=10.0, dy=10.0, dz=10.0
+        )
+        puff_model.simulate(
+           trajectory=traj,
+           regulator=reg,
+           enable_rotor_downwash=True,
+           drone_mass=18.0,
+           rotor_radius=0.5
+        )
+        self.assertGreater(len(puff_model.puffs), 0)
+        self.assertGreater(np.sum(puff_model.concentration), 0.0)
+
+        # Test LPD Solver with downwash
+        lpd_model = DroneLpdDispersion(
+           xmin=0.0, xmax=200.0, ymin=0.0, ymax=200.0, zmin=0.0, zmax=50.0,
+           dx=10.0, dy=10.0, dz=10.0
+        )
+        lpd_model.simulate(
+           trajectory=traj,
+           regulator=reg,
+           particles_per_step=5,
+           enable_rotor_downwash=True,
+           drone_mass=18.0,
+           rotor_radius=0.5
+        )
+        self.assertGreater(len(lpd_model.particles), 0)
+        self.assertGreater(np.sum(lpd_model.concentration), 0.0)
 
 
 if __name__ == "__main__":
