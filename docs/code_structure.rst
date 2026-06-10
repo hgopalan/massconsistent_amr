@@ -35,6 +35,12 @@ Atmospheric and Obstacle Physics
 * **``src/puff_models.H``**: High-performance device kernels for passive Gaussian pollutant dispersion. Handles 3D advection, growth, first-order decay, Briggs plume rise, gravitational settling, dry/wet deposition, and AERMOD PRIME cavity trapping.
 * **``src/puff_solver.cpp``**: Main standalone executable compiling ``puff_models.H`` with a uniform-wind time-stepping solver.
 
+Infrastructure Assessment Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **``src/wire_models.H``**: Assesses wind loading and thermal rating of overhead electrical power transmission lines and telecommunications cables. Computes aerodynamic drag forces on cylindrical conductors, steady-state temperature balance (forced/natural convection, radiation, solar, Joule heating), Dynamic Line Rating (DLR) / ampacity limits, and conductor sway angles. Interpolates wind fields to wire spans and generates CSV output with mechanical and electrical metrics.
+* **``src/bridge_models.H``**: Assesses wind-induced loading on bridge deck structures. Computes aerodynamic drag forces, vertical/lateral sway angles, base shear forces, bending moments, vortex shedding frequencies, and resonance risk assessment. Supports evaluation of comfort thresholds and structural stability under wind loading.
+
 Synthetic Turbulence & Fluctuation Pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

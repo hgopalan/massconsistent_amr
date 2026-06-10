@@ -926,6 +926,141 @@ where the weight function :math:`w(z)` blends smoothly over a transition width :
 Limitations and Future Work
 ----------------------------
 
+Infrastructure Vulnerability Assessment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Overhead Electrical Power Lines (Wire Loading)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The wind solver includes a dedicated module to assess the vulnerability of overhead power transmission lines and telecommunications cables to wind-induced mechanical loading and thermal rating constraints.
+
+**Physical Models**:
+
+1. **Aerodynamic Drag on Cylindrical Conductors**:
+   
+   The aerodynamic drag force on a conductor segment perpendicular to the wind is computed as:
+   
+   .. math::
+       F_d = \frac{1}{2} \rho u_\perp^2 C_d d L
+   
+   where:
+   - :math:`\rho` = air density [kg/m³] (hardcoded to 1.225 kg/m³)
+   - :math:`u_\perp` = wind speed component perpendicular to the span [m/s]
+   - :math:`C_d` = aerodynamic drag coefficient [dimensionless] (typically 1.0 for bare cylinders)
+   - :math:`d` = conductor outer diameter [m]
+   - :math:`L` = segment length [m]
+
+2. **Steady-State Conductor Temperature Balance**:
+   
+   The solver solves for the steady-state conductor temperature :math:`T_s` [K] such that heat input equals heat output:
+   
+   .. math::
+       Q_c + Q_r = Q_s + Q_J
+   
+   where:
+   - :math:`Q_c` = convective cooling (forced + natural convection) [W/m]
+   - :math:`Q_r` = radiative cooling [W/m]
+   - :math:`Q_s` = solar heating [W/m]
+   - :math:`Q_J` = Joule heating from current [W/m]
+
+   **Forced Convection** (wind-driven):
+   
+   The Nusselt number for a cylinder in crossflow is computed using correlations:
+   
+   .. math::
+       Nu = 1.011 + 0.371 \, Re^{0.52}  \quad \text{(for large } Re \text{)}
+   
+   where :math:`Re = \frac{\rho u_\perp d}{\mu}` is the Reynolds number and :math:`\mu` is the dynamic viscosity of air.
+   
+   Convective heat transfer is then:
+   
+   .. math::
+       Q_c = \pi k_f Nu (T_s - T_a)
+   
+   where :math:`k_f` is the thermal conductivity of air and :math:`T_a` is the ambient air temperature.
+
+   **Natural Convection**:
+   
+   When wind speeds are low, natural convection dominates. The Grashof number governs the strength of natural convection:
+   
+   .. math::
+       Gr = \frac{g \beta |T_s - T_a| d^3}{\nu^2}
+   
+   The Nusselt number for natural convection around a horizontal cylinder is:
+   
+   .. math::
+       Nu_{nat} = 0.48 (Gr \cdot Pr)^{0.25}
+   
+   where :math:`Pr = 0.71` is the Prandtl number of air.
+
+   **Radiative Cooling**:
+   
+   .. math::
+       Q_r = \pi d \epsilon \sigma (T_s^4 - T_a^4)
+   
+   where :math:`\epsilon` is the thermal emissivity and :math:`\sigma = 5.670374419 \times 10^{-8}` W/(m²·K⁴) is the Stefan-Boltzmann constant.
+
+   **Solar Heating**:
+   
+   .. math::
+       Q_s = \alpha G_s d
+   
+   where :math:`\alpha` is the solar absorptivity and :math:`G_s` is the solar radiation intensity [W/m²].
+
+   **Joule Heating**:
+   
+   .. math::
+       Q_J = I^2 R
+   
+   where :math:`I` is the operating electrical current [A] and :math:`R` is the AC electrical resistance [ohm/m].
+
+3. **Dynamic Line Rating (DLR) / Ampacity Limit**:
+   
+   The maximum allowable current before the conductor reaches a critical temperature limit (default 373.15 K / 100°C) is back-calculated from the heat balance equation, solving for :math:`I_{max}`:
+   
+   .. math::
+       I_{max} = \sqrt{\frac{Q_c + Q_r - Q_s}{R}}
+   
+   This DLR represents the maximum current the conductor can safely carry without overheating.
+
+4. **Conductor Sway Angle**:
+   
+   The mechanical deflection angle of the conductor from vertical is estimated as:
+   
+   .. math::
+       \theta_{sway} = \arctan\left(\frac{F_{d,avg}}{F_g}\right)
+   
+   where :math:`F_{d,avg}` is the average drag force per unit length and :math:`F_g = \rho_{mass} g` is the gravitational force per unit length.
+
+**Interpolation to Wire Spans**:
+
+Wire span coordinates are discretized into segments matching the grid resolution. At each segment midpoint, 3D wind velocities (u, v, w) and ambient temperature are interpolated from the solved wind field. The perpendicular wind component :math:`u_\perp` is extracted by projecting the velocity vector onto the plane perpendicular to the span direction.
+
+**Output Metrics**:
+
+For each wire span, the solver reports:
+- Average and maximum wind speed along the span
+- Total integrated drag force [N]
+- Peak drag force per unit length [N/m]
+- Steady-state conductor temperature [K]
+- Dynamic Line Rating (ampacity limit) [A]
+- Average conductor sway angle [degrees]
+
+**References**:
+
+- IEEE Std 738™-2017: *IEEE Standard for Calculating the Current-Temperature Relationship of Bare Overhead Conductors*
+- CIGRE TB 208 (2014): *Thermal behaviour of overhead conductors*
+- Cigre WG B2.12.19 (2002): *Mechanical constraints and design requirements*
+
+Bridge and General Structure Vulnerability (Future Extension)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Future work will extend the solver with wind loading assessment modules for:
+
+- **Bridge Decks**: Vertical and lateral sway, resonance matching with vortex shedding, suspension cable tension.
+- **Tall Structures** (buildings, communication towers, antennas): Base shear forces, moment stability, fragility curves.
+- **Composite Infrastructure Networks**: Risk aggregation across multiple correlated assets.
+
 Limitations
 ~~~~~~~~~~~
 

@@ -60,6 +60,7 @@ endfunction()
 # ===========================================================================
 add_regression_test(flat_terrain terrain/flat_terrain)
 add_regression_test(wire_loading terrain/wire_loading)
+add_regression_test(bridge_loading terrain/bridge_loading)
 
 # ===========================================================================
 # flatirons_turbines/ – Sloping Flatirons NREL terrain with wind turbines
@@ -564,6 +565,7 @@ add_regression_test(subgrid_windbreaks buildings/subgrid_windbreaks)
 add_python_regression_test(parameter_sensitivity_test diagnostics/parameter_sensitivity_test test_parameter_sensitivity.py)
 
 add_python_regression_test(wire_loading_validation terrain/wire_loading verify_wire_loading.py)
+add_python_regression_test(bridge_loading_validation terrain/bridge_loading verify_bridge_loading.py)
 
 # ===========================================================================
 # Cell-Local Spatially-Varying Variational Anisotropy

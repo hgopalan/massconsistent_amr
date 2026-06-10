@@ -18,8 +18,13 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    usage
    python_api
    tools
+   infrastructure
+   scenarios
    regtests
    validation_optimization
+   iec61400_synthesis
+   mann_model
+   advanced_solver_features
    external_coupling
    references
 

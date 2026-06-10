@@ -11,6 +11,8 @@
 #include "synthetic_turbulence.H"
 #include "turbine_wake_models.H"
 #include "wire_models.H"
+#include "bridge_models.H"
+#include "structure_models.H"
 #include "thermodynamic_lid_models.H"
 
 /**
@@ -132,6 +134,18 @@ private:
     std::string wire_file = "";
     std::string wire_output_file = "wire_output.csv";
     std::vector<WireLoading::WireSpan> wires;
+
+    // Bridge Loading Assessment
+    bool enable_bridge_loading = false;
+    std::string bridge_file = "";
+    std::string bridge_output_file = "bridge_output.csv";
+    std::vector<BridgeLoading::BridgeSpan> bridges;
+
+    // General Structure Loading Assessment (buildings, towers, antennas)
+    bool enable_structure_loading = false;
+    std::string structure_file = "";
+    std::string structure_output_file = "structure_output.csv";
+    std::vector<StructureLoading::GeneralStructure> structures;
 
     // Street canyon
     bool enable_street_canyon = false;

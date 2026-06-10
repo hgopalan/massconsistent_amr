@@ -167,6 +167,22 @@ python3 06_valley_amd_hotspots.py
 ls -la *.py
 ```
 
+## Turbulence Synthesis & Advanced Physics
+
+Comprehensive documentation for turbulence models and advanced solver features:
+
+### Foundation Layer - Standard Turbulence Models
+- **[IEC 61400-1 Turbulence Synthesis](https://hgopalan.github.io/massconsistent_amr/iec61400_synthesis.html)** — Standard-compliant Von Kármán and Kaimal spectral models for wind energy applications
+
+### Intermediate Layer - Anisotropic Spectral Tensors
+- **[Mann Box Spectral Tensor Model](https://hgopalan.github.io/massconsistent_amr/mann_model.html)** — Complete anisotropic 3D turbulent velocity field representation with terrain adaptation
+
+### Advanced Features & Extensions
+- **[Advanced Solver Features](https://hgopalan.github.io/massconsistent_amr/advanced_solver_features.html)** — Full spectral tensor synthesis, eigenvalue decomposition, GPU acceleration, stability coupling, and multi-physics integration
+
+### Technical Validation & Performance
+- **[Validation & Optimization Framework](https://hgopalan.github.io/massconsistent_amr/validation_optimization.html)** — Physical correctness validation, performance profiling, and parameter sensitivity analysis
+
 ## License
 
 See [LICENSE](LICENSE).

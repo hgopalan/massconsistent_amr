@@ -510,6 +510,16 @@ Obstacles & Buildings
 * **wall_function_adaptive_threshold** (Real, Default: ``0.05``): Relative resolution threshold for wall functions.
 * **wall_function_adaptive_min_cells** (Integer, Default: ``3``): Minimum grid cells inside boundary layer.
 
+Infrastructure Vulnerability Assessment (Power Lines & Bridges)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **enable_wire_loading** (Boolean, Default: ``false``): Enable assessment of wind loading on overhead electrical conductors and power transmission lines.
+* **wire_file** (String, Default: ``wires.csv``): Path to CSV file containing electrical wire span definitions and properties.
+* **wire_output_file** (String, Default: ``wire_output.csv``): Output CSV filename where wire loading results (drag forces, temperatures, ampacity ratings) are written.
+* **enable_bridge_loading** (Boolean, Default: ``false``): Enable assessment of wind loading on bridge structures (future extension).
+* **bridge_file** (String, Default: ``bridges.csv``): Path to CSV file containing bridge span definitions (future extension).
+* **bridge_output_file** (String, Default: ``bridge_output.csv``): Output CSV filename for bridge loading results (future extension).
+
 Turbine Wakes & Deflection / Steering
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -679,6 +689,72 @@ Discrete electrical power outputs and thrust coefficients are mapped in an optio
          "thrust_coefficient": [0.8, 0.78, 0.5, 0.1]
        }
      }
+
+Electrical Wire Loading (Power Lines & Infrastructure)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Overhead electrical power transmission lines, telecommunications cables, and other wire-based infrastructure can be assessed for wind-induced mechanical loading and thermal rating limits. The solver computes:
+
+- **Aerodynamic drag force** on conductor spans (perpendicular wind component)
+- **Steady-state conductor temperature** (heat balance: convection + radiation - solar heating - Joule heating)
+- **Dynamic Line Rating (DLR) / Ampacity limit** (maximum allowable current before overheating)
+- **Conductor sway angle** (mechanical deflection from vertical)
+
+Wire spans are specified in a CSV file with one conductor per line. Each row contains geometric, electrical, and thermal properties::
+
+    # [optional_id], x1, y1, z1, x2, y2, z2, diameter, mass_density, drag_coeff, resistance, emissivity, absorptivity, current
+    0, 10.0, 50.0, 40.0, 90.0, 50.0, 40.0, 0.0286, 1.628, 1.0, 0.0000728, 0.5, 0.5, 500.0
+
+**Column Definitions**:
+
+- **x1, y1, z1** (Real): Start point of the conductor span [m] (projected domain coordinates).
+- **x2, y2, z2** (Real): End point of the conductor span [m].
+- **diameter** (Real): Conductor outer diameter [m].
+- **mass_density** (Real): Linear mass density [kg/m].
+- **drag_coeff** (Real): Aerodynamic drag coefficient [dimensionless], typically 1.0 for cylinders.
+- **resistance** (Real): AC electrical resistance per unit length [ohm/m].
+- **emissivity** (Real): Thermal surface emissivity [0.0 to 1.0], typically 0.5 for bare conductors.
+- **absorptivity** (Real): Solar absorptivity [0.0 to 1.0], typically 0.5 for bare conductors.
+- **current** (Real): Steady-state operating electrical current [A].
+
+**Configuration Parameters** (in ``inputs.i``):
+
+- **enable_wire_loading** (Boolean, Default: ``false``): Activate power line infrastructure assessment.
+- **wire_file** (String, Default: ``wires.csv``): Path to CSV file containing wire span definitions.
+- **wire_output_file** (String, Default: ``wire_output.csv``): Output CSV filename for wire loading results.
+- **solar_radiation** (Real, Default: ``0.0``): Solar radiation intensity [W/m²]. Used in conductor temperature balance.
+
+**Output CSV Format** (written to ``wire_output_file``):
+
+::
+
+    wire_id,x1,y1,z1,x2,y2,z2,diameter,mass_density,drag_coeff,resistance,emissivity,absorptivity,current,avg_wind_speed,max_wind_speed,total_drag_force,max_drag_force_per_m,conductor_temp_K,max_capacity_A,sway_angle_deg,time_step
+
+Fields include:
+- **avg_wind_speed**, **max_wind_speed** [m/s]: Average and peak wind speed along the span.
+- **total_drag_force** [N]: Integrated wind drag force on the entire span.
+- **max_drag_force_per_m** [N/m]: Peak specific drag force per unit length.
+- **conductor_temp_K** [K]: Average steady-state conductor temperature.
+- **max_capacity_A** [A]: Maximum allowable current (DLR limit) before reaching critical temperature (373.15 K / 100°C).
+- **sway_angle_deg** [degrees]: Average mechanical sway angle from vertical.
+
+**Example Configuration**::
+
+    terrain_file = terrain.csv
+    enable_wire_loading = true
+    wire_file = wires.csv
+    wire_output_file = wire_results.csv
+    solar_radiation = 500.0
+    U_ref = 10.0
+    z_ref = 10.0
+    z0 = 0.1
+    dx = 30.0
+    dy = 30.0
+    dz = 10.0
+    plot_file = plt_wind
+
+Run the solver::
+
+    ./build/wind_solver inputs.i
 
 3D Meteorological Ingestion (NetCDF)
 ------------------------------------
