@@ -5684,7 +5684,7 @@ amrex::Real WindSolverApp::compute_adaptive_dt_transport() {
        const auto& box = mfi.validbox();
        const auto& vel_arr = vel_c_ptr->array(mfi);
         
-       amrex::ParallelFor(box, [=](int i, int j, int k) noexcept {
+       amrex::ParallelFor(box, [&](int i, int j, int k) noexcept {
            amrex::Real u = vel_arr(i, j, k, 0);
            amrex::Real v = vel_arr(i, j, k, 1);
            amrex::Real w = vel_arr(i, j, k, 2);
@@ -5701,7 +5701,7 @@ amrex::Real WindSolverApp::compute_adaptive_dt_transport() {
        u_max = 1.0e-10;
     }
     
-    amrex::Real dz_min = amrex::min({dx, dy, dz});
+    amrex::Real dz_min = std::min(dx, std::min(dy, dz));
     amrex::Real dt_cfl = scalar_cfl * dz_min / u_max;
     
     amrex::Print() << "wind_solver: computed adaptive transport dt = " << dt_cfl << " s (u_max = " << u_max << " m/s)\n";
@@ -5728,7 +5728,7 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
         
        amrex::ParallelFor(box, [=](int i, int j, int k) noexcept {
            // Get cell-center height
-           amrex::Real z_cell = zmin + (amrex::Real(k) + 0.5) * dz;
+           amrex::Real z_cell = zs_min + (amrex::Real(k) + 0.5) * dz;
             
            // Compute mixing length: l_m = κ * (z + z0) for z > 0
            amrex::Real z_eff = std::max(z_cell - terrain_arr(i, j, 0), 1.0e-3);
@@ -5746,7 +5746,7 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
            amrex::Real shear_mag = std::sqrt(du_dz*du_dz + dv_dz*dv_dz);
             
            // K_eddy = (l_m)^2 * |∇u|
-           kappa_eddy(i, j, k) = l_m * l_m * shear_mag;
+           kappa_arr(i, j, k) = l_m * l_m * shear_mag;
        });
     }
 }
@@ -5790,12 +5790,12 @@ void WindSolverApp::solve_scalar_transport(
     compute_eddy_diffusivity_mixing_length(kappa_eddy);
     
     // Copy old scalar values
-    scalar_adv.copy(scalar_old, 0, 0, 1, 1);
+    amrex::MultiFab::Copy(scalar_adv, scalar_old, 0, 0, 1, 1);
     
     // Step 1: Advection (semi-Lagrangian or upstream differencing)
     for (MFIter mfi(scalar_adv); mfi.isValid(); ++mfi) {
        const auto& bx = mfi.validbox();
-       auto& adv_arr = scalar_adv.array(mfi);
+       auto adv_arr = scalar_adv.array(mfi);
        const auto& scalar_arr = scalar_old.array(mfi);
        const auto& vel_arr = vel.array(mfi);
         
@@ -5835,7 +5835,7 @@ void WindSolverApp::solve_scalar_transport(
     
     for (MFIter mfi(scalar_new); mfi.isValid(); ++mfi) {
        const auto& bx = mfi.validbox();
-       auto& new_arr = scalar_new.array(mfi);
+       auto new_arr = scalar_new.array(mfi);
        const auto& adv_arr = scalar_adv.array(mfi);
        const auto& kappa_arr = kappa_eddy.array(mfi);
         
@@ -5874,9 +5874,6 @@ void WindSolverApp::solve_scalar_transport(
     }
     
     // Copy boundary conditions from old field
-    scalar_new.copy(scalar_old, 0, 0, 1, 0);  // Copy ghost cells
+    amrex::MultiFab::Copy(scalar_new, scalar_old, 0, 0, 1, 0);  // Copy ghost cells
     scalar_new.FillBoundary(geom_ptr->periodicity());
-    
-    // Update old field for next time step
-    scalar_old.copy(scalar_new, 0, 0, 1, 1);
 }
