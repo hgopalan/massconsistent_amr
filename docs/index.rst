@@ -26,6 +26,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    mann_model
    advanced_solver_features
    external_coupling
+   phreeqc_coupling
    references
 
 Overview
