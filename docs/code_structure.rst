@@ -39,6 +39,7 @@ Infrastructure Assessment Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * **``src/wire_models.H``**: Assesses wind loading and thermal rating of overhead electrical power transmission lines and telecommunications cables. Computes aerodynamic drag forces on cylindrical conductors, steady-state temperature balance (forced/natural convection, radiation, solar, Joule heating), Dynamic Line Rating (DLR) / ampacity limits, and conductor sway angles. Interpolates wind fields to wire spans and generates CSV output with mechanical and electrical metrics.
+* **``src/bridge_models.H``**: Assesses wind-induced loading on bridge deck structures. Computes aerodynamic drag forces, vertical/lateral sway angles, base shear forces, bending moments, vortex shedding frequencies, and resonance risk assessment. Supports evaluation of comfort thresholds and structural stability under wind loading.
 
 Synthetic Turbulence & Fluctuation Pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
