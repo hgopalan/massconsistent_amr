@@ -134,7 +134,7 @@ The solver includes optional advanced physics parameterizations:
 * **Building wakes** — Röckle (1990) wake model for urban flows [RockleREF]_
 * **Jackson-Hunt orographic acceleration** — Wind acceleration over convex terrain [JacksonHunt1975]_
 
-See :ref:`mathematical_models` for detailed physics documentation.
+See :ref:`detailed physics documentation <mathematical_models>` for more information.
 
 Comparison with Related Tools
 ------------------------------
@@ -210,7 +210,7 @@ mass-consistent applications on structured adaptive meshes. [AMReXDocs]_
 References
 ----------
 
-Please see the complete list of scientific publications and frameworks on the :ref:`references` page.
+Please see the complete list of scientific publications and frameworks on the :ref:`references page <references>`.
 
 .. [Sherman1978] Sherman, C. A. (1978). A mass-consistent model for wind fields over complex terrain. *Journal of Applied Meteorology*, 17(3), 312–319.
 .. [Mathiesen1987] Mathiesen, M. (1987). Simulation of wind fields in complex terrain. *Boundary-Layer Meteorology*, 38, 213–226.

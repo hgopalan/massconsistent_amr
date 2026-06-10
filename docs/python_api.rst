@@ -3,7 +3,7 @@
 Python API
 ==========
 
-The Mass-Consistent AMR Wind Solver provides robust, high-performance Python bindings through pybind11 and high-level object-oriented wrappers. This enables complete programmatic control, real-time data extraction, coupled wind-fire dispersion simulations, and synthetic turbulence studies directly from Python.
+The solver provides Python bindings through pybind11 with high-level object-oriented wrappers for programmatic control, data extraction, wind-fire coupling, and synthetic turbulence generation.
 
 .. contents:: Topics
    :local:

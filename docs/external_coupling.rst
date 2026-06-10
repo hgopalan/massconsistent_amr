@@ -11,20 +11,9 @@ PHREEQC Reactive Transport Coupling
 Overview
 ^^^^^^^^
 
-The PHREEQC coupling framework enables wind-driven geochemical simulations for critical mineral studies, acid mine drainage (AMD) analysis, and contaminant transport prediction. This section provides practical, step-by-step instructions for using each capability of the PHREEQC reactive transport coupling framework.
+The PHREEQC coupling framework provides one-way integration with geochemical reactive transport solvers for wind-driven studies: critical mineral leaching, acid mine drainage (AMD) analysis, and contaminant transport with terrain-resolved atmospheric boundary conditions.
 
 **Location:** ``tests_and_examples/phreeqc_coupling/``
-
-Documentation
-^^^^^^^^^^^^^
-
-Comprehensive documentation is available in ``docs/phreeqc_coupling/``:
-
-- **User Guide** (`docs/phreeqc_coupling/user_guide.md`) — Practical workflows for 11 core capabilities
-- **API Reference** (`docs/phreeqc_coupling/api_reference.md`) — 40+ functions and classes with signatures
-- **Case Studies** (`docs/phreeqc_coupling/case_studies.md`) — 6 worked examples with validation
-- **Deployment Guide** (`docs/phreeqc_coupling/deployment_guide.md`) — Production deployment strategies
-- **Troubleshooting** (`docs/phreeqc_coupling/troubleshooting.md`) — 30+ common issues and solutions
 
 Example Scripts
 ^^^^^^^^^^^^^^^
@@ -80,15 +69,13 @@ Wildfire Levelset Coupling
 Overview
 ^^^^^^^^
 
-The `wildfire_levelset <https://github.com/hgopalan/wildfire_levelset>`_ project provides fire spread simulation coupling with the Mass-Consistent AMR Wind Solver. This enables wildfire modeling under terrain-resolved wind fields.
+The `wildfire_levelset <https://github.com/hgopalan/wildfire_levelset>`_ repository provides fire spread simulation coupling.
 
 **Repository:** https://github.com/hgopalan/wildfire_levelset
 
-Integration
-^^^^^^^^^^^
-
-Wildfire levelset coupling allows:
+Capabilities
+^^^^^^^^^^^^
 
 - Integration of fire spread models with terrain-following wind fields
-- Coupling of mass-consistent wind simulations with fire dynamics
-- Realistic fire behavior prediction under complex topography
+- Coupled mass-consistent wind simulations with fire dynamics
+- Fire behavior prediction under complex topography

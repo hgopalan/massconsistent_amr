@@ -335,7 +335,7 @@ Validation and Testing
 Regression Test Suite
 ~~~~~~~~~~~~~~~~~~~~~
 
-Phase 2 validation includes comprehensive regression tests:
+Comprehensive regression tests include:
 
 **Test: Basic Initialization**
 
@@ -525,24 +525,24 @@ Secondary References
    - -5/3 power law in inertial subrange
    - Theoretical basis for spectral shape
 
-Future Extensions (Phase 3+)
----------------------------
+Future Extensions
+-----------------
 
-**Phase 3: Full Spectral Tensor Synthesis**
+**Full Spectral Tensor Synthesis**
 
 - Complete 9-component tensor synthesis (not just 1D spectra)
 - Time-lag correlation structure for coherent burst modeling
 - Eigenvalue decomposition for physical realizability verification
 - GPU-accelerated FFT synthesis
 
-**Phase 4: Advanced Physics**
+**Advanced Physics**
 
 - Stable/unstable stratification coupling
 - Gravity wave effects in mountains
 - Orographic precipitation-flow interaction
 - Coupled surface-atmosphere model integration
 
-**Phase 5+: Applications**
+**Applications**
 
 - Real-time wind farm simulation with Mann Box turbulence
 - Fire spread modeling with turbulent wind fluctuations
@@ -552,7 +552,7 @@ Future Extensions (Phase 3+)
 See Also
 --------
 
-- :ref:`validation_optimization` — Validation framework documentation
-- :ref:`python_api` — Python bindings and examples
+- :ref:`Validation framework documentation <validation_optimization>`
+- :ref:`Python bindings and examples <python_api>`
 - ``tests_and_examples/mann_box/`` — Comprehensive test suite
 - ``regtest/turbulence/`` — Regression test cases
