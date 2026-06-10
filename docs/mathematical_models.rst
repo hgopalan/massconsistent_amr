@@ -792,6 +792,89 @@ To prevent unphysical fluctuation penetration into terrain, a 3D mask is applied
 
 where :math:`h_t` is a transition height (typically 2 to 4 cells tall). The smooth cosine ramp ensures :math:`C^1` continuity at both boundaries, preserving approximate mass conservation.
 
+3D Scalar Transport with Mixing Length Turbulence
+-------------------------------------------------
+
+The solver supports optional 3D transport equations for passive scalars such as temperature and moisture. After the mass-consistent wind field is computed, scalar fields are advected and diffused using an explicit scheme with eddy diffusivity parameterization.
+
+Scalar Transport Equations
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+For each scalar field :math:`\phi` (temperature or moisture), the advection-diffusion equation is solved:
+
+.. math::
+
+   \frac{\partial \phi}{\partial t} + \nabla \cdot (\mathbf{u} \phi) = \nabla \cdot (K_{\text{eff}} \nabla \phi)
+
+where :math:`\mathbf{u}` is the solved mass-consistent wind field, and :math:`K_{\text{eff}}` is the effective diffusivity combining molecular and turbulent contributions:
+
+.. math::
+
+   K_{\text{eff}} = K_{\text{mol}} + K_{\text{eddy}}
+
+**Molecular Diffusion**:
+* **Temperature**: :math:`K_{\text{mol}} \approx 2.5 \times 10^{-5}` m²/s (thermal diffusivity)
+* **Moisture**: :math:`K_{\text{mol}} \approx 2.2 \times 10^{-5}` m²/s
+
+**Eddy Diffusivity via Mixing Length Model**:
+The turbulent eddy diffusivity is parameterized using the Prandtl mixing length closure (Prandtl, 1925; Stull, 1988):
+
+.. math::
+
+   K_{\text{eddy}} = (l_m)^2 \, |\nabla \mathbf{u}|
+
+where the mixing length :math:`l_m` is computed as:
+
+.. math::
+
+   l_m(z) = \kappa (z + z_0) \cdot c_m
+
+Here:
+* :math:`\kappa = 0.41` is the von Kármán constant
+* :math:`z` is the height above terrain
+* :math:`z_0` is the aerodynamic roughness length
+* :math:`c_m` is a coefficient (typically 0.1) relating mixing length to distance from the surface
+* :math:`|\nabla \mathbf{u}| = \sqrt{(\partial u/\partial z)^2 + (\partial v/\partial z)^2 + \ldots}` is the velocity shear magnitude
+
+This formulation captures enhanced turbulent mixing in shear-dominated flows near the surface while decaying with height.
+
+Numerical Discretization
+~~~~~~~~~~~~~~~~~~~~~~~~
+The scalar transport equation is discretized using:
+
+1. **Upstream Differencing for Advection**: Conservative upstream scheme for CFL stability
+2. **Finite Differences for Diffusion**: Central differences for the diffusive flux :math:`\nabla \cdot (K_{\text{eff}} \nabla \phi)`
+3. **Forward Euler Time Integration**: Explicit time stepping with adaptive CFL-based time stepping
+
+Adaptive Time Stepping
+~~~~~~~~~~~~~~~~~~~~~~
+To ensure stability, the time step is computed dynamically from the CFL criterion:
+
+.. math::
+
+   \Delta t = \text{CFL} \cdot \frac{\min(\Delta x, \Delta y, \Delta z)}{\max(|u|, |v|, |w|)}
+
+where :math:`\text{CFL}` is a user-specified parameter (typically 0.8) that ensures :math:`\Delta t < 1` in Courant units.
+
+Configuration Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~
+Users can enable scalar transport via ParmParse input parameters:
+
+* ``enable_3d_scalars`` : Master switch for 3D scalar fields (auto-enabled if any transport is requested)
+* ``enable_temperature_transport`` : Solve temperature transport equation (default: false)
+* ``enable_moisture_transport`` : Solve moisture transport equation (default: false)
+* ``temperature_diffusivity`` : Molecular thermal diffusivity [m²/s] (default: 2.5e-5)
+* ``moisture_diffusivity`` : Molecular moisture diffusivity [m²/s] (default: 2.2e-5)
+* ``scalar_cfl`` : CFL number for adaptive time stepping (default: 0.8)
+* ``scalar_dt`` : Fixed time step (if positive); negative triggers adaptive (default: -1.0)
+* ``enable_mixing_length_turbulence`` : Enable eddy diffusivity via mixing length (default: true)
+* ``mixing_length_coefficient`` : Coefficient :math:`c_m` in mixing length formula (default: 0.1)
+* ``von_karman`` : Von Kármán constant (default: 0.41)
+* ``zground`` : Ground roughness for mixing length [m] (default: 0.1)
+
+Backward Compatibility
+~~~~~~~~~~~~~~~~~~~~~~
+By default, all scalar transport features are disabled, ensuring complete backward compatibility with existing simulations. Users must explicitly enable ``enable_temperature_transport`` or ``enable_moisture_transport`` to activate the new solvers.
+
 Advanced Numerical Solver Enhancements
 --------------------------------------
 

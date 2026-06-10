@@ -5728,11 +5728,11 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
         
        amrex::ParallelFor(box, [=](int i, int j, int k) noexcept {
            // Get cell-center height
-           amrex::Real z_cell = amrex::min(z_hi, zmin + (Real(k) + 0.5) * dz);
+           amrex::Real z_cell = zmin + (amrex::Real(k) + 0.5) * dz;
             
            // Compute mixing length: l_m = κ * (z + z0) for z > 0
            amrex::Real z_eff = std::max(z_cell - terrain_arr(i, j, 0), 1.0e-3);
-           amrex::Real l_m = von_karman * (z_eff + z0) * mixing_length_coefficient;
+           amrex::Real l_m = von_karman * (z_eff + zground) * mixing_length_coefficient;
             
            // Compute velocity gradient magnitude (simplified: vertical shear)
            amrex::Real du_dz = 0.0;
@@ -5875,8 +5875,8 @@ void WindSolverApp::solve_scalar_transport(
     
     // Copy boundary conditions from old field
     scalar_new.copy(scalar_old, 0, 0, 1, 0);  // Copy ghost cells
-    scalar_new.FillBoundary(geom.periodicity());
+    scalar_new.FillBoundary(geom_ptr->periodicity());
     
     // Update old field for next time step
-    scalar_old.copy(scalar_new, 0, 0, 1, 0);
+    scalar_old.copy(scalar_new, 0, 0, 1, 1);
 }

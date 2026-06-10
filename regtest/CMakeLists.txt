@@ -215,6 +215,11 @@ add_regression_test(buoyancy_rhs physics/buoyancy_rhs)
 add_regression_test(terrain_kinematic_bc physics/terrain_kinematic_bc)
 
 # ---------------------------------------------------------------------------
+# scalar_transport/ – 3D scalar transport with mixing length turbulence model
+# ---------------------------------------------------------------------------
+add_regression_test(scalar_transport physics/scalar_transport)
+
+# ---------------------------------------------------------------------------
 # combined_thermal_terrain/ – Combined buoyancy and kinematic BC features
 # ---------------------------------------------------------------------------
 add_regression_test(combined_thermal_terrain physics/combined_thermal_terrain)
@@ -632,6 +637,7 @@ message(STATUS "  physics/wall_function_adaptive/: Wall function with adaptive g
 message(STATUS "  physics/buoyancy_stratification/: Thermal stratification with buoyancy effects")
 message(STATUS "  physics/buoyancy_rhs/          : Buoyancy RHS method (source term in lambda equation)")
 message(STATUS "  physics/terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
+message(STATUS "  physics/scalar_transport/      : 3D scalar transport with mixing length turbulence model")
 message(STATUS "  physics/combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
 message(STATUS "  physics/canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
 message(STATUS "  physics/canopy_spatially_varying/: Spatially-varying canopy height and frontal area index")

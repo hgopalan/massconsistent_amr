@@ -78,6 +78,12 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Solver enhancements** — Divergence damping filter, optional perturbation pressure gradient, multi-scale terrain analysis, smooth boundary layer transition
 - **Performance timing** — Detailed timing output for profiling and optimization
 - **Terrain-following coordinates** — Streamline coordinate transformation for improved accuracy on steep terrain
+- **3D Scalar Transport with Mixing Length Turbulence** — Solves advection-diffusion equations for temperature and moisture fields:
+  - **Mixing Length Eddy Diffusivity** — Parameterized turbulent mixing using mixing length model with Von Kármán constant for enhanced diffusivity K_eff = K_mol + K_eddy
+  - **Upstream Differencing Advection** — Conservative advection scheme with proper upwind treatment for CFL stability
+  - **Adaptive Time-Stepping** — Dynamic time stepping based on CFL criterion for scalar transport
+  - **Temperature-Dependent Coupling** — Optional multi-step corrector for temperature feedback to mass-consistent wind solver
+  - **User-Configurable Transport** — Enable/disable temperature and moisture transport independently via ParmParse
 - **Gaussian puff dispersion** — Passive pollutant transport with enhanced physics:
   - **Adaptive Time-Stepping** — Dynamic scaling of Δt based on cell-local grid size and maximum wind velocity to ensure Courant–Friedrichs–Lewy (CFL) stability.
   - **Height-dependent diffusivity** — K(z) profiles for realistic atmospheric mixing
