@@ -1,0 +1,96 @@
+{
+    "diurnal_optimization": [
+        {
+            "hour": 6,
+            "name": "06:00 - Early Morning",
+            "wind_speed_m_s": 1.5,
+            "temperature_c": 15.0,
+            "relative_humidity": 0.8,
+            "stability_class": "E",
+            "drift_percentage": 1.4021122337015963,
+            "efficiency_percentage": 69.73686250986233,
+            "status": "SAFE (Optimal)"
+        },
+        {
+            "hour": 9,
+            "name": "09:00 - Mid Morning",
+            "wind_speed_m_s": 2.5,
+            "temperature_c": 20.0,
+            "relative_humidity": 0.65,
+            "stability_class": "C",
+            "drift_percentage": 8.628352002640833,
+            "efficiency_percentage": 63.06498583707899,
+            "status": "SAFE (Optimal)"
+        },
+        {
+            "hour": 12,
+            "name": "12:00 - Mid Day",
+            "wind_speed_m_s": 4.5,
+            "temperature_c": 28.0,
+            "relative_humidity": 0.4,
+            "stability_class": "A",
+            "drift_percentage": 15.567015761603914,
+            "efficiency_percentage": 60.15976064676363,
+            "status": "MARGINAL"
+        },
+        {
+            "hour": 15,
+            "name": "15:00 - Afternoon",
+            "wind_speed_m_s": 5.0,
+            "temperature_c": 30.0,
+            "relative_humidity": 0.35,
+            "stability_class": "B",
+            "drift_percentage": 19.68798004746364,
+            "efficiency_percentage": 52.79189579668627,
+            "status": "MARGINAL"
+        },
+        {
+            "hour": 18,
+            "name": "18:00 - Late Afternoon",
+            "wind_speed_m_s": 3.0,
+            "temperature_c": 22.0,
+            "relative_humidity": 0.55,
+            "stability_class": "D",
+            "drift_percentage": 12.335679668911382,
+            "efficiency_percentage": 55.78606915568758,
+            "status": "SAFE (Optimal)"
+        },
+        {
+            "hour": 21,
+            "name": "21:00 - Night",
+            "wind_speed_m_s": 1.2,
+            "temperature_c": 16.0,
+            "relative_humidity": 0.75,
+            "stability_class": "F",
+            "drift_percentage": 0.08046355347494444,
+            "efficiency_percentage": 69.15314071623733,
+            "status": "SAFE (Optimal)"
+        }
+    ],
+    "weather_envelope_optimization": {
+        "120": {
+            "nozzle_name": "Fine Nozzle (120 um)",
+            "max_safe_wind_speed_m_s": 1.394950793962421,
+            "avg_safe_drift_percentage": 4.2651265045401745,
+            "avg_safe_efficiency_percentage": 54.374770999476134,
+            "total_safe_scenarios": 7,
+            "total_unsafe_scenarios": 33
+        },
+        "250": {
+            "nozzle_name": "Medium Nozzle (250 um)",
+            "max_safe_wind_speed_m_s": 3.7864790094146477,
+            "avg_safe_drift_percentage": 6.665717528501591,
+            "avg_safe_efficiency_percentage": 65.02348239290099,
+            "total_safe_scenarios": 19,
+            "total_unsafe_scenarios": 21
+        },
+        "450": {
+            "nozzle_name": "Coarse Nozzle (450 um)",
+            "max_safe_wind_speed_m_s": 7.368062997280774,
+            "avg_safe_drift_percentage": 5.701618022354721,
+            "avg_safe_efficiency_percentage": 83.74075143887652,
+            "total_safe_scenarios": 27,
+            "total_unsafe_scenarios": 13
+        }
+    }
+}

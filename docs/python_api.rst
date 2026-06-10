@@ -253,6 +253,106 @@ AEPCalculator Class Reference
 **Methods**:
 * ``run_wind_rose(wind_speeds, wind_directions, probabilities, turbines=None, yaw_offsets=None, stability_scenarios=None)``: Runs the batch simulations. Optionally accepts custom turbine listings, specific yaw offset angles, and stability parameter scenarios to perform rapid layout optimization under varying conditions.
 
+Agricultural Drone Spraying & Operational Optimization
+------------------------------------------------------
+
+The ``agricultural_drone`` module coordinates drone flight trajectory parsing, nozzle mass flow regulation, 3D analytical rotor downwash velocity mapping, and multi-compartment dry deposition/canopy interception modeling. It provides both moving-source Gaussian Puff and Lagrangian Particle Dispersion Model (LPDM) simulation loops, coupled directly with the C++ ``WindSolver`` for realistic wind field advection.
+
+Basic Usage
+~~~~~~~~~~~
+To parse a drone flight trajectory, configure nozzle droplet distributions, and execute an LPDM simulation over a forested canopy field:
+
+.. code-block:: python
+
+    from agricultural_drone import (
+        DroneTrajectory, MassEmissionRegulator, DroneLpdDispersion
+    )
+    from wind_solver import WindSolver
+
+    # 1. Load flight trajectory from telemetry CSV
+    trajectory = DroneTrajectory.from_csv("telemetry.csv")
+
+    # 2. Configure Mass Flow Regulator with droplet size bins
+    droplet_bins = {
+        'fine': {'diameter': 50e-6, 'fraction': 0.20},
+        'medium': {'diameter': 150e-6, 'fraction': 0.50},
+        'coarse': {'diameter': 350e-6, 'fraction': 0.30}
+    }
+    regulator = MassEmissionRegulator(
+        formulation_density=1000.0,  # g/L (water-like)
+        active_fraction=0.1,         # 10% active chemical ingredient
+        droplet_bins=droplet_bins
+    )
+
+    # 3. Initialize mass-consistent C++ WindSolver
+    wind = WindSolver("inputs.i")
+    wind.solve()
+
+    # 4. Create and configure LPD Dispersion Model matching the C++ grid
+    dispersion = DroneLpdDispersion()
+    dispersion.setup_grid_from_solver(wind)
+
+    # 5. Execute simulation loop along flight timeline
+    dispersion.simulate(
+        trajectory=trajectory,
+        regulator=regulator,
+        wind_solver=wind,
+        dt=0.5,
+        particles_per_step=80,
+        enable_settling=True,
+        enable_evaporation=True,
+        enable_canopy_interception=True,
+        canopy_height=2.0,
+        leaf_area_index=3.0,
+        frontal_area_index=1.0
+    )
+
+    # 6. Validate mass conservation and extract deposition registers
+    conserved, balance = dispersion.verify_mass_conservation()
+    if conserved:
+        print("Pesticide mass is perfectly conserved across all registers!")
+        print(f"  Ground Deposition: {dispersion.ground_deposition.sum():.2f} g")
+        print(f"  Canopy Deposition: {dispersion.canopy_top_deposition.sum():.2f} g")
+
+    wind.finalize()
+
+Walkthrough of the Simulation Process
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The full pesticide spraying simulation executes through five highly-coordinated phases:
+
+1. **Trajectory Parsing and Interpolation**:
+   The ``DroneTrajectory`` class parses discrete flight logs (CSV or arrays of ``time, x, y, z, speed, heading, flow_rate, active``) and performs linear interpolation of all telemetry fields at any arbitrary intermediate simulation timestamp ``t``.
+2. **Mass Flow Regulation**:
+   The ``MassEmissionRegulator`` parses the nozzle's volumetric flow rate (L/min) and converts it to active pesticide mass emission (g/s) based on chemical formulation density and active concentration fractions. If speed-dependent scaling is enabled, flow rate is adjusted dynamically to ensure constant ground coverage density under varying flight velocities.
+3. ** Droplet Transport & Downwash Integration**:
+   Released droplets are binned into size fractions ('fine', 'medium', 'coarse') and advected under the combined influence of the 3D wind velocity field (interpolated from C++ ``WindSolver``) and 3D analytical rotor downwash velocity. Radial spreading and wall-jet ground interaction are fully modeled, along with size-dependent Stokes settling velocity (incorporating the Cunningham slip correction).
+4. **Physicochemical Evolution**:
+   Airborne droplets shrink dynamically due to evaporation (calculated using the Tetens saturation vapor pressure equation and d² evaporation law). The active pesticide chemical degrades exponentially according to ambient temperature and photolysis (solar radiation) half-life references.
+5. **Crop Canopy Interception & Deposition Mapping**:
+   Spatially distributed forest/crop canopy properties (height, Leaf Area Index, Frontal Area Index) are mapped to 2D arrays. Descending droplets are intercepted by the foliage layer using empirical deposition velocity models. Deposits are recorded into canopy-top, lower-foliage, and ground registers, allowing complete mass conservation validation.
+
+.. figure:: drone_deposition_plot.png
+   :width: 100%
+   :align: center
+   :alt: Agricultural Drone Deposition & Drift
+
+   *Figure: 2D visualization of crop deposition and off-target spray drift under crosswind.*
+
+Validation, Sensitivity Analysis & Operational Optimization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Two production-grade automated tools are provided under the ``tools/`` directory:
+
+- **Sensitivity Analysis (``drone_sensitivity_analysis.py``)**:
+  Runs systematic multi-parameter sweeps to evaluate how pesticide spray drift and deposition efficiency respond to:
+  * *Nozzle diameter* (generating finer or coarser droplet bins).
+  * *Flight altitude* (altering advection transit time).
+  * *Wind speed* (driving off-target advective drift).
+  * *Atmospheric stability* (controlling horizontal and vertical eddy mixing diffusivities).
+- **Weather Window Optimizer (``weather_window_optimizer.py``)**:
+  Designs a safe operational meteorology envelope. It runs batch spraying simulations against the cached ``ScenarioLibrary`` to identify:
+  * *Maximum allowable wind speeds* for fine, medium, and coarse nozzles.
+  * *Optimal spraying times of day* (Early Morning, Mid-day, Afternoon, Night) based on diurnal temperature, humidity, wind, and stability profiles.
+
 Build and Installation
 ----------------------
 

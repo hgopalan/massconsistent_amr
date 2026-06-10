@@ -413,6 +413,11 @@ add_regression_test(lpdm_terrain dispersion/lpdm_terrain)
 add_regression_test(lpdm_drift_spatial_lid dispersion/lpdm_drift_spatial_lid)
 
 # ---------------------------------------------------------------------------
+# realistic_farm_case/ - Realistic agricultural drone spray and deposition regression test
+# ---------------------------------------------------------------------------
+add_python_regression_test(realistic_farm_case dispersion/realistic_farm_case test_realistic_farm_case.py)
+
+# ---------------------------------------------------------------------------
 # terrain_following_steep/ – Terrain-following coordinates on steep terrain
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_following_steep terrain/terrain_following_steep)

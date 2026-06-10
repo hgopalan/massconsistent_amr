@@ -103,6 +103,9 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
   - **Wind-Speed-Dependent Dust Suppression** — Quantifies how wind suspends dust particles vs. settling, affecting pH in leaching solutions. High wind → dust in suspension → less pH acidification. Low wind → dust settling → acidifying effects. Provides lookup tables for dust suppression factor vs. wind speed and particle size.
   - **Dispersion-Enhanced Leaching (Sherwood Correlation)** — Models wind-driven turbulent enhancement of ore leaching efficiency via mass transfer coefficient h_MT. Implements Sherwood number correlation (Sh = 2 + 0.6·Re^0.5·Sc^0.33) to compute dissolution rate enhancement from wind speed and particle size. Provides lookup tables for mass transfer enhancement vs. wind conditions.
   - **End-to-End Facility Workflow** — Modular orchestration pipeline: (1) mass-consistent wind solve, (2) puff/LPDM dispersion from processing stack, (3) extract C(x,y,z) concentration field, (4) PHREEQC reactive transport with chemistry prediction, (5) output pH/precipitation maps. Includes intermediate caching for fast re-runs with alternative chemistry scenarios. Typical runtime: ~20 minutes (wind 10 min + dispersion 2-5 min + chemistry 5-8 min).
+  - **Agricultural Drone Spraying & Pest Management** — Clean Python interface wrapping C++ WindSolver coupling, flight trajectory parsing, nozzle emission scaling, analytical rotor downwash modeling, dynamic Gaussian Puff and LPDM dispersion, size-dependent Stokes settling with Cunningham slip correction, evaporative shrinkage, photolytic/chemical degradation decay, forest/crop canopy interception, mass conservation validation, off-target spray drift quantification, and crop deposition mapping.
+  - **Drone Spraying Sensitivity Analysis** — Automated validation suite analyzing spray drift and crop deposition sensitivity to nozzle diameter, flight altitude, wind speed, and atmospheric stability.
+  - **Operational Weather Window Optimizer** — End-to-end evaluation tool running batch simulations of drone spraying across the pre-computed meteorological scenario library to identify safe operating windows (maximum safe wind speed for different nozzles) and optimal times of day.
   - References: Parkhurst & Appelo (2013); Businger et al. (1971); Nicholson et al. (1990); Sherwood (1954); Ranz & Marshall (1952)
 - **Turbine wake models** — Analytical wind turbine wake modeling (Jensen, Bastankhah Gaussian, TurbOPark, and Gauss-Curl Hybrid formulations) with quadratic/linear superposition, Jimenez and Bastankhah & Porté-Agel (2016) wake deflection under yawed conditions, height-varying (veered) wake coordinate projection to capture twisting, analytical wake-added turbulence (Crespo-Hernández and Frandsen models) with buoyant wake destruction under convective thermal conditions, and wake-ground interaction using mirroring and shear-damping techniques.
 - **Environmental Dispersion and Multi-Scenario AEP Calculator** — Adds full-year wind farm assessment, pre-computed lookups, and environmental dispersion within wakes:
@@ -113,6 +116,16 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
   - **Vertical Diffusivity Inhomogeneity Drift Correction** — Adds a vertical drift correction velocity $w_{drift} = \frac{\partial K_v}{\partial z}$ to the deterministic vertical advection of particles, eliminating numerical artifacts (spurious particle accumulation in regions of low vertical diffusivity) and ensuring physical uniformity in non-uniform vertical diffusivity $K_v(z)$ fields.
 - **FLORIS & PyWake integration** — Export wind data to FLORIS wind farm simulation format, and format resolved wind fields as PyWake Site or WAsPGridSite objects
 - **GPU-ready** — Runs on NVIDIA, AMD, and Intel GPUs via AMReX
+
+## Agricultural Drone Spraying Walkthrough
+
+The repository includes a comprehensive, production-grade suite for modeling agricultural drone spraying operations, evaluating spray drift, and optimizing weather windows.
+
+The image below illustrates a realistic farm case simulation under a crosswind, showcasing the target swath and off-target spray drift:
+
+![Agricultural Drone Deposition & Drift](docs/drone_deposition_plot.png)
+
+For a detailed step-by-step walkthrough of the simulator architecture, execution process, parameters, and analysis commands, please refer to the [Step-by-Step Walkthrough Tutorials](https://hgopalan.github.io/massconsistent_amr/usage.html#step-by-step-walkthrough-tutorials).
 
 ## Synthetic Turbulence
 

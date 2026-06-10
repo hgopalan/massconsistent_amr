@@ -1104,6 +1104,33 @@ This walkthrough generates terrain-aware synthetic turbulence fluctuations and e
     turbulence_export_format       = bts
     turbulence_output_file         = turbulence.bts
 
+Walkthrough Section 7: Agricultural Drone Spraying Walkthrough
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This walkthrough demonstrates the comprehensive, production-grade modeling of agricultural drone spraying operations, including spray drift evaluation, drone downwash/ground-effect spreading, dynamic canopy deposition, and weather window optimization.
+
+**Simulation Steps & Architecture:**
+
+1. **Trajectory Parsing & Interpolation**: Drone flight logs (telemetry data) containing 3D positions, speed, heading, and nozzle state are loaded and interpolated continuously over time using the ``DroneTrajectory`` class.
+2. **Mass Flow Scaling**: Volumetric nozzle flow rate (L/min) is dynamically scaled to physical pesticide mass release (g/s) using the ``MassEmissionRegulator`` class.
+3. **Transport & Downwash**: Droplets are classified into size bins (fine, medium, coarse), advected by the 3D mass-consistent wind solver field, pushed downward/sideways by analytical rotor downwash (including ground-effect spreading), and settle due to gravitational forces (Stokes' law with Cunningham slip correction).
+4. **Physicochemical Decay**: Droplets undergo temperature- and humidity-dependent evaporation (Tetens equation & d² law) and photo-chemical degradation.
+5. **Canopy Interception & Deposition Mapping**: Spatially-varying canopy foliage (Leaf Area Index, Frontal Area Index) intercepts descending droplets. Deposition is mapped onto ground, lower foliage, and canopy-top registers. Mass conservation is rigorously validated across all compartments.
+
+**Analysis & Execution Commands:**
+
+To run the sensitivity analysis, weather window optimizer, or the regression test, execute the following commands from the repository root:
+
+.. code-block:: bash
+
+    # Run sensitivity analysis across nozzles, wind, and stability
+    python3 tools/drone_sensitivity_analysis.py
+
+    # Run weather window optimization against scenario library
+    python3 tools/weather_window_optimizer.py
+
+    # Execute the realistic farm case regression test
+    python3 regtest/dispersion/realistic_farm_case/test_realistic_farm_case.py
+
 Performance Tuning
 ------------------
 

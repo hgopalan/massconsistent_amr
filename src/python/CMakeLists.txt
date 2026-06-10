@@ -31,6 +31,7 @@ endif()
 pybind11_add_module(pyWindSolver MODULE
   pyWindSolver.cpp
   ${CMAKE_SOURCE_DIR}/src/wind_solver_api.cpp
+  ${CMAKE_SOURCE_DIR}/src/wind_io_helpers.cpp
 )
 
 # Link with AMReX
@@ -51,6 +52,7 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA")
   set_source_files_properties(
     pyWindSolver.cpp
     ${CMAKE_SOURCE_DIR}/src/wind_solver_api.cpp
+    ${CMAKE_SOURCE_DIR}/src/wind_io_helpers.cpp
     PROPERTIES LANGUAGE CUDA
   )
 endif()

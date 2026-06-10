@@ -235,3 +235,222 @@ The Python API enables coupling between `massconsistent_amr` and `pyWildfire` so
    # Finalize
    fire.finalize()
    wind.finalize()
+
+
+Agricultural Drone Operations & Pest Management
+-----------------------------------------------
+
+Overview
+~~~~~~~~
+
+The Agricultural Drone Operations & Pest Management module provides specialized modeling for agricultural drone pesticide application, spray drift, and crop canopy deposition. Drones spraying liquid pesticides, herbicides, or biological agents operate close to complex terrain and vegetation in the atmospheric boundary layer.
+
+This module supports:
+- **Drone Path Representation**: Loading and interpolating multi-variable flight telemetry (3D coordinates, speed, heading, flow rates).
+- **Dynamic Point Sources**: Simulating moving Lagrangian particles (LPDM) and Gaussian Puffs originating from translating spray nozzles.
+- **Mass Emission Regulation**: Converting volumetric nozzle flow rates to physical pesticide active ingredient mass flow with velocity-dependent scaling.
+
+Mathematical Model
+~~~~~~~~~~~~~~~~~~
+
+Drone Trajectory & Interpolation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A flight trajectory is defined by discrete state vectors :math:`\mathbf{S}_n = (t_n, x_n, y_n, z_n, U_n, \theta_n, Q_n, a_n)`, where :math:`U_n` is flight speed, :math:`\theta_n` is drone heading, :math:`Q_n` is the volumetric nozzle flow rate, and :math:`a_n` is the binary active spray flag.
+
+For any arbitrary time :math:`t_n \le t \le t_{n+1}`, the state variables are linearly interpolated:
+
+.. math::
+
+   x(t) = x_n + \frac{x_{n+1} - x_n}{t_{n+1} - t_n} (t - t_n)
+
+Nozzle Mass Emission Regulation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Nozzle flow rate :math:`Q(t)` [L/min] is converted to pesticide active ingredient mass emission rate :math:`S_m(t)` [g/s] using the formulation fluid density :math:`\rho_{\text{form}}` [g/L] and active ingredient mass fraction :math:`f_{\text{active}}`:
+
+.. math::
+
+   S_m(t) = \frac{Q(t)}{60} \cdot \rho_{\text{form}} \cdot f_{\text{active}} \cdot a(t)
+
+If speed-dependent rate regulation is enabled to maintain constant ground deposition density despite speed variations, the emission scales relative to the base calibration flight speed :math:`U_{\text{base}}`:
+
+.. math::
+
+   S_m(t) = S_{m,\text{base}}(t) \cdot \left( \frac{U(t)}{U_{\text{base}}} \right)
+
+Dynamic Moving Source Dispersion
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Emitted pesticide mass is transported as moving sources:
+
+1. **Gaussian Puffs**: Puffs of mass :math:`M_p = S_m(t) \cdot \Delta t` are released at the drone's instantaneous position :math:`\mathbf{x}_d(t)`. Puffs are advected with the 3D wind velocity :math:`\mathbf{u}(\mathbf{x}_p)` and grow over time with horizontal and vertical diffusivities :math:`K_h` and :math:`K_v`. Ground deposition and reflection are modeled using image sources.
+
+2. **Lagrangian Particles (LPDM)**: Dispersed droplets are modeled as discrete particles carrying mass fractions. At each step, new particles are emitted from the nozzle and advected via:
+
+   .. math::
+
+     x_p(t + \Delta t) = x_p(t) + u_p \Delta t + \xi_x \sqrt{2 K_h \Delta t}
+
+   where :math:`\xi_p \sim \mathcal{N}(0, 1)` represents turbulent stochastic diffusion.
+
+Rotor Downwash Jet Parameterization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To capture the local downward air jet created by the drone's rotors and its influence on droplet penetration into dense crop canopies, the module implements an analytical downwash velocity field parameterization.
+
+The model represents the three core physical processes:
+
+1. **Induced Velocity (Actuator Disk Theory)**:
+   The induced downwash velocity at the rotor disk :math:`v_0` is calculated from the drone's mass :math:`M` and rotor radius :math:`R`:
+
+   .. math::
+
+      v_0 = \sqrt{\frac{M \cdot g}{2 \rho_{\text{air}} \pi R^2}}
+
+   where :math:`\rho_{\text{air}}` is air density and :math:`g = 9.81` :math:`\text{m/s}^2`.
+
+2. **Wake Deflection, Expansion & Decay**:
+   As the jet travels downward (distance :math:`\Delta z = z_d - z \ge 0`), it expands radially and centerline velocity decays:
+
+   .. math::
+
+      R_j(\Delta z) = R + \alpha_{\text{jet}} \Delta z
+
+      W_c(\Delta z) = v_0 \frac{R}{R_j(\Delta z)}
+
+   where :math:`\alpha_{\text{jet}}` is the jet expansion coefficient. The jet centerline is deflected backward due to drone flight velocity :math:`\mathbf{V}_f = (V_x, V_y)`:
+
+   .. math::
+
+      x_c = x_d - V_x \frac{\Delta z}{v_0}, \quad y_c = y_d - V_y \frac{\Delta z}{v_0}
+
+   The local downward velocity before ground effect is:
+
+   .. math::
+
+      w_{\text{wash\_down}}(r, \Delta z) = W_c(\Delta z) \exp\left(-\frac{r^2}{R_j(\Delta z)^2}\right)
+
+   where :math:`r = \sqrt{(x - x_c)^2 + (y - y_c)^2}`.
+
+3. **Ground Effect Dampening & Wall-Jet Spreading**:
+   As the downward jet approaches the terrain boundary or canopy at height :math:`z_g`, the vertical velocity is dampened and redirected into a radial outward wall-jet. For height above ground :math:`h = z - z_g`:
+
+   .. math::
+
+      f_{\text{damp}}(h) = 1.0 - \exp\left(-\left(\frac{h}{d_{\text{damp}}}\right)^2\right)
+
+      w_{\text{wash}} = - w_{\text{wash\_down}} \cdot f_{\text{damp}}(h)
+
+   The vertical momentum is converted to radial horizontal velocity :math:`v_r`, creating outward spreading close to the terrain boundary:
+
+   .. math::
+
+      v_r(r, h) = w_{\text{wash\_down}} \cdot (1.0 - f_{\text{damp}}(h)) \cdot \frac{r}{R_j} \cdot \exp\left(-\frac{h}{d_{\text{wall\_jet}}}\right)
+
+   which is then resolved into Cartesian components :math:`u_{\text{wash}}` and :math:`v_{\text{wash}}`.
+
+Python API Usage
+~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from wind_solver import WindSolver
+   from agricultural_drone import DroneTrajectory, MassEmissionRegulator, DronePuffDispersion
+
+   # 1. Load flight telemetry
+   trajectory = DroneTrajectory.from_csv("flight_telemetry.csv")
+
+   # 2. Configure pesticide regulator (10% active ingredient, 1000 g/L density)
+   regulator = MassEmissionRegulator(
+      formulation_density=1000.0,
+      active_fraction=0.1,
+      base_speed=5.0,
+      speed_dependent=True
+   )
+
+   # 3. Solve microclimate wind field over complex terrain
+   wind = WindSolver("inputs.i")
+   wind.solve()
+
+   # 4. Initialize and execute moving source dispersion
+   dispersion = DronePuffDispersion()
+   dispersion.simulate(
+      trajectory=trajectory,
+      regulator=regulator,
+      wind_solver=wind,
+      dt=1.0,
+      K_h=1.2,
+      K_v=0.6,
+      enable_ground_reflection=True,
+      enable_rotor_downwash=True,   # Superimpose analytical rotor downwash velocity
+      drone_mass=15.0,              # Drone mass in kg
+      rotor_radius=0.4              # Rotor radius in meters
+   )
+
+   # 5. Extract 3D pesticide active ingredient concentration map [g/m³]
+   concentration = dispersion.concentration  # shape: (nz, ny, nx)
+   print(f"Peak concentration: {concentration.max():.4f} g/m³")
+
+   wind.finalize()
+
+
+Phase 4: Canopy Interaction & Leaf/Ground Deposition Mapping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To model dynamic pesticide deposition and capture by plant foliage and soil, the module supports specialized crop canopy interactions:
+
+1. **Foliage Interception & Droplet Size Efficiency**:
+   Capture of settling droplets by crop foliage is resolved into vertical settling capture and horizontal wind drift capture. The collection efficiency :math:`\eta_d` depends on droplet size:
+
+   .. math::
+
+      \eta_d = 1.0 - \exp\left(-\frac{d}{d_{\text{ref}}}\right)
+
+   where :math:`d` is the local droplet diameter and :math:`d_{\text{ref}} = 100 \times 10^{-6}` :math:`\text{m}` is the reference droplet size.
+   
+   The vertical interception rate constant :math:`k_{\text{dep, vert}}` (representing capture of settling/falling droplets by horizontal leaf surfaces) and the horizontal interception rate constant :math:`k_{\text{dep, horiz}}` (representing capture of horizontally drifting droplets due to wind) are modeled as:
+
+   .. math::
+
+      k_{\text{dep, vert}} = \frac{v_s}{H_c} \cdot \text{LAI} \cdot \eta_d \cdot \lambda_{\text{vert}}
+
+      k_{\text{dep, horiz}} = \frac{U_h}{H_c} \cdot \text{FAI} \cdot \eta_d \cdot \lambda_{\text{horiz}}
+
+   where :math:`H_c` is the local canopy height, :math:`\text{LAI}` is the Leaf Area Index, :math:`\text{FAI}` is the crop Frontal Area Index, :math:`v_s` is the terminal settling velocity, :math:`U_h = \sqrt{u^2 + v^2}` is the horizontal wind speed, and :math:`\lambda_{\text{vert}} = \lambda_{\text{horiz}} = 0.5` are empirical interception coefficients.
+   
+   The combined foliage capture rate inside the canopy (:math:`0 \le z_{\text{agl}} < H_c`) is:
+
+   .. math::
+
+      k_{\text{foliage}} = k_{\text{dep, vert}} + k_{\text{dep, horiz}}
+
+   The intercepted mass over a timestep :math:`\Delta t` is subtracted from the particle/puff mass and mapped to 2D deposition grids:
+
+   .. math::
+
+      \Delta M = M \cdot \left(1.0 - \exp(-k_{\text{foliage}} \Delta t)\right)
+
+2. **Spatially Distributed 2D Deposition Grids**:
+   The module maintains cell-local cumulative registers of deposited pesticide mass [g] across three compartments:
+   - **Canopy Top**: Upper canopy foliage layers (:math:`0.5 H_c \le z_{\text{agl}} < H_c`).
+   - **Lower Foliage Layers**: Lower foliage layers (:math:`0 \le z_{\text{agl}} < 0.5 H_c`).
+   - **Underlying Ground**: Soil/ground level deposition (:math:`z_{\text{agl}} \le 0` or upon ground impact).
+
+3. **Mass Conservation Verification**:
+   The solver validates pesticide mass conservation at every step by checking that the total emitted mass from the nozzle balances exactly with all active and lost compartments:
+
+   .. math::
+
+      M_{\text{emitted}} = M_{\text{airborne}} + M_{\text{canopy\_top}} + M_{\text{lower\_foliage}} + M_{\text{ground}} + M_{\text{out\_of\_bounds}} + M_{\text{degraded}}
+
+   You can verify this mass balance programmatically via:
+
+   .. code-block:: python
+
+      conserved, balance = dispersion.verify_mass_conservation()
+      if conserved:
+          print("Pesticide mass is fully conserved!")
+          print(f"Total Emitted: {balance['total_emitted_mass']} g")
+          print(f"Total Accounted: {balance['total_accounted']} g")
+
