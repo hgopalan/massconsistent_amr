@@ -1,6 +1,6 @@
 # massconsistent_amr
 
-An AMReX-based C++ mass-consistent 3-D wind diagnostic solver providing terrain-following wind field adjustment with GPU-ready kernels (CUDA/HIP/SYCL), building wake parameterization (including advanced cavity trapping and plume deformation under wind shear), canopy effects, and optional MPI parallelism.
+An AMReX-based high-performance C++ mass-consistent 3-D wind diagnostic solver providing advanced terrain-following wind field adjustment, powered by GPU-accelerated kernels (CUDA/HIP/SYCL/oneAPI via AMReX) and optional MPI multi-node parallelism. It integrates cell-local spatially-varying variational anisotropy, extensive physical parameterizations (stable/unstable Monin-Obukhov profiles, orographic speed-up, katabatic/anabatic slope flows, sea breeze, and valley channeling), extensive wake/canopy modeling (Röckle, Huber-Snyder, and AERMOD PRIME building wakes, forest canopy drag, and structure porosity), analytical wind turbine wake models (Jensen, Bastankhah, TurbOPark, Gauss-Curl Hybrid), and advanced dispersion engines (Gaussian Puff with dry/wet deposition, capping lid, and chemical decay, and Lagrangian Particle LPDM with vertical drift correction). Additionally, it features a rich Python API with integration for FLORIS, PyWake, wildfire levelset, and PHREEQC-coupled reactive geochemical transport (acid mine drainage valley hotspots, dust suppression, sulfide oxidation kinetics).
 
 ## CI / Build Status
 
@@ -126,6 +126,34 @@ The image below illustrates a realistic farm case simulation under a crosswind, 
 ![Agricultural Drone Deposition & Drift](docs/drone_deposition_plot.png)
 
 For a detailed step-by-step walkthrough of the simulator architecture, execution process, parameters, and analysis commands, please refer to the [Step-by-Step Walkthrough Tutorials](https://hgopalan.github.io/massconsistent_amr/usage.html#step-by-step-walkthrough-tutorials).
+
+## Scenario Gallery
+
+The solver supports generating and simulating diverse engineering, physical, and environmental wind-modeling scenarios. Below is a gallery of the 6 core scenarios you can configure, run, and visualize using the repository:
+
+### 1. Complex Terrain-Following Coordinate Flow
+Deformation of incoming log-law velocity profile over a Gaussian hill, showing streamline compression (orographic speed-up) and coordinate transformation.
+![Complex Terrain-Following Flow](docs/terrain_following_complex_flow.png)
+
+### 2. Gorge Bridge Crossing Wind Loading
+Bridges crossing deep gorges experience extreme funneling speedup, vertical wind shear, and vortex-induced cable resonance.
+![Gorge Bridge Crossing](docs/gorge_bridge_crossing.png)
+
+### 3. Urban Street Canyon & Building Wakes
+Building-induced wake parameterizations (Röckle, Huber-Snyder, AERMOD PRIME) resolving leeward cavities and street canyon vortices.
+![Urban Street Canyon](docs/urban_street_canyon.png)
+
+### 4. Transmission Tower & Line Wind Loading
+Structural wind loading, catenary line tension, and sway displacement calculated dynamically across complex ridges.
+![Transmission Line Loading](docs/transmission_line_loading.png)
+
+### 5. Yawed Wind Turbine Wake Deflection
+Analytical wake deficit and lateral center-line deflection under yawed operation (Bastankhah model) to optimize array performance.
+![Turbine Wake Deflection](docs/turbine_wake_deflection.png)
+
+### 6. Geochemical Hotspot & O₂ Delivery Detection
+Valley AMD (Acid Mine Drainage) discharge point risk-classification based on wind-speed-dependent Sherwood mass transfer correlations.
+![Valley AMD Hotspots](docs/valley_amd_hotspots.png)
 
 ## Synthetic Turbulence
 
