@@ -5680,18 +5680,24 @@ amrex::Real WindSolverApp::compute_adaptive_dt_transport() {
     amrex::Real u_max = 0.0;
     
     // Find maximum velocity magnitude
+    amrex::MultiFab temp(vel_c_ptr->boxArray(), vel_c_ptr->DistributionMap(), 1, 0);
+    temp.setVal(0.0);
+    
     for (amrex::MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
        const auto& box = mfi.validbox();
        const auto& vel_arr = vel_c_ptr->array(mfi);
+       auto temp_arr = temp.array(mfi);
         
-       amrex::ParallelFor(box, [&](int i, int j, int k) noexcept {
+       amrex::ParallelFor(box, [=](int i, int j, int k) noexcept {
            amrex::Real u = vel_arr(i, j, k, 0);
            amrex::Real v = vel_arr(i, j, k, 1);
            amrex::Real w = vel_arr(i, j, k, 2);
            amrex::Real vmag = std::sqrt(u*u + v*v + w*w);
-           u_max = amrex::max(u_max, vmag);
+           temp_arr(i, j, k) = vmag;
        });
     }
+    
+    u_max = temp.max(0);
     
     // Global max
     amrex::ParallelDescriptor::ReduceRealMax(u_max);
