@@ -343,16 +343,11 @@ The solver couples with reactive transport models:
 4. **Leaching Efficiency**: Sherwood correlation links wind to dissolution
 5. **Feedback**: Chemistry model may output outgassing, affecting heat
 
-Current State (Phase 2):
+Current State:
 - One-way coupling (wind → chemistry)
 - No feedback from chemistry to wind
 
-Phase 3+ Enhancement:
-- Add feedback mechanisms for significant heat/momentum sources
-- Couple with detailed geochemistry (PHREEQC reactive transport)
-- Validation against field observations (AMD hotspots, sulfide oxidation)
-
-Validation Framework (Phase 3)
+Enhanced Capabilities:
 ------------------------------
 
 Comprehensive validation is essential for advanced features.
@@ -464,37 +459,6 @@ Testing & Regression Suite
 - Performance benchmarks track regressions
 - Validation reports generated for each build
 
-Feature Development Status
--------------------
-
-**Foundation Layer (Stable, Production-Ready)**
-
-- Von Kármán spectral synthesis (isotropic, IEC 61400-1 compliant)
-- Basic wind profile initialization (log-law, power-law)
-- Terrain-aware initialization with IDW interpolation
-- Standard turbulence intensity classification
-
-**Intermediate Spectral Models (Stable, Validated)**
-
-- Mann Box anisotropic spectral tensor
-- Terrain-dependent parameter adaptation
-- Cross-component correlation support
-- Python API bindings for interactive analysis
-
-**Validation & Optimization Layer (In Development)**
-
-- Performance profiling and throughput analysis
-- Physical correctness validation framework
-- Parameter sensitivity analysis suite
-- GPU optimization suggestions
-
-**Advanced Physics Layer (Future Development)**
-
-- Non-neutral atmospheric stratification coupling via Monin-Obukhov length
-- Gravity wave representation in stable atmosphere
-- Orographic precipitation feedback mechanisms
-- Coupled surface-atmosphere integration
-
 Documentation & References
 --------------------------
 
@@ -525,30 +489,6 @@ Documentation & References
 2. Monin, A. S., & Obukhov, A. M. (1954). Basic laws of turbulent mixing in the ground layer of the atmosphere. *Trudy Geofiz. Inst. Akad. Nauk SSSR*, 24(151), 163-187.
 
 3. Businger, J. A., Wyngaard, J. C., Izumi, Y., & Bradley, E. F. (1971). Flux-profile relationships in the atmospheric surface layer. *Journal of the Atmospheric Sciences*, 28(2), 181-189.
-
-Getting Involved
-----------------
-
-**For Contributors**:
-
-1. Review technical documentation (``docs/mann_model.rst``, ``docs/iec61400_synthesis.rst``)
-2. Study test suites (``tests_and_examples/mann_box/``, ``regtest/``)
-3. Check open issues on GitHub
-4. Start with advanced physics features (full tensor, eigenvalue decomposition, stability coupling)
-
-**For Users**:
-
-1. Use foundation and intermediate layers in production (stable, well-validated)
-2. Experiment with advanced physics features in development (subject to refinement)
-3. Provide feedback on API usability and performance
-4. Report bugs and suggest improvements
-
-**Support**:
-
-- GitHub Issues: Report bugs and request features
-- Discussions: Ask questions and share experiences
-- Pull Requests: Contribute code improvements
-- Documentation: Help improve guides and examples
 
 See Also
 --------
