@@ -538,22 +538,22 @@ Wind Field Generation Pipeline
 5. **Mass-Consistent Adjustment**: Apply Poisson solve to corrected field
 6. **Output Export**: Write combined wind field to plotfiles
 
-Future Extensions (Phase 1+)
-----------------------------
+Future Extensions
+-----------------
 
-**Phase 2: Advanced Spectral Tensors**
+**Advanced Spectral Tensors**
 
 - Full 9-component Mann Box tensor
 - Height-dependent anisotropy tensor evolution
 - Non-neutral stability coupling
 
-**Phase 3: Complex Terrain Adaptation**
+**Complex Terrain Adaptation**
 
 - Terrain-dependent spectral modification
 - Valley channeling effects
 - Slope-induced anisotropy
 
-**Phase 4: Time-Varying Boundary Conditions**
+**Time-Varying Boundary Conditions**
 
 - Real wind history interpolation
 - Probabilistic wind scenario generation
