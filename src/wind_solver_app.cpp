@@ -5732,9 +5732,9 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
        auto vel_arr = vel_c_ptr->array(mfi);
        auto terrain_arr = terrain_type_ptr->array(mfi);
         
-       amrex::ParallelFor(box, [*this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+       amrex::ParallelFor(box, [this, kappa_arr, vel_arr, terrain_arr] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
            // Get cell-center height
-           amrex::Real z_cell = zs_min + (amrex::Real(k) + 0.5) * dz;
+           amrex::Real z_cell = zs_min + (amrex::Real(k) + 0.5) * this->dz;
             
            // Compute mixing length: l_m = κ * (z + z0) for z > 0
            amrex::Real z_eff = std::max(z_cell - terrain_arr(i, j, 0), 1.0e-3);
@@ -5745,8 +5745,8 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
            amrex::Real dv_dz = 0.0;
             
            if (k < nz - 1) {
-               du_dz = (vel_arr(i, j, k+1, 0) - vel_arr(i, j, k, 0)) / dz;
-               dv_dz = (vel_arr(i, j, k+1, 1) - vel_arr(i, j, k, 1)) / dz;
+               du_dz = (vel_arr(i, j, k+1, 0) - vel_arr(i, j, k, 0)) / this->dz;
+               dv_dz = (vel_arr(i, j, k+1, 1) - vel_arr(i, j, k, 1)) / this->dz;
            }
             
            amrex::Real shear_mag = std::sqrt(du_dz*du_dz + dv_dz*dv_dz);
@@ -5805,7 +5805,7 @@ void WindSolverApp::solve_scalar_transport(
        auto scalar_arr = scalar_old.array(mfi);
        auto vel_arr = vel.array(mfi);
         
-       amrex::ParallelFor(bx, [*this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+       amrex::ParallelFor(bx, [this, vel_arr, scalar_arr, adv_arr, bx, dt] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
            amrex::Real u = vel_arr(i, j, k, 0);
            amrex::Real v = vel_arr(i, j, k, 1);
            amrex::Real w = vel_arr(i, j, k, 2);
@@ -5814,21 +5814,21 @@ void WindSolverApp::solve_scalar_transport(
            amrex::Real dscalar_dx = 0.0, dscalar_dy = 0.0, dscalar_dz = 0.0;
             
            if (u > 0.0 && i > bx.smallEnd(0)) {
-               dscalar_dx = (scalar_arr(i, j, k) - scalar_arr(i-1, j, k)) / dx;
+               dscalar_dx = (scalar_arr(i, j, k) - scalar_arr(i-1, j, k)) / this->dx;
            } else if (u < 0.0 && i < bx.bigEnd(0)) {
-               dscalar_dx = (scalar_arr(i+1, j, k) - scalar_arr(i, j, k)) / dx;
+               dscalar_dx = (scalar_arr(i+1, j, k) - scalar_arr(i, j, k)) / this->dx;
            }
             
            if (v > 0.0 && j > bx.smallEnd(1)) {
-               dscalar_dy = (scalar_arr(i, j, k) - scalar_arr(i, j-1, k)) / dy;
+               dscalar_dy = (scalar_arr(i, j, k) - scalar_arr(i, j-1, k)) / this->dy;
            } else if (v < 0.0 && j < bx.bigEnd(1)) {
-               dscalar_dy = (scalar_arr(i, j+1, k) - scalar_arr(i, j, k)) / dy;
+               dscalar_dy = (scalar_arr(i, j+1, k) - scalar_arr(i, j, k)) / this->dy;
            }
             
            if (w > 0.0 && k > bx.smallEnd(2)) {
-               dscalar_dz = (scalar_arr(i, j, k) - scalar_arr(i, j, k-1)) / dz;
+               dscalar_dz = (scalar_arr(i, j, k) - scalar_arr(i, j, k-1)) / this->dz;
            } else if (w < 0.0 && k < bx.bigEnd(2)) {
-               dscalar_dz = (scalar_arr(i, j, k+1) - scalar_arr(i, j, k)) / dz;
+               dscalar_dz = (scalar_arr(i, j, k+1) - scalar_arr(i, j, k)) / this->dz;
            }
             
            // Update with advection
@@ -5845,7 +5845,7 @@ void WindSolverApp::solve_scalar_transport(
        auto adv_arr = scalar_adv.array(mfi);
        auto kappa_arr = kappa_eddy.array(mfi);
         
-       amrex::ParallelFor(bx, [*this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+       amrex::ParallelFor(bx, [this, adv_arr, kappa_arr, new_arr, bx, diffusivity, dt] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
            amrex::Real K_eff_x = 0.0, K_eff_y = 0.0, K_eff_z = 0.0;
            amrex::Real d2scalar_dx2 = 0.0, d2scalar_dy2 = 0.0, d2scalar_dz2 = 0.0;
             
@@ -5855,19 +5855,19 @@ void WindSolverApp::solve_scalar_transport(
            // X-direction
            if (i > bx.smallEnd(0) && i < bx.bigEnd(0)) {
                K_eff_x = diffusivity + K_eddy_cell;
-               d2scalar_dx2 = (adv_arr(i+1, j, k) - 2.0*adv_arr(i, j, k) + adv_arr(i-1, j, k)) / (dx*dx);
+               d2scalar_dx2 = (adv_arr(i+1, j, k) - 2.0*adv_arr(i, j, k) + adv_arr(i-1, j, k)) / (this->dx*this->dx);
            }
             
            // Y-direction
            if (j > bx.smallEnd(1) && j < bx.bigEnd(1)) {
                K_eff_y = diffusivity + K_eddy_cell;
-               d2scalar_dy2 = (adv_arr(i, j+1, k) - 2.0*adv_arr(i, j, k) + adv_arr(i, j-1, k)) / (dy*dy);
+               d2scalar_dy2 = (adv_arr(i, j+1, k) - 2.0*adv_arr(i, j, k) + adv_arr(i, j-1, k)) / (this->dy*this->dy);
            }
             
            // Z-direction
            if (k > bx.smallEnd(2) && k < bx.bigEnd(2)) {
                K_eff_z = diffusivity + K_eddy_cell;
-               d2scalar_dz2 = (adv_arr(i, j, k+1) - 2.0*adv_arr(i, j, k) + adv_arr(i, j, k-1)) / (dz*dz);
+               d2scalar_dz2 = (adv_arr(i, j, k+1) - 2.0*adv_arr(i, j, k) + adv_arr(i, j, k-1)) / (this->dz*this->dz);
            }
             
            // Final update
