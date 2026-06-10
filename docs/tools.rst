@@ -121,3 +121,20 @@ Samples converged 3D solver MultiFabs at discrete wind-turbine coordinates and h
 OpenFAST Standalone Export (``openfast_export.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Standalone serializing driver that packages spatial-temporal velocity fluctuation fields into TurbSim-compliant binary layouts. Handles header specifications, coordinate layouts, and grid metadata.
+
+Visualization & Doc Gallery Generators (``tools/postprocessing/``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A suite of specialized plotting scripts is located under the ``tools/postprocessing/`` subdirectory. These are used to generate the high-resolution publication-quality scenario gallery images in the project documentation and README.
+
+* **Available Scripts**:
+  * ``plot_drone_deposition.py``: Generates the agricultural drone spray terrain & deposition map (``docs/drone_deposition_plot.png``).
+  * ``plot_terrain_following.py``: Vertical slice wind flow over a Gaussian hill (``docs/terrain_following_complex_flow.png``).
+  * ``plot_gorge_bridge.py``: Gorge bridge canyon channeling and wind loading (``docs/gorge_bridge_crossing.png``).
+  * ``plot_urban_street_canyon.py``: Urban street canyon channeling and building wakes (``docs/urban_street_canyon.png``).
+  * ``plot_transmission_line.py``: Transmission tower/line gap-flow wind loading (``docs/transmission_line_loading.png``).
+  * ``plot_turbine_wake.py``: Yawed wind turbine wake deflection (``docs/turbine_wake_deflection.png``).
+  * ``plot_valley_amd_hotspots.py``: Valley AMD geochemical hotspots and O₂ delivery (``docs/valley_amd_hotspots.png``).
+
+* **Usage**:
+  Refer to the ``tools/postprocessing/README.md`` for complete options and run details.
+
