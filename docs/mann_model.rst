@@ -3,7 +3,7 @@
 Mann Box Spectral Tensor Model
 ==============================
 
-**Phase 2: Spectral Tensor Completeness**
+**Anisotropic Turbulence Spectral Tensor Implementation**
 
 This document provides comprehensive reference documentation for the Mann Box anisotropic spectral tensor implementation in the Mass-Consistent AMR Wind Solver.
 

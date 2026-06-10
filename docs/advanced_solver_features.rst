@@ -1,16 +1,16 @@
 .. _advanced_solver_features:
 
-Advanced Solver Features & Phase 3+ Development
-================================================
+Advanced Solver Features & Multi-Physics Integration
+====================================================
 
-**Phase 3+: Full Spectral Tensor Synthesis, Advanced Physics, and Deep Integration**
+**Full Spectral Tensor Synthesis, Advanced Physics, and Deep Integration**
 
-This document outlines the advanced features planned for Phase 3 and beyond, including full spectral tensor synthesis, validation frameworks, and integration with multi-physics applications.
+This document outlines the advanced features including full spectral tensor synthesis, validation frameworks, and integration with multi-physics applications.
 
 Overview
 --------
 
-The Advanced Solver Features layer (Phase 3+) extends the foundation provided by Phase 1 (IEC turbulence models) and Phase 2 (Mann Box spectral tensor) to deliver:
+The Advanced Solver Features layer extends the foundation provided by standard turbulence models (IEC 61400-1) and anisotropic spectral tensors (Mann Box) to deliver:
 
 - **Complete 9-component spectral tensor synthesis** with full cross-component correlations
 - **Eigenvalue decomposition** for physical realizability verification
@@ -22,47 +22,47 @@ The Advanced Solver Features layer (Phase 3+) extends the foundation provided by
 Architecture Overview
 ---------------------
 
-The feature architecture is organized in three layers:
+The feature architecture is organized in layered capabilities:
 
-**Layer 1: Foundation** (Phases 0-1)
+**Foundation Layer**
 - Basic wind profile initialization (log-law, power-law, RAWS stations)
 - Simple spectral models (Von Kármán, IEC 61400-1)
 - Basic turbulence intensity and coherence
 
-**Layer 2: Intermediate Spectral Models** (Phase 2)
+**Intermediate Spectral Models**
 - Mann Box anisotropic spectral tensor
 - Terrain-dependent parameter adaptation
 - Cross-component correlation modeling
 - Python API bindings
 
-**Layer 3: Validation & Optimization** (Phase 3)
+**Validation & Optimization Layer**
 - Performance profiling and throughput analysis
 - Physical correctness validation
 - Parameter sensitivity analysis
 - GPU optimization suggestions
 
-**Layer 4: Advanced Physics** (Phase 4+)
+**Advanced Physics Layer**
 - Non-neutral stability coupling
 - Gravity wave effects
 - Orographic precipitation interaction
 - Coupled surface-atmosphere models
 
-Full Spectral Tensor Synthesis (Phase 3)
+Full Spectral Tensor Synthesis
 ----------------------------------------
 
-Current State (Phase 2)
+Current Implementation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Phase 2 implements streamlined Mann Box with:
+The Mann Box model currently implements:
 - 1D spectral evaluation at individual wavenumber points
 - Terrain-adaptive parameter modification
 - Anisotropy representation through variance ratios
 - Efficient computation for large domains
 
-Phase 3 Enhancement
-~~~~~~~~~~~~~~~~~~~
+Extended Tensor Capabilities
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Phase 3 extends to full 3×3 spectral tensor synthesis:
+Full 3×3 spectral tensor synthesis enables:
 
 **Complete Tensor Formulation**
 
@@ -75,8 +75,8 @@ Phase 3 extends to full 3×3 spectral tensor synthesis:
     \end{pmatrix}
 
 where:
-- Diagonal terms: Component spectra (existing in Phase 2)
-- Off-diagonal terms: Cross-component spectra (new in Phase 3)
+- Diagonal terms: Component spectra (streamwise, lateral, vertical)
+- Off-diagonal terms: Cross-component spectra (correlations)
 
 **Cross-Spectrum Representation**
 
@@ -94,19 +94,23 @@ Off-diagonal terms encode physical correlations:
   - Represents rotational coherent structures
   - Important for tilted vortex modeling
 
-**Phase 3 Implementation Plan**
+**Implementation Strategy**
 
 1. Extend spectral tensor computation to evaluate all 9 components
 2. Implement eigenvalue decomposition for realizability checks
 3. Add cross-spectrum interpolation on 3D wavenumber grids
 4. Enable GPU-accelerated complex FFT (cuFFT, rocFFT, oneAPI)
 
-Time-Lag Correlation Structure (Phase 3)
+Time-Lag Correlation Structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Current: Instantaneous spatial correlation only
+Instantaneous Correlation
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Phase 3 Enhancement: Add temporal correlation structure
+Current implementation models spatial correlation only via coherence functions.
+
+Enhanced Temporal Correlation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. math::
 
@@ -123,12 +127,16 @@ Implementation:
 - Compute time-lagged spectral tensor
 - Synthesize space-time correlated fluctuation fields
 
-Eigenvalue Decomposition & Realizability (Phase 3)
+Eigenvalue Decomposition & Realizability Verification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Current State**: Basic parameter bounds checking
+Current Implementation
+^^^^^^^^^^^^^^^^^^^^^
 
-**Phase 3 Enhancement**: Full eigenvalue-based validation
+The model currently enforces basic parameter bounds checking.
+
+Enhanced Eigenvalue-Based Validation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The spectral tensor must satisfy:
 
@@ -151,14 +159,18 @@ where λ_i are eigenvalues of S at each (k_x, k_y, k_z) point.
 - **Spectral damping**: Reduce anisotropy parameter
 - **Parameter adjustment**: Modify variance ratios
 
-GPU-Accelerated FFT Synthesis (Phase 3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GPU-Accelerated FFT Synthesis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Current State**: Sequential spectral evaluation on CPU
+CPU-Based Spectral Evaluation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Phase 3 Enhancement**: Batch FFT on GPU
+Current implementation evaluates spectral components sequentially on CPU.
 
-**Architecture**:
+Batch FFT on GPU Architecture
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Implementation Strategy**:
 
 1. **GPU Memory Setup**:
    - Allocate device arrays for spectral tensor (9 × N_k grids)
@@ -185,7 +197,7 @@ GPU-Accelerated FFT Synthesis (Phase 3)
 - Reduces CPU-GPU transfer overhead
 - Enables real-time interactive simulations
 
-Non-Neutral Stability Coupling (Phase 4)
+Non-Neutral Stability Coupling
 ---------------------------------------
 
 Current Implementation
@@ -195,8 +207,8 @@ Current Implementation
 - Optional Businger-Dyer stability correction
 - Basic Richardson number diagnostics
 
-Phase 4 Enhancement: Full Stability Integration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enhanced Stability Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Monin-Obukhov Length Feedback**
 
@@ -248,7 +260,7 @@ Implementation Plan:
 3. Modify spectral parameters based on stability index
 4. Update integral length scales and variance ratios dynamically
 
-Advanced Physics: Gravity Waves (Phase 4+)
+Advanced Physics: Gravity Wave Modeling
 ------------------------------------------
 
 Gravity Wave Representation
@@ -262,7 +274,7 @@ In stable atmosphere over mountains, gravity waves become significant:
 
 where N is the Brunt-Väisälä frequency.
 
-**Phase 4+ Implementation**:
+**Implementation Strategy**:
 
 1. Compute buoyancy frequency from temperature profile
 2. Add gravity wave dispersion relation to spectral tensor
@@ -273,7 +285,7 @@ Example Buoyancy-Wave Coupling:
 - Vertical coherence across deep layers
 - Phase tilt with height (leaning away from vertical wind)
 
-Orographic Precipitation-Flow Interaction (Phase 4+)
+Orographic Precipitation-Flow Interaction
 ---------------------------------------------------
 
 Precipitation Feedback Mechanism
@@ -286,7 +298,7 @@ Orographic precipitation modifies atmospheric stability:
 3. **Flow Acceleration**: Less stable atmosphere allows stronger flow
 4. **Feedback**: Faster flow → more evaporation → more instability
 
-**Phase 4+ Features**:
+**Implementation Features**:
 
 - Read precipitation fields from meteorological model or observations
 - Compute heating rate from phase change: Q = L_v × condensation_rate
@@ -294,7 +306,7 @@ Orographic precipitation modifies atmospheric stability:
 - Update stability-dependent spectral parameters
 - Re-solve wind field with modified stability
 
-Coupled Surface-Atmosphere Models (Phase 4+)
+Coupled Surface-Atmosphere Modeling
 ---------------------------------------------
 
 Integration with Fire Spread Models
@@ -438,7 +450,7 @@ Output Analysis:
 Testing & Regression Suite
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Phase 3 Test Coverage**:
+**Test Coverage**:
 
 - Full tensor realizability: Eigenvalue computation
 - FFT synthesis accuracy: Compare GPU vs CPU results
@@ -452,49 +464,59 @@ Testing & Regression Suite
 - Performance benchmarks track regressions
 - Validation reports generated for each build
 
-Development Roadmap
+Feature Development Status
 -------------------
 
-**Phase 3 (Current Focus)**
-- ✓ Implement Phase 2 Mann Box foundation
-- In Progress: Full spectral tensor synthesis
-- In Progress: Eigenvalue decomposition
-- In Progress: GPU FFT acceleration
-- In Progress: Validation framework
+**Foundation Layer (Stable, Production-Ready)**
 
-**Phase 4 (Next)**
-- Non-neutral stability coupling
-- Gravity wave representation
-- Orographic precipitation effects
-- Advanced validation suite
+- Von Kármán spectral synthesis (isotropic, IEC 61400-1 compliant)
+- Basic wind profile initialization (log-law, power-law)
+- Terrain-aware initialization with IDW interpolation
+- Standard turbulence intensity classification
 
-**Phase 5+ (Future)**
+**Intermediate Spectral Models (Stable, Validated)**
+
+- Mann Box anisotropic spectral tensor
+- Terrain-dependent parameter adaptation
+- Cross-component correlation support
+- Python API bindings for interactive analysis
+
+**Validation & Optimization Layer (In Development)**
+
+- Performance profiling and throughput analysis
+- Physical correctness validation framework
+- Parameter sensitivity analysis suite
+- GPU optimization suggestions
+
+**Advanced Physics Layer (Future Development)**
+
+- Non-neutral atmospheric stratification coupling via Monin-Obukhov length
+- Gravity wave representation in stable atmosphere
+- Orographic precipitation feedback mechanisms
 - Coupled surface-atmosphere integration
-- Real-time fire-wind modeling
-- Reactive chemistry integration
-- Extreme event scenario generation
 
 Documentation & References
 --------------------------
 
 **Key Documentation Files**:
 
-- ``docs/mann_model.rst`` — Phase 2 spectral tensor details
-- ``docs/iec61400_synthesis.rst`` — Phase 1 turbulence models
-- ``docs/validation_optimization.rst`` — Validation framework
-- ``docs/code_structure.rst`` — Implementation architecture
+- ``docs/mann_model.rst`` — Anisotropic spectral tensor technical reference
+- ``docs/iec61400_synthesis.rst`` — Standard-compliant turbulence synthesis
+- ``docs/validation_optimization.rst`` — Validation framework and methodology
+- ``docs/code_structure.rst`` — Implementation architecture and design
+- ``docs/advanced_solver_features.rst`` — Advanced features and roadmap (this document)
 
 **Test Suites**:
 
-- ``tests_and_examples/mann_box/`` — Phase 2-7 test cases
-- ``regtest/turbulence/`` — Regression test suite
-- ``regtest/wakes/`` — Wake model validation
+- ``tests_and_examples/mann_box/`` — Comprehensive spectral tensor tests
+- ``regtest/turbulence/`` — Regression test suite for all turbulence models
+- ``regtest/wakes/`` — Wake model integration and validation
 
 **Python Modules**:
 
 - ``src/python/mann_box.py`` — Mann Box Python bindings
 - ``src/python/validation.py`` — Validation framework
-- ``tools/parameter_sensitivity.py`` — Sensitivity analysis tool
+- ``tools/parameter_sensitivity.py`` — Parameter sensitivity analysis tool
 
 **References**:
 
@@ -509,15 +531,15 @@ Getting Involved
 
 **For Contributors**:
 
-1. Review Phase 2 documentation (``docs/mann_model.rst``)
-2. Study existing Phase 3 tests (``tests_and_examples/mann_box/mann_box_phase3_test.py``)
+1. Review technical documentation (``docs/mann_model.rst``, ``docs/iec61400_synthesis.rst``)
+2. Study test suites (``tests_and_examples/mann_box/``, ``regtest/``)
 3. Check open issues on GitHub
-4. Start with Phase 3 features (full tensor, eigenvalue decomposition)
+4. Start with advanced physics features (full tensor, eigenvalue decomposition, stability coupling)
 
 **For Users**:
 
-1. Use Phase 1-2 features in production (stable, validated)
-2. Experiment with Phase 3 features (in development, subject to change)
+1. Use foundation and intermediate layers in production (stable, well-validated)
+2. Experiment with advanced physics features in development (subject to refinement)
 3. Provide feedback on API usability and performance
 4. Report bugs and suggest improvements
 

@@ -3,7 +3,7 @@
 IEC 61400-1 Spectral Synthesis & Turbulence Models
 ===================================================
 
-**Phase 1: Turbulence Synthesis Foundation**
+**Standard-Compliant Wind Energy Turbulence Synthesis**
 
 This document provides comprehensive reference documentation for the IEC 61400-1 turbulence models and spectral synthesis methods implemented in the Mass-Consistent AMR Wind Solver.
 
