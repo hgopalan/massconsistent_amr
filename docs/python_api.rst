@@ -164,31 +164,104 @@ FLORIS Coupling and Export
 
 The ``floris_coupling`` module provides tools to interpolate and export mass-consistent wind fields into formats compatible with NREL's FLORIS (Wind Farm Simulation Software). No FLORIS installation is required for data generation or export.
 
-Basic Usage
-~~~~~~~~~~~
+Two Integration Modes
+~~~~~~~~~~~~~~~~~~~~~
 
-To extract and export wind velocities at multiple turbine hub heights in CSV or JSON format, or query wind conditions programmatically:
+FLORIS can be integrated with the mass-consistent wind solver in two distinct ways:
+
+1. **Stand-alone Mode (Offline Data Ingestion)**: Run the mass-consistent wind solver beforehand, interpolate the wind field at turbine hub heights, and export it to a standardized CSV or JSON file. The exported file is then ingested by FLORIS offline using its static data loaders (such as the `TimeSeriesInterface`), without requiring `massconsistent_amr` to run concurrently during wind farm wake optimization.
+2. **Directly Coupled Mode (Memory-Resident via Python API)**: Run the wind solver programmatically inside a unified Python optimization loop using `pywindsolver`. Wind speed and direction profiles are extracted dynamically and passed directly in-memory into FLORIS's `FlorisInterface`, enabling real-time, closed-loop wind farm yaw control and layout optimization.
+
+Mode 1: Stand-alone Mode (Offline Data Ingestion)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In this mode, you generate the wind data from `massconsistent_amr` and write it to disk. No FLORIS installation is required to generate or export this data.
+
+**Step 1: Export wind speeds using the solver**
 
 .. code-block:: python
 
     from wind_solver import WindSolver
     from floris_coupling import FLORISWindMap, quick_export
 
+    # Initialize and solve the terrain-following wind field
     wind = WindSolver("inputs.i")
     wind.solve()
 
-    # 1. Create a FLORIS-compatible Wind Map object
+    # Create a FLORIS-compatible Wind Map and define turbine layouts
+    wind_map = FLORISWindMap(wind)
+    turbines = [(100.0, 200.0), (300.0, 400.0), (500.0, 400.0)]
+
+    # Export wind velocities at turbine hub-height (e.g., 90m) to CSV
+    wind_map.export_to_csv(turbines, hub_height=90.0, output_file="floris_wind_data.csv")
+    wind.finalize()
+
+**Step 2: Ingest the exported CSV inside your FLORIS script**
+
+Inside your independent FLORIS script, load the exported CSV to configure the local environmental conditions for your simulation:
+
+.. code-block:: python
+
+    import pandas as pd
+    from floris.tools import FlorisInterface
+
+    # Load the mass-consistent wind data exported earlier
+    df = pd.read_csv("floris_wind_data.csv")
+
+    # Initialize FLORIS with your wind farm configuration
+    fi = FlorisInterface("gch.yaml")
+
+    # Assign mass-consistent wind speeds and directions to FLORIS
+    fi.reinitialize(
+        wind_speeds=df["speed_ms"].values,
+        wind_directions=df["direction_deg"].values,
+    )
+
+    # Run the wake model and calculate AEP
+    fi.calculate_wake()
+    power = fi.get_turbine_powers()
+
+Mode 2: Directly Coupled Mode (Memory-Resident via Python API)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This mode integrates the mass-consistent wind solver (`pywindsolver` via the `wind_solver` Python wrapper) directly with FLORIS's active `FlorisInterface` in-memory. This is ideal for active flow control, yaw optimization sweeps, and dynamic site-specific modeling.
+
+.. code-block:: python
+
+    from wind_solver import WindSolver
+    from floris_coupling import FLORISWindMap
+    from floris.tools import FlorisInterface
+    import numpy as np
+
+    # 1. Initialize and run the mass-consistent wind solver
+    wind = WindSolver("inputs.i")
+    wind.solve()
     wind_map = FLORISWindMap(wind)
 
-    # 2. Define turbine coordinates (x, y)
-    turbines = [(100.0, 200.0), (300.0, 400.0)]
+    # 2. Instantiate the FLORIS Interface
+    fi = FlorisInterface("gch.yaml")
+    
+    # Extract coordinates of turbines defined in FLORIS
+    layout_x, layout_y = fi.layout_x, fi.layout_y
+    turbines = list(zip(layout_x, layout_y))
 
-    # 3. Export wind at hub height to CSV
-    wind_map.export_to_csv(turbines, hub_height=90.0, output_file="wind_data.csv")
+    # 3. Retrieve local, terrain-steering wind conditions dynamically in-memory
+    winds = wind_map.get_wind_at_turbines(turbines, hub_height=90.0)
+    
+    speeds = np.array([w['speed'] for w in winds])
+    directions = np.array([w['direction'] for w in winds])
 
-    # 4. Alternatively, use the quick export convenience function
-    quick_export(wind, turbines, hub_height=90.0, output_file="floris_wind.csv")
+    # 4. Programmatically pass the terrain-resolved wind profiles into FLORIS in-memory
+    fi.reinitialize(
+        wind_speeds=speeds,
+        wind_directions=directions,
+    )
 
+    # 5. Compute wake interactions and turbine performance
+    fi.calculate_wake()
+    power_outputs = fi.get_turbine_powers()
+
+    # Clean up C++ solver resources
     wind.finalize()
 
 FLORISWindMap Class Reference

@@ -1,6 +1,10 @@
 # massconsistent_amr
 
-An AMReX-based C++ mass-consistent 3-D wind diagnostic solver providing terrain-following wind field adjustment with GPU-ready kernels (CUDA/HIP/SYCL), building wake parameterization (including advanced cavity trapping and plume deformation under wind shear), canopy effects, and optional MPI parallelism.
+An AMReX-based high-performance C++ mass-consistent 3-D wind diagnostic solver providing advanced terrain-following wind field adjustment, powered by GPU-accelerated kernels (CUDA/HIP/SYCL/oneAPI via AMReX) and optional MPI multi-node parallelism. It integrates cell-local spatially-varying variational anisotropy, extensive physical parameterizations (stable/unstable Monin-Obukhov profiles, orographic speed-up, katabatic/anabatic slope flows, sea breeze, and valley channeling), extensive wake/canopy modeling (Röckle, Huber-Snyder, and AERMOD PRIME building wakes, forest canopy drag, and structure porosity), analytical wind turbine wake models (Jensen, Bastankhah, TurbOPark, Gauss-Curl Hybrid), and advanced dispersion engines (Gaussian Puff with dry/wet deposition, capping lid, and chemical decay, and Lagrangian Particle LPDM with vertical drift correction). Additionally, it features a rich Python API with integration for FLORIS, PyWake, wildfire levelset, agricultural drone spraying operations (with flight trajectory parsing, nozzle emission scaling, rotor downwash, and canopy deposition mapping), and PHREEQC-coupled reactive geochemical transport (acid mine drainage valley hotspots, dust suppression, sulfide oxidation kinetics).
+
+<p align="center">
+  <img src="docs/drone_deposition_plot.png" alt="Agricultural Drone Deposition & Drift" width="85%" />
+</p>
 
 ## CI / Build Status
 
@@ -123,9 +127,54 @@ The repository includes a comprehensive, production-grade suite for modeling agr
 
 The image below illustrates a realistic farm case simulation under a crosswind, showcasing the target swath and off-target spray drift:
 
-![Agricultural Drone Deposition & Drift](docs/drone_deposition_plot.png)
+<p align="center">
+  <img src="docs/drone_deposition_plot.png" alt="Agricultural Drone Deposition & Drift" width="85%" />
+</p>
 
 For a detailed step-by-step walkthrough of the simulator architecture, execution process, parameters, and analysis commands, please refer to the [Step-by-Step Walkthrough Tutorials](https://hgopalan.github.io/massconsistent_amr/usage.html#step-by-step-walkthrough-tutorials).
+
+## Scenario Gallery
+
+The solver supports generating and simulating diverse engineering, physical, and environmental wind-modeling scenarios. Below is a gallery of the 6 core scenarios you can configure, run, and visualize using the repository:
+
+<table width="100%">
+  <tr>
+    <td width="50%" valign="top">
+      <h4>1. Complex Terrain-Following Coordinate Flow</h4>
+      <p>Deformation of incoming log-law velocity profile over a Gaussian hill, showing streamline compression (orographic speed-up) and coordinate transformation.</p>
+      <img src="docs/terrain_following_complex_flow.png" alt="Complex Terrain-Following Flow" width="100%"/>
+    </td>
+    <td width="50%" valign="top">
+      <h4>2. Gorge Bridge Crossing Wind Loading</h4>
+      <p>Bridges crossing deep gorges experience extreme funneling speedup, vertical wind shear, and vortex-induced cable resonance.</p>
+      <img src="docs/gorge_bridge_crossing.png" alt="Gorge Bridge Crossing" width="100%"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>3. Urban Street Canyon & Building Wakes</h4>
+      <p>Building-induced wake parameterizations (Röckle, Huber-Snyder, AERMOD PRIME) resolving leeward cavities and street canyon vortices.</p>
+      <img src="docs/urban_street_canyon.png" alt="Urban Street Canyon" width="100%"/>
+    </td>
+    <td width="50%" valign="top">
+      <h4>4. Transmission Tower & Line Wind Loading</h4>
+      <p>Structural wind loading, catenary line tension, and sway displacement calculated dynamically across complex ridges.</p>
+      <img src="docs/transmission_line_loading.png" alt="Transmission Line Loading" width="100%"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>5. Yawed Wind Turbine Wake Deflection</h4>
+      <p>Analytical wake deficit and lateral center-line deflection under yawed operation (Bastankhah model) to optimize array performance.</p>
+      <img src="docs/turbine_wake_deflection.png" alt="Turbine Wake Deflection" width="100%"/>
+    </td>
+    <td width="50%" valign="top">
+      <h4>6. Geochemical Hotspot & O₂ Delivery Detection</h4>
+      <p>Valley AMD (Acid Mine Drainage) discharge point risk-classification based on wind-speed-dependent Sherwood mass transfer correlations.</p>
+      <img src="docs/valley_amd_hotspots.png" alt="Valley AMD Hotspots" width="100%"/>
+    </td>
+  </tr>
+</table>
 
 ## Synthetic Turbulence
 
