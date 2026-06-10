@@ -20,6 +20,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    tools
    regtests
    validation_optimization
+   external_coupling
    references
 
 Overview

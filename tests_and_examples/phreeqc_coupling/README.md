@@ -7,7 +7,7 @@
 All examples can be run independently with synthetic data:
 
 ```bash
-cd examples/phreeqc_coupling
+cd tests_and_examples/phreeqc_coupling
 
 # Example 1: Wind velocity boundary conditions
 python3 01_wind_field_bc.py

@@ -268,7 +268,7 @@ python phreeqc_coupling/example_amd_coupling.py
 - **VALIDATION_AMD_HOTSPOTS.md** – Field validation for AMD detection
 - **VALIDATION_SULFIDE_OXIDATION.md** – Field validation for oxidation kinetics
 
-**Example Scripts** (in `/examples/phreeqc_coupling/`):
+**Example Scripts** (in `/tests_and_examples/phreeqc_coupling/`):
 - **01_wind_field_bc.py** – Wind velocity boundary conditions
 - **02_temperature_profile_bc.py** – Temperature-dependent kinetics
 - **03_precipitation_recharge.py** – Infiltration-driven transport

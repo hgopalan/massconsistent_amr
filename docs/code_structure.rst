@@ -13,7 +13,7 @@ The repository is organized into five main functional directories:
 * **``src/``**: Core C++ mass-consistent solver implementation, physical parameterization libraries, and AMReX GPU kernels.
 * **``src/python/``**: pyBind11 C++ bindings and the ``pyWindSolver`` wrapper providing NumPy-compatible zero-copy state extraction.
 * **``tools/``**: Standalone Python scripts for terrain processing (SRTM), weather data, and FLORIS/VTK conversion.
-* **``test/``**: Progression test cases and validation scripts for synthetic or alpine SRTM terrains.
+* **``tests_and_examples/``**: Merged test cases, validation scripts, and example scripts for synthetic or alpine SRTM terrains and external couplings.
 * **``regtest/``**: Automated regression suite verifying stability corrections, wakes, and puff dispersion.
 
 Core C++ Source File Reference

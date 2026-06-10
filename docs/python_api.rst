@@ -227,4 +227,4 @@ To verify your installation, run the test suites:
 .. code-block:: bash
 
     python3 src/python/test_wind_solver_api.py
-    python3 test/test_gaussian_hill_mann_box.py
+    python3 tests_and_examples/mann_box/test_gaussian_hill_mann_box.py

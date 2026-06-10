@@ -345,7 +345,7 @@ Complete documentation and examples for critical mineral studies and AMD analysi
 **Installation:**
 ```bash
 pip install netcdf4 h5py
-python3 examples/phreeqc_coupling/01_wind_field_bc.py
+python3 tests_and_examples/phreeqc_coupling/01_wind_field_bc.py
 ```
 
 ---
