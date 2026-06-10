@@ -24,10 +24,12 @@ venv/
 inputs.i
 !regtest/**/inputs.i
 !test/**/inputs.i
+!tests_and_examples/**/inputs.i
 terrain.xyz
 terrain.csv
 !regtest/**/terrain.csv
 !test/**/terrain.csv
+!tests_and_examples/**/terrain.csv
 
 # Ignore test and simulation output concentration step files
 *.csv_step*
