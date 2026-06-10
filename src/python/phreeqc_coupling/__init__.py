@@ -9,17 +9,29 @@ Key Components:
   - phreeqc_utils: PHREEQC input generation and validation
   - reactive_transport_coupling: High-level orchestration workflow
   - netcdf_io: Data I/O (NetCDF4 and ASCII formats)
+  - amd_hotspot_detector: Terrain-aware AMD hotspot identification
+  - sulfide_oxidation: Wind-dependent sulfide oxidation rate computation
 
 Usage:
   from phreeqc_coupling import ReactiveTransportCoupling, FieldExtractor
+  from phreeqc_coupling.amd_hotspot_detector import identify_valley_amd_hotspots
+  from phreeqc_coupling.sulfide_oxidation import compute_sulfide_oxidation_rates
   
   coupling = ReactiveTransportCoupling(wind_solver)
   hotspots = coupling.compute_amd_hotspot_map()
+  
+  # Identify AMD hotspots
+  amd_results = identify_valley_amd_hotspots(wind, 'amd_locations.csv', 'output/')
+  
+  # Compute sulfide oxidation rates
+  ox_results = compute_sulfide_oxidation_rates(wind, 'sulfide_locations.csv', 'output/')
 
 References:
   - Parkhurst & Appelo (2013): PHREEQC (Version 3)
   - Businger et al. (1971): Flux-profile relationships in the atmospheric surface layer
+  - Nicholson et al. (1990): Pyrite oxidation in carbonate-buffered systems
   - Stull (2011): An Introduction to Boundary Layer Meteorology
+  - Sherwood (1954): Mass transfer between phases
 
 Scientific foundation and architecture described in PHREEQC_COUPLING_GUIDE.md
 """
@@ -56,8 +68,35 @@ except ImportError as e:
     __all_io__ = []
     _import_error_io = str(e)
 
+try:
+    from .amd_hotspot_detector import (
+        AMDHotspotDetector, AMDLocation, HotspotRiskInfo,
+        identify_valley_amd_hotspots
+    )
+    __all_amd__ = [
+        "AMDHotspotDetector", "AMDLocation", "HotspotRiskInfo",
+        "identify_valley_amd_hotspots"
+    ]
+except ImportError as e:
+    __all_amd__ = []
+    _import_error_amd = str(e)
+
+try:
+    from .sulfide_oxidation import (
+        SulfideOxidationComputer, SulfideLocation, OxidationRateInfo,
+        SulfideMineralType, compute_sulfide_oxidation_rates
+    )
+    __all_sulfide__ = [
+        "SulfideOxidationComputer", "SulfideLocation", "OxidationRateInfo",
+        "SulfideMineralType", "compute_sulfide_oxidation_rates"
+    ]
+except ImportError as e:
+    __all_sulfide__ = []
+    _import_error_sulfide = str(e)
+
 # Aggregate all successfully imported classes
-__all__ = __all_core__ + __all_phreeqc__ + __all_orchestrator__ + __all_io__
+__all__ = (__all_core__ + __all_phreeqc__ + __all_orchestrator__ + __all_io__ +
+           __all_amd__ + __all_sulfide__)
 
 # Provide helpful error messaging if critical imports fail
 if not __all__:
