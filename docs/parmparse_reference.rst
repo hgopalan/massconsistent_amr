@@ -179,7 +179,7 @@ Terrain & Elevation Modeling
 - ``terrain_format`` (String): File format (GeoTIFF, ASCII, NetCDF, etc.)
 - ``terrain_scaling_factor`` (Real): Elevation multiplier
 - ``terrain_height_reference`` (String): Vertical datum reference
-- ``apply_terrain_following_grid`` (Bool): Use terrainfollowing mesh
+- ``apply_terrain_following_grid`` (Bool): Use terrain-following mesh
 
 **Terrain Processing**
 
@@ -660,14 +660,14 @@ Miscellaneous Parameters
 
 - ``charnock_alpha`` (Real): Charnock coefficient (typically 0.014-0.018)
 - ``cavity_recirculation_strength`` (Real): Urban canyon recirculation
-- ``aermod_prime_cavity_factor`` (Real): AERMOD cavityparameter
+- ``aermod_prime_cavity_factor`` (Real): AERMOD cavity factor
 
 **Advanced Options**
 
 - ``alpha_coefficients_file`` (String): Custom alpha coefficient file
 - ``enable_heterogeneous_roughness`` (Bool): Spatial roughness variation
 - ``apply_topographic_blocking`` (Bool): Blocking from steep slopes
-- ``apply_terrain_flowing_grid`` (Bool): Terrain-following coordinates
+- ``apply_terrain_following_grid`` (Bool): Terrain-following grid coordinates
 
 Example Input File
 -------------------
