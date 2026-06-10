@@ -159,6 +159,53 @@ To export to a custom PyWake ``Site`` subclass or save as standard WAsP GRD file
 
     wind.finalize()
 
+FLORIS Coupling and Export
+--------------------------
+
+The ``floris_coupling`` module provides tools to interpolate and export mass-consistent wind fields into formats compatible with NREL's FLORIS (Wind Farm Simulation Software). No FLORIS installation is required for data generation or export.
+
+Basic Usage
+~~~~~~~~~~~
+
+To extract and export wind velocities at multiple turbine hub heights in CSV or JSON format, or query wind conditions programmatically:
+
+.. code-block:: python
+
+    from wind_solver import WindSolver
+    from floris_coupling import FLORISWindMap, quick_export
+
+    wind = WindSolver("inputs.i")
+    wind.solve()
+
+    # 1. Create a FLORIS-compatible Wind Map object
+    wind_map = FLORISWindMap(wind)
+
+    # 2. Define turbine coordinates (x, y)
+    turbines = [(100.0, 200.0), (300.0, 400.0)]
+
+    # 3. Export wind at hub height to CSV
+    wind_map.export_to_csv(turbines, hub_height=90.0, output_file="wind_data.csv")
+
+    # 4. Alternatively, use the quick export convenience function
+    quick_export(wind, turbines, hub_height=90.0, output_file="floris_wind.csv")
+
+    wind.finalize()
+
+FLORISWindMap Class Reference
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Constructor**:
+* ``__init__(wind_solver)``: Initializes the FLORISWindMap with an active and solved ``WindSolver`` instance.
+
+**Methods**:
+* ``get_wind_at_point(x, y, z)``: Tri-linearly interpolates the 3D wind velocity vector to a specific location, returning a dictionary containing velocity components (``'u', 'v'``), wind speed (``'speed'``), and meteorological wind direction (``'direction'``).
+* ``get_wind_at_turbine(turbine_x, turbine_y, hub_height)``: Extracts terrain-aware wind properties at a turbine's hub height AGL.
+* ``get_wind_at_turbines(turbine_locations, hub_height)``: Performs batch interpolation for a list of turbine positions.
+* ``export_to_csv(turbine_locations, hub_height, output_file, reference_speed=None)``: Writes interpolated turbine wind properties to a CSV file. If ``reference_speed`` is specified, includes the speed-up ratio.
+* ``export_to_json(turbine_locations, hub_height, output_file, reference_speed=None)``: Writes a structured JSON file containing solver metadata, extraction settings, and per-turbine wind velocity/elevation profiles.
+* ``export_to_dict(turbine_locations, hub_height, reference_speed=None)``: Returns a nested Python dictionary containing the interpolated wind map metadata and turbine-by-turbine states.
+* ``get_speed_map_2d(height)``: Extracts a full 2D grid of terrain-aligned wind speeds at a specified height above ground level (AGL). Returns a tuple of ``(speed_map, x_coords, y_coords)``.
+
 AEP Production Calculation (AEPCalculator)
 ------------------------------------------
 
