@@ -140,8 +140,8 @@ The PHREEQC reactive transport coupling module includes comprehensive documentat
 - **[Troubleshooting Guide](docs/phreeqc_coupling/troubleshooting.md)** — Common issues, diagnostic procedures, and resolution steps
 
 ### Examples
-- **[11 Example Scripts](examples/phreeqc_coupling/)** — Standalone demonstrations of each capability with synthetic data
-- **[Example README](examples/phreeqc_coupling/README.md)** — Quick reference for running examples
+- **[11 Example Scripts](tests_and_examples/phreeqc_coupling/)** — Standalone demonstrations of each capability with synthetic data
+- **[Example README](tests_and_examples/phreeqc_coupling/README.md)** — Quick reference for running examples
 
 ### Technical References
 - **[PHREEQC Coupling Guide](src/python/phreeqc_coupling/PHREEQC_COUPLING_GUIDE.md)** — Technical architecture and physics
@@ -151,7 +151,7 @@ The PHREEQC reactive transport coupling module includes comprehensive documentat
 
 ### Quick Start
 ```bash
-cd examples/phreeqc_coupling
+cd tests_and_examples/phreeqc_coupling
 
 # Run an example (no PHREEQC or full wind solver needed)
 python3 01_wind_field_bc.py

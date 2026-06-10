@@ -851,7 +851,7 @@ This walkthrough demonstrates configuring a baseline mass-consistent wind solve 
     extract_agl  = 30.0                 # Extract wind velocity at 30m AGL
     extract_file = wind_extract.csv
 
-Run this baseline scenario located at ``test/test_case1_gaussian_hill/``::
+Run this baseline scenario located at ``tests_and_examples/case1_gaussian_hill/``::
 
     python3 test_case1.py
 
