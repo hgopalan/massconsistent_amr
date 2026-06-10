@@ -255,12 +255,34 @@ python phreeqc_coupling/example_amd_coupling.py
 
 ## Documentation
 
-- **PHREEQC_COUPLING_GUIDE.md** – Technical reference with architecture, physics, boundary conditions, and examples
-- **Example Scripts:**
-  - `example_amd_coupling.py` – End-to-end wind-PHREEQC coupling workflow
-  - `02_valley_amd_hotspots.py` – AMD hotspot identification and risk classification
-  - `03_sulfide_oxidation.py` – Wind-dependent sulfide oxidation rate computation
-- **Module Docstrings** – Complete API documentation with parameter descriptions
+**Comprehensive Guides** (in `/docs/phreeqc_coupling/`):
+- **user_guide.md** – Step-by-step usage for each of the 11 capabilities
+- **api_reference.md** – Complete function signatures, parameters, and examples
+- **case_studies.md** – 6 worked examples with validation results and performance benchmarks
+- **deployment_guide.md** – Real-time system setup (15-min cycle, systemd service, Docker)
+- **troubleshooting.md** – Common issues, diagnostics, and resolution steps
+
+**Technical References**:
+- **PHREEQC_COUPLING_GUIDE.md** – Architecture, physics, boundary conditions
+- **IMPLEMENTATION_SUMMARY.md** – Detailed technical specifications
+- **VALIDATION_AMD_HOTSPOTS.md** – Field validation for AMD detection
+- **VALIDATION_SULFIDE_OXIDATION.md** – Field validation for oxidation kinetics
+
+**Example Scripts** (in `/examples/phreeqc_coupling/`):
+- **01_wind_field_bc.py** – Wind velocity boundary conditions
+- **02_temperature_profile_bc.py** – Temperature-dependent kinetics
+- **03_precipitation_recharge.py** – Infiltration-driven transport
+- **04_kv_dispersivity.py** – Vertical diffusivity and dispersivity
+- **05_stability_classification.py** – Atmospheric stability effects
+- **06_valley_amd_hotspots.py** – AMD hotspot detection workflow
+- **07_sulfide_oxidation.py** – Sulfide oxidation rate computation
+- **08_spatial_temperature_cache.py** – Scenario library caching for fast lookups
+- **09_dust_suppression.py** – Wind-dependent dust settling effects
+- **10_leaching_efficiency_sherwood.py** – Leaching efficiency via Sherwood correlation
+- **11_end_to_end_facility.py** – Complete facility workflow integration
+
+**API Documentation**:
+- Module docstrings – Complete API documentation with parameter descriptions
 
 ## Design Philosophy
 
