@@ -27,6 +27,7 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    advanced_solver_features
    external_coupling
    phreeqc_coupling
+   parmparse_reference
    references
 
 Overview
