@@ -8,13 +8,17 @@ This section describes the frameworks and interfaces for coupling the Mass-Consi
 PHREEQC Reactive Transport Coupling
 ------------------------------------
 
-**Overview**
+Overview
+^^^^^^^^
 
 The PHREEQC coupling framework enables wind-driven geochemical simulations for critical mineral studies, acid mine drainage (AMD) analysis, and contaminant transport prediction. This section provides practical, step-by-step instructions for using each capability of the PHREEQC reactive transport coupling framework.
 
 **Location:** ``tests_and_examples/phreeqc_coupling/``
 
-**Documentation Files:**
+Documentation
+^^^^^^^^^^^^^
+
+User guides and API references are available in ``docs/phreeqc_coupling/``:
 
 - **User Guide** (`docs/phreeqc_coupling/user_guide.md`) — Practical workflows for 11 core capabilities
 - **API Reference** (`docs/phreeqc_coupling/api_reference.md`) — 40+ functions and classes with signatures
@@ -22,7 +26,8 @@ The PHREEQC coupling framework enables wind-driven geochemical simulations for c
 - **Deployment Guide** (`docs/phreeqc_coupling/deployment_guide.md`) — Production deployment strategies
 - **Troubleshooting** (`docs/phreeqc_coupling/troubleshooting.md`) — 30+ common issues and solutions
 
-**Example Scripts**
+Example Scripts
+^^^^^^^^^^^^^^^
 
 The ``tests_and_examples/phreeqc_coupling/`` directory contains 11 standalone example scripts demonstrating each capability:
 
@@ -38,51 +43,52 @@ The ``tests_and_examples/phreeqc_coupling/`` directory contains 11 standalone ex
 10. **10_leaching_efficiency_sherwood.py** — Leaching enhancement via Sherwood number
 11. **11_end_to_end_facility.py** — Complete workflow demonstration
 
-**Quick Start**
+Quick Start
+^^^^^^^^^^^
 
-To run the phreeqc coupling examples::
+To run the PHREEQC coupling examples::
 
     cd tests_and_examples/phreeqc_coupling
     python3 01_wind_field_bc.py
     python3 11_end_to_end_facility.py
 
-**Key Capabilities**
+Key Capabilities
+^^^^^^^^^^^^^^^^
 
-Foundation Capabilities:
-    - Wind velocity as boundary condition for subsurface flow
-    - Temperature profile extraction at arbitrary heights
-    - Precipitation and recharge mapping
-    - Vertical permeability and dispersivity estimation
-    - Stability classification (Pasquill-Gifford-Turner)
+- Wind velocity as boundary condition for subsurface flow
+- Temperature profile extraction at arbitrary heights
+- Precipitation and recharge mapping
+- Vertical permeability and dispersivity estimation
+- Stability classification (Pasquill-Gifford-Turner)
+- Acid mine drainage (AMD) hotspot detection
+- Sulfide oxidation kinetics
+- Leaching efficiency enhancement via Sherwood number
+- Fine dust suppression via settling velocity
+- Spatial temperature caching for rapid scenario evaluation
+- Systemd service deployment and Docker containerization
 
-Advanced Geochemical Capabilities:
-    - Acid mine drainage (AMD) hotspot detection
-    - Sulfide oxidation kinetics
-    - Leaching efficiency enhancement via Sherwood number
-    - Fine dust suppression via settling velocity
-
-Optimization & Caching:
-    - Spatial temperature caching for rapid scenario evaluation
-    - Reuse of precomputed wind fields across geochemical simulations
-
-Real-Time Operational Deployment:
-    - Systemd service deployment
-    - Docker containerization
-    - Health checks and monitoring
-    - Automated scenario caching and updates
-
-**Documentation Quality**
-
-- ✅ 83.1 KB of comprehensive documentation (130+ page equivalent)
-- ✅ 11 complete example scripts with runtime validation
-- ✅ All 11 physics references cited correctly
-- ✅ All equations properly formatted with units
-- ✅ 30+ troubleshooting entries for common issues
-
-**Production Readiness**
+Production Readiness
+^^^^^^^^^^^^^^^^^^^^
 
 - **Status:** PRODUCTION-READY
 - **Confidence Level:** HIGH for trend predictions, MODERATE for absolute rates
-- **Deployment Readiness:** ✅ Ready for GitHub Release
+- **Documentation:** 83.1 KB comprehensive documentation with 11 complete examples
 
-For complete documentation, refer to the individual guide files in ``docs/phreeqc_coupling/``.
+Wildfire Levelset Coupling
+---------------------------
+
+Overview
+^^^^^^^^
+
+The `wildfire_levelset <https://github.com/hgopalan/wildfire_levelset>`_ project provides fire spread simulation coupling with the Mass-Consistent AMR Wind Solver. This enables wildfire modeling under terrain-resolved wind fields.
+
+**Repository:** https://github.com/hgopalan/wildfire_levelset
+
+Integration
+^^^^^^^^^^^
+
+Wildfire levelset coupling allows:
+
+- Integration of fire spread models with terrain-following wind fields
+- Coupling of mass-consistent wind simulations with fire dynamics
+- Realistic fire behavior prediction under complex topography
