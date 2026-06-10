@@ -445,6 +445,61 @@ class MovingSourceDispersionModel:
         # Terrain height field [ny, nx]
         self.terrain = np.zeros((self.ny, self.nx))
         
+        # Spatially distributed 2D deposition registers across three compartments
+        self.canopy_top_deposition = np.zeros((self.ny, self.nx))
+        self.lower_foliage_deposition = np.zeros((self.ny, self.nx))
+        self.ground_deposition = np.zeros((self.ny, self.nx))
+        
+        # Mass tracking variables for conservation verification
+        self.total_emitted_mass = 0.0
+        self.out_of_bounds_mass = 0.0
+        self.degraded_mass = 0.0
+
+    def verify_mass_conservation(self, tolerance=1e-5):
+        """
+        Validates the conservation of pesticide mass by ensuring that the sum of dispersed mass
+        (out-of-bounds mass), dynamic airborne mass, canopy-deposited mass, and ground-deposited
+        mass balances with the total nozzle-emitted mass.
+        
+        Returns:
+            bool: True if mass is conserved within the specified tolerance, False otherwise
+            dict: Detailed registers of the mass balance compartments
+        """
+        # Calculate active airborne mass
+        airborne_mass = 0.0
+        if hasattr(self, 'particles'):
+            airborne_mass = float(sum(p['mass'] for p in self.particles if p.get('active', True)))
+        elif hasattr(self, 'puffs'):
+            airborne_mass = float(sum(puff['mass'] for puff in self.puffs if puff.get('active', True)))
+            
+        canopy_deposited = float(self.canopy_top_deposition.sum() + self.lower_foliage_deposition.sum())
+        ground_deposited = float(self.ground_deposition.sum())
+        
+        total_accounted = float(airborne_mass + canopy_deposited + ground_deposited + 
+                                self.out_of_bounds_mass + self.degraded_mass)
+        
+        if self.total_emitted_mass > 0.0:
+            rel_error = abs(total_accounted - self.total_emitted_mass) / self.total_emitted_mass
+            conserved = rel_error <= tolerance
+        else:
+            rel_error = 0.0
+            conserved = True
+            
+        balance = {
+            'total_emitted_mass': self.total_emitted_mass,
+            'airborne_mass': airborne_mass,
+            'canopy_deposited_mass': canopy_deposited,
+            'canopy_top_deposited': float(self.canopy_top_deposition.sum()),
+            'lower_foliage_deposited': float(self.lower_foliage_deposition.sum()),
+            'ground_deposited_mass': ground_deposited,
+            'out_of_bounds_mass': self.out_of_bounds_mass,
+            'degraded_mass': self.degraded_mass,
+            'total_accounted': total_accounted,
+            'relative_error': rel_error,
+            'conserved': conserved
+        }
+        return conserved, balance
+        
     def setup_grid_from_solver(self, wind_solver):
         """Configures computational grid matching the C++ WindSolver domain."""
         self.xmin = wind_solver.xmin
@@ -465,6 +520,14 @@ class MovingSourceDispersionModel:
         self.y_coords = self.ymin + (np.arange(self.ny) + 0.5) * self.dy
         self.z_coords = self.zmin + (np.arange(self.nz) + 0.5) * self.dz
         self.concentration = np.zeros((self.nz, self.ny, self.nx))
+        
+        # Reset 2D deposition registers to new shape
+        self.canopy_top_deposition = np.zeros((self.ny, self.nx))
+        self.lower_foliage_deposition = np.zeros((self.ny, self.nx))
+        self.ground_deposition = np.zeros((self.ny, self.nx))
+        self.total_emitted_mass = 0.0
+        self.out_of_bounds_mass = 0.0
+        self.degraded_mass = 0.0
         
         # Set terrain from wind solver
         if hasattr(wind_solver, 'get_terrain'):
@@ -544,11 +607,22 @@ class DronePuffDispersion(MovingSourceDispersionModel):
                  t_half_chem_ref=3600.0, t_half_photo_ref=1800.0,
                  enable_rotor_downwash=False,
                  drone_mass=15.0, rotor_radius=0.4, air_density=1.2,
-                 alpha_jet=0.15, damp_scale=None, wall_jet_scale=None):
+                 alpha_jet=0.15, damp_scale=None, wall_jet_scale=None,
+                 enable_canopy_interception=False,
+                 canopy_height=2.0, leaf_area_index=3.0, frontal_area_index=1.0):
         """
         Executes the moving-source Gaussian Puff advection-dispersion simulation loop.
         """
         self.puffs = []
+        
+        # Reset 2D deposition registers and mass tracking variables
+        self.canopy_top_deposition.fill(0.0)
+        self.lower_foliage_deposition.fill(0.0)
+        self.ground_deposition.fill(0.0)
+        self.total_emitted_mass = 0.0
+        self.out_of_bounds_mass = 0.0
+        self.degraded_mass = 0.0
+        
         duration = trajectory.get_duration()
         steps = int(np.ceil(duration / dt))
         
@@ -576,6 +650,9 @@ class DronePuffDispersion(MovingSourceDispersionModel):
             )
             
             if emission_rate > 1.e-8:
+                total_step_mass = emission_rate * dt
+                self.total_emitted_mass += total_step_mass
+                
                 # Droplet Size Binning
                 droplet_bins = getattr(regulator, 'droplet_bins', None)
                 if droplet_bins is None:
@@ -594,12 +671,41 @@ class DronePuffDispersion(MovingSourceDispersionModel):
                         'age': 0.0,
                         'diameter': bin_diameter,
                         'initial_diameter': bin_diameter,
-                        'bin_name': bin_name
+                        'bin_name': bin_name,
+                        'active': True
                     }
                     self.puffs.append(new_puff)
                 
             # 2. Advect and grow existing puffs
             for puff in self.puffs:
+                if not puff.get('active', True):
+                    continue
+                    
+                # Identify local horizontal cell index
+                i_cell = int((puff['x'] - self.xmin) / self.dx)
+                j_cell = int((puff['y'] - self.ymin) / self.dy)
+                
+                # Check bounds first
+                if not (0 <= i_cell < self.nx and 0 <= j_cell < self.ny):
+                    self.out_of_bounds_mass += puff['mass']
+                    puff['active'] = False
+                    continue
+                    
+                terrain_h = self.terrain[j_cell, i_cell]
+                z_agl = puff['z'] - terrain_h
+                
+                # Check ground impact
+                if puff['z'] <= terrain_h or puff['z'] <= self.zmin:
+                    self.ground_deposition[j_cell, i_cell] += puff['mass']
+                    puff['active'] = False
+                    continue
+                    
+                # Check upper vertical bound
+                if puff['z'] > self.zmax:
+                    self.out_of_bounds_mass += puff['mass']
+                    puff['active'] = False
+                    continue
+                    
                 # Active fraction of regulator
                 active_frac = getattr(regulator, 'active_fraction', 0.1)
                 
@@ -622,17 +728,54 @@ class DronePuffDispersion(MovingSourceDispersionModel):
                         diameter=puff['diameter'],
                         density=regulator.formulation_density
                     )
+                    
+                # Look up local canopy parameters
+                local_h = canopy_height[j_cell, i_cell] if isinstance(canopy_height, np.ndarray) else canopy_height
+                local_lai = leaf_area_index[j_cell, i_cell] if isinstance(leaf_area_index, np.ndarray) else leaf_area_index
+                local_fai = frontal_area_index[j_cell, i_cell] if isinstance(frontal_area_index, np.ndarray) else frontal_area_index
+                
+                # Apply foliage interception
+                if enable_canopy_interception and local_h > 0.0 and 0.0 <= z_agl < local_h:
+                    d_ref = 100e-6
+                    eta_d = 1.0 - np.exp(-puff['diameter'] / d_ref)
+                    
+                    v_s_calc = compute_settling_velocity(puff['diameter'], regulator.formulation_density)
+                    
+                    u_loc, v_loc, w_loc = self._interpolate_wind_velocity(
+                        puff['x'], puff['y'], puff['z'], u_field, v_field, w_field
+                    )
+                    U_h = np.sqrt(u_loc**2 + v_loc**2)
+                    
+                    k_dep_vert = (v_s_calc / max(0.1, local_h)) * local_lai * eta_d * 0.5
+                    k_dep_horiz = (U_h / max(0.1, local_h)) * local_fai * eta_d * 0.5
+                    k_foliage = k_dep_vert + k_dep_horiz
+                    
+                    intercept_fraction = 1.0 - np.exp(-k_foliage * dt)
+                    delta_m = puff['mass'] * intercept_fraction
+                    
+                    puff['mass'] -= delta_m
+                    
+                    if z_agl >= 0.5 * local_h:
+                        self.canopy_top_deposition[j_cell, i_cell] += delta_m
+                    else:
+                        self.lower_foliage_deposition[j_cell, i_cell] += delta_m
                 
                 # Photolytic & Chemical Degradation
                 if enable_degradation:
+                    old_mass = puff['mass']
                     puff['mass'] = compute_degradation_decay(
-                        mass=puff['mass'],
+                        mass=old_mass,
                         dt=dt,
                         temperature=temperature,
                         solar_radiation=solar_radiation,
                         t_half_chem_ref=t_half_chem_ref,
                         t_half_photo_ref=t_half_photo_ref
                     )
+                    self.degraded_mass += (old_mass - puff['mass'])
+                    
+                if puff['mass'] < 1.0e-12:
+                    puff['active'] = False
+                    continue
                 
                 # Interpolate wind velocity at puff center
                 u, v, w = self._interpolate_wind_velocity(
@@ -663,6 +806,9 @@ class DronePuffDispersion(MovingSourceDispersionModel):
         # Meshgrid output indexing='ij' gives shapes (nx, ny, nz)
         
         for puff in self.puffs:
+            if not puff.get('active', True):
+                continue
+                
             # Puff width and height expansion based on diffusivities
             sigma_y = np.sqrt(sigma_y0**2 + 2.0 * K_h * puff['age'])
             sigma_z = np.sqrt(sigma_z0**2 + 2.0 * K_v * puff['age'])
@@ -704,12 +850,22 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                  t_half_chem_ref=3600.0, t_half_photo_ref=1800.0,
                  enable_rotor_downwash=False,
                  drone_mass=15.0, rotor_radius=0.4, air_density=1.2,
-                 alpha_jet=0.15, damp_scale=None, wall_jet_scale=None):
+                 alpha_jet=0.15, damp_scale=None, wall_jet_scale=None,
+                 enable_canopy_interception=False,
+                 canopy_height=2.0, leaf_area_index=3.0, frontal_area_index=1.0):
         """
         Executes LPDM simulation loop along the drone trajectory.
         """
         self.particles = []
         np.random.seed(random_seed)
+        
+        # Reset 2D deposition registers and mass tracking variables
+        self.canopy_top_deposition.fill(0.0)
+        self.lower_foliage_deposition.fill(0.0)
+        self.ground_deposition.fill(0.0)
+        self.total_emitted_mass = 0.0
+        self.out_of_bounds_mass = 0.0
+        self.degraded_mass = 0.0
         
         duration = trajectory.get_duration()
         steps = int(np.ceil(duration / dt))
@@ -743,6 +899,7 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
             
             if emission_rate > 1.e-8 and particles_per_step > 0:
                 total_step_mass = emission_rate * dt
+                self.total_emitted_mass += total_step_mass
                 
                 # Droplet Size Binning
                 droplet_bins = getattr(regulator, 'droplet_bins', None)
@@ -757,16 +914,21 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                 # Distribute particles_per_step to bins using multinomial
                 particles_per_bin = np.random.multinomial(particles_per_step, bin_fractions)
                 
-                for idx, bin_name in enumerate(bin_names):
+                # Determine which bins actually received particles to prevent mass loss
+                active_indices = [idx for idx in range(len(bin_names)) if particles_per_bin[idx] > 0]
+                active_fraction_sum = sum(bin_fractions[idx] for idx in active_indices)
+                
+                for idx in active_indices:
+                    bin_name = bin_names[idx]
                     num_parts = particles_per_bin[idx]
-                    if num_parts <= 0:
-                        continue
                     
                     bin_info = droplet_bins[bin_name]
                     bin_diameter = bin_info['diameter']
                     bin_fraction = bin_info['fraction']
                     
-                    part_mass = (total_step_mass * bin_fraction) / num_parts
+                    # Normalize fraction among active bins to preserve exact total mass
+                    normalized_fraction = bin_fraction / active_fraction_sum if active_fraction_sum > 0.0 else bin_fraction
+                    part_mass = (total_step_mass * normalized_fraction) / num_parts
                     
                     for _ in range(num_parts):
                         new_particle = {
@@ -786,10 +948,28 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                 if not p['active']:
                     continue
                     
-                # Deactivate if out of domain
-                if not (self.xmin <= p['x'] <= self.xmax and
-                        self.ymin <= p['y'] <= self.ymax and
-                        self.zmin <= p['z'] <= self.zmax):
+                # Identify local horizontal cell index
+                i_cell = int((p['x'] - self.xmin) / self.dx)
+                j_cell = int((p['y'] - self.ymin) / self.dy)
+                
+                # Check bounds first
+                if not (0 <= i_cell < self.nx and 0 <= j_cell < self.ny):
+                    self.out_of_bounds_mass += p['mass']
+                    p['active'] = False
+                    continue
+                    
+                terrain_h = self.terrain[j_cell, i_cell]
+                z_agl = p['z'] - terrain_h
+                
+                # Check ground impact
+                if p['z'] <= terrain_h or p['z'] <= self.zmin:
+                    self.ground_deposition[j_cell, i_cell] += p['mass']
+                    p['active'] = False
+                    continue
+                    
+                # Check upper vertical bound
+                if p['z'] > self.zmax:
+                    self.out_of_bounds_mass += p['mass']
                     p['active'] = False
                     continue
                     
@@ -816,16 +996,53 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                         density=regulator.formulation_density
                     )
                 
+                # Look up local canopy parameters
+                local_h = canopy_height[j_cell, i_cell] if isinstance(canopy_height, np.ndarray) else canopy_height
+                local_lai = leaf_area_index[j_cell, i_cell] if isinstance(leaf_area_index, np.ndarray) else leaf_area_index
+                local_fai = frontal_area_index[j_cell, i_cell] if isinstance(frontal_area_index, np.ndarray) else frontal_area_index
+                
+                # Apply foliage interception
+                if enable_canopy_interception and local_h > 0.0 and 0.0 <= z_agl < local_h:
+                    d_ref = 100e-6
+                    eta_d = 1.0 - np.exp(-p['diameter'] / d_ref)
+                    
+                    v_s_calc = compute_settling_velocity(p['diameter'], regulator.formulation_density)
+                    
+                    u_loc, v_loc, w_loc = self._interpolate_wind_velocity(
+                        p['x'], p['y'], p['z'], u_field, v_field, w_field
+                    )
+                    U_h = np.sqrt(u_loc**2 + v_loc**2)
+                    
+                    k_dep_vert = (v_s_calc / max(0.1, local_h)) * local_lai * eta_d * 0.5
+                    k_dep_horiz = (U_h / max(0.1, local_h)) * local_fai * eta_d * 0.5
+                    k_foliage = k_dep_vert + k_dep_horiz
+                    
+                    intercept_fraction = 1.0 - np.exp(-k_foliage * dt)
+                    delta_m = p['mass'] * intercept_fraction
+                    
+                    p['mass'] -= delta_m
+                    
+                    if z_agl >= 0.5 * local_h:
+                        self.canopy_top_deposition[j_cell, i_cell] += delta_m
+                    else:
+                        self.lower_foliage_deposition[j_cell, i_cell] += delta_m
+                
                 # Photolytic & Chemical Degradation
                 if enable_degradation:
+                    old_mass = p['mass']
                     p['mass'] = compute_degradation_decay(
-                        mass=p['mass'],
+                        mass=old_mass,
                         dt=dt,
                         temperature=temperature,
                         solar_radiation=solar_radiation,
                         t_half_chem_ref=t_half_chem_ref,
                         t_half_photo_ref=t_half_photo_ref
                     )
+                    self.degraded_mass += (old_mass - p['mass'])
+                    
+                if p['mass'] < 1.0e-12:
+                    p['active'] = False
+                    continue
                     
                 # Interpolate wind velocity
                 u, v, w = self._interpolate_wind_velocity(
@@ -852,11 +1069,29 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                 p['y'] += (v + v_wash) * dt + rand_h[1]
                 p['z'] += (w + w_wash - v_s) * dt + rand_v
                 
-                # Clamp boundary reflection (simple elastic bounce at ground)
-                if p['z'] < self.zmin:
-                    p['z'] = self.zmin + (self.zmin - p['z'])
-                if p['z'] > self.zmax:
-                    p['z'] = self.zmax - (p['z'] - self.zmax)
+        # Final boundary and deposition check for remaining active particles
+        for p in self.particles:
+            if not p['active']:
+                continue
+                
+            i_cell = int((p['x'] - self.xmin) / self.dx)
+            j_cell = int((p['y'] - self.ymin) / self.dy)
+            
+            if not (0 <= i_cell < self.nx and 0 <= j_cell < self.ny):
+                self.out_of_bounds_mass += p['mass']
+                p['active'] = False
+                continue
+                
+            terrain_h = self.terrain[j_cell, i_cell]
+            if p['z'] <= terrain_h or p['z'] <= self.zmin:
+                self.ground_deposition[j_cell, i_cell] += p['mass']
+                p['active'] = False
+                continue
+                
+            if p['z'] > self.zmax:
+                self.out_of_bounds_mass += p['mass']
+                p['active'] = False
+                continue
                     
         # 3. Grid-binning concentration compilation
         cell_volume = self.dx * self.dy * self.dz

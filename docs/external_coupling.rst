@@ -394,3 +394,63 @@ Python API Usage
 
    wind.finalize()
 
+
+Phase 4: Canopy Interaction & Leaf/Ground Deposition Mapping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To model dynamic pesticide deposition and capture by plant foliage and soil, the module supports specialized crop canopy interactions:
+
+1. **Foliage Interception & Droplet Size Efficiency**:
+   Capture of settling droplets by crop foliage is resolved into vertical settling capture and horizontal wind drift capture. The collection efficiency :math:`\eta_d` depends on droplet size:
+
+   .. math::
+
+      \eta_d = 1.0 - \exp\left(-\frac{d}{d_{\text{ref}}}\right)
+
+   where :math:`d` is the local droplet diameter and :math:`d_{\text{ref}} = 100 \times 10^{-6}` :math:`\text{m}` is the reference droplet size.
+   
+   The vertical interception rate constant :math:`k_{\text{dep, vert}}` (representing capture of settling/falling droplets by horizontal leaf surfaces) and the horizontal interception rate constant :math:`k_{\text{dep, horiz}}` (representing capture of horizontally drifting droplets due to wind) are modeled as:
+
+   .. math::
+
+      k_{\text{dep, vert}} = \frac{v_s}{H_c} \cdot \text{LAI} \cdot \eta_d \cdot \lambda_{\text{vert}}
+
+      k_{\text{dep, horiz}} = \frac{U_h}{H_c} \cdot \text{FAI} \cdot \eta_d \cdot \lambda_{\text{horiz}}
+
+   where :math:`H_c` is the local canopy height, :math:`\text{LAI}` is the Leaf Area Index, :math:`\text{FAI}` is the crop Frontal Area Index, :math:`v_s` is the terminal settling velocity, :math:`U_h = \sqrt{u^2 + v^2}` is the horizontal wind speed, and :math:`\lambda_{\text{vert}} = \lambda_{\text{horiz}} = 0.5` are empirical interception coefficients.
+   
+   The combined foliage capture rate inside the canopy (:math:`0 \le z_{\text{agl}} < H_c`) is:
+
+   .. math::
+
+      k_{\text{foliage}} = k_{\text{dep, vert}} + k_{\text{dep, horiz}}
+
+   The intercepted mass over a timestep :math:`\Delta t` is subtracted from the particle/puff mass and mapped to 2D deposition grids:
+
+   .. math::
+
+      \Delta M = M \cdot \left(1.0 - \exp(-k_{\text{foliage}} \Delta t)\right)
+
+2. **Spatially Distributed 2D Deposition Grids**:
+   The module maintains cell-local cumulative registers of deposited pesticide mass [g] across three compartments:
+   - **Canopy Top**: Upper canopy foliage layers (:math:`0.5 H_c \le z_{\text{agl}} < H_c`).
+   - **Lower Foliage Layers**: Lower foliage layers (:math:`0 \le z_{\text{agl}} < 0.5 H_c`).
+   - **Underlying Ground**: Soil/ground level deposition (:math:`z_{\text{agl}} \le 0` or upon ground impact).
+
+3. **Mass Conservation Verification**:
+   The solver validates pesticide mass conservation at every step by checking that the total emitted mass from the nozzle balances exactly with all active and lost compartments:
+
+   .. math::
+
+      M_{\text{emitted}} = M_{\text{airborne}} + M_{\text{canopy\_top}} + M_{\text{lower\_foliage}} + M_{\text{ground}} + M_{\text{out\_of\_bounds}} + M_{\text{degraded}}
+
+   You can verify this mass balance programmatically via:
+
+   .. code-block:: python
+
+      conserved, balance = dispersion.verify_mass_conservation()
+      if conserved:
+          print("Pesticide mass is fully conserved!")
+          print(f"Total Emitted: {balance['total_emitted_mass']} g")
+          print(f"Total Accounted: {balance['total_accounted']} g")
+

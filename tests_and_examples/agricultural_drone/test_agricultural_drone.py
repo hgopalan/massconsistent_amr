@@ -489,6 +489,179 @@ class TestAgriculturalDrone(unittest.TestCase):
         self.assertGreater(len(lpd_model.particles), 0)
         self.assertGreater(np.sum(lpd_model.concentration), 0.0)
 
+    def test_foliage_interception_and_deposition_mapping_puff(self):
+        """Test Phase 4: Foliage interception and cumulative 2D registers for Puff dispersion."""
+        traj = DroneTrajectory(
+            times=[0.0, 3.0],
+            x_pts=[50.0, 80.0],
+            y_pts=[50.0, 50.0],
+            z_pts=[2.5, 2.5],  # close to canopy height of 3.0m
+            speeds=[10.0, 10.0],
+            headings=[0.0, 0.0],
+            flow_rates=[1.2, 1.2],
+            active_flags=[True, True]
+        )
+        reg = MassEmissionRegulator()
+        model = DronePuffDispersion(
+            xmin=0.0, xmax=150.0, ymin=0.0, ymax=150.0, zmin=0.0, zmax=30.0,
+            dx=10.0, dy=10.0, dz=5.0
+        )
+        
+        # Run with canopy interception enabled
+        model.simulate(
+            trajectory=traj,
+            regulator=reg,
+            dt=1.0,
+            enable_settling=True,
+            enable_canopy_interception=True,
+            canopy_height=3.0,
+            leaf_area_index=2.5,
+            frontal_area_index=1.2
+        )
+        
+        # Check that cumulative registers accumulated deposited mass
+        self.assertGreater(np.sum(model.canopy_top_deposition), 0.0)
+        self.assertGreater(np.sum(model.lower_foliage_deposition), 0.0)
+        
+        # Verify shape
+        self.assertEqual(model.canopy_top_deposition.shape, (15, 15))
+        self.assertEqual(model.lower_foliage_deposition.shape, (15, 15))
+        self.assertEqual(model.ground_deposition.shape, (15, 15))
+        
+        # Verify mass conservation
+        conserved, balance = model.verify_mass_conservation()
+        self.assertTrue(conserved, f"Mass not conserved! Balance: {balance}")
+        self.assertAlmostEqual(balance['total_emitted_mass'], balance['total_accounted'], places=5)
+
+    def test_foliage_interception_and_deposition_mapping_lpd(self):
+        """Test Phase 4: Foliage interception, ground deposition and registers for LPDM."""
+        traj = DroneTrajectory(
+            times=[0.0, 3.0],
+            x_pts=[50.0, 80.0],
+            y_pts=[50.0, 50.0],
+            z_pts=[2.5, 2.5],
+            speeds=[10.0, 10.0],
+            headings=[0.0, 0.0],
+            flow_rates=[1.2, 1.2],
+            active_flags=[True, True]
+        )
+        reg = MassEmissionRegulator()
+        model = DroneLpdDispersion(
+            xmin=0.0, xmax=150.0, ymin=0.0, ymax=150.0, zmin=0.0, zmax=30.0,
+            dx=10.0, dy=10.0, dz=5.0
+        )
+        
+        # Run with canopy interception enabled
+        model.simulate(
+            trajectory=traj,
+            regulator=reg,
+            dt=1.0,
+            particles_per_step=10,
+            enable_settling=True,
+            enable_canopy_interception=True,
+            canopy_height=3.0,
+            leaf_area_index=2.5,
+            frontal_area_index=1.2
+        )
+        
+        # Verify deposition in registers
+        self.assertGreater(np.sum(model.canopy_top_deposition), 0.0)
+        self.assertGreater(np.sum(model.lower_foliage_deposition), 0.0)
+        
+        # Verify mass conservation
+        conserved, balance = model.verify_mass_conservation()
+        self.assertTrue(conserved, f"Mass not conserved! Balance: {balance}")
+        self.assertAlmostEqual(balance['total_emitted_mass'], balance['total_accounted'], places=5)
+
+    def test_spatially_varying_canopy_fields(self):
+        """Test Phase 4: 2D spatially distributed canopy parameter arrays lookup."""
+        ny, nx = 15, 15
+        can_h_arr = np.zeros((ny, nx))
+        can_h_arr[4:7, 4:7] = 3.0  # localized crop patch
+        
+        lai_arr = np.zeros((ny, nx))
+        lai_arr[4:7, 4:7] = 3.5
+        
+        fai_arr = np.zeros((ny, nx))
+        fai_arr[4:7, 4:7] = 1.5
+        
+        traj = DroneTrajectory(
+            times=[0.0, 3.0],
+            x_pts=[55.0, 55.0],  # flies directly over the crop patch (cell index 5, 5)
+            y_pts=[55.0, 55.0],
+            z_pts=[2.0, 2.0],
+            speeds=[5.0, 5.0],
+            headings=[0.0, 0.0],
+            flow_rates=[1.2, 1.2],
+            active_flags=[True, True]
+        )
+        reg = MassEmissionRegulator()
+        model = DroneLpdDispersion(
+            xmin=0.0, xmax=150.0, ymin=0.0, ymax=150.0, zmin=0.0, zmax=30.0,
+            dx=10.0, dy=10.0, dz=5.0
+        )
+        
+        model.simulate(
+            trajectory=traj,
+            regulator=reg,
+            dt=1.0,
+            particles_per_step=15,
+            enable_settling=True,
+            enable_canopy_interception=True,
+            canopy_height=can_h_arr,
+            leaf_area_index=lai_arr,
+            frontal_area_index=fai_arr
+        )
+        
+        # Verify that deposition occurred only in/around the localized crop patch cells
+        self.assertGreater(np.sum(model.canopy_top_deposition), 0.0)
+        self.assertGreater(np.sum(model.lower_foliage_deposition), 0.0)
+        
+        # Ensure cells outside patch have zero canopy deposition
+        self.assertEqual(model.canopy_top_deposition[0, 0], 0.0)
+        self.assertEqual(model.lower_foliage_deposition[0, 0], 0.0)
+        
+        # Verify mass conservation
+        conserved, balance = model.verify_mass_conservation()
+        self.assertTrue(conserved)
+
+    def test_mass_conservation_degradation_and_out_of_bounds(self):
+        """Test Phase 4: Mass conservation accounting with degradation & out-of-bounds loss."""
+        traj = DroneTrajectory(
+            times=[0.0, 2.0],
+            x_pts=[145.0, 145.0],  # very close to +X boundary of 150m, so particles will drift out
+            y_pts=[50.0, 50.0],
+            z_pts=[10.0, 10.0],
+            speeds=[5.0, 5.0],
+            headings=[0.0, 0.0],
+            flow_rates=[1.2, 1.2],
+            active_flags=[True, True]
+        )
+        reg = MassEmissionRegulator()
+        model = DroneLpdDispersion(
+            xmin=0.0, xmax=150.0, ymin=0.0, ymax=150.0, zmin=0.0, zmax=30.0,
+            dx=10.0, dy=10.0, dz=5.0
+        )
+        
+        model.simulate(
+            trajectory=traj,
+            regulator=reg,
+            dt=1.0,
+            particles_per_step=10,
+            u_uniform=10.0,  # strong wind blowing out of +X boundary
+            enable_degradation=True,  # trigger photolytic & chemical decay
+            solar_radiation=1000.0,
+            temperature=35.0
+        )
+        
+        # Verify that we had out-of-bounds mass and degraded mass
+        self.assertGreater(model.out_of_bounds_mass, 0.0)
+        self.assertGreater(model.degraded_mass, 0.0)
+        
+        # Verify 100% exact mass conservation down to tolerance
+        conserved, balance = model.verify_mass_conservation()
+        self.assertTrue(conserved, f"Mass not conserved with losses! Balance: {balance}")
+
 
 if __name__ == "__main__":
     unittest.main()
