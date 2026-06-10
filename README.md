@@ -128,6 +128,39 @@ Run them using CTest from your build directory:
 ctest -L regtest
 ```
 
+## PHREEQC Coupling Documentation
+
+The PHREEQC reactive transport coupling module includes comprehensive documentation for critical mineral studies and acid mine drainage analysis:
+
+### User Documentation
+- **[User Guide](docs/phreeqc_coupling/user_guide.md)** — Step-by-step instructions for each of the 11 capabilities with practical workflows
+- **[API Reference](docs/phreeqc_coupling/api_reference.md)** — Complete function signatures, parameter descriptions, and code examples
+- **[Case Studies](docs/phreeqc_coupling/case_studies.md)** — 6 worked examples with validation results and performance benchmarks
+- **[Deployment Guide](docs/phreeqc_coupling/deployment_guide.md)** — Real-time system setup with 15-minute operational cycle
+- **[Troubleshooting Guide](docs/phreeqc_coupling/troubleshooting.md)** — Common issues, diagnostic procedures, and resolution steps
+
+### Examples
+- **[11 Example Scripts](examples/phreeqc_coupling/)** — Standalone demonstrations of each capability with synthetic data
+- **[Example README](examples/phreeqc_coupling/README.md)** — Quick reference for running examples
+
+### Technical References
+- **[PHREEQC Coupling Guide](src/python/phreeqc_coupling/PHREEQC_COUPLING_GUIDE.md)** — Technical architecture and physics
+- **[Implementation Summary](src/python/phreeqc_coupling/IMPLEMENTATION_SUMMARY.md)** — Detailed module specifications
+- **[AMD Validation](src/python/phreeqc_coupling/VALIDATION_AMD_HOTSPOTS.md)** — Field validation for hotspot detection
+- **[Oxidation Validation](src/python/phreeqc_coupling/VALIDATION_SULFIDE_OXIDATION.md)** — Field validation for oxidation kinetics
+
+### Quick Start
+```bash
+cd examples/phreeqc_coupling
+
+# Run an example (no PHREEQC or full wind solver needed)
+python3 01_wind_field_bc.py
+python3 06_valley_amd_hotspots.py
+
+# See all capabilities
+ls -la *.py
+```
+
 ## License
 
 See [LICENSE](LICENSE).
