@@ -825,6 +825,29 @@ The solver integrates directly with DTU's PyWake wind farm simulation library. T
     # 4. Clean up resources
     wind.finalize()
 
+FLORIS Integration and Export
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The solver provides seamless export of resolved wind fields to formats required by NREL's FLORIS (Wind Farm Simulation Software). Using the ``floris_coupling`` module, users can extract local wind speed and direction profiles at turbine hub heights, save to JSON or CSV formats, or obtain speed-up ratios relative to free-stream reference wind.
+
+.. code-block:: python
+
+    from wind_solver import WindSolver
+    from floris_coupling import FLORISWindMap, quick_export
+
+    # 1. Initialize and execute the mass-consistent wind solver
+    wind = WindSolver("inputs.i")
+    wind.solve()
+
+    # 2. Extract resolved fields as a FLORISWindMap
+    wind_map = FLORISWindMap(wind)
+
+    # 3. Interpolate wind properties to turbine positions
+    turbines = [(150.0, 250.0), (350.0, 450.0)]
+    wind_map.export_to_csv(turbines, hub_height=90.0, output_file="floris_wind.csv")
+
+    # 4. Clean up resources
+    wind.finalize()
+
 Wind Turbine Yaw Setup & Wake Steering
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 To configure wake deflection and secondary steering via yaw, specify the active wake parameterizations in ``inputs.i`` and define specific yaw angles in ``turbines.csv``:
