@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-06_end_to_end_facility.py - End-to-End Facility Workflow Example
+end_to_end_facility.py - End-to-End Facility Workflow Example
 
 Demonstrates complete pipeline for reactive transport analysis at a facility:
 1. Solve mass-consistent wind field
@@ -25,10 +25,10 @@ import logging
 import sys
 import time
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add src/python directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "python"))
 
-from facility_workflow import (
+from phreeqc_coupling.facility_workflow import (
     FacilityWorkflow,
     FacilityConfiguration,
     end_to_end_facility_analysis

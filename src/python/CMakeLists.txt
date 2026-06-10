@@ -37,6 +37,12 @@ pybind11_add_module(pyWindSolver MODULE
 # Link with AMReX
 target_link_libraries(pyWindSolver PRIVATE AMReX::amrex)
 
+# Link with nlohmann_json if enabled
+if(MASSCONSISTENT_USE_NLOHMANN_JSON)
+  target_link_libraries(pyWindSolver PRIVATE nlohmann_json::nlohmann_json)
+  target_compile_definitions(pyWindSolver PRIVATE MASSCONSISTENT_USE_NLOHMANN_JSON)
+endif()
+
 # Link with MPI if enabled
 if(MASSCONSISTENT_ENABLE_MPI)
   target_link_libraries(pyWindSolver PRIVATE MPI::MPI_CXX)

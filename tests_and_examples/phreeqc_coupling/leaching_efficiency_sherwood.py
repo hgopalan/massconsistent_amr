@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-05_leaching_efficiency.py - Wind-Dependent Leaching Efficiency Example
+leaching_efficiency_sherwood.py - Wind-Dependent Leaching Efficiency Example
 
 Demonstrates dust suppression and Sherwood number correlations for wind-enhanced
 ore leaching. Combines dust settling (low pH effects) with mass transfer
@@ -25,16 +25,16 @@ import logging
 import sys
 from typing import List, Tuple
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add src/python directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "python"))
 
-from dust_suppression_lookup import (
+from phreeqc_coupling.dust_suppression_lookup import (
     build_dust_suppression_lookup,
     compute_dust_suppression_factor,
     compute_dust_suppression_effect_on_ph,
     save_dust_suppression_lookup_to_csv
 )
-from leaching_efficiency import (
+from phreeqc_coupling.leaching_efficiency import (
     build_sherwood_lookup,
     compute_leaching_efficiency,
     compute_leaching_rate_enhancement,

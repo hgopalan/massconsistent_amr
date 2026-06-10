@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-04_kv_dispersivity.py - Vertical Diffusivity and Dispersivity Export
+kv_dispersivity.py - Vertical Diffusivity and Dispersivity Export
 
 Demonstrates extraction of turbulent vertical diffusivity (K_v) for use in
 PHREEQC dispersivity parameterization. K_v controls mixing, dispersion, and
@@ -49,7 +49,7 @@ def main():
         print(f"  {z:12.1f} {kv:15.4f} {alpha:20.6f}")
     
     # Export
-    output_dir = Path("./04_dispersivity_output")
+    output_dir = Path("./dispersivity_output")
     output_dir.mkdir(exist_ok=True)
     
     with open(output_dir / "dispersivity.txt", 'w') as f:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-02_valley_amd_hotspots.py - AMD Hotspot Detection Example
+valley_amd_hotspots.py - AMD Hotspot Detection Example
 
 Demonstrates wind-driven acid mine drainage hotspot identification in a valley.
 Shows how wind steering and channeling create chemically active zones where
@@ -23,8 +23,8 @@ import sys
 from pathlib import Path
 import numpy as np
 
-# Add parent directory to path to import wind_solver and amd_hotspot_detector
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add src/python directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "python"))
 
 from wind_solver import WindSolver
 from phreeqc_coupling.amd_hotspot_detector import (
@@ -59,6 +59,72 @@ amd005,5150,5150,138,seep,Secondary seep in lower valley
     return str(output_path)
 
 
+def create_sample_inputs(output_file: str, terrain_file: str) -> str:
+    """Create sample massconsistent_amr input file."""
+    input_content = f"""# Wind Solver Input File
+amr.n_cell_x = 30
+amr.n_cell_y = 30
+amr.n_cell_z = 15
+
+domain.lo = 0 0 0
+domain.hi = 10000 10000 1500
+
+init_mode = uniform
+U_ref = 8.0
+V_ref = 0.0
+z_ref = 10.0
+z0 = 0.1
+
+terrain_file = {terrain_file}
+
+poisson_solver.max_iter = 100
+poisson_solver.mg_verbose = 0
+"""
+    with open(output_file, 'w') as f:
+        f.write(input_content)
+    return output_file
+
+
+def create_sample_terrain_csv(output_file: str) -> str:
+    """Create a flat terrain CSV file."""
+    terrain_content = """# Flat terrain
+0.0   0.0   0.0
+10000.0  0.0   0.0
+10000.0 10000.0 0.0
+0.0   10000.0 0.0
+"""
+    with open(output_file, 'w') as f:
+        f.write(terrain_content)
+    return output_file
+
+
+class MockWindSolver:
+    """Mock wind solver for fallback execution."""
+    def __init__(self):
+        self.nx, self.ny, self.nz = 30, 30, 15
+        self.dx = self.dy = self.dz = 333.33
+        self.xmin = self.ymin = self.zmin = 0.0
+        self.xmax = self.ymax = self.zmax = 10000.0
+        self.zs_min = 0.0
+        self.zs_max = 200.0
+        
+    def get_velocity(self):
+        return {
+            'u': np.ones((self.nz, self.ny, self.nx)) * 5.0,
+            'v': np.zeros((self.nz, self.ny, self.nx)),
+            'w': np.zeros((self.nz, self.ny, self.nx))
+        }
+        
+    def get_terrain(self):
+        return np.zeros((self.ny, self.nx))
+        
+    def solve(self):
+        pass
+        
+    def finalize(self):
+        pass
+
+
 def main():
     """Run AMD hotspot detection example."""
     
@@ -69,14 +135,13 @@ def main():
     print("points using terrain-resolved wind fields.")
     
     # Setup
-    inputs_file = "inputs_single.i"
+    inputs_file = "inputs_amd.i"
+    terrain_file = "terrain_amd.csv"
     amd_csv = "amd_locations_example.csv"
     output_dir = "amd_hotspots_output"
     
-    if not Path(inputs_file).exists():
-        print(f"✗ Input file not found: {inputs_file}")
-        print("  Please run from repository root with existing inputs file")
-        return 1
+    create_sample_terrain_csv(terrain_file)
+    create_sample_inputs(inputs_file, terrain_file)
     
     try:
         # Step 1: Solve wind field
@@ -84,12 +149,15 @@ def main():
         print("STEP 1: Solving Mass-Consistent Wind Field")
         print("-" * 70)
         
-        wind = WindSolver(inputs_file)
-        wind.solve()
-        
-        print(f"✓ Wind field solved successfully")
-        print(f"  Domain: {wind.nx} × {wind.ny} × {wind.nz} cells")
-        print(f"  Terrain elevation: {wind.zs_min:.1f} - {wind.zs_max:.1f} m")
+        try:
+            wind = WindSolver(inputs_file)
+            wind.solve()
+            print(f"✓ Wind field solved successfully")
+            print(f"  Domain: {wind.nx} × {wind.ny} × {wind.nz} cells")
+        except Exception as e:
+            print(f"✗ Wind solver initialization/execution failed: {e}")
+            print("  Falling back to MockWindSolver for demonstration...")
+            wind = MockWindSolver()
         
         # Step 2: Create sample AMD locations
         print("\n" + "-" * 70)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-03_sulfide_oxidation.py - Wind-Dependent Sulfide Oxidation Rate Computation
+sulfide_oxidation.py - Wind-Dependent Sulfide Oxidation Rate Computation
 
 Demonstrates how wind speed modulates sulfide mineral oxidation rates and
 resulting acid mine drainage chemistry. Integrates kinetic rate laws with
@@ -26,8 +26,8 @@ import sys
 from pathlib import Path
 import numpy as np
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add src/python directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "python"))
 
 from wind_solver import WindSolver
 from phreeqc_coupling.sulfide_oxidation import (
@@ -63,6 +63,72 @@ sul005,5150,5000,90,SPHALERITE,0.03,110.0,Sphalerite-pyrite association
     return str(output_path)
 
 
+def create_sample_inputs(output_file: str, terrain_file: str) -> str:
+    """Create sample massconsistent_amr input file."""
+    input_content = f"""# Wind Solver Input File
+amr.n_cell_x = 30
+amr.n_cell_y = 30
+amr.n_cell_z = 15
+
+domain.lo = 0 0 0
+domain.hi = 10000 10000 1500
+
+init_mode = uniform
+U_ref = 8.0
+V_ref = 0.0
+z_ref = 10.0
+z0 = 0.1
+
+terrain_file = {terrain_file}
+
+poisson_solver.max_iter = 100
+poisson_solver.mg_verbose = 0
+"""
+    with open(output_file, 'w') as f:
+        f.write(input_content)
+    return output_file
+
+
+def create_sample_terrain_csv(output_file: str) -> str:
+    """Create a flat terrain CSV file."""
+    terrain_content = """# Flat terrain
+0.0   0.0   0.0
+10000.0  0.0   0.0
+10000.0 10000.0 0.0
+0.0   10000.0 0.0
+"""
+    with open(output_file, 'w') as f:
+        f.write(terrain_content)
+    return output_file
+
+
+class MockWindSolver:
+    """Mock wind solver for fallback execution."""
+    def __init__(self):
+        self.nx, self.ny, self.nz = 30, 30, 15
+        self.dx = self.dy = self.dz = 333.33
+        self.xmin = self.ymin = self.zmin = 0.0
+        self.xmax = self.ymax = self.zmax = 10000.0
+        self.zs_min = 0.0
+        self.zs_max = 200.0
+        
+    def get_velocity(self):
+        return {
+            'u': np.ones((self.nz, self.ny, self.nx)) * 5.0,
+            'v': np.zeros((self.nz, self.ny, self.nx)),
+            'w': np.zeros((self.nz, self.ny, self.nx))
+        }
+        
+    def get_terrain(self):
+        return np.zeros((self.ny, self.nx))
+        
+    def solve(self):
+        pass
+        
+    def finalize(self):
+        pass
+
+
 def main():
     """Run sulfide oxidation rate computation example."""
     
@@ -73,15 +139,14 @@ def main():
     print("prediction for acid mine drainage assessment.")
     
     # Setup
-    inputs_file = "inputs_single.i"
+    inputs_file = "inputs_amd.i"
+    terrain_file = "terrain_amd.csv"
     sulfide_csv = "sulfide_locations_example.csv"
     output_dir = "oxidation_rates_output"
     temperature = 288.15  # 15°C
     
-    if not Path(inputs_file).exists():
-        print(f"✗ Input file not found: {inputs_file}")
-        print("  Please run from repository root with existing inputs file")
-        return 1
+    create_sample_terrain_csv(terrain_file)
+    create_sample_inputs(inputs_file, terrain_file)
     
     try:
         # Step 1: Solve wind field
@@ -89,12 +154,15 @@ def main():
         print("STEP 1: Solving Mass-Consistent Wind Field")
         print("-" * 70)
         
-        wind = WindSolver(inputs_file)
-        wind.solve()
-        
-        print(f"✓ Wind field solved successfully")
-        print(f"  Domain: {wind.nx} × {wind.ny} × {wind.nz} cells")
-        print(f"  Resolution: dx={wind.dx:.1f} m, dy={wind.dy:.1f} m")
+        try:
+            wind = WindSolver(inputs_file)
+            wind.solve()
+            print(f"✓ Wind field solved successfully")
+            print(f"  Domain: {wind.nx} × {wind.ny} × {wind.nz} cells")
+        except Exception as e:
+            print(f"✗ Wind solver initialization/execution failed: {e}")
+            print("  Falling back to MockWindSolver for demonstration...")
+            wind = MockWindSolver()
         
         # Step 2: Create sample sulfide locations
         print("\n" + "-" * 70)

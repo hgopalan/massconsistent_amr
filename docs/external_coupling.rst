@@ -17,17 +17,17 @@ The coupling code is located in: ``tests_and_examples/phreeqc_coupling/``
 
 The directory contains 11 standalone example scripts demonstrating core capabilities:
 
-1. **01_wind_field_bc.py** — Wind velocity as boundary condition for pore-water advection
-2. **02_temperature_profile_bc.py** — Temperature profile extraction from wind solver
-3. **03_precipitation_recharge.py** — Infiltration mapping and recharge calculations
-4. **04_kv_dispersivity.py** — Vertical permeability and dispersivity extraction
-5. **05_stability_classification.py** — Pasquill-Gifford-Turner stability classification
-6. **06_valley_amd_hotspots.py** — Acid mine drainage hotspot detection in valleys
-7. **07_sulfide_oxidation.py** — Oxidation kinetics for sulfide minerals
-8. **08_spatial_temperature_cache.py** — Scenario caching for rapid deployments
-9. **09_dust_suppression.py** — Dust settling and suppression calculations
-10. **10_leaching_efficiency_sherwood.py** — Leaching enhancement via Sherwood number
-11. **11_end_to_end_facility.py** — Complete workflow demonstration
+1. **wind_field_bc.py** — Wind velocity as boundary condition for pore-water advection
+2. **temperature_profile_bc.py** — Temperature profile extraction from wind solver
+3. **precipitation_recharge.py** — Infiltration mapping and recharge calculations
+4. **kv_dispersivity.py** — Vertical permeability and dispersivity extraction
+5. **stability_classification.py** — Pasquill-Gifford-Turner stability classification
+6. **valley_amd_hotspots.py** — Acid mine drainage hotspot detection in valleys
+7. **sulfide_oxidation.py** — Oxidation kinetics for sulfide minerals
+8. **spatial_temperature_cache.py** — Scenario caching for rapid deployments
+9. **dust_suppression.py** — Dust settling and suppression calculations
+10. **leaching_efficiency_sherwood.py** — Leaching enhancement via Sherwood number
+11. **end_to_end_facility.py** — Complete workflow demonstration
 
 Supported Features
 ~~~~~~~~~~~~~~~~~~
@@ -42,10 +42,6 @@ Supported Features
 - **Leaching efficiency enhancement** calculation via Sherwood number.
 - **Fine dust suppression** calculations via settling velocities.
 - **Spatial temperature caching** for rapid scenario evaluation.
-
-Production Readiness:
-- **Status:** PRODUCTION-READY
-- **Confidence Level:** HIGH for trend predictions, MODERATE for absolute rates.
 
 Python Tools
 ~~~~~~~~~~~~

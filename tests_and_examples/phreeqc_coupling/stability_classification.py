@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-05_stability_classification.py - Pasquill-Gifford-Turner Stability Classification
+stability_classification.py - Pasquill-Gifford-Turner Stability Classification
 
 Demonstrates extraction and application of atmospheric stability (PGT A-F)
 for reaction rate modifiers and boundary layer depth estimation.

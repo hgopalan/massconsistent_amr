@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-03_precipitation_recharge.py - Precipitation-Driven Infiltration
+precipitation_recharge.py - Precipitation-Driven Infiltration
 
 Demonstrates mapping of spatially-varying precipitation to infiltration-driven
 groundwater recharge boundary conditions for PHREEQC reactive transport.
@@ -159,7 +159,7 @@ def main():
     compute_dust_suppression_effect(precip_rate)
     
     # Export boundary condition
-    output_dir = Path("./03_precipitation_output")
+    output_dir = Path("./precipitation_output")
     output_dir.mkdir(exist_ok=True)
     export_file = export_infiltration_boundary_condition(
         precip_rate,

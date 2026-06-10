@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-01_wind_field_bc.py - Wind Velocity as Boundary Condition
+wind_field_bc.py - Wind Velocity as Boundary Condition
 
 Demonstrates extraction and export of wind velocity fields for use as boundary
 conditions in groundwater flow and PHREEQC reactive transport simulations.
@@ -24,8 +24,8 @@ import sys
 from pathlib import Path
 import numpy as np
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add parent directory and src/python directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "python"))
 
 from wind_solver import WindSolver
 from phreeqc_coupling import FieldExtractor
@@ -189,11 +189,11 @@ def main():
     """Main demonstration workflow."""
     
     print("\n" + "="*70)
-    print("WIND VELOCITY BOUNDARY CONDITION EXTRACTION - EXAMPLE 01")
+    print("WIND VELOCITY BOUNDARY CONDITION EXTRACTION - EXAMPLE")
     print("="*70)
     print("\nDemonstration of wind field export for groundwater coupling")
     
-    output_dir = Path("./01_wind_field_bc_output")
+    output_dir = Path("./wind_field_bc_output")
     output_dir.mkdir(exist_ok=True)
     
     # Step 1: Create input file
