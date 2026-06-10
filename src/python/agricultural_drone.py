@@ -17,6 +17,117 @@ import os
 import csv
 
 
+def compute_settling_velocity(diameter, density=1000.0, gravity=9.81, air_viscosity=1.81e-5, air_mean_free_path=6.6e-8):
+    """
+    Calculates terminal settling velocity using Stokes' Law with Cunningham slip correction.
+    
+    Args:
+        diameter (float): Droplet diameter [m]
+        density (float): Droplet density [kg/m^3]
+        gravity (float): Gravitational acceleration [m/s^2]
+        air_viscosity (float): Dynamic viscosity of air [Pa*s]
+        air_mean_free_path (float): Mean free path of air molecules [m]
+        
+    Returns:
+        float: Terminal settling velocity [m/s]
+    """
+    if diameter <= 0.0:
+        return 0.0
+        
+    # Cunningham slip correction factor
+    A1 = 1.257
+    A2 = 0.400
+    A3 = 1.100
+    
+    kn = 2.0 * air_mean_free_path / diameter
+    Cc = 1.0 + kn * (A1 + A2 * np.exp(-A3 / kn))
+    
+    # Stokes' velocity: v_s = (rho * g * d^2) / (18 * mu) * Cc
+    v_s = (density * gravity * diameter**2) / (18.0 * air_viscosity) * Cc
+    return float(v_s)
+
+
+def compute_evaporative_shrinkage(diameter, initial_diameter, active_fraction, dt, temperature=20.0, relative_humidity=0.5, formulation_density=1000.0):
+    """
+    Calculates the new droplet diameter after evaporation over timestep dt.
+    Using Tetens equation for vapor pressure and d^2-law.
+    
+    Args:
+        diameter (float): Current droplet diameter [m]
+        initial_diameter (float): Initial droplet diameter at nozzle exit [m]
+        active_fraction (float): Non-volatile mass fraction (0.0 to 1.0)
+        dt (float): Timestep [s]
+        temperature (float): Ambient air temperature [C]
+        relative_humidity (float): Ambient relative humidity (fraction, 0.0 to 1.0)
+        formulation_density (float): Fluid density [kg/m^3]
+        
+    Returns:
+        float: New droplet diameter [m]
+    """
+    if diameter <= 0.0 or dt <= 0.0:
+        return float(diameter)
+        
+    # Minimum diameter is based on non-volatile volume fraction
+    f_nv = max(1e-6, min(1.0, active_fraction))
+    d_min = initial_diameter * (f_nv ** (1.0/3.0))
+    
+    if diameter <= d_min:
+        return float(d_min)
+        
+    # Tetens equation for saturation vapor pressure e_s (Pa)
+    e_s = 610.78 * np.exp(17.27 * temperature / (temperature + 237.3))
+    
+    # Vapor density difference delta_rho_v (kg/m^3)
+    delta_rho_v = (e_s * max(0.0, 1.0 - relative_humidity)) / (461.5 * (temperature + 273.15))
+    
+    # Diffusion coefficient of water vapor in air (m^2/s)
+    D_v = 2.4e-5
+    
+    # Evaporation constant beta (m^2/s) from d(d^2)/dt = -beta
+    beta = (16.0 * D_v * delta_rho_v) / formulation_density
+    
+    # New diameter squared
+    d_sq_new = max(d_min**2, diameter**2 - beta * dt)
+    return float(np.sqrt(d_sq_new))
+
+
+def compute_degradation_decay(mass, dt, temperature=20.0, solar_radiation=500.0,
+                              t_half_chem_ref=3600.0, t_half_photo_ref=1800.0,
+                              t_ref=20.0, i_ref=500.0, q10=2.0):
+    """
+    Calculates the remaining active mass after degradation over timestep dt.
+    
+    Args:
+        mass (float): Current active mass [g]
+        dt (float): Timestep [s]
+        temperature (float): Ambient air temperature [C]
+        solar_radiation (float): Solar radiation intensity [W/m^2]
+        t_half_chem_ref (float): Chemical half-life reference [s]
+        t_half_photo_ref (float): Photolytic half-life reference [s]
+        t_ref (float): Reference temperature [C]
+        i_ref (float): Reference solar radiation [W/m^2]
+        q10 (float): Temperature sensitivity coefficient
+        
+    Returns:
+        float: Decayed mass [g]
+    """
+    if mass <= 0.0 or dt <= 0.0:
+        return float(mass)
+        
+    # Chemical degradation rate constant (Arrhenius/Q10-based)
+    k_chem = (np.log(2.0) / t_half_chem_ref) * (q10 ** ((temperature - t_ref) / 10.0))
+    
+    # Photolytic degradation rate constant (linear solar radiation scaling)
+    k_photo = (np.log(2.0) / t_half_photo_ref) * (solar_radiation / i_ref)
+    
+    # Combined degradation rate constant
+    k_total = k_chem + k_photo
+    
+    # Exponential decay
+    new_mass = mass * np.exp(-k_total * dt)
+    return float(new_mass)
+
+
 class DroneTrajectory:
     """
     Represents and interpolates agricultural drone flight trajectories.
@@ -148,18 +259,24 @@ class MassEmissionRegulator:
     """
     
     def __init__(self, formulation_density=1000.0, active_fraction=0.1,
-                 base_speed=5.0, speed_dependent=False):
+                 base_speed=5.0, speed_dependent=False, droplet_bins=None):
         """
         Args:
             formulation_density (float): Density of pesticide mixture [g/L] (default 1000.0, water-like)
             active_fraction (float): Mass fraction of active chemical pesticide ingredient [0.0 - 1.0]
             base_speed (float): Reference flight speed for deposition density calibration [m/s]
             speed_dependent (bool): If True, scales emission rate proportionally to maintain uniform ground coverage
+            droplet_bins (dict): Optional custom droplet size bins classification profile
         """
         self.formulation_density = formulation_density
         self.active_fraction = active_fraction
         self.base_speed = base_speed
         self.speed_dependent = speed_dependent
+        self.droplet_bins = droplet_bins if droplet_bins is not None else {
+            'fine': {'diameter': 50e-6, 'fraction': 0.2},
+            'medium': {'diameter': 150e-6, 'fraction': 0.5},
+            'coarse': {'diameter': 350e-6, 'fraction': 0.3}
+        }
 
     def compute_emission_rate(self, flow_rate_l_min, speed, active=True):
         """
@@ -299,7 +416,10 @@ class DronePuffDispersion(MovingSourceDispersionModel):
     def simulate(self, trajectory, regulator, wind_solver=None, dt=1.0,
                  u_uniform=1.0, v_uniform=0.0, w_uniform=0.0,
                  K_h=1.0, K_v=0.5, sigma_y0=0.5, sigma_z0=0.5,
-                 enable_ground_reflection=True):
+                 enable_ground_reflection=True,
+                 temperature=20.0, relative_humidity=0.5, solar_radiation=500.0,
+                 enable_settling=False, enable_evaporation=False, enable_degradation=False,
+                 t_half_chem_ref=3600.0, t_half_photo_ref=1800.0):
         """
         Executes the moving-source Gaussian Puff advection-dispersion simulation loop.
         """
@@ -331,17 +451,64 @@ class DronePuffDispersion(MovingSourceDispersionModel):
             )
             
             if emission_rate > 1.e-8:
-                new_puff = {
-                    'x': drone_state['x'],
-                    'y': drone_state['y'],
-                    'z': drone_state['z'],
-                    'mass': emission_rate * dt,
-                    'age': 0.0
-                }
-                self.puffs.append(new_puff)
+                # Droplet Size Binning
+                droplet_bins = getattr(regulator, 'droplet_bins', None)
+                if droplet_bins is None:
+                    droplet_bins = {
+                        'default': {'diameter': 150e-6, 'fraction': 1.0}
+                    }
+                
+                for bin_name, bin_info in droplet_bins.items():
+                    bin_fraction = bin_info['fraction']
+                    bin_diameter = bin_info['diameter']
+                    new_puff = {
+                        'x': drone_state['x'],
+                        'y': drone_state['y'],
+                        'z': drone_state['z'],
+                        'mass': emission_rate * dt * bin_fraction,
+                        'age': 0.0,
+                        'diameter': bin_diameter,
+                        'initial_diameter': bin_diameter,
+                        'bin_name': bin_name
+                    }
+                    self.puffs.append(new_puff)
                 
             # 2. Advect and grow existing puffs
             for puff in self.puffs:
+                # Active fraction of regulator
+                active_frac = getattr(regulator, 'active_fraction', 0.1)
+                
+                # Evaporative Size Reduction
+                if enable_evaporation:
+                    puff['diameter'] = compute_evaporative_shrinkage(
+                        diameter=puff['diameter'],
+                        initial_diameter=puff['initial_diameter'],
+                        active_fraction=active_frac,
+                        dt=dt,
+                        temperature=temperature,
+                        relative_humidity=relative_humidity,
+                        formulation_density=regulator.formulation_density
+                    )
+                
+                # Size-Dependent Gravitational Settling
+                v_s = 0.0
+                if enable_settling:
+                    v_s = compute_settling_velocity(
+                        diameter=puff['diameter'],
+                        density=regulator.formulation_density
+                    )
+                
+                # Photolytic & Chemical Degradation
+                if enable_degradation:
+                    puff['mass'] = compute_degradation_decay(
+                        mass=puff['mass'],
+                        dt=dt,
+                        temperature=temperature,
+                        solar_radiation=solar_radiation,
+                        t_half_chem_ref=t_half_chem_ref,
+                        t_half_photo_ref=t_half_photo_ref
+                    )
+                
                 # Interpolate wind velocity at puff center
                 u, v, w = self._interpolate_wind_velocity(
                     puff['x'], puff['y'], puff['z'], u_field, v_field, w_field
@@ -350,7 +517,7 @@ class DronePuffDispersion(MovingSourceDispersionModel):
                 # Advection drift
                 puff['x'] += u * dt
                 puff['y'] += v * dt
-                puff['z'] += w * dt
+                puff['z'] += (w - v_s) * dt
                 puff['age'] += dt
                 
         # 3. Compile concentration grid C(x, y, z) by superposition
@@ -394,7 +561,10 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
     def simulate(self, trajectory, regulator, wind_solver=None, dt=1.0,
                  u_uniform=1.0, v_uniform=0.0, w_uniform=0.0,
                  K_h=1.0, K_v=0.5, particles_per_step=10,
-                 random_seed=42):
+                 random_seed=42,
+                 temperature=20.0, relative_humidity=0.5, solar_radiation=500.0,
+                 enable_settling=False, enable_evaporation=False, enable_degradation=False,
+                 t_half_chem_ref=3600.0, t_half_photo_ref=1800.0):
         """
         Executes LPDM simulation loop along the drone trajectory.
         """
@@ -433,17 +603,43 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
             
             if emission_rate > 1.e-8 and particles_per_step > 0:
                 total_step_mass = emission_rate * dt
-                part_mass = total_step_mass / particles_per_step
                 
-                for _ in range(particles_per_step):
-                    new_particle = {
-                        'x': drone_state['x'],
-                        'y': drone_state['y'],
-                        'z': drone_state['z'],
-                        'mass': part_mass,
-                        'active': True
+                # Droplet Size Binning
+                droplet_bins = getattr(regulator, 'droplet_bins', None)
+                if droplet_bins is None:
+                    droplet_bins = {
+                        'default': {'diameter': 150e-6, 'fraction': 1.0}
                     }
-                    self.particles.append(new_particle)
+                
+                bin_names = list(droplet_bins.keys())
+                bin_fractions = [droplet_bins[b]['fraction'] for b in bin_names]
+                
+                # Distribute particles_per_step to bins using multinomial
+                particles_per_bin = np.random.multinomial(particles_per_step, bin_fractions)
+                
+                for idx, bin_name in enumerate(bin_names):
+                    num_parts = particles_per_bin[idx]
+                    if num_parts <= 0:
+                        continue
+                    
+                    bin_info = droplet_bins[bin_name]
+                    bin_diameter = bin_info['diameter']
+                    bin_fraction = bin_info['fraction']
+                    
+                    part_mass = (total_step_mass * bin_fraction) / num_parts
+                    
+                    for _ in range(num_parts):
+                        new_particle = {
+                            'x': drone_state['x'],
+                            'y': drone_state['y'],
+                            'z': drone_state['z'],
+                            'mass': part_mass,
+                            'active': True,
+                            'diameter': bin_diameter,
+                            'initial_diameter': bin_diameter,
+                            'bin_name': bin_name
+                        }
+                        self.particles.append(new_particle)
                     
             # 2. Advect particles with wind + stochastic random walk
             for p in self.particles:
@@ -457,6 +653,40 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                     p['active'] = False
                     continue
                     
+                # Active fraction of regulator
+                active_frac = getattr(regulator, 'active_fraction', 0.1)
+                
+                # Evaporative Size Reduction
+                if enable_evaporation:
+                    p['diameter'] = compute_evaporative_shrinkage(
+                        diameter=p['diameter'],
+                        initial_diameter=p['initial_diameter'],
+                        active_fraction=active_frac,
+                        dt=dt,
+                        temperature=temperature,
+                        relative_humidity=relative_humidity,
+                        formulation_density=regulator.formulation_density
+                    )
+                
+                # Size-Dependent Gravitational Settling
+                v_s = 0.0
+                if enable_settling:
+                    v_s = compute_settling_velocity(
+                        diameter=p['diameter'],
+                        density=regulator.formulation_density
+                    )
+                
+                # Photolytic & Chemical Degradation
+                if enable_degradation:
+                    p['mass'] = compute_degradation_decay(
+                        mass=p['mass'],
+                        dt=dt,
+                        temperature=temperature,
+                        solar_radiation=solar_radiation,
+                        t_half_chem_ref=t_half_chem_ref,
+                        t_half_photo_ref=t_half_photo_ref
+                    )
+                    
                 # Interpolate wind velocity
                 u, v, w = self._interpolate_wind_velocity(
                     p['x'], p['y'], p['z'], u_field, v_field, w_field
@@ -468,7 +698,7 @@ class DroneLpdDispersion(MovingSourceDispersionModel):
                 
                 p['x'] += u * dt + rand_h[0]
                 p['y'] += v * dt + rand_h[1]
-                p['z'] += w * dt + rand_v
+                p['z'] += (w - v_s) * dt + rand_v
                 
                 # Clamp boundary reflection (simple elastic bounce at ground)
                 if p['z'] < self.zmin:

@@ -14,7 +14,10 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_PYTHON_DIR = os.path.join(os.path.dirname(os.path.dirname(TEST_DIR)), 'src', 'python')
 sys.path.insert(0, SRC_PYTHON_DIR)
 
-from agricultural_drone import DroneTrajectory, MassEmissionRegulator, DronePuffDispersion, DroneLpdDispersion
+from agricultural_drone import (
+    DroneTrajectory, MassEmissionRegulator, DronePuffDispersion, DroneLpdDispersion,
+    compute_settling_velocity, compute_evaporative_shrinkage, compute_degradation_decay
+)
 
 
 class TestAgriculturalDrone(unittest.TestCase):
@@ -221,6 +224,169 @@ class TestAgriculturalDrone(unittest.TestCase):
         self.assertEqual(model.concentration.shape, (5, 20, 20))
         total_conc = np.sum(model.concentration)
         self.assertGreater(total_conc, 0.0)
+
+    def test_droplet_physics_helpers(self):
+        """Test individual physical microphysics helper functions."""
+        # 1. Settling velocity: check that coarser settles faster
+        v_fine = compute_settling_velocity(50e-6)
+        v_medium = compute_settling_velocity(150e-6)
+        v_coarse = compute_settling_velocity(350e-6)
+        
+        self.assertGreater(v_coarse, v_medium)
+        self.assertGreater(v_medium, v_fine)
+        self.assertGreater(v_fine, 0.0)
+        
+        # 2. Evaporation: check shrinkage under dry/hot conditions
+        d_initial = 150e-6
+        active_fraction = 0.1
+        dt = 1.0
+        
+        # High evaporation case (hot & dry)
+        d_dry_hot = compute_evaporative_shrinkage(
+            diameter=d_initial, initial_diameter=d_initial,
+            active_fraction=active_fraction, dt=dt,
+            temperature=35.0, relative_humidity=0.1
+        )
+        # Cooler & humid case
+        d_cool_humid = compute_evaporative_shrinkage(
+            diameter=d_initial, initial_diameter=d_initial,
+            active_fraction=active_fraction, dt=dt,
+            temperature=15.0, relative_humidity=0.8
+        )
+        
+        self.assertLess(d_dry_hot, d_initial)
+        self.assertLess(d_dry_hot, d_cool_humid)
+        
+        # Check minimum diameter core limit (d_min = d_initial * active_fraction^(1/3))
+        d_min_expected = d_initial * (active_fraction ** (1.0/3.0))
+        d_fully_evaporated = compute_evaporative_shrinkage(
+            diameter=d_initial, initial_diameter=d_initial,
+            active_fraction=active_fraction, dt=100.0,  # long time
+            temperature=40.0, relative_humidity=0.0
+        )
+        self.assertAlmostEqual(d_fully_evaporated, d_min_expected, places=6)
+        
+        # 3. Chemical & photolytic degradation: check mass reduction
+        initial_mass = 1.0
+        # Hot and sunny (faster degradation)
+        mass_hot_sunny = compute_degradation_decay(
+            mass=initial_mass, dt=600.0,
+            temperature=30.0, solar_radiation=1000.0
+        )
+        # Cooler and shady (slower degradation)
+        mass_cool_shady = compute_degradation_decay(
+            mass=initial_mass, dt=600.0,
+            temperature=15.0, solar_radiation=100.0
+        )
+        
+        self.assertLess(mass_hot_sunny, initial_mass)
+        self.assertLess(mass_hot_sunny, mass_cool_shady)
+
+    def test_puff_dispersion_with_microphysics(self):
+        """Test DronePuffDispersion with all physical interactions enabled."""
+        traj = DroneTrajectory(
+            times=[0.0, 5.0],
+            x_pts=[50.0, 100.0],
+            y_pts=[50.0, 50.0],
+            z_pts=[20.0, 20.0],
+            speeds=[10.0, 10.0],
+            headings=[0.0, 0.0],
+            flow_rates=[1.2, 1.2],
+            active_flags=[True, True]
+        )
+        
+        reg = MassEmissionRegulator(
+            formulation_density=1000.0,
+            active_fraction=0.1
+        )
+        
+        model = DronePuffDispersion(
+            xmin=0.0, xmax=200.0, ymin=0.0, ymax=200.0, zmin=0.0, zmax=50.0,
+            dx=10.0, dy=10.0, dz=10.0
+        )
+        
+        # Run with settling, evaporation, and degradation
+        model.simulate(
+            trajectory=traj,
+            regulator=reg,
+            wind_solver=None,
+            dt=1.0,
+            u_uniform=1.0,
+            v_uniform=0.0,
+            w_uniform=0.0,
+            K_h=0.5,
+            K_v=0.2,
+            enable_ground_reflection=True,
+            temperature=30.0,
+            relative_humidity=0.2,
+            solar_radiation=800.0,
+            enable_settling=True,
+            enable_evaporation=True,
+            enable_degradation=True
+        )
+        
+        # Each active step (6 steps: 0, 1, 2, 3, 4, 5) releases 3 binned puffs -> 18 puffs total
+        self.assertEqual(len(model.puffs), 18)
+        
+        # Verify puff attributes have changed
+        for puff in model.puffs:
+            self.assertIn(puff['bin_name'], ['fine', 'medium', 'coarse'])
+            self.assertLess(puff['diameter'], puff['initial_diameter'])  # Evaporation
+            self.assertLess(puff['z'], 20.0)  # Settling (since w_uniform is 0, they should fall)
+
+    def test_lpd_dispersion_with_microphysics(self):
+        """Test DroneLpdDispersion with all physical interactions enabled."""
+        traj = DroneTrajectory(
+            times=[0.0, 5.0],
+            x_pts=[50.0, 100.0],
+            y_pts=[50.0, 50.0],
+            z_pts=[20.0, 20.0],
+            speeds=[10.0, 10.0],
+            headings=[0.0, 0.0],
+            flow_rates=[1.2, 1.2],
+            active_flags=[True, True]
+        )
+        
+        reg = MassEmissionRegulator(
+            formulation_density=1000.0,
+            active_fraction=0.1
+        )
+        
+        model = DroneLpdDispersion(
+            xmin=0.0, xmax=200.0, ymin=0.0, ymax=200.0, zmin=0.0, zmax=50.0,
+            dx=10.0, dy=10.0, dz=10.0
+        )
+        
+        # Run with settling, evaporation, and degradation
+        model.simulate(
+            trajectory=traj,
+            regulator=reg,
+            wind_solver=None,
+            dt=1.0,
+            u_uniform=1.0,
+            v_uniform=0.0,
+            w_uniform=0.0,
+            K_h=0.5,
+            K_v=0.2,
+            particles_per_step=10,
+            random_seed=42,
+            temperature=30.0,
+            relative_humidity=0.2,
+            solar_radiation=800.0,
+            enable_settling=True,
+            enable_evaporation=True,
+            enable_degradation=True
+        )
+        
+        # 6 steps * 10 particles = 60 particles
+        self.assertEqual(len(model.particles), 60)
+        
+        # Verify particles have expected attributes and modified diameters
+        for p in model.particles:
+            self.assertIn(p['bin_name'], ['fine', 'medium', 'coarse'])
+            # Since particles can advect out or remain active, check active ones
+            if p['active'] and p['x'] > 50.0:  # age > 0
+                self.assertLess(p['diameter'], p['initial_diameter'])  # Evaporation
 
 
 if __name__ == "__main__":
