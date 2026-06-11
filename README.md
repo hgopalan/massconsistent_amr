@@ -1,76 +1,8 @@
 # massconsistent_amr
 
-**massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM). It also integrates with external tools via Python, supporting wind farm utilities (FLORIS, PyWake), wildfire modeling, and geochemical reactive transport (PHREEQC).
+**massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM).
 
-## Scenario Gallery
-
-The solver supports diverse engineering, physical, and environmental wind-modeling scenarios. Below is a gallery of the eight core scenarios:
-
-<table width="100%">
-  <tr>
-    <td width="50%" valign="top">
-      <h4>1. Complex Terrain-Following Coordinate Flow</h4>
-      <p>Deformation of incoming log-law velocity profile over a Gaussian hill, showing streamline compression (orographic speed-up) and coordinate transformation.</p>
-      <img src="docs/terrain_following_complex_flow.png" alt="Complex Terrain-Following Flow" width="100%"/>
-    </td>
-    <td width="50%" valign="top">
-      <h4>2. Gorge Bridge Crossing Wind Loading</h4>
-      <p>Bridges crossing deep gorges experience extreme funneling speedup, vertical wind shear, and vortex-induced cable resonance.</p>
-      <img src="docs/gorge_bridge_crossing.png" alt="Gorge Bridge Crossing" width="100%"/>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h4>3. Urban Street Canyon & Building Wakes</h4>
-      <p>Building-induced wake parameterizations (Röckle, Huber-Snyder, AERMOD PRIME) resolving leeward cavities and street canyon vortices.</p>
-      <img src="docs/urban_street_canyon.png" alt="Urban Street Canyon" width="100%"/>
-    </td>
-    <td width="50%" valign="top">
-      <h4>4. Transmission Tower & Line Wind Loading</h4>
-      <p>Structural wind loading, catenary line tension, and sway displacement calculated dynamically across complex ridges.</p>
-      <img src="docs/transmission_line_loading.png" alt="Transmission Line Loading" width="100%"/>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h4>5. Yawed Wind Turbine Wake Deflection</h4>
-      <p>Analytical wake deficit and lateral center-line deflection under yawed operation (Bastankhah model) to optimize array performance.</p>
-      <img src="docs/turbine_wake_deflection.png" alt="Turbine Wake Deflection" width="100%"/>
-    </td>
-    <td width="50%" valign="top">
-      <h4>6. Geochemical Hotspot & O₂ Delivery Detection</h4>
-      <p>Valley AMD (Acid Mine Drainage) discharge point risk-classification based on wind-speed-dependent Sherwood mass transfer correlations.</p>
-      <img src="docs/valley_amd_hotspots.png" alt="Valley AMD Hotspots" width="100%"/>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h4>7. Agricultural Drone Spray Drift & Deposition</h4>
-      <p>Modeling drone pesticide application, spray drift, dynamic canopy deposition, and rotor downwash velocity mapping over complex terrain.</p>
-      <img src="docs/drone_deposition_plot.png" alt="Agricultural Drone Spray Drift" width="100%"/>
-    </td>
-    <td width="50%" valign="top">
-      <h4>8. Terrain-Aware Synthetic Turbulence</h4>
-      <p>Generating terrain-conforming synthetic turbulence fluctuations over a Gaussian hill topography, restricted to fluid zones with smooth boundary blending. The terrain-masked visualization highlights the u, v, and w fluctuation components with height-dependent coherence length scales and atmospheric anisotropy (σu &gt; σv &gt; σw); see Features §4 for the synthetic turbulence capability summary.</p>
-      <img src="docs/terrain_following_complex_flow.png" alt="Terrain-Aware Synthetic Turbulence" width="100%"/>
-      <!-- Visualization shows terrain-masked synthetic turbulence component structure over the Gaussian hill with smooth boundary blending in the near-surface transition zone. -->
-    </td>
-  </tr>
-</table>
-
-## CI / Build Status
-
-| Configuration | Status |
-|---------------|--------|
-| Linux & macOS CPU (GCC/Clang, Release + Debug) | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
-| Windows CPU (MSVC, Release + Debug) | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_windows)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
-| Linux GPU — CUDA 12.6 | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_cuda)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
-| Windows GPU — CUDA 12.6 ⚠️ | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_windows_cuda)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
-| Linux GPU — HIP/ROCm 6.2 | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_hip)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
-| Linux GPU — SYCL/oneAPI 2025.x | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_sycl)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
-| Documentation | [![Build and Deploy Documentation](https://github.com/hgopalan/massconsistent_amr/actions/workflows/docs.yml/badge.svg)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/docs.yml) |
-
-⚠️ **Note:** Windows CUDA build is non-blocking (experimental); failures do not affect overall CI status.
+Key capabilities include mass-consistent wind fields over complex terrain, building wakes, canopy effects, synthetic turbulence, and dispersion modeling with reactive chemistry and deposition.
 
 📖 **[Full documentation](https://hgopalan.github.io/massconsistent_amr/)**
 
@@ -86,76 +18,61 @@ cmake --build build --parallel
 
 ## Build Options
 
+* `-DMASSCONSISTENT_GPU_BACKEND=[NONE|CUDA|HIP|SYCL]` — GPU acceleration (default: `NONE`)
+* `-DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=[ON|OFF]` — Python API (default: `OFF`)
+* `-DMASSCONSISTENT_ENABLE_MPI=[ON|OFF]` — MPI parallelism (default: `OFF`)
+* `-DMASSCONSISTENT_USE_VENDORED_AMREX=[ON|OFF]` — Use vendored AMReX (default: `ON`)
+
+## Features
+
+See [Full documentation](https://hgopalan.github.io/massconsistent_amr/) for details on:
+
+- **Mass-consistent wind fields** over complex terrain
+- **Building and canopy drag** modeling  
+- **Analytical turbine wakes** (Jensen, Bastankhah, TurbOPark)
+- **Gaussian puff dispersion** with chemistry and deposition
+- **Synthetic turbulence** (Kaimal, Von Kármán, Mann box)
+- **Infrastructure loading** (bridges, transmission lines)
+- **External coupling** (FLORIS, PyWake, wildfire)
+
+## CI / Build Status
+
+| Configuration | Status |
+|---------------|--------|
+| Linux & macOS CPU | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
+| Windows CPU | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_windows)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
+| Linux GPU — CUDA | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_cuda)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
+| Linux GPU — HIP/ROCm | [![CMake Build](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml/badge.svg?job=build_hip)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/cmake_build.yml) |
+| Documentation | [![Build and Deploy Documentation](https://github.com/hgopalan/massconsistent_amr/actions/workflows/docs.yml/badge.svg)](https://github.com/hgopalan/massconsistent_amr/actions/workflows/docs.yml) |
+
+## Test Cases & Validation
+
+- **80+ Regression Tests**: Covering solver, wakes, turbulence, dispersion, and wildfire coupling
+- **Phase 5 Validation Suite**: Multi-source, time-varying emissions, chemistry, and deposition tests
+- **Backwards Compatibility**: All legacy input files supported
+
+Run tests with CTest:
+```bash
+ctest -L regtest
+```
+
+Run Phase 5 tests:
+```bash
+cd regtest && python3 run_phase5_tests.py
+```
+
+## Build Options
+
 Customize the build by passing variables to CMake:
 
 * `-DMASSCONSISTENT_GPU_BACKEND=[NONE|CUDA|HIP|SYCL]` — Enable GPU acceleration (default: `NONE`)
 * `-DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=[ON|OFF]` — Build Python API wrapper (default: `OFF`)
 * `-DMASSCONSISTENT_ENABLE_MPI=[ON|OFF]` — Enable MPI multi-node parallelism (default: `OFF`)
-* `-DMASSCONSISTENT_USE_VENDORED_AMREX=[ON|OFF]` — Use vendored or external AMReX (default: `ON`). For external, set `-DAMReX_DIR=/path/to/amrex`.
+* `-DMASSCONSISTENT_USE_VENDORED_AMREX=[ON|OFF]` — Use vendored AMReX (default: `ON`)
 
-Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON`
+## Advanced Capabilities
 
-## Features
-
-### 1. Mass-Consistent Solver & Wake Modeling
-- **Mass-Consistent Wind Field:** Enforces $\nabla \cdot \mathbf{u} = 0$ over complex terrain using a variational Lagrange multiplier approach.
-- **Spatially-Varying Anisotropy:** Adapts adjustment coefficients ($\alpha_h / \alpha_v$) cell-locally based on slope, Richardson number, and Froude number.
-- **Topographic Barrier Shielding:** Penalizes interpolation weights across high mountain ridges to prevent unphysical station influence in adjacent valleys.
-- **Physical Parameterizations:** Integrates stable/unstable Monin-Obukhov profiles, orographic speed-up, katabatic/anabatic slope flows, sea breeze, and valley channeling.
-- **Meteorological Ingestion:** Supports 3D NetCDF NWP inputs (e.g., WRF, GFS) with anisotropic Inverse Distance Weighting to preserve vertical profiles.
-- **MacDonald Canopy Drag:** Models vegetative canopy drag, with exponential wind decay within canopy height ($h_c$) and displacement height corrections.
-- **Building Wake Models:** Incorporates Röckle, Huber-Snyder, and AERMOD PRIME building downwash parameterizations, with street canyon vortex modeling.
-- **AMReX Embedded Boundary (EB) Support:** Alternative geometry representation utilizing AMReX EB2 to represent arbitrary 3D shapes (such as boxes, cylinders, spheres, and STL geometries), marking solid cells via fluid volume fraction.
-- **Analytical Turbine Wakes:** Supports Jensen, Bastankhah Gaussian, TurbOPark, and Gauss-Curl Hybrid wake models, including wake centerline deflection, yaw, and AEP calculation.
-- **Wake Superposition & Added Turbulence:** Computes overlapping deficits (quadratic/linear/geometric) and wake-added turbulence (Crespo-Hernández, Frandsen) with convective buoyant wake destruction.
-
-### 2. 3D Scalar Transport and Mixing
-- **3D Advection-Diffusion:** Solves transport of temperature and moisture using conservative upwind advection and mixing-length eddy diffusivity.
-- **1D Mixing Solver:** Simulates vertical surface layer transitions and boundary layer mixing.
-- **Spatially-Varying Boundary Layer Height:** Diagnoses boundary layer height ($h_{pbl}$) using column-scanning bulk Richardson number profiles.
-- **Sky View Factor & Solar Shading:** Computes sky view factor from combined terrain+building elevation field and solar shading based on sun position, enabling radiation-dependent thermal effects and urban canyon heating.
-
-### 3. Dispersion Model
-- **Gaussian Puff Dispersion:** Tracks 3D Gaussian puffs with Pasquill-Gifford stability, Briggs plume rise, gravitational settling, dry deposition, and precipitation scavenging.
-- **Lagrangian Particle LPDM:** Simulates stochastic particle trajectories with Wiener processes, including a vertical drift correction to prevent spurious accumulation in inhomogeneous diffusivity fields.
-
-### 4. Synthetic Fluctuations (Turbulence)
-- **Terrain-Aware Masking:** Confines synthetic turbulent fluctuations to fluid regions and blends smoothly near terrain boundaries.
-- **Spectral Turbulence Models:** Generates terrain-aware synthetic fluctuations using Kaimal or Von Kármán spectra with height-varying intensity and coherence length scales, plus Mann 3D anisotropic turbulence box modeling.
-- **Downstream Export:** Exports OpenFAST/TurbSim compatible binary (.bts) formats.
-
-### 5. Infrastructure Vulnerability Assessment
-- **Bridge Loading:** Computes vertical/lateral drag forces, ISO-comfort human accelerations, and vortex-induced resonant shedding frequencies.
-- **Transmission Line Assessment (IEEE 738):** Solves conductor heat balance to calculate dynamic line ratings, sag, and wind drag across complex terrain.
-- **Structure Loading:** Evaluates static base shear, dynamic amplification (gust response), lateral bending deflection, and structural fragility curves.
-
-### 6. External Coupling & APIs
-- **Wildfire Levelset:** One-way coupling with fire front propagation using sensible heat flux feedback.
-- **FLORIS & PyWake integration:** Exports resolved wind fields and data formats to FLORIS, PyWake, and WAsP.
-
-## Test Cases
-
-Test cases are located in `test/` and documented in `test/README.md`.
-
-## Regression Tests
-
-Over 80 automated regression tests are located in `regtest/` covering the core solver, wake models, turbulence, dispersion, and wildfire coupling.
-
-Run them with CTest from your build directory:
-```bash
-ctest -L regtest
-```
-
-## Agricultural Drone Operations
-
-The solver provides a dedicated Python module (`agricultural_drone`) for simulating agricultural drone operations. This module supports parsing and interpolating 3D flight trajectories from CSV telemetry, modeling 3D analytical rotor downwash velocity fields (including jet expansion and forward flight deflection), and simulating spray drift and canopy deposition using either Lagrangian Particle Dispersion Models (LPDM) or Gaussian Puff dispersion.
-
-For guides and API documentation, see the [External Coupling Documentation](docs/external_coupling.rst).
-
-## External Coupling
-
-The solver integrates with external models for geochemical and fire modeling. For guides, API references, and examples, see the [External Coupling Documentation](docs/external_coupling.rst) and the [wildfire_levelset](https://github.com/hgopalan/wildfire_levelset) repository.
-
-## License
-
-See [LICENSE](LICENSE).
+- **Agricultural Drone Operations**: Simulate drone spray drift, rotor downwash, and canopy deposition
+- **Wildfire Coupling**: One-way coupling with fire propagation models
+- **External Integrations**: FLORIS, PyWake, WAsP wind farm tools; PHREEQC geochemistry
+- **Python API**: Integrate with external models and workflows

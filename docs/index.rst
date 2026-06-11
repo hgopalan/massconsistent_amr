@@ -22,6 +22,9 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    regtests
    references
    external_coupling
+   phases/overview
+   phases/phase42
+   phases/phase5
 
 Overview
 ========
