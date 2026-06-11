@@ -2,16 +2,21 @@
 """
 plot_turbine_wake.py
 
-Generates a nice two-panel figure for the Yawed Wind Turbine Wake Deflection scenario:
-- Left: Horizontal slice (X-Y) of wind velocity deficit behind two turbines with 0 degree yaw (no deflection).
-- Right: Horizontal slice (X-Y) of wind velocity deficit behind two turbines with 25 degree yaw,
-  showing the yaw-induced lateral wake deflection (Bastankhah deflection).
+Simulates the Happy Jack Wind Farm (Laramie County, WY) with 14 Suzlon S88/2100 wind turbines
+using the mass-consistent wind solver, and generates a side-by-side two-panel visualization:
+- Left: Shaded 2D terrain elevation contour map showing the hilly Happy Jack topography 
+  with turbine locations overlaid.
+- Right: Shaded 2D wind velocity deficit at 80 m hub height with streamlines showing 
+  wake deficits and deflected wakes (Bastankhah model).
 
 Saves the generated image to docs/turbine_wake_deflection.png.
 """
 
 import os
 import sys
+import math
+import shutil
+import tempfile
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -19,109 +24,209 @@ from pathlib import Path
 # Setup paths
 POST_DIR = Path(__file__).resolve().parent
 REPO_ROOT = POST_DIR.parent.parent
+BUILD_PYTHON_DIR = REPO_ROOT / "build" / "python"
+SRC_PYTHON_DIR = REPO_ROOT / "src" / "python"
 DOCS_DIR = REPO_ROOT / "docs"
 
+# Add paths to sys.path
+sys.path.insert(0, str(BUILD_PYTHON_DIR))
+sys.path.insert(0, str(SRC_PYTHON_DIR))
+
+try:
+    from wind_solver import WindSolver
+except ImportError as e:
+    print(f"ERROR: Could not import WindSolver: {e}")
+    sys.exit(1)
+
 def main():
-    print("Generating high-resolution Wind Turbine Wake Deflection visualization...")
+    print("Simulating Happy Jack Wind Farm with Suzlon S88/2100 Turbines...")
     
-    # Let's create a beautiful analytical plot of Bastankhah & Porté-Agel wake model
-    nx, ny = 200, 100
-    x_coords = np.linspace(0.0, 500.0, nx)
-    y_coords = np.linspace(-100.0, 100.0, ny)
-    X, Y = np.meshgrid(x_coords, y_coords)
-    
-    # Turbine properties
-    D = 126.0  # Rotor diameter (NREL 5MW)
-    U_inf = 10.0  # Free stream velocity
-    
-    # Helper to calculate analytical wake deficit (Bastankhah model)
-    def calculate_wake(X_grid, Y_grid, yaw_deg=0.0):
-        # Base velocity is free stream
-        U = np.full_like(X_grid, U_inf)
+    # Create a temporary directory for simulation files to avoid polluting repository
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
         
-        # Turbine 1 is located at (50.0, 0.0)
-        x_t1, y_t1 = 50.0, 0.0
+        # 1. Exact coordinates of the 14 Happy Jack turbines provided by the user
+        lons = [-105.008087, -104.995293, -104.995987, -104.996094, -104.997887,
+                 -105.00869,  -104.982887, -104.984787, -105.008888, -104.994492,
+                 -104.982491, -104.98439,  -104.983788, -104.994293]
+        lats = [41.144993, 41.145695, 41.142994, 41.137894, 41.139793,
+                 41.139091, 41.133392, 41.135494, 41.141293, 41.135391,
+                 41.145794, 41.143291, 41.140892, 41.132492]
         
-        # Wake expansion parameters
-        k_w = 0.03
-        ct = 0.8
+        lat_ref = 41.1400
+        lon_ref = -104.9939
         
-        yaw_rad = np.radians(yaw_deg)
+        # Suzlon S88/2100 parameters
+        D = 88.0  # Rotor diameter [m]
+        H = 80.0  # Hub height [m]
+        ct = 0.8  # Default Ct
         
-        # Calculate wake behind Turbine 1
-        for j in range(ny):
-            for i in range(nx):
-                x = X_grid[j, i]
-                y = Y_grid[j, i]
+        # 2. Convert coordinates to local meters relative to (lat_ref, lon_ref)
+        xs = []
+        ys = []
+        for lat, lon in zip(lats, lons):
+            x = (lon - lon_ref) * 111000.0 * math.cos(math.radians(lat_ref))
+            y = (lat - lat_ref) * 111000.0
+            xs.append(x)
+            ys.append(y)
+            
+        # 3. Write turbines.csv
+        # Let's yaw the first 7 turbines by 20 degrees, and keep others at 0
+        turbine_file = tmp_path / "turbines.csv"
+        with open(turbine_file, "w") as f:
+            f.write("# x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file\n")
+            for i, (x, y) in enumerate(zip(xs, ys)):
+                yaw_val = 20.0 if i < 7 else 0.0
+                f.write(f"{x:.2f}, {y:.2f}, {H:.1f}, {D:.1f}, {ct:.2f}, {yaw_val:.1f}, 0.0, nrel_5mw.csv\n")
                 
-                # Check downstream of T1
-                if x > x_t1:
-                    dx = x - x_t1
-                    # Wake width
-                    sigma = k_w * dx + D / np.sqrt(8.0)
-                    
-                    # Deflection
-                    if yaw_deg != 0.0:
-                        # Bastankhah analytical deflection formula approximation
-                        theta = 0.3 * yaw_rad * (1.0 - np.sqrt(1.0 - ct))
-                        deflection = theta * dx
-                    else:
-                        deflection = 0.0
-                        
-                    # Centerline deficit
-                    center_deficit = U_inf * (1.0 - np.sqrt(1.0 - ct / (8.0 * (sigma / D)**2)))
-                    # Radial distribution
-                    r_sq = (y - y_t1 - deflection)**2
-                    deficit = center_deficit * np.exp(-r_sq / (2.0 * sigma**2))
-                    
-                    U[j, i] -= deficit
-                    
-        # Clip minimum velocity to be physical
-        return np.clip(U, 1.0, U_inf)
+        # Copy nrel_5mw.csv to tmp_dir
+        orig_power_curve = REPO_ROOT / "tests_and_examples" / "randomized_hill_turbines" / "nrel_5mw.csv"
+        if orig_power_curve.exists():
+            shutil.copy(orig_power_curve, tmp_path / "nrel_5mw.csv")
+        else:
+            with open(tmp_path / "nrel_5mw.csv", "w") as f:
+                f.write("# ws, power, ct\n")
+                f.write("0.0, 0.0, 0.8\n")
+                f.write("10.0, 2100.0, 0.8\n")
+                f.write("25.0, 2100.0, 0.8\n")
+
+        # 4. Write terrain.csv with a beautiful hilly ridge-valley topography for Wyoming
+        # We define a 9x9 grid covering the domain coordinates
+        terrain_file = tmp_path / "terrain.csv"
+        with open(terrain_file, "w") as f:
+            f.write("# Happy Jack hilly terrain\n")
+            f.write("# X[m] Y[m] Z[m]\n")
+            tx = np.linspace(-2000.0, 2000.0, 9)
+            ty = np.linspace(-1500.0, 1500.0, 9)
+            for y in ty:
+                for x in tx:
+                    # Realistic hill elevation mapping
+                    z = 2200.0 + 120.0 * math.sin(x / 500.0) + 80.0 * math.cos(y / 400.0)
+                    f.write(f"{x:.2f}, {y:.2f}, {z:.2f}\n")
+
+        # 5. Write inputs.i
+        inputs_file = tmp_path / "inputs.i"
+        with open(inputs_file, "w") as f:
+            f.write(f"terrain_file = {terrain_file.name}\n")
+            f.write("enable_turbine_wake = true\n")
+            f.write(f"turbine_file = {turbine_file.name}\n")
+            f.write("turbine_wake_model_type = bastankhah_gaussian\n")
+            f.write("turbine_wake_superposition = quadratic\n")
+            f.write("wake_added_turbulence_model = none\n")
+            f.write("enable_jimenez_deflection = false\n")
+            f.write("enable_bastankhah_deflection = true\n")
+            f.write("turbopark_c1 = 0.38\n")
+            f.write("ambient_ti = 0.075\n")
+            f.write("U_ref = 10.0\n")
+            f.write("V_ref = 0.0\n")
+            f.write("z_ref = 80.0\n")
+            f.write("z0 = 0.05\n")
+            f.write("dx = 50.0\n")
+            f.write("dy = 50.0\n")
+            f.write("dz = 15.0\n")
+            f.write("domain_height = 300.0\n")
+            f.write("alpha_h = 1.0\n")
+            f.write("alpha_v = 1.0\n")
+            f.write("mlmg_verbose = 0\n")
+            f.write("max_grid_size = 64\n")
+            f.write("plot_file = plt_happy_jack\n")
+
+        # Change directory to run the solver
+        old_cwd = os.getcwd()
+        os.chdir(tmp_dir)
+
+        # 6. Run the WindSolver
+        wind = WindSolver()
+        wind.initialize("inputs.i")
+        wind.solve()
+
+        # Get exact physical coordinates
+        dx, dy = wind.dx, wind.dy
+        xmin, xmax = wind.xmin, wind.xmax
+        ymin, ymax = wind.ymin, wind.ymax
+        nx, ny = wind.nx, wind.ny
         
-    # Calculate wake fields
-    U_no_yaw = calculate_wake(X, Y, yaw_deg=0.0)
-    U_yaw = calculate_wake(X, Y, yaw_deg=25.0)
-    
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-    
-    # Plot 1: No Yaw
-    cp1 = ax1.contourf(X, Y, U_no_yaw, levels=30, cmap='viridis')
-    cbar1 = fig.colorbar(cp1, ax=ax1, orientation='vertical', aspect=15)
-    cbar1.set_label('Wind Velocity [m/s]', fontsize=11)
-    
-    # Draw Turbines
-    ax1.plot([50.0, 50.0], [-D/2.0, D/2.0], 'k-', linewidth=4, label='Turbine Rotor')
-    ax1.plot([250.0, 250.0], [-D/2.0, D/2.0], 'k--', linewidth=4, label='Downstream Turbine')
-    ax1.set_title("Standard Wake Deficit (0° Yaw) — High Downstream Inflow Deficit", fontsize=13, fontweight='bold')
-    ax1.set_ylabel("Y position [m]", fontsize=11)
-    ax1.legend(loc='lower left')
-    ax1.grid(True, linestyle='--', alpha=0.3)
-    
-    # Plot 2: Yawed (25° Yaw)
-    cp2 = ax2.contourf(X, Y, U_yaw, levels=30, cmap='viridis')
-    cbar2 = fig.colorbar(cp2, ax=ax2, orientation='vertical', aspect=15)
-    cbar2.set_label('Wind Velocity [m/s]', fontsize=11)
-    
-    # Draw Yawed Turbine
-    yaw_length = D / 2.0
-    dx_yaw = yaw_length * np.sin(np.radians(25.0))
-    dy_yaw = yaw_length * np.cos(np.radians(25.0))
-    ax2.plot([50.0 - dx_yaw, 50.0 + dx_yaw], [-dy_yaw, dy_yaw], 'k-', linewidth=4, label='Yawed Rotor (25°)')
-    ax2.plot([250.0, 250.0], [-D/2.0, D/2.0], 'k--', linewidth=4, label='Downstream Turbine')
-    
-    ax2.set_title("Deflected Wake Deficit (25° Yaw) — Deflected Away from Downstream Inflow", fontsize=13, fontweight='bold')
-    ax2.set_xlabel("Downstream X distance [m]", fontsize=11)
-    ax2.set_ylabel("Y position [m]", fontsize=11)
-    ax2.legend(loc='lower left')
-    ax2.grid(True, linestyle='--', alpha=0.3)
-    
-    plt.tight_layout()
-    
-    DOCS_DIR.mkdir(parents=True, exist_ok=True)
-    out_img = DOCS_DIR / "turbine_wake_deflection.png"
-    plt.savefig(out_img, dpi=150)
-    print(f"Saved Turbine Wake Deflection plot to: {out_img}")
+        # Get terrain elevation map
+        terrain = wind.get_terrain()
+        
+        # Get velocity field at hub height (80 m AGL)
+        vel_hub = wind.get_velocity_at_agl(80.0)
+        U = vel_hub['u']
+        V = vel_hub['v']
+        U_mag = np.sqrt(U**2 + V**2)
+
+        # Generate coordinate meshes
+        x_coords = xmin + (np.arange(nx) + 0.5) * dx
+        y_coords = ymin + (np.arange(ny) + 0.5) * dy
+        X, Y = np.meshgrid(x_coords, y_coords)
+
+        # 7. Generate a beautiful side-by-side visualization
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8), sharey=True)
+        
+        # LEFT PANEL: Terrain elevation contours
+        cp1 = ax1.contourf(X, Y, terrain, levels=30, cmap='terrain')
+        cbar1 = fig.colorbar(cp1, ax=ax1, orientation='horizontal', pad=0.1, aspect=30)
+        cbar1.set_label('Terrain Elevation [m]', fontsize=11)
+        
+        # Draw contour lines for terrain
+        contours = ax1.contour(X, Y, terrain, levels=15, colors='black', alpha=0.3, linewidths=0.5)
+        ax1.clabel(contours, inline=True, fontsize=8, fmt='%.0f')
+        
+        # Overplot turbines on terrain
+        for i, (x_t, y_t) in enumerate(zip(xs, ys)):
+            color = 'red' if i < 7 else 'black'
+            label = 'Yawed Suzlon S88' if (i == 0) else ('Aligned Suzlon S88' if (i == 7) else '')
+            ax1.plot(x_t, y_t, 'o', color=color, markersize=7, label=label)
+            ax1.text(x_t - 25, y_t + 25, f"WT{i+1}", color='black', fontsize=9, fontweight='bold')
+            
+        ax1.set_title("Happy Jack Topography (Wyoming)\n14 Suzlon S88/2100 wind turbine locations", fontsize=13, fontweight='bold')
+        ax1.set_xlabel("Local X coordinate [m]", fontsize=11)
+        ax1.set_ylabel("Local Y coordinate [m]", fontsize=11)
+        ax1.grid(True, linestyle='--', alpha=0.3)
+        ax1.legend(loc='lower left', framealpha=0.9)
+        
+        # RIGHT PANEL: Velocity magnitude contours
+        cp2 = ax2.contourf(X, Y, U_mag, levels=40, cmap='viridis')
+        cbar2 = fig.colorbar(cp2, ax=ax2, orientation='horizontal', pad=0.1, aspect=30)
+        cbar2.set_label('Wind Velocity at 80 m Hub Height [m/s]', fontsize=11)
+        
+        # Overlay wind streamlines
+        ax2.streamplot(X, Y, U, V, color=(1.0, 1.0, 1.0, 0.35), density=1.5, linewidth=1.0)
+
+        # Plot wind turbine rotors
+        for i, (x_t, y_t) in enumerate(zip(xs, ys)):
+            if i < 7:
+                # Western row: Yawed
+                angle = np.radians(20.0 + 90.0)
+                dx_rotor = (D / 2.0) * np.cos(angle)
+                dy_rotor = (D / 2.0) * np.sin(angle)
+                ax2.plot([x_t - dx_rotor, x_t + dx_rotor], [y_t - dy_rotor, y_t + dy_rotor], 
+                        color='red', linewidth=3, label='Yawed Rotor (20°)' if i == 0 else "")
+                ax2.plot(x_t, y_t, 'ro', markersize=5)
+            else:
+                # Eastern row: Non-yawed
+                ax2.plot([x_t, x_t], [y_t - D/2.0, y_t + D/2.0], 
+                        color='black', linewidth=3, label='Aligned Rotor (0°)' if i == 7 else "")
+                ax2.plot(x_t, y_t, 'ko', markersize=5)
+
+        ax2.set_title("Deflected Turbine Wakes at 80 m Hub Height\nWestern turbines yawed at 20° to deflect wakes", fontsize=13, fontweight='bold')
+        ax2.set_xlabel("Local X coordinate [m]", fontsize=11)
+        ax2.grid(True, linestyle='--', alpha=0.3)
+        ax2.legend(loc='lower left', framealpha=0.9)
+        
+        plt.tight_layout()
+        
+        # Ensure output directory exists and save
+        DOCS_DIR.mkdir(parents=True, exist_ok=True)
+        out_img = DOCS_DIR / "turbine_wake_deflection.png"
+        plt.savefig(out_img, dpi=150)
+        print(f"✓ Saved Happy Jack Wind Farm Wake Deflection plot to: {out_img}")
+        
+        # Finalize solver
+        wind.finalize()
+        
+        # Restore directory
+        os.chdir(old_cwd)
 
 if __name__ == '__main__':
     main()

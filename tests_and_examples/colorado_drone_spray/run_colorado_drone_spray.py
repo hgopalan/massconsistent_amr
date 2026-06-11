@@ -21,6 +21,9 @@ TEST_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TEST_DIR.parent.parent
 SRC_PYTHON_DIR = REPO_ROOT / "src" / "python"
 sys.path.insert(0, str(SRC_PYTHON_DIR))
+sys.path.insert(0, str(REPO_ROOT))
+
+from tools.terrain_reader_srtm import SRTMReader
 
 try:
     from wind_solver import WindSolver
@@ -42,6 +45,31 @@ def run_workflow():
     # 1. Change working directory to test case folder for loading relative paths
     os.chdir(TEST_DIR)
     print(f"Working directory: {TEST_DIR}\n")
+
+    # Generate terrain.csv from SRTM N40W105.hgt using SRTMReader if it exists
+    hgt_file = TEST_DIR / "N40W105.hgt"
+    output_csv = TEST_DIR / "terrain.csv"
+    if hgt_file.exists():
+        print("Regenerating terrain.csv from SRTM N40W105.hgt using SRTMReader...")
+        reader = SRTMReader(str(hgt_file))
+        if reader.read():
+            lat_ref = 40.5
+            lon_ref = -104.5
+            lat_min = lat_ref - 0.0025
+            lat_max = lat_ref + 0.0025
+            delta_lon = 256.941744 / (111000.0 * np.cos(np.radians(lat_ref)))
+            lon_min = lon_ref - delta_lon
+            lon_max = lon_ref + delta_lon
+            reader.write_terrain_csv(
+                output_file=str(output_csv),
+                lat_min=lat_min,
+                lat_max=lat_max,
+                lon_min=lon_min,
+                lon_max=lon_max,
+                nx=21,
+                ny=21
+            )
+            print("✓ Successfully regenerated terrain.csv from SRTM!")
 
     # 2. Initialize and solve Mass-Consistent Wind Solver
     inputs_file = "inputs.i"

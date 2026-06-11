@@ -145,7 +145,7 @@ def main():
     ax1.axhline(-20.0, color='blue', linestyle=':', label='Target Swath Bounds')
     ax1.axhline(20.0, color='blue', linestyle=':')
     
-    ax1.set_title("Colorado Complex Terrain Map", fontsize=14, fontweight='bold')
+    ax1.set_title("Colorado Rocky Mountain Foothills Farm Terrain Map", fontsize=14, fontweight='bold')
     ax1.set_xlabel("X coordinate [m]", fontsize=11)
     ax1.set_ylabel("Y coordinate [m]", fontsize=11)
     ax1.grid(True, linestyle='--', alpha=0.5)
