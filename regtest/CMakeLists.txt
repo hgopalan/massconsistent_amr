@@ -546,7 +546,6 @@ add_regression_test(iec61400_category_c turbulence/iec61400_category_c)
 # Python unit tests for IEC 61400 spectral models across all categories
 add_python_regression_test(iec61400_categories_regtest turbulence/iec61400_categories test_iec61400_categories.py)
 
-<<<<<<< HEAD
 # -----------------------------------------------------------------------
 # terrain_masked_synthesis/ – Terrain-aware synthetic turbulence regression
 # -----------------------------------------------------------------------
@@ -566,9 +565,6 @@ add_test(NAME regtest_turbulence_terrain_aware_units
 set_tests_properties(regtest_turbulence_terrain_aware_units PROPERTIES
                      TIMEOUT 60
                      LABELS "regtest")
-
-=======
->>>>>>> origin/main
 # ===========================================================================
 # field_output_test/ – Unified field output (21 diagnostic fields)
 # ===========================================================================
@@ -732,11 +728,8 @@ message(STATUS "  turbulence/synthetic_turbulence_full/      : synthetic turbule
 message(STATUS "  turbulence/iec61400_von_karman/            : IEC 61400-1:2019 Category B with Von Kármán spectrum")
 message(STATUS "  turbulence/iec61400_kaimal/                : IEC 61400-1:2019 Category A with Kaimal spectrum")
 message(STATUS "  turbulence/iec61400_category_c/            : IEC 61400-1:2019 Category C with QuadraticExponential coherence")
-<<<<<<< HEAD
 message(STATUS "  regtest_turbulence_terrain_masked/         : terrain-masked synthetic turbulence regression and BTS export checks")
 message(STATUS "  regtest_turbulence_terrain_aware_units/    : terrain-aware turbulence unit tests (masking, spectra, coherence, GPU parity)")
-=======
->>>>>>> origin/main
 message(STATUS "  iec61400_categories_regtest/    : Python unit tests for IEC 61400 spectral models (20 tests)")
 message(STATUS "  diagnostics/field_output_test/              : Unified field output with 21 diagnostic fields")
 message(STATUS "  diagnostics/parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
