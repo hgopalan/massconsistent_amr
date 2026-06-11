@@ -1,0 +1,10 @@
+# Time-varying emissions for Phase 5.1 test
+# Time [s], Emission_Rate [units/s]
+# Simulates traffic rush hour: low morning, peak midday, evening decay
+0.0, 0.5
+600.0, 0.7
+1200.0, 1.0
+1800.0, 1.2
+2400.0, 1.5
+3000.0, 1.2
+3600.0, 0.8

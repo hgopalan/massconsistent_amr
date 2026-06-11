@@ -1,0 +1,5 @@
+# Receptor grid for chemistry test (downwind locations)
+# Label, X [m], Y [m], Z [m]
+R_200, 200.0, 0.0, 1.5
+R_500, 500.0, 0.0, 1.5
+R_1000, 1000.0, 0.0, 1.5

@@ -1,0 +1,5 @@
+# Simplified SOx chemistry for Phase 5.1 test
+# SO2 -> Sulfate transformation
+# Species, Molar_Weight [g/mol], Density [kg/m3], Decay_Rate [1/s]
+SO2, 64.0, 1.45, 0.0001
+Sulfate, 98.0, 1800.0, 0.0

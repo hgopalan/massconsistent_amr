@@ -1,0 +1,5 @@
+# Three industrial stacks for Phase 5.1 regression test
+# ID, X [m], Y [m], Z [m], Emission_Rate [units/s], Duration [s], Type
+Stack_1, 0.0, 0.0, 100.0, 1.0, 3600.0, point
+Stack_2, 500.0, 200.0, 80.0, 0.8, 3600.0, point
+Stack_3, 1000.0, -300.0, 120.0, 1.2, 3600.0, point
