@@ -646,6 +646,28 @@ int main(int argc, char* argv[])
         bool enable_visibility = false;
         pp.query("enable_visibility", enable_visibility);
         
+        bool enable_chemistry = false;
+        Real k1_rate = 0.01 / 3600.0;
+        Real k2_rate = 0.02 / 3600.0;
+        Real k3_rate = 0.05 / 3600.0;
+        Real roughness = 0.1;
+        Real u_star = 0.4;
+        Real L_obukhov = 1.0e10;
+        std::string receptor_output = "receptor_concentration.csv";
+
+        pp.query("enable_chemistry", enable_chemistry);
+        pp.query("k1_rate", k1_rate);
+        pp.query("k2_rate", k2_rate);
+        pp.query("k3_rate", k3_rate);
+        pp.query("roughness", roughness);
+        pp.query("u_star", u_star);
+        pp.query("L_obukhov", L_obukhov);
+        pp.query("receptor_output", receptor_output);
+
+        if (enable_pg_stability && !pp.contains("L_obukhov")) {
+            L_obukhov = pg_class_to_obukhov_length(static_cast<PGStabilityClass>(pg_stability_class));
+        }
+        
         // Read receptors file
         struct Receptor {
             Real x, y, z;
@@ -658,14 +680,20 @@ int main(int argc, char* argv[])
                 std::string rline;
                 // Check if has header and skip
                 if (std::getline(rfile, rline)) {
-                    if (rline.find("x") == std::string::npos && rline.find("y") == std::string::npos) {
-                        // Not a header, parse it
-                        std::istringstream riss(rline);
-                        Receptor rec;
-                        char rcomma;
-                        if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
-                            rec.name = "receptor_" + std::to_string(receptors.size());
-                            receptors.push_back(rec);
+                    std::string trimmed = rline;
+                    trimmed.erase(0, trimmed.find_first_not_of(" \t"));
+                    if (!trimmed.empty() && trimmed[0] != '#') {
+                        if (std::isalpha(trimmed[0])) {
+                            // It's a header line, skip
+                        } else {
+                            // Not a header, parse it
+                            std::istringstream riss(rline);
+                            Receptor rec;
+                            char rcomma;
+                            if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
+                                rec.name = "receptor_" + std::to_string(receptors.size());
+                                receptors.push_back(rec);
+                            }
                         }
                     }
                 }
@@ -1144,11 +1172,56 @@ int main(int argc, char* argv[])
                     effective_source_z = source_z + plume_rise;
                 }
                     
-                for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                    LpdParticle new_p = create_particle(
-                        source_x, source_y, effective_source_z,
-                        particle_mass, time);
-                    particles.push_back(new_p);
+                std::uniform_real_distribution<Real> dis(0.0, 1.0);
+                if (source_type == "line") {
+                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                        Real frac = static_cast<Real>(p_idx) / std::max(1, particles_per_step - 1);
+                        Real px = line_start_x + frac * (line_end_x - line_start_x);
+                        Real py = line_start_y + frac * (line_end_y - line_start_y);
+                        Real pz = line_start_z + frac * (line_end_z - line_start_z);
+                        if (enable_plume_rise && heat_flux > 0.0) {
+                            Real representative_distance = std::max(100.0, 10.0 * pz);
+                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                            pz += plume_rise;
+                        }
+                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
+                        particles.push_back(new_p);
+                    }
+                } else if (source_type == "area") {
+                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                        Real rx = dis(gen);
+                        Real ry = dis(gen);
+                        Real px = area_xmin + rx * (area_xmax - area_xmin);
+                        Real py = area_ymin + ry * (area_ymax - area_ymin);
+                        Real pz = area_z;
+                        if (enable_plume_rise && heat_flux > 0.0) {
+                            Real representative_distance = std::max(100.0, 10.0 * pz);
+                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                            pz += plume_rise;
+                        }
+                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
+                        particles.push_back(new_p);
+                    }
+                } else if (source_type == "volume") {
+                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                        Real rx = dis(gen);
+                        Real ry = dis(gen);
+                        Real rz = dis(gen);
+                        Real px = volume_xmin + rx * (volume_xmax - volume_xmin);
+                        Real py = volume_ymin + ry * (volume_ymax - volume_ymin);
+                        Real pz = volume_zmin + rz * (volume_zmax - volume_zmin);
+                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
+                        particles.push_back(new_p);
+                    }
+                } else {
+                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                        LpdParticle new_p = create_particle(
+                            source_x, source_y, effective_source_z,
+                            particle_mass, time);
+                        particles.push_back(new_p);
+                    }
                 }
                 }
                 
@@ -1292,33 +1365,91 @@ int main(int argc, char* argv[])
                     }
                 }
                     
-                // Apply canopy deposition
-                if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
-                    if (canopy_height > 0.0 && frontal_area_index > 0.0) {
-                        const Real decay_rate = deposition_velocity * frontal_area_index / canopy_height;
-                        p.mass *= std::exp(-decay_rate * dt_puff);
+                // Apply chemistry and multi-species physics
+                if (enable_chemistry) {
+                    // Apply chemical transformation
+                    apply_chemical_transformation(p.species_mass, dt_puff, k1_rate, k2_rate, k3_rate);
+
+                    // Apply canopy deposition
+                    if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
+                        if (canopy_height > 0.0 && frontal_area_index > 0.0) {
+                            const Real decay_rate = deposition_velocity * frontal_area_index / canopy_height;
+                            for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                                p.species_mass[s] *= std::exp(-decay_rate * dt_puff);
+                            }
+                        }
                     }
-                }
 
-                // Apply ground dry deposition for particle
-                if (enable_puff_deposition && z_agl >= 0.0) {
-                    apply_particle_deposition(p, dt_puff, z_agl, deposition_velocity, dz);
-                }
+                    // Apply dry deposition using Wesely models
+                    if (enable_puff_deposition && z_agl >= 0.0) {
+                        for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                            Real v_d_s = deposition_velocity;
+                            if (s == 0) {
+                                v_d_s = compute_wesely_deposition_velocity(z_agl, roughness, u_star, L_obukhov, molecular_diffusivity, air_viscosity, base_surface_resistance, v_s);
+                            } else if (s == 2) {
+                                v_d_s = compute_wesely_deposition_velocity(z_agl, roughness, u_star, L_obukhov, molecular_diffusivity * 1.2, air_viscosity, base_surface_resistance * 1.5, v_s);
+                            } else {
+                                v_d_s = compute_wesely_deposition_velocity(z_agl, roughness, u_star, L_obukhov, molecular_diffusivity, air_viscosity, base_surface_resistance, v_s);
+                            }
+                            if (z_agl >= amrex::Real(0.0) && z_agl < amrex::Real(2.0)) {
+                                amrex::Real decay_rate = v_d_s / std::max(dz, amrex::Real(0.1));
+                                p.species_mass[s] *= std::exp(-decay_rate * dt_puff);
+                            }
+                        }
+                    }
 
-                // Apply wet deposition
-                if (enable_wet_deposition) {
-                    p.mass *= wet_decay_factor;
-                }
-                    
-                // Apply chemical decay
-                if (enable_dynamic_decay && decay_constant > 0.0) {
-                    Real lambda_dynamic = compute_dynamic_decay_constant(
-                        z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
-                        temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
-                        enable_canopy_effects, canopy_height, frontal_area_index);
-                    p.mass *= std::exp(-lambda_dynamic * dt_puff);
-                } else if (enable_decay && decay_constant > 0.0) {
-                    p.mass *= std::exp(-decay_constant * dt_puff);
+                    // Apply wet deposition
+                    if (enable_wet_deposition) {
+                        for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                            Real lambda_s = compute_wet_scavenging_coeff(s, precipitation_rate, is_snow, scavenging_coeff_base, scavenging_exponent);
+                            p.species_mass[s] *= std::exp(-lambda_s * dt_puff);
+                        }
+                    }
+
+                    // Apply dynamic or regular decay (to keep logic consistent)
+                    if (enable_dynamic_decay && decay_constant > 0.0) {
+                        Real lambda_dynamic = compute_dynamic_decay_constant(
+                            z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
+                            temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
+                            enable_canopy_effects, canopy_height, frontal_area_index);
+                        for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                            p.species_mass[s] *= std::exp(-lambda_dynamic * dt_puff);
+                        }
+                    } else if (enable_decay && decay_constant > 0.0) {
+                        for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                            p.species_mass[s] *= std::exp(-decay_constant * dt_puff);
+                        }
+                    }
+
+                    // Compute total mass as sum of species masses
+                    p.mass = 0.0;
+                    for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                        p.mass += p.species_mass[s];
+                    }
+                } else {
+                    // Standard single-species updates
+                    if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
+                        if (canopy_height > 0.0 && frontal_area_index > 0.0) {
+                            const Real decay_rate = deposition_velocity * frontal_area_index / canopy_height;
+                            p.mass *= std::exp(-decay_rate * dt_puff);
+                        }
+                    }
+                    if (enable_puff_deposition && z_agl >= 0.0) {
+                        apply_particle_deposition(p, dt_puff, z_agl, deposition_velocity, dz);
+                    }
+                    if (enable_wet_deposition) {
+                        p.mass *= wet_decay_factor;
+                    }
+                    if (enable_dynamic_decay && decay_constant > 0.0) {
+                        Real lambda_dynamic = compute_dynamic_decay_constant(
+                            z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
+                            temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
+                            enable_canopy_effects, canopy_height, frontal_area_index);
+                        p.mass *= std::exp(-lambda_dynamic * dt_puff);
+                    } else if (enable_decay && decay_constant > 0.0) {
+                        p.mass *= std::exp(-decay_constant * dt_puff);
+                    }
+                    p.species_mass[0] = p.mass;
                 }
                     
                 if (p.mass < 1.0e-12) {
@@ -1372,10 +1503,63 @@ int main(int argc, char* argv[])
                     effective_source_z = source_z + plume_rise;
                 }
                     
-                Puff new_puff = create_puff(
-                    source_x, source_y, effective_source_z,
-                    puff_mass, sigma_y0, sigma_z0, time);
-                puffs.push_back(new_puff);
+                if (source_type == "line") {
+                    Real segment_mass = puff_mass / num_line_segments;
+                    for (int seg = 0; seg < num_line_segments; ++seg) {
+                        Real frac = (static_cast<Real>(seg) + 0.5) / num_line_segments;
+                        Real px = line_start_x + frac * (line_end_x - line_start_x);
+                        Real py = line_start_y + frac * (line_end_y - line_start_y);
+                        Real pz = line_start_z + frac * (line_end_z - line_start_z);
+                        if (enable_plume_rise && heat_flux > 0.0) {
+                            Real representative_distance = std::max(100.0, 10.0 * pz);
+                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                            pz += plume_rise;
+                        }
+                        Puff new_puff = create_puff(px, py, pz, segment_mass, sigma_y0, sigma_z0, time);
+                        puffs.push_back(new_puff);
+                    }
+                } else if (source_type == "area") {
+                    Real dx_area = (area_xmax - area_xmin) / num_area_puffs_x;
+                    Real dy_area = (area_ymax - area_ymin) / num_area_puffs_y;
+                    Real sub_mass = puff_mass / (num_area_puffs_x * num_area_puffs_y);
+                    for (int i_area = 0; i_area < num_area_puffs_x; ++i_area) {
+                        for (int j_area = 0; j_area < num_area_puffs_y; ++j_area) {
+                            Real px = area_xmin + (static_cast<Real>(i_area) + 0.5) * dx_area;
+                            Real py = area_ymin + (static_cast<Real>(j_area) + 0.5) * dy_area;
+                            Real pz = area_z;
+                            if (enable_plume_rise && heat_flux > 0.0) {
+                                Real representative_distance = std::max(100.0, 10.0 * pz);
+                                Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                                     std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                                pz += plume_rise;
+                            }
+                            Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
+                            puffs.push_back(new_puff);
+                        }
+                    }
+                } else if (source_type == "volume") {
+                    Real dx_vol = (volume_xmax - volume_xmin) / num_volume_puffs_x;
+                    Real dy_vol = (volume_ymax - volume_ymin) / num_volume_puffs_y;
+                    Real dz_vol = (volume_zmax - volume_zmin) / num_volume_puffs_z;
+                    Real sub_mass = puff_mass / (num_volume_puffs_x * num_volume_puffs_y * num_volume_puffs_z);
+                    for (int i_vol = 0; i_vol < num_volume_puffs_x; ++i_vol) {
+                        for (int j_vol = 0; j_vol < num_volume_puffs_y; ++j_vol) {
+                            for (int k_vol = 0; k_vol < num_volume_puffs_z; ++k_vol) {
+                                Real px = volume_xmin + (static_cast<Real>(i_vol) + 0.5) * dx_vol;
+                                Real py = volume_ymin + (static_cast<Real>(j_vol) + 0.5) * dy_vol;
+                                Real pz = volume_zmin + (static_cast<Real>(k_vol) + 0.5) * dz_vol;
+                                Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
+                                puffs.push_back(new_puff);
+                            }
+                        }
+                    }
+                } else {
+                    Puff new_puff = create_puff(
+                        source_x, source_y, effective_source_z,
+                        puff_mass, sigma_y0, sigma_z0, time);
+                    puffs.push_back(new_puff);
+                }
                 }
                 
                 // Advect, grow, and update all puffs
@@ -1464,41 +1648,141 @@ int main(int argc, char* argv[])
                 }
                     
                 // Growth with combined effects
-                if (wake_factor > 1.01) {
-                    update_puff_growth_with_wake(puff, K_h_eff, K_v_eff, wake_factor);
+                if (dispersion_scheme == "pasquill_gifford" || dispersion_scheme == "mcelroy_pooler") {
+                    Real downwind_dist = wind_speed * puff.age;
+                    Real sy = sigma_y0;
+                    Real sz = sigma_z0;
+                    bool is_urban_local = (dispersion_scheme == "mcelroy_pooler");
+                    compute_analytical_dispersion(downwind_dist, pg_stability_class, is_urban_local, sy, sz);
+                    puff.sigma_y = sy * wake_factor;
+                    puff.sigma_z = sz * wake_factor;
                 } else {
-                    update_puff_growth(puff, K_h_eff, K_v_eff);
+                    if (wake_factor > 1.01) {
+                        update_puff_growth_with_wake(puff, K_h_eff, K_v_eff, wake_factor);
+                    } else {
+                        update_puff_growth(puff, K_h_eff, K_v_eff);
+                    }
                 }
                     
-                // Apply canopy deposition
-                if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
-                    apply_canopy_deposition(puff, dt_puff, z_agl, canopy_height,
-                                          frontal_area_index, deposition_velocity);
-                }
+                // Apply chemistry and multi-species physics
+                if (enable_chemistry) {
+                    // Apply chemical transformation
+                    apply_chemical_transformation(puff.species_mass, dt_puff, k1_rate, k2_rate, k3_rate);
 
-                // Apply ground dry deposition
-                if (enable_puff_deposition) {
-                    apply_puff_deposition(puff, dt_puff, terrain_height, deposition_velocity);
-                }
+                    // Apply canopy deposition
+                    if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
+                        if (canopy_height > 0.0 && frontal_area_index > 0.0) {
+                            const Real decay_rate = deposition_velocity * frontal_area_index / canopy_height;
+                            const Real factor = std::exp(-decay_rate * dt_puff);
+                            for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                                puff.species_mass[s] *= factor;
+                            }
+                        }
+                    }
 
-                // Apply wet deposition
-                if (enable_wet_deposition) {
-                    puff.mass *= wet_decay_factor;
+                    // Apply dry deposition using Wesely models
+                    if (enable_puff_deposition) {
+                        for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                            Real v_d_s = deposition_velocity;
+                            if (s == 0) {
+                                v_d_s = compute_wesely_deposition_velocity(z_agl, roughness, u_star, L_obukhov, molecular_diffusivity, air_viscosity, base_surface_resistance, v_s);
+                            } else if (s == 2) {
+                                v_d_s = compute_wesely_deposition_velocity(z_agl, roughness, u_star, L_obukhov, molecular_diffusivity * 1.2, air_viscosity, base_surface_resistance * 1.5, v_s);
+                            } else {
+                                v_d_s = compute_wesely_deposition_velocity(z_agl, roughness, u_star, L_obukhov, molecular_diffusivity, air_viscosity, base_surface_resistance, v_s);
+                            }
+                            
+                            if (puff.z < terrain_height + amrex::Real(3.0) * puff.sigma_z) {
+                                const amrex::Real dz_val = terrain_height - puff.z;
+                                if (puff.sigma_y > amrex::Real(1.0e-10) && puff.sigma_z > amrex::Real(1.0e-10)) {
+                                    const amrex::Real exponent_z = -amrex::Real(0.5) * dz_val * dz_val / (puff.sigma_z * puff.sigma_z);
+                                    if (exponent_z >= amrex::Real(-100.0)) {
+                                        const amrex::Real normalization = amrex::Real(1.0) / (
+                                            std::pow(amrex::Real(2.0) * 3.14159265358979323846, amrex::Real(1.5)) * 
+                                            puff.sigma_y * puff.sigma_y * puff.sigma_z
+                                        );
+                                        const amrex::Real C_ground = puff.species_mass[s] * normalization * std::exp(exponent_z);
+                                        const amrex::Real effective_area = 3.14159265358979323846 * amrex::Real(4.0) * puff.sigma_y * puff.sigma_y;
+                                        const amrex::Real deposition_flux = v_d_s * C_ground;
+                                        const amrex::Real mass_deposited = deposition_flux * effective_area * dt_puff;
+                                        const amrex::Real mass_deposited_safe = std::min(mass_deposited, puff.species_mass[s]);
+                                        puff.species_mass[s] -= mass_deposited_safe;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Apply wet deposition
+                    if (enable_wet_deposition) {
+                        for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                            Real lambda_s = compute_wet_scavenging_coeff(s, precipitation_rate, is_snow, scavenging_coeff_base, scavenging_exponent);
+                            puff.species_mass[s] *= std::exp(-lambda_s * dt_puff);
+                        }
+                    }
+
+                    // Apply elevated inversion penetration
+                    if (enable_capping_lid && current_capping_lid_height > 0.0) {
+                        Real inversion_penetration = compute_inversion_penetration_fraction(puff.z, puff.sigma_z, current_capping_lid_height);
+                        if (inversion_penetration > 0.0) {
+                            for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                                puff.species_mass[s] *= (1.0 - inversion_penetration);
+                            }
+                        }
+                    }
+
+                    // Apply dynamic or regular decay (to keep logic consistent)
+                    if (enable_dynamic_decay && decay_constant > 0.0) {
+                        Real lambda_dynamic = compute_dynamic_decay_constant(
+                            z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
+                            temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
+                            enable_canopy_effects, canopy_height, frontal_area_index);
+                        const Real factor = std::exp(-lambda_dynamic * dt_puff);
+                        for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                            puff.species_mass[s] *= factor;
+                        }
+                    } else if (enable_decay && decay_constant > 0.0) {
+                        const Real factor = std::exp(-decay_constant * dt_puff);
+                        for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                            puff.species_mass[s] *= factor;
+                        }
+                    }
+
+                    // Compute total mass as sum of species masses
+                    puff.mass = 0.0;
+                    for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                        puff.mass += puff.species_mass[s];
+                    }
+                } else {
+                    // Standard single-species updates
+                    if (enable_canopy_deposition && z_agl >= 0.0 && z_agl < canopy_height) {
+                        apply_canopy_deposition(puff, dt_puff, z_agl, canopy_height,
+                                              frontal_area_index, deposition_velocity);
+                    }
+                    if (enable_puff_deposition) {
+                        apply_puff_deposition(puff, dt_puff, terrain_height, deposition_velocity);
+                    }
+                    if (enable_wet_deposition) {
+                        puff.mass *= wet_decay_factor;
+                    }
+                    if (enable_capping_lid && current_capping_lid_height > 0.0) {
+                        Real inversion_penetration = compute_inversion_penetration_fraction(puff.z, puff.sigma_z, current_capping_lid_height);
+                        puff.mass *= (1.0 - inversion_penetration);
+                    }
+                    if (enable_dynamic_decay && decay_constant > 0.0) {
+                        Real lambda_dynamic = compute_dynamic_decay_constant(
+                            z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
+                            temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
+                            enable_canopy_effects, canopy_height, frontal_area_index);
+                        apply_puff_decay(puff, dt_puff, lambda_dynamic);
+                    } else if (enable_decay && decay_constant > 0.0) {
+                        apply_puff_decay(puff, dt_puff, decay_constant);
+                    }
+                    puff.species_mass[0] = puff.mass;
                 }
                     
                 // Update age
                 update_puff_age(puff, dt_puff);
-                    
-                // Apply chemical decay
-                if (enable_dynamic_decay && decay_constant > 0.0) {
-                    Real lambda_dynamic = compute_dynamic_decay_constant(
-                        z_agl, decay_constant, ambient_temp, ambient_rh, ambient_solar,
-                        temp_ref, temp_coeff, rh_ref, rh_coeff, solar_ref, solar_coeff,
-                        enable_canopy_effects, canopy_height, frontal_area_index);
-                    apply_puff_decay(puff, dt_puff, lambda_dynamic);
-                } else if (enable_decay && decay_constant > 0.0) {
-                    apply_puff_decay(puff, dt_puff, decay_constant);
-                }
                     
                 // Check bounds with terrain awareness
                 if (enable_terrain_reflection) {
@@ -1512,6 +1796,10 @@ int main(int argc, char* argv[])
             
             // Compute concentration field (C_out) at every step
             std::vector<Real> concentration(nx * ny * nz, 0.0);
+            std::vector<std::vector<Real>> species_concentration;
+            if (enable_chemistry) {
+                species_concentration.resize(LpdParticle::NUM_SPECIES, std::vector<Real>(nx * ny * nz, 0.0));
+            }
             if (enable_lpdm) {
                 for (const auto& p : particles) {
                     if (!p.active) continue;
@@ -1521,13 +1809,24 @@ int main(int argc, char* argv[])
                     int k = static_cast<int>((p.z - zmin) / dz);
                         
                     if (i >= 0 && i < nx && j >= 0 && j < ny && k >= 0 && k < nz) {
-                        concentration[i + j * nx + k * nx * ny] += p.mass;
+                        int idx = i + j * nx + k * nx * ny;
+                        concentration[idx] += p.mass;
+                        if (enable_chemistry) {
+                            for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                                species_concentration[s][idx] += p.species_mass[s];
+                            }
+                        }
                     }
                 }
                     
                 Real cell_vol = dx * dy * dz;
-                for (auto& val : concentration) {
-                    val /= cell_vol;
+                for (int idx = 0; idx < nx * ny * nz; ++idx) {
+                    concentration[idx] /= cell_vol;
+                    if (enable_chemistry) {
+                        for (int s = 0; s < LpdParticle::NUM_SPECIES; ++s) {
+                            species_concentration[s][idx] /= cell_vol;
+                        }
+                    }
                 }
             } else {
                 for (int k = 0; k < nz; ++k) {
@@ -1536,6 +1835,7 @@ int main(int argc, char* argv[])
                             Real x = xmin + (i + 0.5) * dx;
                             Real y = ymin + (j + 0.5) * dy;
                             Real z = zmin + (k + 0.5) * dz;
+                            int idx = i + j * nx + k * nx * ny;
                                 
                             // Get terrain height at this point
                             Real terrain_height = 0.0;
@@ -1546,22 +1846,37 @@ int main(int argc, char* argv[])
                                 
                             // Sum concentration from all puffs
                             Real C = 0.0;
+                            std::vector<Real> C_s(Puff::NUM_SPECIES, 0.0);
                             for (const auto& puff : puffs) {
+                                if (!puff.active) continue;
+                                Real p_conc = 0.0;
                                 if ((enable_terrain_reflection || enable_capping_lid) && use_image_source) {
                                    Real local_capping_lid_height = current_capping_lid_height;
                                     if (!x_lid_pts.empty()) {
                                         local_capping_lid_height = interpolate_terrain_height(
                                             x, y, x_lid_pts, y_lid_pts, z_lid_pts);
                                     }
-                                    C += gaussian_puff_concentration_with_reflection(
+                                    p_conc = gaussian_puff_concentration_with_reflection(
                                         x, y, z, puff, terrain_height, true,
                                         enable_capping_lid, local_capping_lid_height);
                                 } else {
-                                    C += gaussian_puff_concentration(x, y, z, puff);
+                                    p_conc = gaussian_puff_concentration(x, y, z, puff);
+                                }
+                                C += p_conc;
+                                if (enable_chemistry && puff.mass > 0.0) {
+                                    Real scale = p_conc / puff.mass;
+                                    for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                                        C_s[s] += puff.species_mass[s] * scale;
+                                    }
                                 }
                             }
                                 
-                            concentration[i + j * nx + k * nx * ny] = C;
+                            concentration[idx] = C;
+                            if (enable_chemistry) {
+                                for (int s = 0; s < Puff::NUM_SPECIES; ++s) {
+                                    species_concentration[s][idx] = C_s[s];
+                                }
+                            }
                         }
                     }
                 }
@@ -1596,13 +1911,107 @@ int main(int argc, char* argv[])
                                    << " s): " << puffs.size() << " puffs\n";
                 }
                 
+                // Write discrete receptors output if enabled
+                if (!receptors.empty()) {
+                    std::string rstep_file = receptor_output + "_step" + std::to_string(step);
+                    std::ofstream routf(rstep_file);
+                    routf << "# Discrete Receptors Concentration and Visibility (step " << step << ")\n";
+                    if (enable_chemistry) {
+                        routf << "# name,x,y,z,C_total,SO2,Sulfate,NOx,HNO3,Nitrate";
+                        if (enable_visibility) {
+                            routf << ",b_ext,visual_range,deciview,fog_prob,icing_prob";
+                        }
+                        routf << "\n";
+                    } else {
+                        routf << "# name,x,y,z,C\n";
+                    }
+                    routf << std::scientific << std::setprecision(6);
+                    
+                    for (const auto& rec : receptors) {
+                        Real C = 0.0;
+                        Real SO2_conc = 0.0, Sulfate_conc = 0.0, NOx_conc = 0.0, HNO3_conc = 0.0, Nitrate_conc = 0.0;
+                        
+                        Real r_terr_h = 0.0;
+                        if (enable_terrain_reflection && !x_terr.empty()) {
+                            r_terr_h = interpolate_terrain_height(rec.x, rec.y, x_terr, y_terr, z_terr);
+                        }
+                        
+                        if (enable_lpdm) {
+                            int i = static_cast<int>((rec.x - xmin) / dx);
+                            int j = static_cast<int>((rec.y - ymin) / dy);
+                            int k = static_cast<int>((rec.z - zmin) / dz);
+                            if (i >= 0 && i < nx && j >= 0 && j < ny && k >= 0 && k < nz) {
+                                int idx = i + j * nx + k * nx * ny;
+                                C = concentration[idx];
+                                if (enable_chemistry) {
+                                    SO2_conc = species_concentration[0][idx];
+                                    Sulfate_conc = species_concentration[1][idx];
+                                    NOx_conc = species_concentration[2][idx];
+                                    HNO3_conc = species_concentration[3][idx];
+                                    Nitrate_conc = species_concentration[4][idx];
+                                }
+                            }
+                        } else {
+                            for (const auto& puff : puffs) {
+                                if (!puff.active) continue;
+                                Real p_conc = 0.0;
+                                if ((enable_terrain_reflection || enable_capping_lid) && use_image_source) {
+                                   Real local_capping_lid_height = current_capping_lid_height;
+                                    if (!x_lid_pts.empty()) {
+                                        local_capping_lid_height = interpolate_terrain_height(
+                                            rec.x, rec.y, x_lid_pts, y_lid_pts, z_lid_pts);
+                                    }
+                                    p_conc = gaussian_puff_concentration_with_reflection(
+                                        rec.x, rec.y, rec.z, puff, r_terr_h, true,
+                                        enable_capping_lid, local_capping_lid_height);
+                                } else {
+                                    p_conc = gaussian_puff_concentration(rec.x, rec.y, rec.z, puff);
+                                }
+                                C += p_conc;
+                                if (enable_chemistry && puff.mass > 0.0) {
+                                    Real scale = p_conc / puff.mass;
+                                    SO2_conc += puff.species_mass[0] * scale;
+                                    Sulfate_conc += puff.species_mass[1] * scale;
+                                    NOx_conc += puff.species_mass[2] * scale;
+                                    HNO3_conc += puff.species_mass[3] * scale;
+                                    Nitrate_conc += puff.species_mass[4] * scale;
+                                }
+                            }
+                        }
+                        
+                        routf << rec.name << "," << rec.x << "," << rec.y << "," << rec.z << "," << C;
+                        if (enable_chemistry) {
+                            routf << "," << SO2_conc << "," << Sulfate_conc << "," << NOx_conc << "," << HNO3_conc << "," << Nitrate_conc;
+                            if (enable_visibility) {
+                                Real b_ext = 10.0;
+                                Real visual_range = 3912.0 / b_ext;
+                                Real deciview = 0.0;
+                                compute_visibility_metrics(Sulfate_conc, Nitrate_conc, ambient_rh, b_ext, visual_range, deciview);
+                                
+                                Real fog_prob = 0.0;
+                                Real icing_prob = 0.0;
+                                compute_fog_icing_probability(ambient_temp, ambient_rh, fog_prob, icing_prob);
+                                
+                                routf << "," << b_ext << "," << visual_range << "," << deciview << "," << fog_prob << "," << icing_prob;
+                            }
+                        }
+                        routf << "\n";
+                    }
+                    routf.close();
+                    amrex::Print() << "    Wrote receptors to " << rstep_file << "\n";
+                }
+                
                 // Compute and write concentration field
                 std::string step_file = puff_output + "_step" + std::to_string(step);
                 
                 // Write to file (simple ASCII format)
                 std::ofstream outf(step_file);
                 outf << "# LPDM or Gaussian puff concentration field (step " << step << ")\n";
-                outf << "# x [m], y [m], z [m], C [units/m³]\n";
+                if (enable_chemistry) {
+                    outf << "# x [m], y [m], z [m], C_total [units/m³], SO2 [units/m³], Sulfate [units/m³], NOx [units/m³], HNO3 [units/m³], Nitrate [units/m³]\n";
+                } else {
+                    outf << "# x [m], y [m], z [m], C [units/m³]\n";
+                }
                 outf << std::scientific << std::setprecision(6);
                 
                 for (int k = 0; k < nz; ++k) {
@@ -1611,9 +2020,19 @@ int main(int argc, char* argv[])
                             Real x = xmin + (i + 0.5) * dx;
                             Real y = ymin + (j + 0.5) * dy;
                             Real z = zmin + (k + 0.5) * dz;
-                            Real C = concentration[i + j * nx + k * nx * ny];
+                            int idx = i + j * nx + k * nx * ny;
+                            Real C = concentration[idx];
                                 
-                            outf << x << "," << y << "," << z << "," << C << "\n";
+                            if (enable_chemistry) {
+                                Real SO2_c = species_concentration[0][idx];
+                                Real Sulfate_c = species_concentration[1][idx];
+                                Real NOx_c = species_concentration[2][idx];
+                                Real HNO3_c = species_concentration[3][idx];
+                                Real Nitrate_c = species_concentration[4][idx];
+                                outf << x << "," << y << "," << z << "," << C << "," << SO2_c << "," << Sulfate_c << "," << NOx_c << "," << HNO3_c << "," << Nitrate_c << "\n";
+                            } else {
+                                outf << x << "," << y << "," << z << "," << C << "\n";
+                            }
                         }
                     }
                 }

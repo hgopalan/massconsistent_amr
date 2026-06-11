@@ -418,6 +418,11 @@ add_regression_test(lpdm_drift_spatial_lid dispersion/lpdm_drift_spatial_lid)
 add_python_regression_test(realistic_farm_case dispersion/realistic_farm_case test_realistic_farm_case.py)
 
 # ---------------------------------------------------------------------------
+# puff_multispecies_calpuff/ - Multi-species, chemical conversion, deposition, receptors, and line/area/volume sources test
+# ---------------------------------------------------------------------------
+add_python_regression_test(puff_multispecies_calpuff dispersion/puff_multispecies_calpuff test_multispecies_calpuff.py)
+
+# ---------------------------------------------------------------------------
 # terrain_following_steep/ – Terrain-following coordinates on steep terrain
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_following_steep terrain/terrain_following_steep)

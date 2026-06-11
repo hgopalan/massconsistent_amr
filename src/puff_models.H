@@ -1452,7 +1452,6 @@ RecirculationZone compute_recirculation_zone(
     rz.lateral_spread = amrex::Real(0.25) * W;
     
     // Maximum induced vertical velocity in vortex core
-    // Maximum induced vertical velocity in vortex core
     // w_max ≈ Γ / (2π × r_core), where r_core ≈ 0.1W (vortex core radius)
     amrex::Real r_core = amrex::Real(0.1) * W;
     if (r_core > amrex::Real(0.01)) {
