@@ -370,9 +370,46 @@ Thermal & Buoyancy Effects
 - ``cloud_cover`` (Real): Fractional cloud cover [0-1]
 - ``enable_radiation`` (Bool): Include radiative heating
 
+**Sky View Factor & Solar Shading**
+
+Unified computation of radiation transmission and shadowing using combined terrain+building elevation field. Buildings are treated as elevation features (no special casing required).
+
+- ``enable_sky_view_factor`` (Bool): Compute sky view factor from local topography
+- ``enable_solar_shading`` (Bool): Compute solar shading based on sun position
+- ``latitude_degrees`` (Real): Location latitude [degrees, -90 to +90]
+- ``longitude_degrees`` (Real): Location longitude [degrees, -180 to +180]
+- ``day_of_year`` (Real): Day of year [1-365] for solar geometry
+- ``hour_of_day`` (Real): Time of day [0-24 hours] for solar position
+- ``max_horizon_distance`` (Real): Maximum distance for horizon ray-casting [m]
+
+**Sky View Factor Methodology:**
+
+SVF is computed from local terrain+building slope using :math:`\text{SVF} = (1 + \cos(\theta))/2` where :math:`\theta = \arctan(|\nabla h|)`.
+This unified approach naturally captures terrain slopes, building wall effects, and urban canyon geometry.
+
+**Solar Shading Methodology:**
+
+For each grid point, a ray is cast toward the solar position (altitude and azimuth). If terrain/building features block the ray, the point is shaded.
+Shading varies throughout the day as the sun position changes.
+
+**Typical Configuration:**
+
+.. code-block:: bash
+
+    # Enable terrain-only SVF
+    enable_sky_view_factor = true
+    latitude_degrees = 40.0
+    day_of_year = 172.0
+
+    # With buildings and solar shading
+    enable_sky_view_factor = true
+    enable_solar_shading = true
+    hour_of_day = 14.0
+
 **Buoyant Wake Effects**
 
 - ``buoyant_wake_destruction_coeff`` (Real): Decay rate for buoyant wakes
+
 
 Turbine & Wind Energy
 ----------------------

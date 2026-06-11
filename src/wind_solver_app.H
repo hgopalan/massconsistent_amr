@@ -374,6 +374,16 @@ private:
     amrex::Real roughness_amplitude = 0.3;
     amrex::Real roughness_phase_offset = 0.0;
 
+    // Sky View Factor and Solar Shading
+    // Unified terrain+building approach for computing SVF and shading
+    bool enable_sky_view_factor = false;
+    bool enable_solar_shading = false;
+    amrex::Real latitude_degrees = 40.0;      // Default: Boulder, CO
+    amrex::Real longitude_degrees = -105.0;   // Default: Boulder, CO
+    amrex::Real day_of_year = 172.0;          // Default: June 21 (summer solstice)
+    amrex::Real hour_of_day = 12.0;           // Default: Noon
+    amrex::Real max_horizon_distance = 1000.0; // Max distance for horizon check [m]
+
     // BL decay
     bool enable_bl_decay = false;
     amrex::Real bl_depth_param = 1000.0;
