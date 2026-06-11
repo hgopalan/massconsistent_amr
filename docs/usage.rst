@@ -598,6 +598,24 @@ Puff Dispersion & LPDM Models
 * **enable_dynamic_decay** (Boolean, Default: ``false``): Enable weather-dependent chemical decay.
 * **temp_ref**, **temp_coeff**, **rh_ref**, **rh_coeff**, **solar_ref**, **solar_coeff** (Real, Default: none): Meteorological decay coefficients.
 * **ambient_temp**, **ambient_rh**, **ambient_solar** (Real, Default: none): Prescribed ambient temperature [K], relative humidity, and solar radiation.
+* **coupled_mode** (Boolean, Default: ``false``): Enable reading wind fields from 3D NetCDF or solver plotfiles.
+* **unsteady_wind** (Boolean, Default: ``false``): Enable time-dependent reading of consecutive wind plotfiles.
+* **wind_plotfile_prefix** (String, Default: none): Path prefix to solver velocity plotfiles.
+* **dispersion_scheme** (String, Default: ``constant``): Growth/dispersion scheme (``constant``, ``pasquill_gifford``, ``mcelroy_pooler``, ``turbulence``).
+* **is_urban** (Boolean, Default: ``false``): Use urban McElroy-Pooler formulas for analytical dispersion.
+* **pg_stability_class** (Integer, Default: ``3``): Pasquill-Gifford stability class (0=A, 1=B, 2=C, 3=D, 4=E, 5=F).
+* **enable_pg_stability** (Boolean, Default: ``false``): Automatically estimate Pasquill-Gifford stability from reference wind, solar radiation, cloud cover, and nighttime conditions.
+* **roughness** (Real, Default: ``0.1``): Ground surface roughness length [m] for Wesely dry deposition.
+* **u_star** (Real, Default: ``0.4``): Friction velocity [m/s] for Wesely dry deposition.
+* **L_obukhov** (Real, Default: ``1.0e10``): Monin-Obukhov stability length [m] for Wesely dry deposition.
+* **base_surface_resistance** (Real, Default: ``100.0``): Wesely dry deposition base surface resistance [s/m].
+* **molecular_diffusivity** (Real, Default: ``1.5e-5``): Pollutant molecular diffusivity in air [m²/s].
+* **is_snow** (Boolean, Default: ``false``): Enable snow scavenging coefficients for wet deposition.
+* **source_type** (String, Default: ``point``): Source geometry category (``point``, ``line``, ``area``, ``volume``).
+* **receptor_file** (String, Default: none): Path to input file containing discrete x,y,z receptor coordinates.
+* **receptor_output** (String, Default: ``receptor_concentration.csv``): Filename prefix for discrete receptors concentration and visibility output.
+* **enable_visibility** (Boolean, Default: ``false``): Enable calculation of b_ext, visual range, and deciview under IMPROVE algorithm.
+* **enable_chemistry** (Boolean, Default: ``false``): Enable MESOPUFF II chemical transformation of SO2/NOx to Sulfate/Nitrate aerosols.
 
 Synthetic Turbulence & Spectral Models
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
