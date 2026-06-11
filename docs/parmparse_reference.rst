@@ -364,18 +364,27 @@ Thermal & Buoyancy Effects
 - ``diurnal_phase_hour`` (Real): Peak heating hour [0-24]
 - ``diurnal_temperature_amplitude`` (Real): Temperature swing [K]
 
-**Radiative Forcing**
+**Radiative Forcing and Cloud Effects**
 
-- ``ambient_solar`` (Real): Incoming solar radiation [W/m²]
-- ``cloud_cover`` (Real): Fractional cloud cover [0-1]
-- ``enable_radiation`` (Bool): Include radiative heating
+- ``solar_radiation`` (Real): Reference solar radiation [W/m²] (default: 400)
+- ``cloud_cover`` (Real): Fractional cloud cover [0-1] (default: 0.5). Controls cloud transmittance of direct and diffuse radiation.
+- ``is_nighttime`` (Bool): Nighttime flag (no solar radiation)
+
+**Cloud Transmittance Model**
+
+When ``cloud_cover`` > 0, the solar radiation is attenuated by:
+
+- Direct beam transmittance: :math:`\tau_d = 0.8 \times (1 - c)` where :math:`c` is cloud cover
+- Diffuse transmittance: :math:`\tau_{df} = 0.2 + 0.6 \times c`
+
+This means under partly cloudy conditions (c=0.5), direct radiation is reduced to 40% while diffuse increases, providing more realistic radiation partitioning.
 
 **Sky View Factor & Solar Shading**
 
 Unified computation of radiation transmission and shadowing using combined terrain+building elevation field. Buildings are treated as elevation features (no special casing required).
 
 - ``enable_sky_view_factor`` (Bool): Compute sky view factor from local topography
-- ``enable_solar_shading`` (Bool): Compute solar shading based on sun position
+- ``enable_solar_shading`` (Bool): Compute solar shading based on sun position (takes precedence over SVF for determining unshaded regions)
 - ``latitude_degrees`` (Real): Location latitude [degrees, -90 to +90]
 - ``longitude_degrees`` (Real): Location longitude [degrees, -180 to +180]
 - ``day_of_year`` (Real): Day of year [1-365] for solar geometry

@@ -485,17 +485,47 @@ Shading factor :math:`f_{\text{shade}}` ranges from 0 (fully shaded) to 1 (fully
 
 **Diffuse Radiation:**
 
-Diffuse horizontal irradiance is reduced by SVF:
+Diffuse horizontal irradiance is reduced by SVF and affected by cloud cover. Under clear skies, diffuse radiation depends on the sky view factor:
 
 .. math::
 
     Q_{\text{diffuse}} = Q_{\text{TOA}} \text{SVF} (1 - f_{\text{shade}})
 
+**Cloud Transmittance Model:**
+
+Clouds significantly attenuate solar radiation. This model accounts for cloud effects on both direct and diffuse components.
+
+*Direct Beam Transmittance* depends on cloud cover :math:`c` (where :math:`c = 0` is clear sky and :math:`c = 1` is fully overcast):
+
+.. math::
+
+    \tau_{\text{direct}}(c) = 0.8 \times (1 - c)
+
+where 0.8 represents clear-sky direct transmittance (accounting for atmospheric extinction).
+
+*Diffuse Sky Transmittance* increases under cloudy conditions due to scattering:
+
+.. math::
+
+    \tau_{\text{diffuse}}(c) = 0.2 + 0.6 \times c
+
+This reflects that clear skies have lower diffuse irradiance (0.2) while completely overcast skies scatter light from multiple angles, increasing diffuse irradiance (≈0.8).
+
+The cloud-attenuated radiation is then:
+
+.. math::
+
+    Q_{\text{direct,cloud}} = Q_{\text{TOA}} \tau_{\text{direct}}(c) f_{\text{shade}} \cos(h_s)
+
+.. math::
+
+    Q_{\text{diffuse,cloud}} = Q_{\text{TOA}} \tau_{\text{diffuse}}(c) \text{SVF} (1 - f_{\text{shade}})
+
 **Total Radiation:**
 
 .. math::
 
-    Q_{\text{total}} = Q_{\text{direct}} + Q_{\text{diffuse}} + \rho Q_{\text{reflected}}
+    Q_{\text{total}} = Q_{\text{direct,cloud}} + Q_{\text{diffuse,cloud}} + \rho Q_{\text{reflected}}
 
 where :math:`\rho` is surface albedo.
 
@@ -519,24 +549,39 @@ Configuration and Usage
 +----------------------------------+----------+------------------+
 | ``max_horizon_distance``         | 1000.0   | Ray-cast dist[m] |
 +----------------------------------+----------+------------------+
+| ``cloud_cover``                  | 0.5      | Cloud cover [0-1]|
++----------------------------------+----------+------------------+
 
 **Example Configuration:**
 
 .. code-block:: bash
 
-    # Sky View Factor from terrain only
+    # Sky View Factor with cloud transmittance effects
     enable_sky_view_factor = true
     enable_solar_shading = true
     latitude_degrees = 40.0
     day_of_year = 172.0
     hour_of_day = 12.0
     max_horizon_distance = 500.0
+    cloud_cover = 0.5          # 50% cloud cover
+    
+    # Surface energy balance with cloud effects
+    enable_flux_diagnostics = true
+    solar_radiation = 800.0    # Reference value (adjusted by clouds)
 
 **Output Fields:**
 
 - ``svf`` - Sky view factor [0-1]
 - ``shade_factor`` - Solar shading [0-1]
 - ``cos_incident_angle`` - Radiation incidence angle
+- ``shf`` - Sensible heat flux (includes cloud-attenuated radiation)
+- ``lhf`` - Latent heat flux (includes cloud-attenuated radiation)
+
+**Physical Interpretation:**
+
+- **Clear skies** (:math:`c = 0`): Direct transmittance = 0.8, Diffuse = 0.2. Total ≈ 1.0 (normalized to TOA)
+- **Partly cloudy** (:math:`c = 0.5`): Direct = 0.4, Diffuse = 0.5. Total ≈ 0.9 (intermediate attenuation)
+- **Overcast** (:math:`c = 1.0`): Direct = 0.0, Diffuse = 0.8. Total ≈ 0.8 (dominantly diffuse)
 
 Limitations and Future Work
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -544,17 +589,20 @@ Limitations and Future Work
 **Current Limitations:**
 
 1. Ray-casting uses simple line-of-sight; no multi-bounce reflection
-2. Diffuse radiation assumes uniform sky; neglects cloud effects
+2. ~~Diffuse radiation assumes uniform sky; neglects cloud effects~~ **[NOW FIXED: Cloud transmittance implemented]**
 3. Surface albedo not yet coupled to radiation balance
 4. Time-independent SVF (no diurnal computation)
+5. Cloud model uses empirical transmittance; no cloud optical depth variation
 
 **Future Enhancements:**
 
 1. Multi-reflection view factors for canyon effects
-2. Cloud transmittance model (cloud cover dependent)
+2. ~~Cloud transmittance model (cloud cover dependent)~~ **[IMPLEMENTED]**
 3. Spectral decomposition (direct/diffuse NIR/VIS)
 4. Surface energy balance coupling (skin temperature feedback)
 5. Diurnal cycle adaptive SVF for vegetation effects
+6. Radiative transfer (cloud optical depth, cloud phase)
+7. Aerosol optical depth effects on clear-sky direct/diffuse ratio
 
 References for SVF and Shading
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -563,3 +611,5 @@ References for SVF and Shading
 2. Watson, I.D., Johnson, G.T. (1987). Graphical estimation of sky view factors in urban environments. *Journal of Climatology*, 7, 193–197.
 3. Grimmond, C.S.B., Oke, T.R. (1999). Aerodynamic properties of urban areas derived from analysis of surface form. *Journal of Applied Meteorology*, 38, 1262–1292.
 4. Richter, B., Strahler, A.H., Kaufmann, R.K. (2005). A global map of the base emissivity of bare soil. *Remote Sensing of Environment*, 102, 76–86.
+5. Kasten, F., Czeplak, G. (1980). Solar and terrestrial radiation dependent on the amount and type of cloud. *Solar Energy*, 24(2), 177–189.
+6. Liu, B.Y.H., Jordan, R.C. (1960). The interrelationship and characteristic distribution of direct, diffuse and total solar radiation. *Solar Energy*, 4(3), 1–19.
