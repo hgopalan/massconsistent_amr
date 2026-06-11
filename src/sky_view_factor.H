@@ -77,10 +77,11 @@ amrex::Real compute_svf_from_slope(
 // Compute terrain/building elevation gradient at cell (i,j)
 // using centered finite differences
 // =========================================================================
+template<typename Array4>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void compute_elevation_gradient(
     int i, int j,
-    const amrex::FArrayBox& elevation_fab,  // Combined terrain + building height
+    const Array4& elevation_arr,  // Combined terrain + building height
     amrex::Real dx,
     amrex::Real dy,
     amrex::Real& dh_dx,  // Output
@@ -91,14 +92,14 @@ void compute_elevation_gradient(
 
     // Centered differences
     // Check bounds to avoid accessing invalid cells
-    if (i > 0 && i < elevation_fab.box().hiVect()[0]) {
-        dh_dx = (elevation_fab(i+1, j, 0) - elevation_fab(i-1, j, 0)) * inv_2dx;
+    if (i > elevation_arr.lo()[0] && i < elevation_arr.hi()[0]) {
+        dh_dx = (elevation_arr(i+1, j, 0) - elevation_arr(i-1, j, 0)) * inv_2dx;
     } else {
         dh_dx = amrex::Real(0.0);
     }
     
-    if (j > 0 && j < elevation_fab.box().hiVect()[1]) {
-        dh_dy = (elevation_fab(i, j+1, 0) - elevation_fab(i, j-1, 0)) * inv_2dy;
+    if (j > elevation_arr.lo()[1] && j < elevation_arr.hi()[1]) {
+        dh_dy = (elevation_arr(i, j+1, 0) - elevation_arr(i, j-1, 0)) * inv_2dy;
     } else {
         dh_dy = amrex::Real(0.0);
     }
@@ -122,10 +123,11 @@ void compute_elevation_gradient(
 //   0.0 = fully shaded (no direct sun)
 //   1.0 = fully sunlit (direct sun)
 // =========================================================================
+template<typename Array4>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real check_solar_shading(
     int i, int j,
-    const amrex::FArrayBox& elevation_fab,
+    const Array4& elevation_arr,
     amrex::Real sun_altitude,      // Solar altitude [rad]
     amrex::Real sun_azimuth,       // Solar azimuth [rad]
     amrex::Real max_horizon_distance,
@@ -138,7 +140,7 @@ amrex::Real check_solar_shading(
     }
     
     // Get surface elevation at query point
-    amrex::Real z_surface = elevation_fab(i, j, 0);
+    amrex::Real z_surface = elevation_arr(i, j, 0);
     
     // Ray-cast in solar direction to check for blocking
     amrex::Real tan_alt = std::tan(sun_altitude);  // Rise/run for sun rays
@@ -161,12 +163,11 @@ amrex::Real check_solar_shading(
         int j_ray = j + static_cast<int>(y_ray / dy);
         
         // Check bounds
-        const amrex::Box& bx = elevation_fab.box();
-        if (i_ray >= bx.loVect()[0] && i_ray <= bx.hiVect()[0] &&
-            j_ray >= bx.loVect()[1] && j_ray <= bx.hiVect()[1]) {
+        if (i_ray >= elevation_arr.lo()[0] && i_ray <= elevation_arr.hi()[0] &&
+            j_ray >= elevation_arr.lo()[1] && j_ray <= elevation_arr.hi()[1]) {
             
             // Elevation at this ray position
-            amrex::Real z_ray = elevation_fab(i_ray, j_ray, 0);
+            amrex::Real z_ray = elevation_arr(i_ray, j_ray, 0);
             
             // Height of sun ray at this horizontal distance
             amrex::Real z_sun_ray = z_surface + dist * tan_alt;
@@ -263,21 +264,20 @@ void compute_sky_view_factor(
         const auto& elev_fab = elevation_mf[mfi];
         auto& svf_fab = svf_mf[mfi];
         
-        // Compute SVF for each cell
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (amrex::Box const& b) {
-            amrex::Loop(b, [=] (amrex::IntVect const& iv) {
-                int i = iv[0];
-                int j = iv[1];
-                
-                // Compute elevation gradient
-                amrex::Real dh_dx, dh_dy;
-                compute_elevation_gradient(i, j, elev_fab, dx, dy, dh_dx, dh_dy);
-                
-                // Compute SVF from slope
-                amrex::Real svf = compute_svf_from_slope(dh_dx, dh_dy);
-                
-                svf_fab(iv, 0) = svf;
-            });
+        // Get Array4 accessors
+        auto const& elev_arr = elev_fab.const_array();
+        auto svf_arr = svf_fab.array();
+        
+        // Compute SVF for each cell using direct 3-argument form
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Compute elevation gradient
+            amrex::Real dh_dx, dh_dy;
+            compute_elevation_gradient(i, j, elev_arr, dx, dy, dh_dx, dh_dy);
+            
+            // Compute SVF from slope
+            amrex::Real svf = compute_svf_from_slope(dh_dx, dh_dy);
+            
+            svf_arr(i, j, k) = svf;
         });
     }
 }
@@ -315,19 +315,18 @@ void compute_solar_shading(
         const auto& elev_fab = elevation_mf[mfi];
         auto& shading_fab = shading_mf[mfi];
         
-        // Compute shading for each cell
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (amrex::Box const& b) {
-            amrex::Loop(b, [=] (amrex::IntVect const& iv) {
-                int i = iv[0];
-                int j = iv[1];
-                
-                // Compute solar shading
-                amrex::Real shade_factor = check_solar_shading(
-                    i, j, elev_fab, sun_altitude, sun_azimuth, max_dist, dx, dy
-                );
-                
-                shading_fab(iv, 0) = shade_factor;
-            });
+        // Get Array4 accessors
+        auto const& elev_arr = elev_fab.const_array();
+        auto shading_arr = shading_fab.array();
+        
+        // Compute shading for each cell using direct 3-argument form
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Compute solar shading
+            amrex::Real shade_factor = check_solar_shading(
+                i, j, elev_arr, sun_altitude, sun_azimuth, max_dist, dx, dy
+            );
+            
+            shading_arr(i, j, k) = shade_factor;
         });
     }
 }
