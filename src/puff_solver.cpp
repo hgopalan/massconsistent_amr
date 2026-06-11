@@ -1228,72 +1228,86 @@ int main(int argc, char* argv[])
             }
             
             if (enable_lpdm) {
-                // Emit new particles if still within emission duration
-                if (time < emission_duration) {
-                Real step_emitted_mass = current_emission_rate * dt_puff;
-                Real particle_mass = step_emitted_mass / particles_per_step;
+               // Phase 2.1: Emit new particles from all sources
+               for (const auto& src : sources) {
+                   // Check if still within emission duration for this source
+                   Real src_emission_duration = src.emission_duration;
+                   if (time >= src_emission_duration) continue;
                     
-                // Compute effective source height with plume rise
-                Real effective_source_z = source_z;
-                if (enable_plume_rise && heat_flux > 0.0) {
-                    Real representative_distance = std::max(100.0, 10.0 * source_z);
-                    Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                    effective_source_z = source_z + plume_rise;
-                }
+                   Real src_emission_rate = src.emission_rate;
+                   Real step_emitted_mass = src_emission_rate * dt_puff;
+                   Real particle_mass = step_emitted_mass / particles_per_step;
                     
-                std::uniform_real_distribution<Real> dis(0.0, 1.0);
-                if (source_type == "line") {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        Real frac = static_cast<Real>(p_idx) / std::max(1, particles_per_step - 1);
-                        Real px = line_start_x + frac * (line_end_x - line_start_x);
-                        Real py = line_start_y + frac * (line_end_y - line_start_y);
-                        Real pz = line_start_z + frac * (line_end_z - line_start_z);
-                        if (enable_plume_rise && heat_flux > 0.0) {
-                            Real representative_distance = std::max(100.0, 10.0 * pz);
-                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                            pz += plume_rise;
+                   // Compute effective source height with plume rise
+                   Real effective_source_z = src.z;
+                   if (enable_plume_rise && heat_flux > 0.0) {
+                       Real representative_distance = std::max(100.0, 10.0 * src.z);
+                       Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                            std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                       effective_source_z = src.z + plume_rise;
+                   }
+                    
+                   // Phase 2.2: Apply stack downwash if enabled
+                   Real downwash_correction = 0.0;
+                   if (stack_tip_downwash_enabled && src.stack_diameter > 0.0) {
+                       downwash_correction = compute_briggs_stack_downwash(
+                           src.stack_diameter, src.stack_exit_velocity, wind_speed, pg_stability_class);
+                       effective_source_z = std::max(src.z, effective_source_z - downwash_correction);
+                   }
+                    
+                   std::uniform_real_distribution<Real> dis(0.0, 1.0);
+                   if (src.type == "line") {
+                       for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                           Real frac = static_cast<Real>(p_idx) / std::max(1, particles_per_step - 1);
+                           Real px = line_start_x + frac * (line_end_x - line_start_x);
+                           Real py = line_start_y + frac * (line_end_y - line_start_y);
+                           Real pz = line_start_z + frac * (line_end_z - line_start_z);
+                           if (enable_plume_rise && heat_flux > 0.0) {
+                               Real representative_distance = std::max(100.0, 10.0 * pz);
+                               Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                                    std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                               pz += plume_rise;
+                           }
+                           LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
+                           particles.push_back(new_p);
                         }
-                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                } else if (source_type == "area") {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        Real rx = dis(gen);
-                        Real ry = dis(gen);
-                        Real px = area_xmin + rx * (area_xmax - area_xmin);
-                        Real py = area_ymin + ry * (area_ymax - area_ymin);
-                        Real pz = area_z;
-                        if (enable_plume_rise && heat_flux > 0.0) {
-                            Real representative_distance = std::max(100.0, 10.0 * pz);
-                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                            pz += plume_rise;
-                        }
-                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                } else if (source_type == "volume") {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        Real rx = dis(gen);
-                        Real ry = dis(gen);
-                        Real rz = dis(gen);
-                        Real px = volume_xmin + rx * (volume_xmax - volume_xmin);
-                        Real py = volume_ymin + ry * (volume_ymax - volume_ymin);
-                        Real pz = volume_zmin + rz * (volume_zmax - volume_zmin);
-                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                } else {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        LpdParticle new_p = create_particle(
-                            source_x, source_y, effective_source_z,
-                            particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                }
-                }
+                   } else if (src.type == "area") {
+                       for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                           Real rx = dis(gen);
+                           Real ry = dis(gen);
+                           Real px = area_xmin + rx * (area_xmax - area_xmin);
+                           Real py = area_ymin + ry * (area_ymax - area_ymin);
+                           Real pz = area_z;
+                           if (enable_plume_rise && heat_flux > 0.0) {
+                               Real representative_distance = std::max(100.0, 10.0 * pz);
+                               Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                                    std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                               pz += plume_rise;
+                           }
+                           LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
+                           particles.push_back(new_p);
+                       }
+                   } else if (src.type == "volume") {
+                       for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                           Real rx = dis(gen);
+                           Real ry = dis(gen);
+                           Real rz = dis(gen);
+                           Real px = volume_xmin + rx * (volume_xmax - volume_xmin);
+                           Real py = volume_ymin + ry * (volume_ymax - volume_ymin);
+                           Real pz = volume_zmin + rz * (volume_zmax - volume_zmin);
+                           LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
+                           particles.push_back(new_p);
+                       }
+                   } else {
+                       // Point source (default)
+                       for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
+                           LpdParticle new_p = create_particle(
+                               src.x, src.y, effective_source_z,
+                               particle_mass, time);
+                           particles.push_back(new_p);
+                       }
+                   }
+               }
                 
                 // Define lambda to compute effective vertical diffusivity at any (x, y, z)
                 auto get_K_v_eff = [&](Real px, Real py, Real pz, Real terr_h) -> Real {
@@ -1558,78 +1572,90 @@ int main(int argc, char* argv[])
                 p.age += dt_puff;
                 }
             } else {
-                // Emit new puff if still within emission duration
-                if (time < emission_duration) {
-                Real puff_mass = current_emission_rate * dt_puff;
+                // Phase 2.1: Emit new puffs from all sources
+                for (const auto& src : sources) {
+                    // Check if still within emission duration for this source
+                    Real src_emission_duration = src.emission_duration;
+                    if (time >= src_emission_duration) continue;
                     
-                // Compute effective source height with plume rise
-                Real effective_source_z = source_z;
-                if (enable_plume_rise && heat_flux > 0.0) {
-                    // Use a representative downwind distance for initial plume rise
-                    // Typical choice: use 100 m minimum, or 10× source height if larger
-                    Real representative_distance = std::max(100.0, 10.0 * source_z);
-                    Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                    effective_source_z = source_z + plume_rise;
-                }
+                    Real src_emission_rate = src.emission_rate;
+                    Real puff_mass = src_emission_rate * dt_puff;
                     
-                if (source_type == "line") {
-                    Real segment_mass = puff_mass / num_line_segments;
-                    for (int seg = 0; seg < num_line_segments; ++seg) {
-                        Real frac = (static_cast<Real>(seg) + 0.5) / num_line_segments;
-                        Real px = line_start_x + frac * (line_end_x - line_start_x);
-                        Real py = line_start_y + frac * (line_end_y - line_start_y);
-                        Real pz = line_start_z + frac * (line_end_z - line_start_z);
-                        if (enable_plume_rise && heat_flux > 0.0) {
-                            Real representative_distance = std::max(100.0, 10.0 * pz);
-                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                            pz += plume_rise;
-                        }
-                        Puff new_puff = create_puff(px, py, pz, segment_mass, sigma_y0, sigma_z0, time);
-                        puffs.push_back(new_puff);
+                    // Compute effective source height with plume rise
+                    Real effective_source_z = src.z;
+                    if (enable_plume_rise && heat_flux > 0.0) {
+                        Real representative_distance = std::max(100.0, 10.0 * src.z);
+                        Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                             std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                        effective_source_z = src.z + plume_rise;
                     }
-                } else if (source_type == "area") {
-                    Real dx_area = (area_xmax - area_xmin) / num_area_puffs_x;
-                    Real dy_area = (area_ymax - area_ymin) / num_area_puffs_y;
-                    Real sub_mass = puff_mass / (num_area_puffs_x * num_area_puffs_y);
-                    for (int i_area = 0; i_area < num_area_puffs_x; ++i_area) {
-                        for (int j_area = 0; j_area < num_area_puffs_y; ++j_area) {
-                            Real px = area_xmin + (static_cast<Real>(i_area) + 0.5) * dx_area;
-                            Real py = area_ymin + (static_cast<Real>(j_area) + 0.5) * dy_area;
-                            Real pz = area_z;
+                    
+                    // Phase 2.2: Apply stack downwash if enabled and this is a stack source
+                    Real downwash_correction = 0.0;
+                    if (stack_tip_downwash_enabled && src.stack_diameter > 0.0) {
+                        downwash_correction = compute_briggs_stack_downwash(
+                            src.stack_diameter, src.stack_exit_velocity, wind_speed, pg_stability_class);
+                        effective_source_z = std::max(src.z, effective_source_z - downwash_correction);
+                    }
+                    
+                    if (src.type == "line") {
+                        Real segment_mass = puff_mass / num_line_segments;
+                        for (int seg = 0; seg < num_line_segments; ++seg) {
+                            Real frac = (static_cast<Real>(seg) + 0.5) / num_line_segments;
+                            Real px = line_start_x + frac * (line_end_x - line_start_x);
+                            Real py = line_start_y + frac * (line_end_y - line_start_y);
+                            Real pz = line_start_z + frac * (line_end_z - line_start_z);
                             if (enable_plume_rise && heat_flux > 0.0) {
                                 Real representative_distance = std::max(100.0, 10.0 * pz);
                                 Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
                                                                      std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
                                 pz += plume_rise;
                             }
-                            Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
+                            Puff new_puff = create_puff(px, py, pz, segment_mass, sigma_y0, sigma_z0, time);
                             puffs.push_back(new_puff);
                         }
-                    }
-                } else if (source_type == "volume") {
-                    Real dx_vol = (volume_xmax - volume_xmin) / num_volume_puffs_x;
-                    Real dy_vol = (volume_ymax - volume_ymin) / num_volume_puffs_y;
-                    Real dz_vol = (volume_zmax - volume_zmin) / num_volume_puffs_z;
-                    Real sub_mass = puff_mass / (num_volume_puffs_x * num_volume_puffs_y * num_volume_puffs_z);
-                    for (int i_vol = 0; i_vol < num_volume_puffs_x; ++i_vol) {
-                        for (int j_vol = 0; j_vol < num_volume_puffs_y; ++j_vol) {
-                            for (int k_vol = 0; k_vol < num_volume_puffs_z; ++k_vol) {
-                                Real px = volume_xmin + (static_cast<Real>(i_vol) + 0.5) * dx_vol;
-                                Real py = volume_ymin + (static_cast<Real>(j_vol) + 0.5) * dy_vol;
-                                Real pz = volume_zmin + (static_cast<Real>(k_vol) + 0.5) * dz_vol;
+                    } else if (src.type == "area") {
+                        Real dx_area = (area_xmax - area_xmin) / num_area_puffs_x;
+                        Real dy_area = (area_ymax - area_ymin) / num_area_puffs_y;
+                        Real sub_mass = puff_mass / (num_area_puffs_x * num_area_puffs_y);
+                        for (int i_area = 0; i_area < num_area_puffs_x; ++i_area) {
+                            for (int j_area = 0; j_area < num_area_puffs_y; ++j_area) {
+                                Real px = area_xmin + (static_cast<Real>(i_area) + 0.5) * dx_area;
+                                Real py = area_ymin + (static_cast<Real>(j_area) + 0.5) * dy_area;
+                                Real pz = area_z;
+                                if (enable_plume_rise && heat_flux > 0.0) {
+                                    Real representative_distance = std::max(100.0, 10.0 * pz);
+                                    Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
+                                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
+                                    pz += plume_rise;
+                                }
                                 Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
                                 puffs.push_back(new_puff);
                             }
                         }
+                    } else if (src.type == "volume") {
+                        Real dx_vol = (volume_xmax - volume_xmin) / num_volume_puffs_x;
+                        Real dy_vol = (volume_ymax - volume_ymin) / num_volume_puffs_y;
+                        Real dz_vol = (volume_zmax - volume_zmin) / num_volume_puffs_z;
+                        Real sub_mass = puff_mass / (num_volume_puffs_x * num_volume_puffs_y * num_volume_puffs_z);
+                        for (int i_vol = 0; i_vol < num_volume_puffs_x; ++i_vol) {
+                            for (int j_vol = 0; j_vol < num_volume_puffs_y; ++j_vol) {
+                                for (int k_vol = 0; k_vol < num_volume_puffs_z; ++k_vol) {
+                                    Real px = volume_xmin + (static_cast<Real>(i_vol) + 0.5) * dx_vol;
+                                    Real py = volume_ymin + (static_cast<Real>(j_vol) + 0.5) * dy_vol;
+                                    Real pz = volume_zmin + (static_cast<Real>(k_vol) + 0.5) * dz_vol;
+                                    Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
+                                    puffs.push_back(new_puff);
+                                }
+                            }
+                        }
+                    } else {
+                        // Point source (default)
+                        Puff new_puff = create_puff(
+                            src.x, src.y, effective_source_z,
+                            puff_mass, sigma_y0, sigma_z0, time);
+                        puffs.push_back(new_puff);
                     }
-                } else {
-                    Puff new_puff = create_puff(
-                        source_x, source_y, effective_source_z,
-                        puff_mass, sigma_y0, sigma_z0, time);
-                    puffs.push_back(new_puff);
-                }
                 }
                 
                 // Advect, grow, and update all puffs
