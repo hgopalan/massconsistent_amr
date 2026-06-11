@@ -1,0 +1,17 @@
+# Wind Field CSV Template: Time-Series Wind
+# Description: Time-varying uniform wind field
+# Format: timeseries
+# Number of time steps: 5
+#
+# Time steps must be sorted in ascending order
+# Time in [s], Wind components in [m/s]
+# u: zonal (east-west), positive eastward
+# v: meridional (north-south), positive northward
+# w: vertical, positive upward
+
+time,u,v,w
+0.0,8.0,0.5,0.0
+60.0,9.0,0.3,0.0
+120.0,10.0,0.1,0.0
+180.0,9.5,0.2,0.0
+240.0,8.5,0.4,0.0

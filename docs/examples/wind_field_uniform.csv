@@ -1,0 +1,11 @@
+# Wind Field CSV Template: Uniform Wind
+# Description: Single wind vector for entire domain
+# Format: uniform
+# 
+# Replace values below with your uniform wind components [m/s]
+# u: zonal (east-west), positive eastward
+# v: meridional (north-south), positive northward
+# w: vertical, positive upward
+
+u,v,w
+10.0,0.0,0.0

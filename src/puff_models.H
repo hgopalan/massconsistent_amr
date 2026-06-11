@@ -42,6 +42,9 @@
 #include <cmath>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <limits>
 
 // Minimum wind speed for plume rise computation [m/s]
 // Below this threshold, plume rise is not computed to avoid division by near-zero
@@ -136,6 +139,19 @@ struct PuffParams {
     amrex::Real ambient_temp = 298.15;       // Ambient temperature [K]
     amrex::Real ambient_rh = 50.0;           // Ambient relative humidity [%]
     amrex::Real ambient_solar = 500.0;       // Ambient solar radiation [W/m^2]
+    
+    // Wind field input configuration
+    std::string wind_field_file = "";        // Path to wind field CSV file (optional)
+    std::string wind_field_format = "uniform"; // Format: "uniform", "gridded", "timeseries"
+    bool enable_unsteady_wind = false;       // Enable time-varying wind fields
+    amrex::Real wind_field_start_time = 0.0; // Start time for wind field [s]
+    
+    // Multi-source configuration (future expansion)
+    std::string sources_file = "";           // Path to CSV with multiple sources (optional)
+    
+    // Meteorological profile configuration
+    std::string met_profile_file = "";       // Path to meteorological profile CSV (optional)
+    bool enable_spatial_met = false;         // Enable spatially-varying meteorology
 };
 
 // ============================================================================
@@ -1676,6 +1692,274 @@ void apply_chemical_transformation(
     amrex::Real d_HNO3 = species_mass[3] * (amrex::Real(1.0) - std::exp(-k3 * dt));
     species_mass[3] -= d_HNO3;
     species_mass[4] += d_HNO3 * amrex::Real(0.98);
+}
+
+// ============================================================================
+// Wind Field Data Structures
+// ============================================================================
+
+// Uniform wind field: single (u, v, w) for entire domain and time
+struct UniformWindField {
+    amrex::Real u, v, w;    // Wind components [m/s]
+};
+
+// Gridded wind field: wind values at discrete grid points
+struct GriddedWindPoint {
+    amrex::Real x, y, z;    // Grid coordinates [m]
+    amrex::Real u, v, w;    // Wind components [m/s]
+};
+
+// Time-series wind field: wind values at discrete time steps
+struct TimeSeriesWindPoint {
+    amrex::Real time;       // Time [s]
+    amrex::Real u, v, w;    // Wind components [m/s]
+};
+
+// ============================================================================
+// Wind Field Input/Output Functions
+// ============================================================================
+
+/**
+ * Read wind field from CSV file.
+ * 
+ * Supports three formats:
+ *   - uniform: Single wind values for entire domain (u, v, w)
+ *   - gridded: Wind at grid points (x, y, z, u, v, w)
+ *   - timeseries: Wind at time steps (time, u, v, w)
+ * 
+ * Parameters:
+ *   csv_file - Path to CSV wind field file
+ *   wind_uniform - Output for uniform wind format
+ *   wind_gridded - Output for gridded format
+ *   wind_timeseries - Output for time-series format
+ *   format_out - Format detected from file ("uniform", "gridded", "timeseries")
+ * 
+ * Returns:
+ *   true if successfully read, false if file not found or parsing error
+ */
+inline bool read_wind_field_csv(
+    const std::string& csv_file,
+    UniformWindField& wind_uniform,
+    std::vector<GriddedWindPoint>& wind_gridded,
+    std::vector<TimeSeriesWindPoint>& wind_timeseries,
+    std::string& format_out)
+{
+    std::ifstream infile(csv_file);
+    if (!infile.is_open()) {
+        amrex::Print() << "Warning: Could not open wind field file " << csv_file << "\n";
+        return false;
+    }
+    
+    std::string line;
+    format_out = "unknown";
+    bool found_format = false;
+    bool found_data = false;
+    int ncols = 0;
+    
+    while (std::getline(infile, line)) {
+        // Skip empty lines and comments
+        if (line.empty() || line[0] == '#') {
+            // Parse format from comment if present
+            if (line.find("Format:") != std::string::npos) {
+                if (line.find("uniform") != std::string::npos) {
+                    format_out = "uniform";
+                    found_format = true;
+                } else if (line.find("gridded") != std::string::npos) {
+                    format_out = "gridded";
+                    found_format = true;
+                } else if (line.find("timeseries") != std::string::npos) {
+                    format_out = "timeseries";
+                    found_format = true;
+                }
+            }
+            continue;
+        }
+        
+        // Count columns from header line
+        if (!found_data && (line.find("x") != std::string::npos || 
+                           line.find("u") != std::string::npos ||
+                           line.find("time") != std::string::npos)) {
+            std::istringstream iss(line);
+            std::string col;
+            ncols = 0;
+            while (std::getline(iss, col, ',')) {
+                if (!col.empty()) ncols++;
+            }
+            // Infer format if not yet determined
+            if (!found_format) {
+                if (ncols == 3) format_out = "uniform";
+                else if (ncols == 4) format_out = "timeseries";
+                else if (ncols == 6) format_out = "gridded";
+            }
+            found_data = true;
+            continue;
+        }
+        
+        if (!found_data) continue;
+        
+        // Parse data line
+        std::istringstream iss(line);
+        std::vector<std::string> fields;
+        std::string field;
+        while (std::getline(iss, field, ',')) {
+            if (!field.empty()) fields.push_back(field);
+        }
+        
+        if (fields.size() < 3) continue;
+        
+        try {
+            if (format_out == "uniform" && fields.size() >= 3) {
+                wind_uniform.u = std::stod(fields[0]);
+                wind_uniform.v = std::stod(fields[1]);
+                wind_uniform.w = std::stod(fields[2]);
+            }
+            else if (format_out == "timeseries" && fields.size() >= 4) {
+                TimeSeriesWindPoint pt;
+                pt.time = std::stod(fields[0]);
+                pt.u = std::stod(fields[1]);
+                pt.v = std::stod(fields[2]);
+                pt.w = std::stod(fields[3]);
+                wind_timeseries.push_back(pt);
+            }
+            else if (format_out == "gridded" && fields.size() >= 6) {
+                GriddedWindPoint pt;
+                pt.x = std::stod(fields[0]);
+                pt.y = std::stod(fields[1]);
+                pt.z = std::stod(fields[2]);
+                pt.u = std::stod(fields[3]);
+                pt.v = std::stod(fields[4]);
+                pt.w = std::stod(fields[5]);
+                wind_gridded.push_back(pt);
+            }
+        } catch (...) {
+            // Skip lines with parsing errors
+            continue;
+        }
+    }
+    
+    infile.close();
+    
+    if (format_out == "unknown") {
+        amrex::Print() << "Warning: Could not determine wind field format from " << csv_file << "\n";
+        return false;
+    }
+    
+    if (format_out == "uniform") {
+        amrex::Print() << "Read uniform wind field from " << csv_file 
+                      << " (u=" << wind_uniform.u << ", v=" << wind_uniform.v 
+                      << ", w=" << wind_uniform.w << ")\n";
+    } else if (format_out == "gridded") {
+        amrex::Print() << "Read gridded wind field from " << csv_file 
+                      << " (" << wind_gridded.size() << " grid points)\n";
+    } else if (format_out == "timeseries") {
+        amrex::Print() << "Read time-series wind field from " << csv_file 
+                      << " (" << wind_timeseries.size() << " time steps)\n";
+    }
+    
+    return true;
+}
+
+/**
+ * Interpolate wind vector at point (x, y, z) from gridded wind field.
+ * Uses nearest-neighbor or linear interpolation.
+ * 
+ * Parameters:
+ *   x, y, z - Query point coordinates [m]
+ *   wind_gridded - Vector of gridded wind points
+ *   u_out, v_out, w_out - Output wind components [m/s]
+ *   method - Interpolation method ("nearest" or "linear")
+ * 
+ * Returns:
+ *   true if valid interpolation found, false otherwise
+ */
+inline bool interpolate_gridded_wind(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const std::vector<GriddedWindPoint>& wind_gridded,
+    amrex::Real& u_out, amrex::Real& v_out, amrex::Real& w_out,
+    const std::string& method = "nearest")
+{
+    if (wind_gridded.empty()) {
+        return false;
+    }
+    
+    if (method == "nearest") {
+        // Find nearest grid point
+        amrex::Real min_dist = std::numeric_limits<amrex::Real>::max();
+        int nearest_idx = 0;
+        
+        for (size_t i = 0; i < wind_gridded.size(); ++i) {
+            amrex::Real dx = x - wind_gridded[i].x;
+            amrex::Real dy = y - wind_gridded[i].y;
+            amrex::Real dz = z - wind_gridded[i].z;
+            amrex::Real dist = std::sqrt(dx*dx + dy*dy + dz*dz);
+            
+            if (dist < min_dist) {
+                min_dist = dist;
+                nearest_idx = i;
+            }
+        }
+        
+        u_out = wind_gridded[nearest_idx].u;
+        v_out = wind_gridded[nearest_idx].v;
+        w_out = wind_gridded[nearest_idx].w;
+        return true;
+    }
+    
+    // Default to nearest if method not recognized
+    return interpolate_gridded_wind(x, y, z, wind_gridded, u_out, v_out, w_out, "nearest");
+}
+
+/**
+ * Interpolate wind vector at time t from time-series wind field.
+ * Uses linear interpolation between adjacent time steps.
+ * 
+ * Parameters:
+ *   t - Query time [s]
+ *   wind_timeseries - Vector of time-series wind points
+ *   u_out, v_out, w_out - Output wind components [m/s]
+ * 
+ * Returns:
+ *   true if valid interpolation found, false otherwise
+ */
+inline bool interpolate_timeseries_wind(
+    amrex::Real t,
+    const std::vector<TimeSeriesWindPoint>& wind_timeseries,
+    amrex::Real& u_out, amrex::Real& v_out, amrex::Real& w_out)
+{
+    if (wind_timeseries.empty()) {
+        return false;
+    }
+    
+    // Find bounding time steps
+    if (t <= wind_timeseries.front().time) {
+        u_out = wind_timeseries.front().u;
+        v_out = wind_timeseries.front().v;
+        w_out = wind_timeseries.front().w;
+        return true;
+    }
+    
+    if (t >= wind_timeseries.back().time) {
+        u_out = wind_timeseries.back().u;
+        v_out = wind_timeseries.back().v;
+        w_out = wind_timeseries.back().w;
+        return true;
+    }
+    
+    // Linear interpolation between adjacent points
+    for (size_t i = 0; i < wind_timeseries.size() - 1; ++i) {
+        if (t >= wind_timeseries[i].time && t <= wind_timeseries[i+1].time) {
+            amrex::Real t0 = wind_timeseries[i].time;
+            amrex::Real t1 = wind_timeseries[i+1].time;
+            amrex::Real alpha = (t - t0) / (t1 - t0);
+            
+            u_out = wind_timeseries[i].u * (1.0 - alpha) + wind_timeseries[i+1].u * alpha;
+            v_out = wind_timeseries[i].v * (1.0 - alpha) + wind_timeseries[i+1].v * alpha;
+            w_out = wind_timeseries[i].w * (1.0 - alpha) + wind_timeseries[i+1].w * alpha;
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 #endif // PUFF_MODELS_H

@@ -1,0 +1,26 @@
+# Wind Field CSV Template: Gridded Wind
+# Description: Wind field defined at discrete grid points
+# Format: gridded
+# Grid dimensions: 3 x 3 x 2
+#
+# All coordinates in [m], wind components in [m/s]
+# x: east-west
+# y: north-south
+# z: vertical
+# u: zonal, positive eastward
+# v: meridional, positive northward
+# w: vertical, positive upward
+
+x,y,z,u,v,w
+0.0,0.0,0.0,9.8,-0.1,0.0
+0.0,0.0,50.0,9.9,-0.05,0.01
+50.0,0.0,0.0,9.9,-0.2,0.0
+50.0,0.0,50.0,10.0,-0.1,0.0
+100.0,0.0,0.0,10.0,-0.1,0.0
+100.0,0.0,50.0,10.1,0.0,0.0
+0.0,100.0,0.0,9.7,0.1,0.0
+0.0,100.0,50.0,9.8,0.15,0.01
+50.0,100.0,0.0,9.8,0.05,0.0
+50.0,100.0,50.0,9.9,0.1,0.0
+100.0,100.0,0.0,10.0,0.1,0.0
+100.0,100.0,50.0,10.1,0.15,0.0

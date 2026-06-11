@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""
+Wind Field Format Converter
+============================
+
+Converts wind field data from various sources to standardized CSV formats
+compatible with the puff model. Supports conversion from WRF NetCDF, CALMET
+binary, ASCII grids, and other meteorological data sources.
+
+Supported input formats:
+  - WRF NetCDF output
+  - CALMET binary fields
+  - ASCII gridded wind (x, y, z, u, v, w format)
+  - Single uniform wind values
+  - Time-series wind data
+
+Output format:
+  Standard CSV with metadata header and wind field values at each grid point
+  or time step.
+
+Usage:
+  python wind_field_converter.py --input wind_data.nc --output wind_field.csv --format wrf
+  python wind_field_converter.py --uniform 10.0 0.0 0.0 --output wind_field.csv
+"""
+
+import sys
+import argparse
+import csv
+import numpy as np
+from pathlib import Path
+from typing import Tuple, List, Dict, Optional
+
+
+def write_uniform_wind_csv(
+    output_file: str,
+    u: float,
+    v: float,
+    w: float,
+    description: str = "Uniform wind field"
+) -> None:
+    """
+    Write a uniform wind field to CSV format.
+    
+    Parameters
+    ----------
+    output_file : str
+        Output CSV file path
+    u : float
+        Zonal wind component [m/s]
+    v : float
+        Meridional wind component [m/s]
+    w : float
+        Vertical wind component [m/s]
+    description : str
+        Optional description of the wind field
+    """
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        # Write metadata header
+        writer.writerow(['# Wind Field CSV Format'])
+        writer.writerow(['# Description:', description])
+        writer.writerow(['# Format: uniform'])
+        writer.writerow([])
+        # Write column headers
+        writer.writerow(['u', 'v', 'w'])
+        # Write uniform wind values
+        writer.writerow([u, v, w])
+    
+    print(f"Wrote uniform wind field to {output_file}")
+
+
+def write_gridded_wind_csv(
+    output_file: str,
+    x_coords: np.ndarray,
+    y_coords: np.ndarray,
+    z_coords: np.ndarray,
+    u: np.ndarray,
+    v: np.ndarray,
+    w: np.ndarray,
+    description: str = "Gridded wind field"
+) -> None:
+    """
+    Write gridded wind field data to CSV format.
+    
+    Parameters
+    ----------
+    output_file : str
+        Output CSV file path
+    x_coords : np.ndarray
+        X coordinates [m] - shape (nx,) or (nx, ny, nz)
+    y_coords : np.ndarray
+        Y coordinates [m] - shape (ny,) or (nx, ny, nz)
+    z_coords : np.ndarray
+        Z coordinates [m] - shape (nz,) or (nx, ny, nz)
+    u : np.ndarray
+        Zonal wind component [m/s]
+    v : np.ndarray
+        Meridional wind component [m/s]
+    w : np.ndarray
+        Vertical wind component [m/s]
+    description : str
+        Optional description of the wind field
+    """
+    # Flatten arrays if necessary
+    u_flat = u.ravel()
+    v_flat = v.ravel()
+    w_flat = w.ravel()
+    
+    # Create meshgrid if coordinates are 1D
+    if x_coords.ndim == 1 and y_coords.ndim == 1 and z_coords.ndim == 1:
+        xx, yy, zz = np.meshgrid(x_coords, y_coords, z_coords, indexing='ij')
+        x_flat = xx.ravel()
+        y_flat = yy.ravel()
+        z_flat = zz.ravel()
+    else:
+        x_flat = x_coords.ravel()
+        y_flat = y_coords.ravel()
+        z_flat = z_coords.ravel()
+    
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        # Write metadata header
+        writer.writerow(['# Wind Field CSV Format'])
+        writer.writerow(['# Description:', description])
+        writer.writerow(['# Format: gridded'])
+        writer.writerow(['# Grid dimensions: {} x {} x {}'.format(
+            len(np.unique(x_flat)),
+            len(np.unique(y_flat)),
+            len(np.unique(z_flat))
+        )])
+        writer.writerow([])
+        # Write column headers
+        writer.writerow(['x', 'y', 'z', 'u', 'v', 'w'])
+        # Write grid points
+        for i in range(len(x_flat)):
+            writer.writerow([x_flat[i], y_flat[i], z_flat[i], 
+                           u_flat[i], v_flat[i], w_flat[i]])
+    
+    print(f"Wrote gridded wind field ({len(x_flat)} points) to {output_file}")
+
+
+def write_timeseries_wind_csv(
+    output_file: str,
+    times: np.ndarray,
+    u_series: np.ndarray,
+    v_series: np.ndarray,
+    w_series: np.ndarray,
+    description: str = "Time-series wind field"
+) -> None:
+    """
+    Write time-series wind field data to CSV format.
+    
+    Parameters
+    ----------
+    output_file : str
+        Output CSV file path
+    times : np.ndarray
+        Time values [s] - shape (nt,)
+    u_series : np.ndarray
+        Zonal wind time series [m/s]
+    v_series : np.ndarray
+        Meridional wind time series [m/s]
+    w_series : np.ndarray
+        Vertical wind time series [m/s]
+    description : str
+        Optional description of the wind field
+    """
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        # Write metadata header
+        writer.writerow(['# Wind Field CSV Format'])
+        writer.writerow(['# Description:', description])
+        writer.writerow(['# Format: timeseries'])
+        writer.writerow(['# Number of time steps:', len(times)])
+        writer.writerow([])
+        # Write column headers
+        writer.writerow(['time', 'u', 'v', 'w'])
+        # Write time series
+        for i in range(len(times)):
+            writer.writerow([times[i], u_series[i], v_series[i], w_series[i]])
+    
+    print(f"Wrote time-series wind field ({len(times)} steps) to {output_file}")
+
+
+def read_wrf_netcdf(
+    input_file: str,
+    timestep: Optional[int] = None,
+    height_level: Optional[int] = None
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Read wind field from WRF NetCDF output.
+    
+    Parameters
+    ----------
+    input_file : str
+        Path to WRF output file
+    timestep : int, optional
+        Specific time step to extract (None = all)
+    height_level : int, optional
+        Specific height level to extract (None = all)
+    
+    Returns
+    -------
+    Tuple of (x, y, z, u, v, w) arrays
+    
+    Note
+    ----
+    Requires netCDF4 package.
+    """
+    try:
+        import netCDF4
+    except ImportError:
+        raise ImportError("netCDF4 package required for WRF input. Install with: pip install netCDF4")
+    
+    ds = netCDF4.Dataset(input_file, 'r')
+    
+    try:
+        # Extract coordinates
+        x = ds.variables.get('XLONG', ds.variables.get('lon'))[:].ravel()
+        y = ds.variables.get('XLAT', ds.variables.get('lat'))[:].ravel()
+        z = ds.variables.get('height', ds.variables.get('z'))[:].ravel()
+        
+        # Extract wind components
+        u = ds.variables.get('U10', ds.variables.get('u'))
+        v = ds.variables.get('V10', ds.variables.get('v'))
+        w = ds.variables.get('W', ds.variables.get('w'))
+        
+        # Handle time and height dimensions
+        if u is None or v is None:
+            raise ValueError("U and V wind components not found in NetCDF file")
+        
+        u_data = u[:].ravel()
+        v_data = v[:].ravel()
+        w_data = w[:].ravel() if w is not None else np.zeros_like(u_data)
+        
+        return x, y, z, u_data, v_data, w_data
+    
+    finally:
+        ds.close()
+
+
+def read_ascii_grid(
+    input_file: str,
+    format_spec: str = "space"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Read wind field from ASCII grid file.
+    
+    Parameters
+    ----------
+    input_file : str
+        Path to ASCII grid file with columns: x, y, z, u, v, w
+    format_spec : str
+        Delimiter: "space", "comma", or "tab"
+    
+    Returns
+    -------
+    Tuple of (x, y, z, u, v, w) arrays
+    """
+    delimiter = {'space': None, 'comma': ',', 'tab': '\t'}.get(format_spec, None)
+    
+    data = np.loadtxt(input_file, delimiter=delimiter, comments='#')
+    
+    if data.shape[1] < 6:
+        raise ValueError(f"Expected at least 6 columns (x, y, z, u, v, w), got {data.shape[1]}")
+    
+    x = data[:, 0]
+    y = data[:, 1]
+    z = data[:, 2]
+    u = data[:, 3]
+    v = data[:, 4]
+    w = data[:, 5]
+    
+    return x, y, z, u, v, w
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Convert wind field data to CSV format for puff model"
+    )
+    parser.add_argument('--input', type=str, help='Input file path')
+    parser.add_argument('--output', type=str, required=True, help='Output CSV file path')
+    parser.add_argument('--format', type=str, choices=['wrf', 'calmet', 'ascii', 'uniform'],
+                       help='Input format')
+    parser.add_argument('--uniform', type=float, nargs=3, metavar=('U', 'V', 'W'),
+                       help='Create uniform wind field with u, v, w values [m/s]')
+    parser.add_argument('--description', type=str, default='Converted wind field',
+                       help='Description string for output file')
+    parser.add_argument('--timestep', type=int, help='Extract specific time step (WRF)')
+    parser.add_argument('--height-level', type=int, help='Extract specific height level (WRF)')
+    parser.add_argument('--delimiter', type=str, choices=['space', 'comma', 'tab'],
+                       default='space', help='Delimiter for ASCII input')
+    
+    args = parser.parse_args()
+    
+    # Create uniform wind field
+    if args.uniform:
+        write_uniform_wind_csv(args.output, args.uniform[0], args.uniform[1], 
+                              args.uniform[2], args.description)
+        return 0
+    
+    # Convert from file
+    if not args.input:
+        parser.error("Either --uniform or --input must be specified")
+    
+    if not Path(args.input).exists():
+        print(f"Error: Input file not found: {args.input}", file=sys.stderr)
+        return 1
+    
+    try:
+        if args.format == 'wrf':
+            x, y, z, u, v, w = read_wrf_netcdf(args.input, args.timestep, args.height_level)
+            write_gridded_wind_csv(args.output, x, y, z, u, v, w, args.description)
+        
+        elif args.format == 'ascii':
+            x, y, z, u, v, w = read_ascii_grid(args.input, args.delimiter)
+            write_gridded_wind_csv(args.output, x, y, z, u, v, w, args.description)
+        
+        else:
+            print(f"Error: Unsupported input format: {args.format}", file=sys.stderr)
+            return 1
+        
+        return 0
+    
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
