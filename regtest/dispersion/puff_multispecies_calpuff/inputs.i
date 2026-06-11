@@ -1,0 +1,27 @@
+# Multi-Species CALPUFF Regression Test Input
+enable_puff = true
+source_x = 150.0
+source_y = 150.0
+source_z = 20.0
+emission_rate = 2.0
+emission_duration = 50.0
+K_h = 1.0
+K_v = 0.5
+sigma_y0 = 1.0
+sigma_z0 = 1.0
+U_wind = 5.0
+V_wind = 0.0
+W_wind = 0.0
+xmin = 0.0
+xmax = 300.0
+ymin = 0.0
+ymax = 300.0
+zmin = 0.0
+zmax = 100.0
+dx = 10.0
+dy = 10.0
+dz = 10.0
+dt_puff = 1.0
+n_steps_puff = 10
+output_freq_puff = 5
+puff_output = puff_conc.csv

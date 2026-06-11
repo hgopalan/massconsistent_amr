@@ -170,6 +170,11 @@ add_regression_test(building_array buildings/building_array)
 add_regression_test(porous_buildings buildings/porous_buildings)
 
 # ---------------------------------------------------------------------------
+# eb_solid_cells/ – Embedded Boundary (EB) solid cell masking regression test
+# ---------------------------------------------------------------------------
+add_python_regression_test(eb_solid_cells buildings/eb_solid_cells verify_eb.py)
+
+# ---------------------------------------------------------------------------
 # multiheight_extraction/ – Multi-height wind field extraction (new feature)
 # ---------------------------------------------------------------------------
 add_regression_test(multiheight_extraction diagnostics/multiheight_extraction)
@@ -419,6 +424,11 @@ add_regression_test(lpdm_drift_spatial_lid dispersion/lpdm_drift_spatial_lid)
 add_python_regression_test(realistic_farm_case dispersion/realistic_farm_case test_realistic_farm_case.py)
 
 # ---------------------------------------------------------------------------
+# puff_multispecies_calpuff/ - Multi-species, chemical conversion, deposition, receptors, and line/area/volume sources test
+# ---------------------------------------------------------------------------
+add_python_regression_test(puff_multispecies_calpuff dispersion/puff_multispecies_calpuff test_multispecies_calpuff.py)
+
+# ---------------------------------------------------------------------------
 # terrain_following_steep/ – Terrain-following coordinates on steep terrain
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_following_steep terrain/terrain_following_steep)
@@ -637,6 +647,7 @@ message(STATUS "  wakes/rooftop_vortex/        : Rooftop vortex in building cavi
 message(STATUS "  buildings/building_oriented/     : Arbitrary building orientation effects")
 message(STATUS "  buildings/building_array/        : Building array configurations")
 message(STATUS "  buildings/porous_buildings/      : Building porosity model for porous structures")
+message(STATUS "  buildings/eb_solid_cells/        : Embedded Boundary solid cell masking test")
 message(STATUS "  diagnostics/multiheight_extraction/: Multi-height wind field extraction (10m, 50m, 100m)")
 message(STATUS "  physics/wall_function_flat/    : Wall function on flat terrain")
 message(STATUS "  physics/wall_function_stable/  : Wall function with stable atmospheric corrections")

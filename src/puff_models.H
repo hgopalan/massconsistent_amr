@@ -37,6 +37,7 @@
 #include "dispersion_interpolation.H"
 #include "wake_models.H"
 #include "canopy_models.H"
+#include "stability_models.H"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -150,6 +151,8 @@ struct Puff {
     bool active;                    // Whether puff should be modeled
     bool in_cavity = false;         // Whether puff is in building cavity zone
     amrex::Real cavity_age = 0.0;   // Time spent in cavity zone [s]
+    static constexpr int NUM_SPECIES = 5;
+    amrex::Real species_mass[NUM_SPECIES] = {0.0, 0.0, 0.0, 0.0, 0.0};
 };
 
 // ============================================================================
@@ -1175,6 +1178,8 @@ Puff create_puff(
     puff.active = true;
     puff.in_cavity = false;
     puff.cavity_age = amrex::Real(0.0);
+    for (int i = 0; i < Puff::NUM_SPECIES; ++i) puff.species_mass[i] = amrex::Real(0.0);
+    puff.species_mass[0] = mass;
     return puff;
 }
 
@@ -1456,6 +1461,221 @@ RecirculationZone compute_recirculation_zone(
     }
     
     return rz;
+}
+
+// ============================================================================
+// Compute analytical dispersion coefficients (Pasquill-Gifford and McElroy-Pooler)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_analytical_dispersion(
+    amrex::Real x, // downwind distance in meters
+    int pg_class,  // 0: A, 1: B, 2: C, 3: D, 4: E, 5: F
+    bool is_urban,
+    amrex::Real& sigma_y,
+    amrex::Real& sigma_z)
+{
+    x = std::max(x, amrex::Real(1.0));
+    
+    if (is_urban) {
+        // McElroy-Pooler (urban) formulas (Briggs, 1973)
+        if (pg_class <= 1) { // A-B (unstable)
+            sigma_y = amrex::Real(0.32) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0004) * x);
+            sigma_z = amrex::Real(0.24) * x * std::sqrt(amrex::Real(1.0) + amrex::Real(0.001) * x);
+        } else if (pg_class == 2) { // C (slightly unstable)
+            sigma_y = amrex::Real(0.22) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0004) * x);
+            sigma_z = amrex::Real(0.20) * x;
+        } else if (pg_class == 3) { // D (neutral)
+            sigma_y = amrex::Real(0.16) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0004) * x);
+            sigma_z = amrex::Real(0.14) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0003) * x);
+        } else { // E-F (stable)
+            sigma_y = amrex::Real(0.11) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0004) * x);
+            sigma_z = amrex::Real(0.08) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.00015) * x);
+        }
+    } else {
+        // Pasquill-Gifford (rural) formulas (Briggs, 1973)
+        if (pg_class == 0) { // A (very unstable)
+            sigma_y = amrex::Real(0.22) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0001) * x);
+            sigma_z = amrex::Real(0.20) * x;
+        } else if (pg_class == 1) { // B (moderately unstable)
+            sigma_y = amrex::Real(0.16) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0001) * x);
+            sigma_z = amrex::Real(0.12) * x;
+        } else if (pg_class == 2) { // C (slightly unstable)
+            sigma_y = amrex::Real(0.11) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0001) * x);
+            sigma_z = amrex::Real(0.08) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0002) * x);
+        } else if (pg_class == 3) { // D (neutral)
+            sigma_y = amrex::Real(0.08) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0001) * x);
+            sigma_z = amrex::Real(0.06) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0015) * x);
+        } else if (pg_class == 4) { // E (slightly stable)
+            sigma_y = amrex::Real(0.06) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0001) * x);
+            sigma_z = amrex::Real(0.03) * x / (amrex::Real(1.0) + amrex::Real(0.0003) * x);
+        } else { // F (moderately stable)
+            sigma_y = amrex::Real(0.04) * x / std::sqrt(amrex::Real(1.0) + amrex::Real(0.0001) * x);
+            sigma_z = amrex::Real(0.016) * x / (amrex::Real(1.0) + amrex::Real(0.0003) * x);
+        }
+    }
+}
+
+// ============================================================================
+// Compute Wesely Dry Deposition Velocity
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_wesely_deposition_velocity(
+    amrex::Real z_agl,
+    amrex::Real z0,
+    amrex::Real u_star,
+    amrex::Real L_obukhov,
+    amrex::Real molecular_diffusivity,
+    amrex::Real air_viscosity,
+    amrex::Real base_surface_resistance,
+    amrex::Real terminal_velocity = amrex::Real(0.0))
+{
+    if (u_star < amrex::Real(1.0e-5)) return amrex::Real(0.0);
+    
+    amrex::Real r_a = std::log(std::max(z_agl, amrex::Real(0.1)) / std::max(z0, amrex::Real(1.0e-4))) / (amrex::Real(0.41) * u_star);
+    if (std::abs(L_obukhov) > amrex::Real(1.0e-10)) {
+        amrex::Real zeta = z_agl / L_obukhov;
+        r_a = r_a - psi_m(zeta) / (amrex::Real(0.41) * u_star);
+        r_a = std::max(r_a, amrex::Real(1.0));
+    }
+    
+    amrex::Real Sc = amrex::Real(0.7);
+    if (molecular_diffusivity > amrex::Real(0.0) && air_viscosity > amrex::Real(0.0)) {
+        Sc = air_viscosity / molecular_diffusivity;
+    }
+    amrex::Real r_b = amrex::Real(5.0) * std::pow(Sc, amrex::Real(2.0)/amrex::Real(3.0)) / u_star;
+    
+    amrex::Real r_c = base_surface_resistance;
+    if (r_c <= amrex::Real(0.0)) r_c = amrex::Real(100.0);
+    
+    amrex::Real total_resistance = r_a + r_b + r_c;
+    if (total_resistance <= amrex::Real(0.0)) return amrex::Real(0.0);
+    
+    return amrex::Real(1.0) / total_resistance + terminal_velocity;
+}
+
+// ============================================================================
+// Compute Wet Scavenging Coefficient
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_wet_scavenging_coeff(
+    int species_idx,
+    amrex::Real precipitation_rate,
+    bool is_snow = false,
+    amrex::Real scavenging_coeff_base = amrex::Real(1.0e-4),
+    amrex::Real scavenging_exponent = amrex::Real(0.8))
+{
+    if (precipitation_rate <= amrex::Real(0.0)) return amrex::Real(0.0);
+    
+    amrex::Real A = scavenging_coeff_base;
+    amrex::Real B = scavenging_exponent;
+    
+    if (species_idx == 3) {
+        A *= amrex::Real(3.0);
+    } else if (species_idx == 2) {
+        A *= amrex::Real(0.1);
+    } else if (species_idx == 1 || species_idx == 4) {
+        A *= amrex::Real(1.5);
+    }
+    
+    if (is_snow) {
+        if (species_idx == 0 || species_idx == 2 || species_idx == 3) {
+            A *= amrex::Real(0.2);
+        } else {
+            A *= amrex::Real(1.2);
+        }
+    }
+    
+    return A * std::pow(precipitation_rate, B);
+}
+
+// ============================================================================
+// Compute Elevated Inversion Penetration Fraction
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_inversion_penetration_fraction(
+    amrex::Real puff_z,
+    amrex::Real sigma_z,
+    amrex::Real capping_lid_height)
+{
+    if (capping_lid_height <= amrex::Real(0.0) || sigma_z <= amrex::Real(1.0e-10)) {
+        return amrex::Real(0.0);
+    }
+    
+    amrex::Real arg = (capping_lid_height - puff_z) / (sigma_z * std::sqrt(amrex::Real(2.0)));
+    amrex::Real fraction_penetrated = amrex::Real(0.5) * std::erfc(arg);
+    return std::max(amrex::Real(0.0), std::min(amrex::Real(1.0), fraction_penetrated));
+}
+
+// ============================================================================
+// Compute Visibility Metrics (IMPROVE algorithm)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_visibility_metrics(
+    amrex::Real sulfate_conc,
+    amrex::Real nitrate_conc,
+    amrex::Real rh,
+    amrex::Real& b_ext,
+    amrex::Real& visual_range,
+    amrex::Real& deciview)
+{
+    amrex::Real b_ray = amrex::Real(10.0);
+    amrex::Real f_rh = amrex::Real(1.0);
+    if (rh > amrex::Real(0.0) && rh < amrex::Real(100.0)) {
+        f_rh = amrex::Real(1.0) + amrex::Real(0.12) * std::pow(rh / (amrex::Real(100.0) - rh), amrex::Real(0.6));
+    }
+    
+    b_ext = amrex::Real(3.0) * f_rh * sulfate_conc + amrex::Real(3.0) * f_rh * nitrate_conc + b_ray;
+    visual_range = amrex::Real(3912.0) / b_ext;
+    deciview = amrex::Real(10.0) * std::log(b_ext / amrex::Real(10.0));
+}
+
+// ============================================================================
+// Compute Steam-Plume Fogging and Icing Probability
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_fog_icing_probability(
+    amrex::Real temp,
+    amrex::Real rh,
+    amrex::Real& fog_prob,
+    amrex::Real& icing_prob)
+{
+    if (rh > amrex::Real(80.0)) {
+        fog_prob = (rh - amrex::Real(80.0)) / amrex::Real(20.0);
+    } else {
+        fog_prob = amrex::Real(0.0);
+    }
+    fog_prob = std::max(amrex::Real(0.0), std::min(amrex::Real(1.0), fog_prob));
+    
+    if (temp < amrex::Real(273.15) && rh > amrex::Real(80.0)) {
+        icing_prob = (rh - amrex::Real(80.0)) / amrex::Real(20.0);
+    } else {
+        icing_prob = amrex::Real(0.0);
+    }
+    icing_prob = std::max(amrex::Real(0.0), std::min(amrex::Real(1.0), icing_prob));
+}
+
+// ============================================================================
+// Apply first-order multi-species chemical conversion (MESOPUFF II kinetics)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_chemical_transformation(
+    amrex::Real* species_mass,
+    amrex::Real dt,
+    amrex::Real k1 = amrex::Real(0.01 / 3600.0),
+    amrex::Real k2 = amrex::Real(0.02 / 3600.0),
+    amrex::Real k3 = amrex::Real(0.05 / 3600.0))
+{
+    amrex::Real d_SO2 = species_mass[0] * (amrex::Real(1.0) - std::exp(-k1 * dt));
+    species_mass[0] -= d_SO2;
+    species_mass[1] += d_SO2 * amrex::Real(1.5);
+    
+    amrex::Real d_NOx = species_mass[2] * (amrex::Real(1.0) - std::exp(-k2 * dt));
+    species_mass[2] -= d_NOx;
+    species_mass[3] += d_NOx * amrex::Real(1.35);
+    
+    amrex::Real d_HNO3 = species_mass[3] * (amrex::Real(1.0) - std::exp(-k3 * dt));
+    species_mass[3] -= d_HNO3;
+    species_mass[4] += d_HNO3 * amrex::Real(0.98);
 }
 
 #endif // PUFF_MODELS_H

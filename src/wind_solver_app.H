@@ -15,6 +15,10 @@
 #include "structure_models.H"
 #include "thermodynamic_lid_models.H"
 
+namespace amrex {
+    class EBFArrayBoxFactory;
+}
+
 /**
  * @brief Representation of a detected urban street canyon.
  * 
@@ -591,6 +595,14 @@ private:
     amrex::Real obs_max = 0.0;
 
     // AMReX Objects
+    bool enable_eb = false;
+    amrex::Real eb_threshold = 0.5;
+    std::string eb_geom_type_name;
+    amrex::Vector<amrex::Real> eb_box_lo;
+    amrex::Vector<amrex::Real> eb_box_hi;
+    bool eb_box_has_fluid_inside = false;
+    std::unique_ptr<amrex::EBFArrayBoxFactory> eb_factory;
+
     std::unique_ptr<amrex::Geometry> geom_ptr;
     std::unique_ptr<amrex::BoxArray> ba_ptr;
     std::unique_ptr<amrex::DistributionMapping> dm_ptr;
