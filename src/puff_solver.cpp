@@ -41,117 +41,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-<<<<<<< HEAD
 #include <map>
-=======
->>>>>>> origin/main
-#include <random>
-
-using namespace amrex;
-
-<<<<<<< HEAD
-template <typename T>
-static void query_with_fallback(ParmParse& root_pp, ParmParse& nested_pp, const char* name, T& value)
-{
-    if (!nested_pp.query(name, value)) {
-        root_pp.query(name, value);
-    }
-}
-
-static Real interpolate_emission_rate(Real time, const std::map<Real, Real>& profile, Real default_rate) {
-    if (profile.empty()) {
-        return default_rate;
-    }
-
-    auto upper = profile.lower_bound(time);
-    if (upper == profile.begin()) {
-        return upper->second;
-    }
-    if (upper == profile.end()) {
-        return profile.rbegin()->second;
-    }
-    if (upper->first == time) {
-        return upper->second;
-    }
-
-    auto lower = std::prev(upper);
-    const Real t0 = lower->first;
-    const Real t1 = upper->first;
-    const Real r0 = lower->second;
-    const Real r1 = upper->second;
-    if (std::abs(t1 - t0) < 1.0e-10) {
-        return r0;
-    }
-    return r0 + (r1 - r0) * (time - t0) / (t1 - t0);
-=======
-struct EmissionPoint {
-    Real time;
-    Real rate;
-};
-
-static std::vector<EmissionPoint> read_emissions_file(const std::string& filename) {
-    std::vector<EmissionPoint> profile;
-    if (filename.empty()) return profile;
-    std::ifstream infile(filename);
-    if (!infile.is_open()) {
-        amrex::Print() << "Warning: Could not open emissions file " << filename << "\n";
-        return profile;
-    }
-    std::string line;
-    // Skip header line if present
-    if (std::getline(infile, line)) {
-        if (!line.empty() && (std::isdigit(line[0]) || line[0] == '-' || line[0] == '.')) {
-            // First line starts with a digit/sign, so it's probably data
-            std::istringstream iss(line);
-            std::string t_str, r_str;
-            if (std::getline(iss, t_str, ',') && std::getline(iss, r_str, ',')) {
-                try {
-                    EmissionPoint ep;
-                    ep.time = std::stod(t_str);
-                    ep.rate = std::stod(r_str);
-                    profile.push_back(ep);
-                } catch (...) {}
-            }
-        }
-    }
-    while (std::getline(infile, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        std::istringstream iss(line);
-        std::string t_str, r_str;
-        if (std::getline(iss, t_str, ',') && std::getline(iss, r_str, ',')) {
-            try {
-                EmissionPoint ep;
-                ep.time = std::stod(t_str);
-                ep.rate = std::stod(r_str);
-                profile.push_back(ep);
-            } catch (...) {}
-        }
-    }
-    // Sort profile by time to be safe
-    std::sort(profile.begin(), profile.end(), [](const EmissionPoint& a, const EmissionPoint& b) {
-        return a.time < b.time;
-    });
-    return profile;
-}
-
-static Real interpolate_emission_rate(Real time, const std::vector<EmissionPoint>& profile, Real default_rate) {
-    if (profile.empty()) return default_rate;
-    if (time <= profile.front().time) return profile.front().rate;
-    if (time >= profile.back().time) return profile.back().rate;
-    
-    // Find interval
-    for (size_t i = 0; i < profile.size() - 1; ++i) {
-        if (time >= profile[i].time && time <= profile[i + 1].time) {
-            Real t0 = profile[i].time;
-            Real t1 = profile[i + 1].time;
-            Real r0 = profile[i].rate;
-            Real r1 = profile[i + 1].rate;
-            if (std::abs(t1 - t0) < 1.0e-10) return r0;
-            return r0 + (r1 - r0) * (time - t0) / (t1 - t0);
-        }
-    }
-    return default_rate;
->>>>>>> origin/main
 }
 
 static void write_hazard_boundaries(
@@ -481,50 +371,7 @@ int main(int argc, char* argv[])
     amrex::Initialize(argc, argv);
     {
         ParmParse pp;
-<<<<<<< HEAD
-        ParmParse pp_puff_model("puff_model");
-=======
->>>>>>> origin/main
-        
-        // Puff model parameters
-        bool enable_puff = false;
-        bool enable_lpdm = false;
-        pp.query("enable_puff", enable_puff);
-        pp.query("enable_lpdm", enable_lpdm);
-        
-        int particles_per_step = 100;
-        int lpdm_random_seed = 42;
-        pp.query("particles_per_step", particles_per_step);
-        pp.query("lpdm_random_seed", lpdm_random_seed);
-        
-        if (!enable_puff && !enable_lpdm) {
-            amrex::Print() << "puff_solver: both puff and lpdm models disabled\n";
-            amrex::Finalize();
-            return 0;
-        }
-        
-        // Source location and emission
-        Real source_x = 150.0;
-        Real source_y = 150.0;
-        Real source_z = 10.0;
-        Real emission_rate = 1.0;
-        Real emission_duration = 100.0;
-        
-        pp.query("source_x", source_x);
-        pp.query("source_y", source_y);
-        pp.query("source_z", source_z);
-        pp.query("emission_rate", emission_rate);
-        pp.query("emission_duration", emission_duration);
-        
-        // Indoor infiltration, time-varying emissions, and hazard threat zone parameters
-        bool enable_indoor_infiltration = false;
-        Real ach = 1.5;
-<<<<<<< HEAD
-        std::string emissions_file = ""; // Legacy input name
-        std::string emissions_timeseries_file = "";
-=======
-        std::string emissions_file = "";
->>>>>>> origin/main
+ParmParse pp_puff_model("puff_model");
         Real threshold_red = 0.0;
         Real threshold_orange = 0.0;
         Real threshold_yellow = 0.0;
@@ -534,20 +381,7 @@ int main(int argc, char* argv[])
         pp.query("enable_indoor_infiltration", enable_indoor_infiltration);
         pp.query("ach", ach);
         pp.query("emissions_file", emissions_file);
-<<<<<<< HEAD
-        query_with_fallback(pp, pp_puff_model, "emissions_timeseries_file", emissions_timeseries_file);
-=======
->>>>>>> origin/main
-        pp.query("threshold_red", threshold_red);
-        pp.query("threshold_orange", threshold_orange);
-        pp.query("threshold_yellow", threshold_yellow);
-        pp.query("threshold_lfl", threshold_lfl);
-        pp.query("threat_zones_output", threat_zones_output);
-<<<<<<< HEAD
-=======
-
-        std::vector<EmissionPoint> emissions_profile = read_emissions_file(emissions_file);
->>>>>>> origin/main
+query_with_fallback(pp, pp_puff_model, "emissions_timeseries_file", emissions_timeseries_file);
         
         // Diffusivity and initial puff size
         Real K_h = 1.0;
@@ -696,15 +530,10 @@ int main(int argc, char* argv[])
         pp.query("num_volume_puffs_z", num_volume_puffs_z);
         
         // Receptors
-<<<<<<< HEAD
-        std::string receptor_file = "";  // Legacy input name
+std::string receptor_file = "";  // Legacy input name
         std::string receptors_file = "";
         pp.query("receptor_file", receptor_file);
         query_with_fallback(pp, pp_puff_model, "receptors_file", receptors_file);
-=======
-        std::string receptor_file = "";
-        pp.query("receptor_file", receptor_file);
->>>>>>> origin/main
         
         bool enable_visibility = false;
         pp.query("enable_visibility", enable_visibility);
@@ -727,8 +556,7 @@ int main(int argc, char* argv[])
         pp.query("L_obukhov", L_obukhov);
         pp.query("receptor_output", receptor_output);
 
-<<<<<<< HEAD
-        // Phase 4.2: Output specification configuration
+// Phase 4.2: Output specification configuration
         OutputSpec::OutputSpecification output_spec;
         output_spec.enable_chemistry = enable_chemistry;
         output_spec.enable_visibility = enable_visibility;
@@ -757,61 +585,6 @@ int main(int argc, char* argv[])
             amrex::Print() << "  Output spec: chemistry enabled with "
                           << output_spec.chemistry_species.size() << " species\n";
         }
-
-=======
->>>>>>> origin/main
-        if (enable_pg_stability && !pp.contains("L_obukhov")) {
-            L_obukhov = pg_class_to_obukhov_length(static_cast<PGStabilityClass>(pg_stability_class));
-        }
-        
-        // Read receptors file
-<<<<<<< HEAD
-        std::vector<Receptor> receptors;
-=======
-        struct Receptor {
-            Real x, y, z;
-            std::string name;
-        };
-        std::vector<Receptor> receptors;
-        if (!receptor_file.empty()) {
-            std::ifstream rfile(receptor_file);
-            if (rfile.is_open()) {
-                std::string rline;
-                // Check if has header and skip
-                if (std::getline(rfile, rline)) {
-                    std::string trimmed = rline;
-                    trimmed.erase(0, trimmed.find_first_not_of(" \t"));
-                    if (!trimmed.empty() && trimmed[0] != '#') {
-                        if (std::isalpha(trimmed[0])) {
-                            // It's a header line, skip
-                        } else {
-                            // Not a header, parse it
-                            std::istringstream riss(rline);
-                            Receptor rec;
-                            char rcomma;
-                            if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
-                                rec.name = "receptor_" + std::to_string(receptors.size());
-                                receptors.push_back(rec);
-                            }
-                        }
-                    }
-                }
-                while (std::getline(rfile, rline)) {
-                    if (rline.empty() || rline[0] == '#') continue;
-                    std::istringstream riss(rline);
-                    Receptor rec;
-                    char rcomma;
-                    if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
-                        rec.name = "receptor_" + std::to_string(receptors.size());
-                        receptors.push_back(rec);
-                    }
-                }
-                amrex::Print() << "puff_solver: Loaded " << receptors.size() << " discrete receptors from " << receptor_file << "\n";
-            } else {
-                amrex::Print() << "puff_solver: Warning - could not open receptor file " << receptor_file << "\n";
-            }
-        }
->>>>>>> origin/main
         
         // Terrain parameters
         std::string terrain_file = "";
@@ -1025,8 +798,7 @@ int main(int argc, char* argv[])
         std::string puff_output = "puff_concentration.csv";
         pp.query("puff_output", puff_output);
         
-<<<<<<< HEAD
-        // Phase 2.1 / Phase 4.1: CSV-driven source and configuration inputs
+// Phase 2.1 / Phase 4.1: CSV-driven source and configuration inputs
         std::string sources_file = "";
         std::string deposition_params_file = "";
         std::string met_profile_file = "";   // Legacy input name
@@ -1103,55 +875,6 @@ int main(int argc, char* argv[])
                 amrex::Print() << "puff_solver: Warning - meteorological profile file specified but no valid profile rows were loaded\n";
             }
         }
-        
-=======
->>>>>>> origin/main
-        // Print settings
-        if (enable_lpdm) {
-            amrex::Print() << "puff_solver: Lagrangian Particle Dispersion Model (LPDM) enabled\n";
-            amrex::Print() << "  Particles per step: " << particles_per_step << "\n";
-            amrex::Print() << "  Random seed: " << lpdm_random_seed << "\n";
-        } else {
-            amrex::Print() << "puff_solver: Gaussian puff model enabled\n";
-        }
-<<<<<<< HEAD
-        
-        // Print source information (Phase 2.1)
-        if (sources.size() == 1) {
-            amrex::Print() << "  Source: (" << sources[0].x << ", " << sources[0].y 
-                           << ", " << sources[0].z << ") [single source mode]\n";
-            amrex::Print() << "  Emission rate: " << sources[0].emission_rate << " units/s\n";
-        } else {
-            amrex::Print() << "  Multiple sources (" << sources.size() << "):\n";
-            for (size_t i = 0; i < sources.size(); ++i) {
-                amrex::Print() << "    " << sources[i].source_id << ": (" 
-                              << sources[i].x << ", " << sources[i].y 
-                              << ", " << sources[i].z << ") type=" << sources[i].type
-                              << " rate=" << sources[i].emission_rate << " units/s\n";
-                if (sources[i].stack_diameter > 0.0) {
-                    amrex::Print() << "      Stack: D=" << sources[i].stack_diameter 
-                                  << "m, V_exit=" << sources[i].stack_exit_velocity << "m/s\n";
-                }
-            }
-        }
-        if (!emission_timeseries.empty()) {
-            amrex::Print() << "  Time-varying emissions enabled (" << emission_timeseries.size() << " points from " << emissions_timeseries_file << ")\n";
-        }
-        if (!loaded_deposition_params.empty()) {
-            amrex::Print() << "  Loaded deposition parameter sets: " << loaded_deposition_params.size() << " from " << deposition_params_file << "\n";
-        }
-        if (!met_profiles.empty()) {
-            amrex::Print() << "  Loaded meteorological profiles: " << met_profiles.size() << " from " << met_profiles_file << "\n";
-        }
-        if (!receptors.empty()) {
-            amrex::Print() << "  Loaded receptors: " << receptors.size() << " from " << receptors_file << "\n";
-=======
-        amrex::Print() << "  Source: (" << source_x << ", " << source_y 
-                       << ", " << source_z << ")\n";
-        amrex::Print() << "  Emission rate: " << emission_rate << " units/s\n";
-        if (!emissions_profile.empty()) {
-            amrex::Print() << "  Time-varying emissions enabled (" << emissions_profile.size() << " points from " << emissions_file << ")\n";
->>>>>>> origin/main
         }
         if (enable_indoor_infiltration) {
             amrex::Print() << "  Indoor infiltration model enabled (ACH = " << ach << ")\n";
@@ -1366,8 +1089,7 @@ int main(int argc, char* argv[])
                 current_capping_lid_height = compute_thermodynamic_zi(time, thermo_lid_params, thermo_lid_flux_times, thermo_lid_flux_values);
             }
             
-<<<<<<< HEAD
-            if (enable_lpdm) {
+if (enable_lpdm) {
                // Phase 2.1: Emit new particles from all sources
                for (const auto& src : sources) {
                    // Check if still within emission duration for this source
@@ -1448,80 +1170,6 @@ int main(int argc, char* argv[])
                        }
                    }
                }
-=======
-            Real current_emission_rate = emission_rate;
-            if (!emissions_profile.empty()) {
-                current_emission_rate = interpolate_emission_rate(time, emissions_profile, emission_rate);
-            }
-            
-            if (enable_lpdm) {
-                // Emit new particles if still within emission duration
-                if (time < emission_duration) {
-                Real step_emitted_mass = current_emission_rate * dt_puff;
-                Real particle_mass = step_emitted_mass / particles_per_step;
-                    
-                // Compute effective source height with plume rise
-                Real effective_source_z = source_z;
-                if (enable_plume_rise && heat_flux > 0.0) {
-                    Real representative_distance = std::max(100.0, 10.0 * source_z);
-                    Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                    effective_source_z = source_z + plume_rise;
-                }
-                    
-                std::uniform_real_distribution<Real> dis(0.0, 1.0);
-                if (source_type == "line") {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        Real frac = static_cast<Real>(p_idx) / std::max(1, particles_per_step - 1);
-                        Real px = line_start_x + frac * (line_end_x - line_start_x);
-                        Real py = line_start_y + frac * (line_end_y - line_start_y);
-                        Real pz = line_start_z + frac * (line_end_z - line_start_z);
-                        if (enable_plume_rise && heat_flux > 0.0) {
-                            Real representative_distance = std::max(100.0, 10.0 * pz);
-                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                            pz += plume_rise;
-                        }
-                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                } else if (source_type == "area") {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        Real rx = dis(gen);
-                        Real ry = dis(gen);
-                        Real px = area_xmin + rx * (area_xmax - area_xmin);
-                        Real py = area_ymin + ry * (area_ymax - area_ymin);
-                        Real pz = area_z;
-                        if (enable_plume_rise && heat_flux > 0.0) {
-                            Real representative_distance = std::max(100.0, 10.0 * pz);
-                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                            pz += plume_rise;
-                        }
-                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                } else if (source_type == "volume") {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        Real rx = dis(gen);
-                        Real ry = dis(gen);
-                        Real rz = dis(gen);
-                        Real px = volume_xmin + rx * (volume_xmax - volume_xmin);
-                        Real py = volume_ymin + ry * (volume_ymax - volume_ymin);
-                        Real pz = volume_zmin + rz * (volume_zmax - volume_zmin);
-                        LpdParticle new_p = create_particle(px, py, pz, particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                } else {
-                    for (int p_idx = 0; p_idx < particles_per_step; ++p_idx) {
-                        LpdParticle new_p = create_particle(
-                            source_x, source_y, effective_source_z,
-                            particle_mass, time);
-                        particles.push_back(new_p);
-                    }
-                }
-                }
->>>>>>> origin/main
                 
                 // Define lambda to compute effective vertical diffusivity at any (x, y, z)
                 auto get_K_v_eff = [&](Real px, Real py, Real pz, Real terr_h) -> Real {
@@ -1786,8 +1434,7 @@ int main(int argc, char* argv[])
                 p.age += dt_puff;
                 }
             } else {
-<<<<<<< HEAD
-                // Phase 2.1: Emit new puffs from all sources
+// Phase 2.1: Emit new puffs from all sources
                 for (const auto& src : sources) {
                     // Check if still within emission duration for this source
                     Real src_emission_duration = src.emission_duration;
@@ -1820,56 +1467,13 @@ int main(int argc, char* argv[])
                             Real px = line_start_x + frac * (line_end_x - line_start_x);
                             Real py = line_start_y + frac * (line_end_y - line_start_y);
                             Real pz = line_start_z + frac * (line_end_z - line_start_z);
-=======
-                // Emit new puff if still within emission duration
-                if (time < emission_duration) {
-                Real puff_mass = current_emission_rate * dt_puff;
-                    
-                // Compute effective source height with plume rise
-                Real effective_source_z = source_z;
-                if (enable_plume_rise && heat_flux > 0.0) {
-                    // Use a representative downwind distance for initial plume rise
-                    // Typical choice: use 100 m minimum, or 10× source height if larger
-                    Real representative_distance = std::max(100.0, 10.0 * source_z);
-                    Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                         std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                    effective_source_z = source_z + plume_rise;
-                }
-                    
-                if (source_type == "line") {
-                    Real segment_mass = puff_mass / num_line_segments;
-                    for (int seg = 0; seg < num_line_segments; ++seg) {
-                        Real frac = (static_cast<Real>(seg) + 0.5) / num_line_segments;
-                        Real px = line_start_x + frac * (line_end_x - line_start_x);
-                        Real py = line_start_y + frac * (line_end_y - line_start_y);
-                        Real pz = line_start_z + frac * (line_end_z - line_start_z);
-                        if (enable_plume_rise && heat_flux > 0.0) {
-                            Real representative_distance = std::max(100.0, 10.0 * pz);
-                            Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
-                                                                 std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
-                            pz += plume_rise;
-                        }
-                        Puff new_puff = create_puff(px, py, pz, segment_mass, sigma_y0, sigma_z0, time);
-                        puffs.push_back(new_puff);
-                    }
-                } else if (source_type == "area") {
-                    Real dx_area = (area_xmax - area_xmin) / num_area_puffs_x;
-                    Real dy_area = (area_ymax - area_ymin) / num_area_puffs_y;
-                    Real sub_mass = puff_mass / (num_area_puffs_x * num_area_puffs_y);
-                    for (int i_area = 0; i_area < num_area_puffs_x; ++i_area) {
-                        for (int j_area = 0; j_area < num_area_puffs_y; ++j_area) {
-                            Real px = area_xmin + (static_cast<Real>(i_area) + 0.5) * dx_area;
-                            Real py = area_ymin + (static_cast<Real>(j_area) + 0.5) * dy_area;
-                            Real pz = area_z;
->>>>>>> origin/main
                             if (enable_plume_rise && heat_flux > 0.0) {
                                 Real representative_distance = std::max(100.0, 10.0 * pz);
                                 Real plume_rise = compute_plume_rise(heat_flux, representative_distance, 
                                                                      std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
                                 pz += plume_rise;
                             }
-<<<<<<< HEAD
-                            Puff new_puff = create_puff(px, py, pz, segment_mass, sigma_y0, sigma_z0, time);
+Puff new_puff = create_puff(px, py, pz, segment_mass, sigma_y0, sigma_z0, time);
                             puffs.push_back(new_puff);
                         }
                     } else if (src.type == "area") {
@@ -1887,29 +1491,11 @@ int main(int argc, char* argv[])
                                                                          std::max(wind_speed, MIN_WIND_SPEED_FOR_PLUME_RISE));
                                     pz += plume_rise;
                                 }
-=======
-                            Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
-                            puffs.push_back(new_puff);
-                        }
-                    }
-                } else if (source_type == "volume") {
-                    Real dx_vol = (volume_xmax - volume_xmin) / num_volume_puffs_x;
-                    Real dy_vol = (volume_ymax - volume_ymin) / num_volume_puffs_y;
-                    Real dz_vol = (volume_zmax - volume_zmin) / num_volume_puffs_z;
-                    Real sub_mass = puff_mass / (num_volume_puffs_x * num_volume_puffs_y * num_volume_puffs_z);
-                    for (int i_vol = 0; i_vol < num_volume_puffs_x; ++i_vol) {
-                        for (int j_vol = 0; j_vol < num_volume_puffs_y; ++j_vol) {
-                            for (int k_vol = 0; k_vol < num_volume_puffs_z; ++k_vol) {
-                                Real px = volume_xmin + (static_cast<Real>(i_vol) + 0.5) * dx_vol;
-                                Real py = volume_ymin + (static_cast<Real>(j_vol) + 0.5) * dy_vol;
-                                Real pz = volume_zmin + (static_cast<Real>(k_vol) + 0.5) * dz_vol;
->>>>>>> origin/main
                                 Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
                                 puffs.push_back(new_puff);
                             }
                         }
-<<<<<<< HEAD
-                    } else if (src.type == "volume") {
+} else if (src.type == "volume") {
                         Real dx_vol = (volume_xmax - volume_xmin) / num_volume_puffs_x;
                         Real dy_vol = (volume_ymax - volume_ymin) / num_volume_puffs_y;
                         Real dz_vol = (volume_zmax - volume_zmin) / num_volume_puffs_z;
@@ -1932,15 +1518,6 @@ int main(int argc, char* argv[])
                             puff_mass, sigma_y0, sigma_z0, time);
                         puffs.push_back(new_puff);
                     }
-=======
-                    }
-                } else {
-                    Puff new_puff = create_puff(
-                        source_x, source_y, effective_source_z,
-                        puff_mass, sigma_y0, sigma_z0, time);
-                    puffs.push_back(new_puff);
-                }
->>>>>>> origin/main
                 }
                 
                 // Advect, grow, and update all puffs
@@ -2296,26 +1873,12 @@ int main(int argc, char* argv[])
                 if (!receptors.empty()) {
                     std::string rstep_file = receptor_output + "_step" + std::to_string(step);
                     std::ofstream routf(rstep_file);
-<<<<<<< HEAD
-                    
-                    // Write metadata header with feature flags
+// Write metadata header with feature flags
                     routf << output_spec.generate_metadata();
                     
                     // Write CSV header using OutputSpecification
                     std::vector<std::string> base_fields = {"name", "x", "y", "z", "C_total"};
                     routf << output_spec.generate_csv_header(base_fields) << "\n";
-=======
-                    routf << "# Discrete Receptors Concentration and Visibility (step " << step << ")\n";
-                    if (enable_chemistry) {
-                        routf << "# name,x,y,z,C_total,SO2,Sulfate,NOx,HNO3,Nitrate";
-                        if (enable_visibility) {
-                            routf << ",b_ext,visual_range,deciview,fog_prob,icing_prob";
-                        }
-                        routf << "\n";
-                    } else {
-                        routf << "# name,x,y,z,C\n";
-                    }
->>>>>>> origin/main
                     routf << std::scientific << std::setprecision(6);
                     
                     for (const auto& rec : receptors) {
@@ -2370,8 +1933,7 @@ int main(int argc, char* argv[])
                             }
                         }
                         
-<<<<<<< HEAD
-                        // Write receptor data line using OutputSpecification
+// Write receptor data line using OutputSpecification
                         routf << rec.label << "," << rec.x << "," << rec.y << "," << rec.z << "," << C;
                         
                         // Dynamically add fields based on OutputSpecification
@@ -2379,12 +1941,6 @@ int main(int argc, char* argv[])
                             routf << "," << SO2_conc << "," << Sulfate_conc << "," << NOx_conc << "," << HNO3_conc << "," << Nitrate_conc;
                             
                             if (output_spec.enable_visibility) {
-=======
-                        routf << rec.name << "," << rec.x << "," << rec.y << "," << rec.z << "," << C;
-                        if (enable_chemistry) {
-                            routf << "," << SO2_conc << "," << Sulfate_conc << "," << NOx_conc << "," << HNO3_conc << "," << Nitrate_conc;
-                            if (enable_visibility) {
->>>>>>> origin/main
                                 Real b_ext = 10.0;
                                 Real visual_range = 3912.0 / b_ext;
                                 Real deciview = 0.0;
@@ -2394,15 +1950,11 @@ int main(int argc, char* argv[])
                                 Real icing_prob = 0.0;
                                 compute_fog_icing_probability(ambient_temp, ambient_rh, fog_prob, icing_prob);
                                 
-<<<<<<< HEAD
-                                if (output_spec.output_b_ext) routf << "," << b_ext;
+if (output_spec.output_b_ext) routf << "," << b_ext;
                                 if (output_spec.output_visual_range) routf << "," << visual_range;
                                 if (output_spec.output_deciview) routf << "," << deciview;
                                 if (output_spec.output_fog_prob) routf << "," << fog_prob;
                                 if (output_spec.output_icing_prob) routf << "," << icing_prob;
-=======
-                                routf << "," << b_ext << "," << visual_range << "," << deciview << "," << fog_prob << "," << icing_prob;
->>>>>>> origin/main
                             }
                         }
                         routf << "\n";
@@ -2416,22 +1968,12 @@ int main(int argc, char* argv[])
                 
                 // Write to file (simple ASCII format)
                 std::ofstream outf(step_file);
-<<<<<<< HEAD
-                
-                // Write metadata header
+// Write metadata header
                 outf << output_spec.generate_metadata();
                 
                 // Write CSV header using OutputSpecification
                 std::vector<std::string> grid_base_fields = {"x", "y", "z", "C_total"};
                 outf << output_spec.generate_csv_header(grid_base_fields) << "\n";
-=======
-                outf << "# LPDM or Gaussian puff concentration field (step " << step << ")\n";
-                if (enable_chemistry) {
-                    outf << "# x [m], y [m], z [m], C_total [units/m³], SO2 [units/m³], Sulfate [units/m³], NOx [units/m³], HNO3 [units/m³], Nitrate [units/m³]\n";
-                } else {
-                    outf << "# x [m], y [m], z [m], C [units/m³]\n";
-                }
->>>>>>> origin/main
                 outf << std::scientific << std::setprecision(6);
                 
                 for (int k = 0; k < nz; ++k) {
@@ -2443,28 +1985,17 @@ int main(int argc, char* argv[])
                             int idx = i + j * nx + k * nx * ny;
                             Real C = concentration[idx];
                                 
-<<<<<<< HEAD
-                            outf << x << "," << y << "," << z << "," << C;
+outf << x << "," << y << "," << z << "," << C;
                             
                             if (output_spec.enable_chemistry) {
-=======
-                            if (enable_chemistry) {
->>>>>>> origin/main
                                 Real SO2_c = species_concentration[0][idx];
                                 Real Sulfate_c = species_concentration[1][idx];
                                 Real NOx_c = species_concentration[2][idx];
                                 Real HNO3_c = species_concentration[3][idx];
                                 Real Nitrate_c = species_concentration[4][idx];
-<<<<<<< HEAD
-                                outf << "," << SO2_c << "," << Sulfate_c << "," << NOx_c << "," << HNO3_c << "," << Nitrate_c;
+outf << "," << SO2_c << "," << Sulfate_c << "," << NOx_c << "," << HNO3_c << "," << Nitrate_c;
                             }
                             outf << "\n";
-=======
-                                outf << x << "," << y << "," << z << "," << C << "," << SO2_c << "," << Sulfate_c << "," << NOx_c << "," << HNO3_c << "," << Nitrate_c << "\n";
-                            } else {
-                                outf << x << "," << y << "," << z << "," << C << "\n";
-                            }
->>>>>>> origin/main
                         }
                     }
                 }

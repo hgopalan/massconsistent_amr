@@ -83,8 +83,6 @@ struct WindSolverState {
     std::vector<amrex::Real> building_ymax;
     std::vector<amrex::Real> building_zmin;
     std::vector<amrex::Real> building_zmax;
-<<<<<<< HEAD
-=======
     
     // Polygon building support (optional - for arbitrary footprints, courtyards, etc.)
     std::vector<int> building_geom_type;     // BuildingGeometryType for each building
@@ -92,7 +90,6 @@ struct WindSolverState {
     std::vector<std::vector<amrex::Real>> building_polygon_y;  // Polygon vertices (if geom_type == POLYGON)
     std::vector<int> building_parent_id;     // Parent building ID (for grouping courtyards with main building)
     
->>>>>>> origin/main
     amrex::Real obs_max;  // Maximum obstacle elevation (terrain + buildings)
     
     // Solver parameters

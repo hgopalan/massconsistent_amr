@@ -61,12 +61,6 @@ enum class BuildingShape : int {
 };
 
 // ============================================================================
-<<<<<<< HEAD
-// Building structure
-// ============================================================================
-struct Building {
-    amrex::Real xmin, xmax;  // Building bounds [m]
-=======
 // Building geometry type enumeration (for polygon support)
 // ============================================================================
 enum class BuildingGeometryType : int {
@@ -80,7 +74,6 @@ enum class BuildingGeometryType : int {
 // ============================================================================
 struct Building {
     amrex::Real xmin, xmax;  // Building bounds [m] (for rectangular only)
->>>>>>> origin/main
     amrex::Real ymin, ymax;
     amrex::Real zmin, zmax;
     amrex::Real height;      // Effective height H [m]
@@ -90,8 +83,6 @@ struct Building {
     BuildingShape shape = BuildingShape::RECTANGULAR;
     amrex::Real pitch_or_radius = amrex::Real(0.0); // Cylinder radius [m] or roof pitch angle [degrees]
     amrex::Real pitch_direction = amrex::Real(0.0); // Direction of pitch/ridge (radians, CCW from x-axis)
-<<<<<<< HEAD
-=======
     
     // Optional: Polygon geometry support (for arbitrary building footprints, L/T/U shapes, courtyards)
     BuildingGeometryType geom_type = BuildingGeometryType::RECTANGULAR_BLOCK;
@@ -99,7 +90,6 @@ struct Building {
     std::vector<amrex::Real> polygon_y;  // Polygon vertex y-coordinates [m] (only populated if POLYGON)
     bool is_void = false;                 // If true, this is a void zone (internal courtyard/exclusion)
     int parent_building_id = -1;          // Optional: reference to parent building (for grouping)
->>>>>>> origin/main
 };
 
 // ============================================================================
@@ -179,8 +169,6 @@ void compute_rooftop_vortex(
 }
 
 // ============================================================================
-<<<<<<< HEAD
-=======
 // POLYGON BUILDING SUPPORT
 //
 // Optional support for arbitrary polygon building footprints, internal courtyards,
@@ -396,7 +384,6 @@ void compute_polygon_effective_dimensions(
 }
 
 // ============================================================================
->>>>>>> origin/main
 // Röckle (1990) building wake model
 //
 // Computes velocity deficit behind a rectangular building due to wake effects.
@@ -1556,8 +1543,6 @@ void apply_street_canyon_effect(
     // No modification needed
 }
 
-<<<<<<< HEAD
-=======
 // ============================================================================
 // POLYGON WAKE MODELS
 //
@@ -1865,5 +1850,4 @@ bool polygon_aermod_prime_wake_deficit(
     return false;
 }
 
->>>>>>> origin/main
 #endif // WAKE_MODELS_H

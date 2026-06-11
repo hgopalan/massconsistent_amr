@@ -42,14 +42,11 @@
 #include <cmath>
 #include <string>
 #include <vector>
-<<<<<<< HEAD
 #include <map>
 #include <fstream>
 #include <sstream>
 #include <limits>
 #include "OutputSpecification.H"
-=======
->>>>>>> origin/main
 
 // Minimum wind speed for plume rise computation [m/s]
 // Below this threshold, plume rise is not computed to avoid division by near-zero
@@ -68,15 +65,12 @@ struct TerrainGrid {
     bool enabled = false;                    // Terrain awareness enabled
 };
 
-<<<<<<< HEAD
 // Forward declarations for CSV-configurable puff model types
 struct Source;
 struct MetProfile;
 struct Receptor;
 struct DepositionParams;
 
-=======
->>>>>>> origin/main
 // ============================================================================
 // Gaussian Puff Parameters
 // ============================================================================
@@ -153,7 +147,6 @@ struct PuffParams {
     amrex::Real ambient_temp = 298.15;       // Ambient temperature [K]
     amrex::Real ambient_rh = 50.0;           // Ambient relative humidity [%]
     amrex::Real ambient_solar = 500.0;       // Ambient solar radiation [W/m^2]
-<<<<<<< HEAD
     
     // Wind field input configuration
     std::string wind_field_file = "";        // Path to wind field CSV file (optional)
@@ -277,8 +270,6 @@ struct DepositionParams {
     amrex::Real vd_urban = 0.0;              // Dry deposition velocity over urban [m/s]
     amrex::Real vd_water = 0.0;              // Dry deposition velocity over water [m/s]
     amrex::Real vd_forest = 0.0;             // Dry deposition velocity over forest [m/s]
-=======
->>>>>>> origin/main
 };
 
 // ============================================================================
@@ -327,7 +318,6 @@ struct RecirculationZone {
 };
 
 // ============================================================================
-<<<<<<< HEAD
 // PHASE 3 DATA STRUCTURES
 // ============================================================================
 
@@ -399,8 +389,6 @@ struct WetScavengingCoeff {
 #include "csv_input_loader.H"
 
 // ============================================================================
-=======
->>>>>>> origin/main
 // Compute Gaussian concentration from a single puff
 //
 // Computes the concentration at point (x, y, z) due to a single puff using
@@ -1895,7 +1883,6 @@ void apply_chemical_transformation(
     species_mass[4] += d_HNO3 * amrex::Real(0.98);
 }
 
-<<<<<<< HEAD
 // ============================================================================
 // Wind Field Data Structures
 // ============================================================================
@@ -2805,6 +2792,4 @@ amrex::Real compute_growth_factor_rh(
     }
 }
 
-=======
->>>>>>> origin/main
 #endif // PUFF_MODELS_H
