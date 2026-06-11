@@ -1,0 +1,67 @@
+# Multi-Source Emission Definitions
+# ==================================
+#
+# Specifies multiple emission sources with different characteristics.
+# Each row defines one source with location, type, emission rate, and optional parameters.
+#
+# Source types:
+#   - point: Single point source (stack, vent, door opening)
+#   - line: Linear source (road segment, pipeline)
+#   - area: 2D area source (parking lot, building surface)
+#   - volume: 3D volume source (diffuse storage tank, open pit)
+#
+# Stack parameters (for point sources):
+#   - stack_diameter: Exit diameter [m]
+#   - stack_exit_velocity: Exit velocity [m/s]
+#   - stack_exit_temperature: Exit temperature [K]
+#
+# Area/Line parameters:
+#   - length: Total length for line source [m]
+#   - width/depth: Dimensions for area source [m]
+#   - height: Source elevation [m]
+#
+# References:
+#   - EPA CALPUFF documentation
+#   - Turner et al. (1994). Workbook of atmospheric dispersion estimates
+#   - Briggs (1973). Plume rise
+#
+# source_id,x [m],y [m],z [m],type,emission_rate [units/s],emission_duration [s],stack_diameter [m],stack_exit_velocity [m/s],stack_exit_temperature [K],comments
+source_1,100.0,150.0,50.0,point,1.0,86400.0,1.5,12.0,350.0,Industrial stack - tall stack with buoyancy
+source_2,200.0,200.0,25.0,point,0.5,86400.0,0.8,8.0,310.0,Building vent - moderate exit velocity
+source_3,300.0,150.0,5.0,point,0.3,86400.0,0.3,2.0,298.0,Ground level fugitive source
+source_4,-100.0,100.0,0.0,line,0.2,86400.0,0.0,0.0,298.0,Traffic source along road segment (1 km)
+source_5,50.0,-50.0,1.0,area,0.15,86400.0,0.0,0.0,298.0,Parking lot evaporation source (10000 m²)
+
+# Additional sources for complex scenarios
+source_6,500.0,500.0,80.0,point,2.5,86400.0,2.0,15.0,400.0,Large industrial stack - high buoyancy
+source_7,600.0,400.0,15.0,point,1.2,86400.0,1.0,5.0,305.0,Boiler stack - moderate
+
+# Episodic event source (release during limited time window)
+source_episodic,250.0,250.0,10.0,volume,0.0,3600.0,0.0,0.0,298.0,Emergency release (1 hour duration)
+
+# Source parameter notes:
+# 
+# For plume rise calculations, four parameters are critical:
+#   1. Stack exit velocity (determines initial momentum)
+#   2. Stack exit temperature (determines buoyancy via heat flux)
+#   3. Ambient wind speed (affects plume trajectory)
+#   4. Atmospheric stability (affects vertical mixing)
+#
+# Exit temperature > 310 K generally produces significant plume rise
+# Exit velocity > 10 m/s provides momentum-driven rise regardless of buoyancy
+#
+# Emission duration:
+#   - Continuous operations: 86400.0 s (24 hours) or longer
+#   - Shift operations: 28800.0 s (8 hours) for single shift
+#   - Episodic/transient: 300-3600 s (5 min to 1 hour)
+#
+# Type selection guidance:
+#   - Point: Industrial stacks, building vents, small releases
+#   - Line: Roads, railways, fences with drag
+#   - Area: Parking lots, open storage, ponds
+#   - Volume: Large tanks, excavations, diffuse sources
+#
+# Examples of realistic parameters:
+#   - Tall industrial: D=2m, V=15 m/s, T=400K, emission=2-10 units/s
+#   - Boiler: D=0.5m, V=6 m/s, T=320K, emission=0.5-2 units/s
+#   - Fugitive: D~0, V~0, T=298K, emission=0.01-1 units/s
