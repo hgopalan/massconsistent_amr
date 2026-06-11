@@ -47,6 +47,8 @@ tol_rel       = 1.e-8
 # Output plotfile
 plot_file = plt_wake_complex_gaussian_hills
 
-# Extract wind field at 15m AGL for visualization/verification
+# Extract wind field at 15m AGL (above ground level) for visualization/verification.
+# 15m is chosen as a representative height to capture building wakes and rooftop vortices
+# while remaining within the active boundary layer above local terrain features.
 extract_agl = 15.0
 extract_file = wind_wake_15m.csv
