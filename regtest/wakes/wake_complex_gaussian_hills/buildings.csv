@@ -1,0 +1,22 @@
+# Buildings on Multiple Gaussian Hills
+# Format: xmin xmax ymin ymax zmin zmax [rotation_angle_degrees] [shape_type] [pitch_or_radius] [pitch_direction_degrees]
+#
+# 1. Building 1: Rectangular and oriented on the slope of Hill 1 (size: 40m x 40m x 30m)
+100.0  140.0  80.0  120.0  0.0  30.0  30.0  0
+# 2. Building 2: Cylindrical near Hill 2 (radius = 15m; bounding box is 30m x 30m x 35m which fully circumscribes the cylinder)
+265.0  295.0  185.0  215.0  0.0  35.0  0.0  1  15.0
+# 3. Building 3: Pitched Roof in the valley between Hill 1 and Hill 2 (pitch = 25 deg, pitch_dir = 90 deg)
+180.0  220.0  140.0  180.0  0.0  25.0  45.0  2  25.0  90.0
+#
+# 4. L-shaped Building (represented as 2 constituent blocks)
+30.0   70.0  180.0  220.0  0.0  30.0  0.0  0
+70.0  110.0  180.0  200.0  0.0  30.0  0.0  0
+#
+# 5. U-shaped Building (represented as 3 constituent blocks)
+330.0  350.0   60.0  100.0  0.0  25.0  0.0  0
+350.0  390.0   60.0   80.0  0.0  25.0  0.0  0
+370.0  390.0   80.0  100.0  0.0  25.0  0.0  0
+#
+# 6. T-shaped Building (represented as 2 constituent blocks)
+170.0  230.0  240.0  260.0  0.0  25.0  0.0  0
+190.0  210.0  210.0  240.0  0.0  25.0  0.0  0
