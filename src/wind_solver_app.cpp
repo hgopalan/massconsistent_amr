@@ -42,6 +42,9 @@
 #include <AMReX_MLMG.H>
 #include <AMReX_LO_BCTYPES.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_EB2.H>
+#include <AMReX_EB2_IF.H>
+#include <AMReX_EBFabFactory.H>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -185,6 +188,36 @@ void WindSolverApp::parse_inputs() {
     // Street canyon parameters
     pp.query("enable_street_canyon", enable_street_canyon);
     pp.query("street_canyon_reduction", street_canyon_reduction);
+
+    // Embedded Boundary parameters
+    pp.query("enable_eb", enable_eb);
+    pp.query("eb_threshold", eb_threshold);
+    
+    // EB2 geometry parameters
+    if (enable_eb) {
+        std::string eb_geom_type;
+        pp.query("eb2.geom_type", eb_geom_type);
+        
+        if (eb_geom_type == "box") {
+            // Parse box parameters
+            int n_lo = pp.countval("eb2.box_lo");
+            int n_hi = pp.countval("eb2.box_hi");
+            
+            if (n_lo >= 3 && n_hi >= 3) {
+                eb_box_lo.resize(3);
+                eb_box_hi.resize(3);
+                pp.getarr("eb2.box_lo", eb_box_lo, 0, 3);
+                pp.getarr("eb2.box_hi", eb_box_hi, 0, 3);
+                pp.query("eb2.box_has_fluid_inside", eb_box_has_fluid_inside);
+                
+                // Store for later use in allocate_data_fields()
+                eb_geom_type_name = "box";
+            } else {
+                amrex::Print() << "warning: eb2.box_lo and eb2.box_hi must have 3 components each\n";
+                enable_eb = false;
+            }
+        }
+    }
 
     // Uniform mode parameters
     uniform_U = U_ref;  // default to U_ref
@@ -1372,6 +1405,30 @@ void WindSolverApp::setup_geometry_and_mesh() {
 
 void WindSolverApp::allocate_data_fields() {
     t_phase = amrex::second();
+
+    if (enable_eb) {
+        amrex::Print() << "wind_solver: initializing Embedded Boundary (EB)\n";
+        
+        // Set up EB2 geometry based on input parameters
+        if (eb_geom_type_name == "box") {
+            if (eb_box_lo.size() >= 3 && eb_box_hi.size() >= 3) {
+                // Create a box geometry using EB2
+                amrex::EB2::BoxIF box(amrex::RealArray{eb_box_lo[0], eb_box_lo[1], eb_box_lo[2]},
+                                      amrex::RealArray{eb_box_hi[0], eb_box_hi[1], eb_box_hi[2]},
+                                      eb_box_has_fluid_inside);
+                amrex::EB2::GeometryShop<amrex::EB2::BoxIF> gshop(box);
+                amrex::EB2::Build(gshop, *geom_ptr, 0, 0);
+            } else {
+                amrex::Abort("wind_solver: Invalid EB2 box parameters. Must have 3 components for box_lo and box_hi.");
+            }
+        } else {
+            // Build with default (empty geometry)
+            amrex::EB2::Build(*geom_ptr, 0, 0);
+        }
+        
+        eb_factory = amrex::makeEBFabFactory(*geom_ptr, *ba_ptr, *dm_ptr, amrex::Vector<int>{1, 1, 1}, amrex::EBSupport::volume);
+        amrex::Print() << "wind_solver: EB initialization complete\n";
+    }
     
     d_terrain_h.resize(terrain_h.size());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, terrain_h.begin(), terrain_h.end(), d_terrain_h.begin());
@@ -4003,6 +4060,28 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         }
     }
 
+    if (enable_eb) {
+        amrex::Print() << "wind_solver: masking initial velocities using Embedded Boundary (vfrac < " << eb_threshold << ")\n";
+        const Real eb_thresh = eb_threshold;
+        const amrex::MultiFab& vfrac = eb_factory->getVolFrac();
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+            const auto vfrac_arr = vfrac.const_array(mfi);
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (vfrac_arr(i, j, k) < eb_thresh) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+        vel0_ptr->FillBoundary(geom_ptr->periodicity());
+        amrex::Print() << "wind_solver: EB velocity masking complete\n";
+    }
+
     amrex::Print() << "wind_solver: wind initialization time = " 
                    << (amrex::second() - t_phase) << " s\n";
 }
@@ -4031,11 +4110,16 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
     const int  nx_cap_div   = nx;
     const Real* d_terr_ptr = d_obstacle_h.data();
 
+    const bool use_eb = enable_eb;
+    const Real eb_thresh = eb_threshold;
+    const amrex::MultiFab* vfrac_ptr = enable_eb ? &(eb_factory->getVolFrac()) : nullptr;
+
     if (enable_obrien_w_adjustment) {
         amrex::Print() << "wind_solver: Applying O'Brien Vertical Velocity Adjustment Procedure\n";
         for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = vel0_ptr->array(mfi);
+            const auto vfrac_arr = use_eb ? vfrac_ptr->const_array(mfi) : Array4<Real const>{};
             Box bx_2d(IntVect(bx.smallEnd(0), bx.smallEnd(1), 0),
                       IntVect(bx.bigEnd(0),   bx.bigEnd(1),   0));
             amrex::ParallelFor(bx_2d,
@@ -4045,7 +4129,11 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
                 int k_start = klo;
                 while (k_start <= khi) {
                     Real cell_center_height = z_lo_cap_div + (Real(k_start) + Real(0.5)) * dz_cap_div;
-                    if (cell_center_height - terrain_elev <= Real(0.0)) {
+                    bool is_solid = (cell_center_height - terrain_elev <= Real(0.0));
+                    if (use_eb) {
+                        is_solid = is_solid || (vfrac_arr(i, j, k_start) < eb_thresh);
+                    }
+                    if (is_solid) {
                         k_start++;
                     } else {
                         break;
@@ -4150,13 +4238,19 @@ void WindSolverApp::execute_poisson_solve(int time_step) {
         const Box& bx = mfi.validbox();
         const auto vel = vel0_ptr->const_array(mfi);
         auto rh = rhs_ptr->array(mfi);
+        const auto vfrac_arr = use_eb ? vfrac_ptr->const_array(mfi) : Array4<Real const>{};
 
         amrex::ParallelFor(bx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real z_physical = z_lo_cap_div + (k + Real(0.5)) * dz_cap_div;
             Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_div + i];
-            if (z_agl <= Real(0.0)) { rh(i, j, k) = Real(0.0); return; }
+            
+            bool is_solid = (z_agl <= Real(0.0));
+            if (use_eb) {
+                is_solid = is_solid || (vfrac_arr(i, j, k) < eb_thresh);
+            }
+            if (is_solid) { rh(i, j, k) = Real(0.0); return; }
 
             Real du, dv, dw;
             
@@ -4548,6 +4642,10 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
     const Real cap_capping_lid_height = capping_lid_height;
     const bool local_use_spatial_alpha_coefficients = use_spatial_alpha_coefficients;
 
+    const bool use_eb = enable_eb;
+    const Real eb_thresh = eb_threshold;
+    const amrex::MultiFab* vfrac_ptr = enable_eb ? &(eb_factory->getVolFrac()) : nullptr;
+
     for (MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         const auto v0  = vel0_ptr->const_array(mfi);
@@ -4556,13 +4654,19 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
         const auto z_bl_arr = z_bl_diag_ptr->const_array(mfi);
         const auto ah_arr = alpha_h_field_ptr->const_array(mfi);
         const auto av_arr = alpha_v_field_ptr->const_array(mfi);
+        const auto vfrac_arr = use_eb ? vfrac_ptr->const_array(mfi) : Array4<Real const>{};
 
         amrex::ParallelFor(bx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real z_physical = z_lo_cap_div + (k + Real(0.5)) * dz_cap_div;
             Real z_agl      = z_physical - d_terr_ptr[j * nx_cap_div + i];
-            if (z_agl <= Real(0.0)) {
+            
+            bool is_solid = (z_agl <= Real(0.0));
+            if (use_eb) {
+                is_solid = is_solid || (vfrac_arr(i, j, k) < eb_thresh);
+            }
+            if (is_solid) {
                 vc(i, j, k, 0) = Real(0.0);
                 vc(i, j, k, 1) = Real(0.0);
                 vc(i, j, k, 2) = Real(0.0);
@@ -4732,9 +4836,14 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
         const int cap_nx = nx;
         const Real* d_terr_ptr_loc = d_obstacle_h.data();
 
+        const bool use_eb = enable_eb;
+        const Real eb_thresh = eb_threshold;
+        const amrex::MultiFab* vfrac_ptr = enable_eb ? &(eb_factory->getVolFrac()) : nullptr;
+
         for (MFIter mfi(*synthetic_turbulence_fluc_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto fluc = synthetic_turbulence_fluc_ptr->array(mfi);
+            const auto vfrac_arr = use_eb ? vfrac_ptr->const_array(mfi) : Array4<Real const>{};
             
             amrex::ParallelFor(bx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -4749,7 +4858,11 @@ void WindSolverApp::apply_divergence_corrections(int time_step) {
                         Real z_physical = cap_zs_min + (k + Real(0.5)) * cap_dz;
                         Real z_agl      = z_physical - d_terr_ptr_loc[j * cap_nx + i];
                         Real mask;
-                        if (z_agl <= Real(0.0)) {
+                        bool is_solid = (z_agl <= Real(0.0));
+                        if (use_eb) {
+                            is_solid = is_solid || (vfrac_arr(i, j, k) < eb_thresh);
+                        }
+                        if (is_solid) {
                             mask = Real(0.0);
                         } else if (z_agl >= cap_terrain_mask_transition_height) {
                             mask = Real(1.0);
@@ -4872,12 +4985,17 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     MultiFab::Copy(vel_c_g, *vel_c_ptr, 0, 0, 3, 0);
     vel_c_g.FillBoundary(geom_ptr->periodicity());
 
+    const bool use_eb = enable_eb;
+    const Real eb_thresh = eb_threshold;
+    const amrex::MultiFab* vfrac_ptr = enable_eb ? &(eb_factory->getVolFrac()) : nullptr;
+
     for (MFIter mfi(div_before); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         const auto v0b = vel0_ptr->const_array(mfi);
         const auto vcg = vel_c_g.const_array(mfi);
         auto db = div_before.array(mfi);
         auto da = div_after .array(mfi);
+        const auto vfrac_arr = use_eb ? vfrac_ptr->const_array(mfi) : Array4<Real const>{};
 
         amrex::ParallelFor(bx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -4929,7 +5047,11 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                                        v0b(i,j,k+1,2), v0b(i,j,k+2,2), dz_cap_div);
             }
 
-            db(i,j,k) = (z_agl <= Real(0.0)) ? Real(0.0) : (du_b+dv_b+dw_b);
+            bool is_solid = (z_agl <= Real(0.0));
+            if (use_eb) {
+                is_solid = is_solid || (vfrac_arr(i, j, k) < eb_thresh);
+            }
+            db(i,j,k) = is_solid ? Real(0.0) : (du_b+dv_b+dw_b);
 
             // --- divergence after ---
             Real du_a, dv_a, dw_a;
@@ -4975,7 +5097,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                                        vcg(i,j,k+1,2), vcg(i,j,k+2,2), dz_cap_div);
             }
 
-            da(i,j,k) = (z_agl <= Real(0.0)) ? Real(0.0) : (du_a+dv_a+dw_a);
+            da(i,j,k) = is_solid ? Real(0.0) : (du_a+dv_a+dw_a);
         });
     }
 

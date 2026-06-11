@@ -490,6 +490,8 @@ Obstacles & Buildings
 * **wake_superposition** (String, Default: ``rss``): Multi-building wake deficit superposition method (``rss``, ``linear``, ``max``).
 * **enable_street_canyon** (Boolean, Default: ``false``): Enable street canyon wind speed reduction for parallel building arrays.
 * **street_canyon_reduction** (Real, Default: ``0.5``): Speed reduction factor inside canyon cavities.
+* **enable_eb** (Boolean, Default: ``false``): Enable AMReX Embedded Boundary (EB) capability as an alternative geometry representation for arbitrary 3D shapes (such as boxes, cylinders, spheres, and STL geometries), marking solid cells via fluid volume fraction.
+* **eb_threshold** (Real, Default: ``0.5``): Fluid volume fraction threshold (cells with fluid volume fraction below this threshold are marked as solid obstacles).
 * **enable_building_porosity** (Boolean, Default: ``false``): Enable porosity drag model for porous building structures.
 * **building_porosity_file** (String, Default: none): Path to building-by-building porosity properties CSV file.
 * **default_building_porosity** (Real, Default: ``0.0``): Default building porosity fraction (0.0 represents solid, 1.0 is open air).
