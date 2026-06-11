@@ -222,7 +222,74 @@ Building & Structure Loading
 - ``building_output_file`` (String): Path for building-resolved output
 - ``extract_building_statistics`` (Bool): Compute building-scale stats
 
-Canopy & Vegetation Modeling
+Building Geometry Formats
+--------------------------
+
+Buildings can be defined using rectangular, cylindrical, pitched-roof, and polygon geometries in CSV format.
+The ``building_file`` parameter specifies the path to the buildings CSV file.
+
+**Rectangular Buildings (Standard Format)**
+
+Format: ``x1 x2 y1 y2 z1 z2 [rotation shape pitch_or_radius pitch_direction]``
+
+- ``x1, x2``: X-coordinates of building extent [m]
+- ``y1, y2``: Y-coordinates of building extent [m]
+- ``z1, z2``: Z-coordinates (base to roof) [m]
+- ``rotation`` (optional): Building orientation [degrees], default 0
+- ``shape`` (optional): Building shape - 0 (rectangular), 1 (cylindrical), 2 (pitched roof), default 0
+- ``pitch_or_radius`` (optional): Roof pitch [degrees] or cylinder radius [m], default 0
+- ``pitch_direction`` (optional): Roof ridge direction [degrees], default 0
+
+Example rectangular building:
+::
+
+    100 200 300 400 0 30
+
+**Polygon Buildings**
+
+Format: ``POLYGON: x1 y1 x2 y2 ... xn yn | z1 z2``
+
+Arbitrary polygon footprints with internal vertices. Vertices should be provided in order (clockwise or counter-clockwise).
+
+- ``x_i, y_i``: Polygon vertex coordinates [m], minimum 3 vertices
+- ``z1, z2``: Z-coordinates (base to roof) [m]
+
+Polygon buildings enable modeling of complex urban shapes:
+- L-shaped, T-shaped, U-shaped building footprints
+- Non-convex geometries
+- Irregular building outlines
+
+Example L-shaped building (two rectangles joined):
+::
+
+    POLYGON: 0 0 100 0 100 50 200 50 200 100 0 100 | 0 35
+
+**Internal Courtyards and Void Zones**
+
+Format: ``VOID: x1 y1 x2 y2 ... xn yn | z1 z2``
+
+Void zones exclude interior regions from wake calculations, enabling modeling of:
+- Internal courtyards and atriums
+- Roof-level cavity spaces
+- Complex multi-building compounds
+
+Void zones are treated as exclusion zones and do not generate wakes. The superposition wake model automatically accounts for shadowing from adjacent buildings.
+
+Example courtyard with void zone:
+::
+
+    POLYGON: 0 0 200 0 200 200 0 200 | 0 40
+    VOID: 50 50 150 50 150 150 50 150 | 0 40
+
+**Notes on Polygon Support**
+
+- Polygon buildings inherit all three wake models (Röckle, Huber-Snyder, AERMOD PRIME) from rectangular buildings
+- Wake calculations use the effective polygon dimensions and orientation relative to wind direction
+- Wake zone transitions (near/cavity/far-wake) are computed for the polygon footprint
+- Complex shapes are handled through geometric decomposition and superposition
+- Polygon vertices are assumed to define a simple (non-self-intersecting) polygon
+
+
 -----------------------------
 
 **Canopy Input & Geometry**
