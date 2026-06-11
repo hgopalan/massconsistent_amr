@@ -42,6 +42,7 @@
 #include <cmath>
 #include <string>
 #include <vector>
+#include <map>
 #include <fstream>
 #include <sstream>
 #include <limits>
