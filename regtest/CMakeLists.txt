@@ -142,6 +142,7 @@ add_regression_test(buildings_terrain buildings/buildings_terrain)
 # ===========================================================================
 add_regression_test(wake_single_building wakes/wake_single_building)
 add_regression_test(wake_non_rectangular_sloped wakes/wake_non_rectangular_sloped)
+add_regression_test(wake_complex_gaussian_hills wakes/wake_complex_gaussian_hills)
 
 # ===========================================================================
 # Advanced features
