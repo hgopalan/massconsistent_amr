@@ -5203,6 +5203,10 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
 
     const bool cap_enable_flux_diagnostics = enable_flux_diagnostics;
     const Real cap_solar_radiation = solar_radiation;
+    const Real cap_cloud_cover = cloud_cover;
+    const Real cap_hour_of_day = (hour_of_day >= 0.0) ? hour_of_day : 12.0;  // Default to noon if not set
+    const Real cap_day_of_year = (day_of_year > 0.0) ? day_of_year : 172.0;  // Default to summer solstice
+    const Real cap_latitude = latitude_degrees;
     const Real cap_flux_theta_star = flux_theta_star;
     const Real cap_flux_q_star = flux_q_star;
     const Real cap_heat_flux_scale = heat_flux_scale;
@@ -5302,7 +5306,12 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                     int lu_type = static_cast<int>(std::round(d_landuse_pos_ptr_diag[j * nx_cap_out + i]));
                     Real albedo = get_albedo_from_landuse(lu_type);
                     Real bowen = get_bowen_ratio_from_landuse(lu_type);
-                    Real net_rad = (Real(1.0) - albedo) * cap_solar_radiation;
+                    
+                    // Apply cloud transmittance to solar radiation
+                    Real solar_with_clouds = sky_view_factor::apply_cloud_cover_to_radiation(
+                        cap_solar_radiation, cap_cloud_cover, cap_hour_of_day, cap_day_of_year, cap_latitude);
+                    
+                    Real net_rad = (Real(1.0) - albedo) * solar_with_clouds;
                     if (bowen > Real(1.0e-5)) {
                         constexpr Real partitioning_factor = Real(0.9); // 90% of net radiation is partitioned into turbulent fluxes
                         shf_val = partitioning_factor * net_rad / (Real(1.0) + Real(1.0) / bowen);

@@ -341,6 +341,175 @@ void compute_solar_shading(
     }
 }
 
+// =========================================================================
+// Cloud Transmittance Model
+// =========================================================================
+//
+// Clouds reduce both direct and diffuse solar radiation. This module provides
+// cloud transmittance models that depend on cloud cover fraction.
+//
+// Physical basis:
+// - Direct beam transmittance decreases approximately linearly with cloud cover
+// - Diffuse sky radiation increases under cloudy conditions (multiple scattering)
+// - Reference: Kasten & Czeplak (1980), Liu & Jordan (1960)
+//
+// Key parameters:
+//   cloud_cover - Cloud cover fraction [0-1]
+//     0.0 = clear sky
+//     0.5 = partly cloudy
+//     1.0 = completely overcast
+// =========================================================================
+
+// =========================================================================
+// Compute direct beam transmittance due to cloud cover
+//
+// Direct radiation from the sun is strongly attenuated by clouds.
+// The transmittance depends on cloud cover and cloud optical depth.
+//
+// Simple model: tau_direct = 0.8 - 0.8 * cloud_cover
+// - Clear sky (cloud_cover=0): tau_direct = 0.8 (accounts for clear-sky extinction)
+// - Overcast (cloud_cover=1): tau_direct = 0.0 (no direct beam)
+//
+// Parameters:
+//   cloud_cover: Cloud cover fraction [0-1]
+//
+// Returns: Direct beam transmittance [0-1]
+// =========================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_direct_transmittance(
+    amrex::Real cloud_cover) noexcept
+{
+    // Clamp cloud cover to valid range
+    cloud_cover = std::max(amrex::Real(0.0), std::min(cloud_cover, amrex::Real(1.0)));
+    
+    // Clear-sky direct transmittance (approximately 0.8 for typical conditions)
+    const amrex::Real tau_clear_sky = amrex::Real(0.8);
+    
+    // Transmittance reduces linearly with cloud cover
+    // This is a simplified model; more complex models exist (e.g., exponential)
+    amrex::Real tau_direct = tau_clear_sky * (amrex::Real(1.0) - cloud_cover);
+    
+    return std::max(amrex::Real(0.0), tau_direct);
+}
+
+// =========================================================================
+// Compute diffuse sky transmittance due to cloud cover
+//
+// Under cloudy skies, diffuse radiation increases due to cloud scattering.
+// However, the total transmission of the atmosphere is reduced.
+//
+// Model based on Kasten & Czeplak (1980):
+// - Clear sky diffuse: tau_diffuse_clear ≈ 0.2
+// - Cloudy sky diffuse: tau_diffuse = 0.2 + 0.6 * cloud_cover
+// - Maximum under complete overcast: tau_diffuse ≈ 0.8
+//
+// This reflects that completely cloudy skies scatter light from multiple angles,
+// resulting in higher diffuse irradiance than clear skies.
+//
+// Parameters:
+//   cloud_cover: Cloud cover fraction [0-1]
+//
+// Returns: Diffuse sky transmittance [0-1]
+// =========================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_diffuse_transmittance(
+    amrex::Real cloud_cover) noexcept
+{
+    // Clamp cloud cover to valid range
+    cloud_cover = std::max(amrex::Real(0.0), std::min(cloud_cover, amrex::Real(1.0)));
+    
+    // Clear-sky diffuse transmittance
+    const amrex::Real tau_diffuse_clear = amrex::Real(0.2);
+    
+    // Additional diffuse from clouds (scattering effect)
+    const amrex::Real tau_diffuse_cloud_factor = amrex::Real(0.6);
+    
+    // Total diffuse transmittance increases with cloud cover
+    amrex::Real tau_diffuse = tau_diffuse_clear + tau_diffuse_cloud_factor * cloud_cover;
+    
+    return std::max(amrex::Real(0.0), std::min(tau_diffuse, amrex::Real(1.0)));
+}
+
+// =========================================================================
+// Compute total atmospheric transmittance (direct + diffuse) with cloud effects
+//
+// The total solar radiation at surface (direct + diffuse) is attenuated by clouds.
+// This accounts for the fact that even though diffuse increases with clouds,
+// the total (direct + diffuse) still decreases overall.
+//
+// Parameters:
+//   solar_radiation_toa: Top-of-atmosphere solar radiation (W/m²)
+//   cloud_cover: Cloud cover fraction [0-1]
+//   sun_altitude: Solar altitude angle [radians]
+//
+// Returns: Attenuated solar radiation [W/m²]
+// =========================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real apply_cloud_transmittance_total(
+    amrex::Real solar_radiation_toa,
+    amrex::Real cloud_cover,
+    amrex::Real sun_altitude) noexcept
+{
+    // Sun below horizon → no direct solar radiation
+    if (sun_altitude < amrex::Real(0.0)) {
+        return amrex::Real(0.0);
+    }
+    
+    // Clamp cloud cover to valid range
+    cloud_cover = std::max(amrex::Real(0.0), std::min(cloud_cover, amrex::Real(1.0)));
+    
+    // Get direct and diffuse transmittance
+    amrex::Real tau_direct = compute_direct_transmittance(cloud_cover);
+    amrex::Real tau_diffuse = compute_diffuse_transmittance(cloud_cover);
+    
+    // Direct component: weighted by cos(sun_altitude) for geometry
+    amrex::Real direct_component = tau_direct * solar_radiation_toa * std::cos(MathConstants::pi / amrex::Real(2.0) - sun_altitude);
+    
+    // Diffuse component: isotropic
+    amrex::Real diffuse_component = tau_diffuse * solar_radiation_toa * amrex::Real(0.25);
+    
+    // Total transmission
+    amrex::Real total_transmission = (direct_component + diffuse_component) / solar_radiation_toa;
+    
+    return solar_radiation_toa * std::max(amrex::Real(0.0), std::min(total_transmission, amrex::Real(1.0)));
+}
+
+// =========================================================================
+// Apply cloud effects to solar radiation for radiation balance
+//
+// This is a higher-level function that modifies the solar radiation
+// used in surface energy balance calculations.
+//
+// Parameters:
+//   solar_radiation: Reference solar radiation [W/m²]
+//   cloud_cover: Cloud cover fraction [0-1]
+//   hour_of_day: Time of day [0-24 hours] (to estimate sun altitude)
+//   day_of_year: Day of year [1-365]
+//   latitude: Location latitude [degrees]
+//
+// Returns: Cloud-attenuated solar radiation [W/m²]
+// =========================================================================
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real apply_cloud_cover_to_radiation(
+    amrex::Real solar_radiation,
+    amrex::Real cloud_cover,
+    amrex::Real hour_of_day,
+    amrex::Real day_of_year,
+    amrex::Real latitude) noexcept
+{
+    // Clamp cloud cover to valid range
+    cloud_cover = std::max(amrex::Real(0.0), std::min(cloud_cover, amrex::Real(1.0)));
+    
+    // Compute solar position to get altitude angle
+    amrex::Real sun_altitude, sun_azimuth;
+    compute_solar_position(hour_of_day, day_of_year, latitude, sun_altitude, sun_azimuth);
+    
+    // Apply cloud transmittance
+    amrex::Real attenuated_radiation = apply_cloud_transmittance_total(solar_radiation, cloud_cover, sun_altitude);
+    
+    return attenuated_radiation;
+}
+
 }  // namespace sky_view_factor
 
 #endif // SKY_VIEW_FACTOR_H
