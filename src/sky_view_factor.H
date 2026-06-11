@@ -462,11 +462,15 @@ amrex::Real apply_cloud_transmittance_total(
     amrex::Real tau_direct = compute_direct_transmittance(cloud_cover);
     amrex::Real tau_diffuse = compute_diffuse_transmittance(cloud_cover);
     
-    // Direct component: weighted by cos(sun_altitude) for geometry
-    amrex::Real direct_component = tau_direct * solar_radiation_toa * std::cos(MathConstants::pi / amrex::Real(2.0) - sun_altitude);
+    // Direct component: cos(zenith) where zenith = π/2 - altitude
+    // This gives sin(altitude), which is the correct geometric factor for solar intensity
+    amrex::Real zenith_angle = MathConstants::pi / amrex::Real(2.0) - sun_altitude;
+    amrex::Real direct_component = tau_direct * solar_radiation_toa * std::cos(zenith_angle);
     
-    // Diffuse component: isotropic
-    amrex::Real diffuse_component = tau_diffuse * solar_radiation_toa * amrex::Real(0.25);
+    // Diffuse component: isotropic sky radiation (integrated over hemisphere)
+    // Factor of 0.25 represents approximate integration: diffuse_irradiance ≈ 0.25 * sky_irradiance
+    constexpr amrex::Real diffuse_sky_factor = amrex::Real(0.25);
+    amrex::Real diffuse_component = tau_diffuse * solar_radiation_toa * diffuse_sky_factor;
     
     // Total transmission
     amrex::Real total_transmission = (direct_component + diffuse_component) / solar_radiation_toa;

@@ -477,19 +477,21 @@ For a given location (latitude :math:`\phi`), time of day (hour :math:`t`), and 
 
 At each grid point, a ray is cast upward at angle :math:`h_s` in azimuth direction :math:`A_s`. If terrain/building features block this ray, the point is shaded and receives no direct radiation.
 
-Shading factor :math:`f_{\text{shade}}` ranges from 0 (fully shaded) to 1 (fully sunlit):
+Shading factor :math:`f_{\text{unshaded}}` (unshaded fraction) ranges from 0 (fully shaded) to 1 (fully sunlit):
 
 .. math::
 
-    Q_{\text{direct}} = Q_{\text{TOA}} f_{\text{shade}} \cos(h_s)
+    Q_{\text{direct}} = Q_{\text{TOA}} f_{\text{unshaded}} \cos(h_s)
 
 **Diffuse Radiation:**
 
-Diffuse horizontal irradiance is reduced by SVF and affected by cloud cover. Under clear skies, diffuse radiation depends on the sky view factor:
+Diffuse horizontal irradiance is the radiation from the entire sky hemisphere (excluding direct solar disk). It depends on the sky view factor (SVF), which accounts for horizon blocking by terrain and buildings:
 
 .. math::
 
-    Q_{\text{diffuse}} = Q_{\text{TOA}} \text{SVF} (1 - f_{\text{shade}})
+    Q_{\text{diffuse}} = Q_{\text{TOA}} \text{SVF}
+
+Note: Diffuse radiation is independent of solar shading because it comes from all sky directions, not just the solar direction. The SVF already includes the effect of terrain and building obstruction on diffuse visibility.
 
 **Cloud Transmittance Model:**
 
@@ -515,11 +517,11 @@ The cloud-attenuated radiation is then:
 
 .. math::
 
-    Q_{\text{direct,cloud}} = Q_{\text{TOA}} \tau_{\text{direct}}(c) f_{\text{shade}} \cos(h_s)
+    Q_{\text{direct,cloud}} = Q_{\text{TOA}} \tau_{\text{direct}}(c) f_{\text{unshaded}} \cos(h_s)
 
 .. math::
 
-    Q_{\text{diffuse,cloud}} = Q_{\text{TOA}} \tau_{\text{diffuse}}(c) \text{SVF} (1 - f_{\text{shade}})
+    Q_{\text{diffuse,cloud}} = Q_{\text{TOA}} \tau_{\text{diffuse}}(c) \text{SVF}
 
 **Total Radiation:**
 
@@ -579,9 +581,13 @@ Configuration and Usage
 
 **Physical Interpretation:**
 
-- **Clear skies** (:math:`c = 0`): Direct transmittance = 0.8, Diffuse = 0.2. Total ≈ 1.0 (normalized to TOA)
-- **Partly cloudy** (:math:`c = 0.5`): Direct = 0.4, Diffuse = 0.5. Total ≈ 0.9 (intermediate attenuation)
-- **Overcast** (:math:`c = 1.0`): Direct = 0.0, Diffuse = 0.8. Total ≈ 0.8 (dominantly diffuse)
+The transmittance values :math:`\tau_{\text{direct}}` and :math:`\tau_{\text{diffuse}}` represent the fractional attenuation of each component:
+
+- **Clear skies** (:math:`c = 0`): :math:`\tau_{\text{direct}} = 0.8` (direct beam attenuated by clear-sky extinction), :math:`\tau_{\text{diffuse}} = 0.2` (baseline diffuse from scattering). Direct component dominates.
+- **Partly cloudy** (:math:`c = 0.5`): :math:`\tau_{\text{direct}} = 0.4` (significant direct attenuation), :math:`\tau_{\text{diffuse}} = 0.5` (enhanced by cloud scattering). More balanced radiation.
+- **Overcast** (:math:`c = 1.0`): :math:`\tau_{\text{direct}} = 0.0` (no direct beam), :math:`\tau_{\text{diffuse}} = 0.8` (maximum diffuse from omnidirectional scattering). Radiation is dominantly diffuse.
+
+The total atmospheric transmittance at surface depends on solar geometry (cos(zenith) for direct, sky integration ≈0.25 for diffuse), so actual surface irradiance = :math:`Q_{\text{direct}} + Q_{\text{diffuse}}` with geometric weighting.
 
 Limitations and Future Work
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
