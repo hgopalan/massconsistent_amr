@@ -26,9 +26,15 @@ Usage:
 import sys
 import argparse
 import csv
-import numpy as np
 from pathlib import Path
 from typing import Tuple, List, Dict, Optional
+
+# Optional numpy import
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
 
 
 def write_uniform_wind_csv(
@@ -71,12 +77,12 @@ def write_uniform_wind_csv(
 
 def write_gridded_wind_csv(
     output_file: str,
-    x_coords: np.ndarray,
-    y_coords: np.ndarray,
-    z_coords: np.ndarray,
-    u: np.ndarray,
-    v: np.ndarray,
-    w: np.ndarray,
+    x_coords,
+    y_coords,
+    z_coords,
+    u,
+    v,
+    w,
     description: str = "Gridded wind field"
 ) -> None:
     """
@@ -86,36 +92,57 @@ def write_gridded_wind_csv(
     ----------
     output_file : str
         Output CSV file path
-    x_coords : np.ndarray
+    x_coords : array-like
         X coordinates [m] - shape (nx,) or (nx, ny, nz)
-    y_coords : np.ndarray
+    y_coords : array-like
         Y coordinates [m] - shape (ny,) or (nx, ny, nz)
-    z_coords : np.ndarray
+    z_coords : array-like
         Z coordinates [m] - shape (nz,) or (nx, ny, nz)
-    u : np.ndarray
+    u : array-like
         Zonal wind component [m/s]
-    v : np.ndarray
+    v : array-like
         Meridional wind component [m/s]
-    w : np.ndarray
+    w : array-like
         Vertical wind component [m/s]
     description : str
         Optional description of the wind field
     """
-    # Flatten arrays if necessary
-    u_flat = u.ravel()
-    v_flat = v.ravel()
-    w_flat = w.ravel()
-    
-    # Create meshgrid if coordinates are 1D
-    if x_coords.ndim == 1 and y_coords.ndim == 1 and z_coords.ndim == 1:
-        xx, yy, zz = np.meshgrid(x_coords, y_coords, z_coords, indexing='ij')
-        x_flat = xx.ravel()
-        y_flat = yy.ravel()
-        z_flat = zz.ravel()
+    # Convert to lists if numpy arrays
+    if NUMPY_AVAILABLE:
+        if isinstance(u, np.ndarray):
+            u_flat = u.ravel().tolist()
+        else:
+            u_flat = list(u) if hasattr(u, '__iter__') else [u]
+        
+        if isinstance(v, np.ndarray):
+            v_flat = v.ravel().tolist()
+        else:
+            v_flat = list(v) if hasattr(v, '__iter__') else [v]
+        
+        if isinstance(w, np.ndarray):
+            w_flat = w.ravel().tolist()
+        else:
+            w_flat = list(w) if hasattr(w, '__iter__') else [w]
+        
+        # Create meshgrid if coordinates are 1D numpy arrays
+        if hasattr(x_coords, 'ndim') and x_coords.ndim == 1 and \
+           hasattr(y_coords, 'ndim') and y_coords.ndim == 1 and \
+           hasattr(z_coords, 'ndim') and z_coords.ndim == 1:
+            xx, yy, zz = np.meshgrid(x_coords, y_coords, z_coords, indexing='ij')
+            x_flat = xx.ravel().tolist()
+            y_flat = yy.ravel().tolist()
+            z_flat = zz.ravel().tolist()
+        else:
+            x_flat = x_coords.ravel().tolist() if hasattr(x_coords, 'ravel') else list(x_coords)
+            y_flat = y_coords.ravel().tolist() if hasattr(y_coords, 'ravel') else list(y_coords)
+            z_flat = z_coords.ravel().tolist() if hasattr(z_coords, 'ravel') else list(z_coords)
     else:
-        x_flat = x_coords.ravel()
-        y_flat = y_coords.ravel()
-        z_flat = z_coords.ravel()
+        u_flat = list(u) if hasattr(u, '__iter__') else [u]
+        v_flat = list(v) if hasattr(v, '__iter__') else [v]
+        w_flat = list(w) if hasattr(w, '__iter__') else [w]
+        x_flat = list(x_coords) if hasattr(x_coords, '__iter__') else [x_coords]
+        y_flat = list(y_coords) if hasattr(y_coords, '__iter__') else [y_coords]
+        z_flat = list(z_coords) if hasattr(z_coords, '__iter__') else [z_coords]
     
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -124,9 +151,9 @@ def write_gridded_wind_csv(
         writer.writerow(['# Description:', description])
         writer.writerow(['# Format: gridded'])
         writer.writerow(['# Grid dimensions: {} x {} x {}'.format(
-            len(np.unique(x_flat)),
-            len(np.unique(y_flat)),
-            len(np.unique(z_flat))
+            len(set(x_flat)),
+            len(set(y_flat)),
+            len(set(z_flat))
         )])
         writer.writerow([])
         # Write column headers
@@ -134,17 +161,19 @@ def write_gridded_wind_csv(
         # Write grid points
         for i in range(len(x_flat)):
             writer.writerow([x_flat[i], y_flat[i], z_flat[i], 
-                           u_flat[i], v_flat[i], w_flat[i]])
+                           u_flat[i] if i < len(u_flat) else 0.0,
+                           v_flat[i] if i < len(v_flat) else 0.0,
+                           w_flat[i] if i < len(w_flat) else 0.0])
     
     print(f"Wrote gridded wind field ({len(x_flat)} points) to {output_file}")
 
 
 def write_timeseries_wind_csv(
     output_file: str,
-    times: np.ndarray,
-    u_series: np.ndarray,
-    v_series: np.ndarray,
-    w_series: np.ndarray,
+    times,
+    u_series,
+    v_series,
+    w_series,
     description: str = "Time-series wind field"
 ) -> None:
     """
@@ -154,39 +183,45 @@ def write_timeseries_wind_csv(
     ----------
     output_file : str
         Output CSV file path
-    times : np.ndarray
+    times : array-like
         Time values [s] - shape (nt,)
-    u_series : np.ndarray
+    u_series : array-like
         Zonal wind time series [m/s]
-    v_series : np.ndarray
+    v_series : array-like
         Meridional wind time series [m/s]
-    w_series : np.ndarray
+    w_series : array-like
         Vertical wind time series [m/s]
     description : str
         Optional description of the wind field
     """
+    # Convert to lists if needed
+    times_list = list(times) if hasattr(times, '__iter__') else [times]
+    u_list = list(u_series) if hasattr(u_series, '__iter__') else [u_series]
+    v_list = list(v_series) if hasattr(v_series, '__iter__') else [v_series]
+    w_list = list(w_series) if hasattr(w_series, '__iter__') else [w_series]
+    
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
         # Write metadata header
         writer.writerow(['# Wind Field CSV Format'])
         writer.writerow(['# Description:', description])
         writer.writerow(['# Format: timeseries'])
-        writer.writerow(['# Number of time steps:', len(times)])
+        writer.writerow(['# Number of time steps:', len(times_list)])
         writer.writerow([])
         # Write column headers
         writer.writerow(['time', 'u', 'v', 'w'])
         # Write time series
-        for i in range(len(times)):
-            writer.writerow([times[i], u_series[i], v_series[i], w_series[i]])
+        for i in range(len(times_list)):
+            writer.writerow([times_list[i], u_list[i], v_list[i], w_list[i]])
     
-    print(f"Wrote time-series wind field ({len(times)} steps) to {output_file}")
+    print(f"Wrote time-series wind field ({len(times_list)} steps) to {output_file}")
 
 
 def read_wrf_netcdf(
     input_file: str,
     timestep: Optional[int] = None,
     height_level: Optional[int] = None
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+):
     """
     Read wind field from WRF NetCDF output.
     
@@ -231,7 +266,7 @@ def read_wrf_netcdf(
         
         u_data = u[:].ravel()
         v_data = v[:].ravel()
-        w_data = w[:].ravel() if w is not None else np.zeros_like(u_data)
+        w_data = w[:].ravel() if w is not None else [0.0] * len(u_data)
         
         return x, y, z, u_data, v_data, w_data
     
@@ -242,7 +277,7 @@ def read_wrf_netcdf(
 def read_ascii_grid(
     input_file: str,
     format_spec: str = "space"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+):
     """
     Read wind field from ASCII grid file.
     
@@ -259,19 +294,44 @@ def read_ascii_grid(
     """
     delimiter = {'space': None, 'comma': ',', 'tab': '\t'}.get(format_spec, None)
     
-    data = np.loadtxt(input_file, delimiter=delimiter, comments='#')
+    try:
+        if NUMPY_AVAILABLE:
+            import numpy as np
+            data = np.loadtxt(input_file, delimiter=delimiter, comments='#')
+            
+            if data.shape[1] < 6:
+                raise ValueError(f"Expected at least 6 columns (x, y, z, u, v, w), got {data.shape[1]}")
+            
+            x = data[:, 0]
+            y = data[:, 1]
+            z = data[:, 2]
+            u = data[:, 3]
+            v = data[:, 4]
+            w = data[:, 5]
+        else:
+            # Read without numpy
+            x, y, z, u, v, w = [], [], [], [], [], []
+            with open(input_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    values = line.split(delimiter if delimiter else None)
+                    if len(values) < 6:
+                        continue
+                    try:
+                        x.append(float(values[0]))
+                        y.append(float(values[1]))
+                        z.append(float(values[2]))
+                        u.append(float(values[3]))
+                        v.append(float(values[4]))
+                        w.append(float(values[5]))
+                    except (ValueError, IndexError):
+                        continue
     
-    if data.shape[1] < 6:
-        raise ValueError(f"Expected at least 6 columns (x, y, z, u, v, w), got {data.shape[1]}")
-    
-    x = data[:, 0]
-    y = data[:, 1]
-    z = data[:, 2]
-    u = data[:, 3]
-    v = data[:, 4]
-    w = data[:, 5]
-    
-    return x, y, z, u, v, w
+        return x, y, z, u, v, w
+    except Exception as e:
+        raise ValueError(f"Error reading ASCII grid file: {e}")
 
 
 def main():
