@@ -1,0 +1,4 @@
+lu_id,description,r_a,r_b,r_s_summer,r_s_winter,canopy_height
+1,water,10.0,20.0,1000.0,1000.0,0.0
+2,grassland,50.0,80.0,100.0,400.0,0.5
+3,forest,20.0,40.0,50.0,150.0,15.0
