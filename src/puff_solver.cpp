@@ -42,7 +42,6 @@
 #include <string>
 #include <algorithm>
 #include <map>
-}
 
 static void write_hazard_boundaries(
     const std::string& filename,
