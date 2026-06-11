@@ -24,6 +24,7 @@
 #include "simplified_richardson_method.H"
 #include "roughness_blocking_method.H"
 #include "coriolis_latitude_scaling.H"
+#include "sky_view_factor.H"
 #include "synthetic_turbulence.H"
 #include "random_field_synthesis.H"
 #include "temporal_synthesis.H"
@@ -505,6 +506,15 @@ void WindSolverApp::parse_inputs() {
     pp.query("enable_diurnal_roughness", enable_diurnal_roughness);
     pp.query("roughness_amplitude", roughness_amplitude);
     pp.query("roughness_phase_offset", roughness_phase_offset);
+
+    // Sky View Factor and Solar Shading parameters
+    pp.query("enable_sky_view_factor", enable_sky_view_factor);
+    pp.query("enable_solar_shading", enable_solar_shading);
+    pp.query("latitude_degrees", latitude_degrees);
+    pp.query("longitude_degrees", longitude_degrees);
+    pp.query("day_of_year", day_of_year);
+    pp.query("hour_of_day", hour_of_day);
+    pp.query("max_horizon_distance", max_horizon_distance);
     
     // Exponential Wind Decay Above BL
     pp.query("enable_bl_decay", enable_bl_decay);

@@ -411,3 +411,155 @@ Urban Heat Island Building
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This scenario simulates street canyon wind acceleration and thermal buoyancy effects within a dense block of tall buildings. It evaluates static and dynamic base shear, lateral deflection, and structural fragility curves.
+
+.. _sky_view_factor:
+
+Sky View Factor and Solar Shading
+==================================
+
+Overview
+~~~~~~~~
+
+Sky View Factor (SVF) and solar shading are unified computational approaches to account for radiation transmission and shadowing effects in complex terrain and urban environments. The key innovation is that **buildings and terrain are treated uniformly** as elevation features, enabling natural terrain-building interactions without special casing.
+
+Sky View Factor (SVF) Computation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+SVF quantifies the fraction of the sky hemisphere visible from a surface point. It depends on local topography and ranges from 0 (completely sheltered, e.g., bottom of deep canyon) to 1 (completely open, e.g., flat plain).
+
+**Simple Slope-Based Approximation:**
+
+For a surface with slope angle :math:`\theta`, the SVF is approximated as:
+
+.. math::
+
+    \text{SVF}(x,y) = \frac{1 + \cos(\theta(x,y))}{2}
+
+where :math:`\theta = \arctan(|\nabla h|)` and :math:`\nabla h = (\partial h/\partial x, \partial h/\partial y)` is the terrain elevation gradient.
+
+**Physical Interpretation:**
+
+- Horizontal surface (:math:`\theta = 0°`): SVF = 1.0 (sees entire sky hemisphere)
+- Vertical cliff (:math:`\theta = 90°`): SVF = 0.5 (sees only half hemisphere)
+- Overhang (:math:`\theta = 180°`): SVF = 0.0 (no sky view)
+
+**Unified Terrain+Building Approach:**
+
+Both terrain and buildings are represented as height features in the combined elevation field :math:`h_{\text{total}}(x,y) = h_{\text{terrain}}(x,y) + h_{\text{building}}(x,y)`. A single SVF computation naturally captures:
+
+- Terrain slope effects
+- Building wall effects (steep local gradients)
+- Building-to-terrain shadow casting
+- Urban canyon geometry (effective SVF reduction)
+
+Solar Radiation and Shading
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Solar shading depends on the solar position relative to terrain and building features.
+
+**Solar Position:**
+
+For a given location (latitude :math:`\phi`), time of day (hour :math:`t`), and day of year (:math:`d`), the solar altitude :math:`h_s` and azimuth :math:`A_s` are computed:
+
+.. math::
+
+    \delta = 23.44° \sin(2\pi d / 365.25)  \quad \text{(solar declination)}
+
+.. math::
+
+    \omega = \pi(t - 12)/12  \quad \text{(hour angle)}
+
+.. math::
+
+    \sin(h_s) = \sin(\phi)\sin(\delta) + \cos(\phi)\cos(\delta)\cos(\omega)
+
+**Direct Radiation Shading:**
+
+At each grid point, a ray is cast upward at angle :math:`h_s` in azimuth direction :math:`A_s`. If terrain/building features block this ray, the point is shaded and receives no direct radiation.
+
+Shading factor :math:`f_{\text{shade}}` ranges from 0 (fully shaded) to 1 (fully sunlit):
+
+.. math::
+
+    Q_{\text{direct}} = Q_{\text{TOA}} f_{\text{shade}} \cos(h_s)
+
+**Diffuse Radiation:**
+
+Diffuse horizontal irradiance is reduced by SVF:
+
+.. math::
+
+    Q_{\text{diffuse}} = Q_{\text{TOA}} \text{SVF} (1 - f_{\text{shade}})
+
+**Total Radiation:**
+
+.. math::
+
+    Q_{\text{total}} = Q_{\text{direct}} + Q_{\text{diffuse}} + \rho Q_{\text{reflected}}
+
+where :math:`\rho` is surface albedo.
+
+Configuration and Usage
+~~~~~~~~~~~~~~~~~~~~~~~
+
+**Parameters:**
+
++----------------------------------+----------+------------------+
+| Parameter                        | Default  | Description      |
++==================================+==========+==================+
+| ``enable_sky_view_factor``       | false    | Enable SVF comp. |
++----------------------------------+----------+------------------+
+| ``enable_solar_shading``         | false    | Enable shading   |
++----------------------------------+----------+------------------+
+| ``latitude_degrees``             | 40.0     | Location lat.    |
++----------------------------------+----------+------------------+
+| ``day_of_year``                  | 172.0    | Day [1-365]      |
++----------------------------------+----------+------------------+
+| ``hour_of_day``                  | 12.0     | Hour [0-24]      |
++----------------------------------+----------+------------------+
+| ``max_horizon_distance``         | 1000.0   | Ray-cast dist[m] |
++----------------------------------+----------+------------------+
+
+**Example Configuration:**
+
+.. code-block:: bash
+
+    # Sky View Factor from terrain only
+    enable_sky_view_factor = true
+    enable_solar_shading = true
+    latitude_degrees = 40.0
+    day_of_year = 172.0
+    hour_of_day = 12.0
+    max_horizon_distance = 500.0
+
+**Output Fields:**
+
+- ``svf`` - Sky view factor [0-1]
+- ``shade_factor`` - Solar shading [0-1]
+- ``cos_incident_angle`` - Radiation incidence angle
+
+Limitations and Future Work
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Current Limitations:**
+
+1. Ray-casting uses simple line-of-sight; no multi-bounce reflection
+2. Diffuse radiation assumes uniform sky; neglects cloud effects
+3. Surface albedo not yet coupled to radiation balance
+4. Time-independent SVF (no diurnal computation)
+
+**Future Enhancements:**
+
+1. Multi-reflection view factors for canyon effects
+2. Cloud transmittance model (cloud cover dependent)
+3. Spectral decomposition (direct/diffuse NIR/VIS)
+4. Surface energy balance coupling (skin temperature feedback)
+5. Diurnal cycle adaptive SVF for vegetation effects
+
+References for SVF and Shading
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Oke, T.R. (1988). Street design and urban canopy layer climate. *Energy and Buildings*, 11, 103–113.
+2. Watson, I.D., Johnson, G.T. (1987). Graphical estimation of sky view factors in urban environments. *Journal of Climatology*, 7, 193–197.
+3. Grimmond, C.S.B., Oke, T.R. (1999). Aerodynamic properties of urban areas derived from analysis of surface form. *Journal of Applied Meteorology*, 38, 1262–1292.
+4. Richter, B., Strahler, A.H., Kaufmann, R.K. (2005). A global map of the base emissivity of bare soil. *Remote Sensing of Environment*, 102, 76–86.

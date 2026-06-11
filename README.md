@@ -111,6 +111,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **3D Advection-Diffusion:** Solves transport of temperature and moisture using conservative upwind advection and mixing-length eddy diffusivity.
 - **1D Mixing Solver:** Simulates vertical surface layer transitions and boundary layer mixing.
 - **Spatially-Varying Boundary Layer Height:** Diagnoses boundary layer height ($h_{pbl}$) using column-scanning bulk Richardson number profiles.
+- **Sky View Factor & Solar Shading:** Computes sky view factor from combined terrain+building elevation field and solar shading based on sun position, enabling radiation-dependent thermal effects and urban canyon heating.
 
 ### 3. Dispersion Model
 - **Gaussian Puff Dispersion:** Tracks 3D Gaussian puffs with Pasquill-Gifford stability, Briggs plume rise, gravitational settling, dry deposition, and precipitation scavenging.
