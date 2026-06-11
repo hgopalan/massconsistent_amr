@@ -45,8 +45,8 @@ class TestHappyJackWindFarm(unittest.TestCase):
         lat_ref = 41.1400
         lon_ref = -104.9939
         
-        # GE 1.5sle parameters
-        D = 77.0  # Rotor diameter [m]
+        # Suzlon S88/2100 parameters
+        D = 88.0  # Rotor diameter [m]
         H = 80.0  # Hub height [m]
         ct = 0.8
         
@@ -64,7 +64,6 @@ class TestHappyJackWindFarm(unittest.TestCase):
         with open(self.turbine_file, "w") as f:
             f.write("# x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file\n")
             for x, y in zip(self.xs, self.ys):
-                # Put a yaw of 15.0 degrees on some turbines for testing wake deflection
                 f.write(f"{x:.2f}, {y:.2f}, {H:.1f}, {D:.1f}, {ct:.2f}, 15.0, 0.0, nrel_5mw.csv\n")
                 
         # Copy nrel_5mw.csv to tmp_dir
@@ -75,17 +74,20 @@ class TestHappyJackWindFarm(unittest.TestCase):
             with open(self.tmp_path / "nrel_5mw.csv", "w") as f:
                 f.write("# ws, power, ct\n")
                 f.write("0.0, 0.0, 0.8\n")
-                f.write("10.0, 1500.0, 0.8\n")
-                f.write("25.0, 1500.0, 0.8\n")
+                f.write("10.0, 2100.0, 0.8\n")
+                f.write("25.0, 2100.0, 0.8\n")
 
-        # 4. Write terrain.csv (flat high-altitude plateau in Wyoming)
+        # 4. Write terrain.csv (hilly high-altitude plateau in Wyoming)
         self.terrain_file = self.tmp_path / "terrain.csv"
         with open(self.terrain_file, "w") as f:
-            f.write("# Happy Jack flat plateau terrain\n")
-            f.write("-2000.0, -1500.0, 2200.0\n")
-            f.write("2000.0, -1500.0, 2200.0\n")
-            f.write("-2000.0,  1500.0, 2200.0\n")
-            f.write("2000.0,  1500.0, 2200.0\n")
+            f.write("# Happy Jack hilly terrain\n")
+            f.write("# X[m] Y[m] Z[m]\n")
+            tx = np.linspace(-2000.0, 2000.0, 9)
+            ty = np.linspace(-1500.0, 1500.0, 9)
+            for y in ty:
+                for x in tx:
+                    z = 2200.0 + 120.0 * math.sin(x / 500.0) + 80.0 * math.cos(y / 400.0)
+                    f.write(f"{x:.2f}, {y:.2f}, {z:.2f}\n")
 
         # 5. Write inputs.i
         self.inputs_file = self.tmp_path / "inputs.i"

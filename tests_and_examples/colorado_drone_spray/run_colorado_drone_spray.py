@@ -21,6 +21,9 @@ TEST_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TEST_DIR.parent.parent
 SRC_PYTHON_DIR = REPO_ROOT / "src" / "python"
 sys.path.insert(0, str(SRC_PYTHON_DIR))
+sys.path.insert(0, str(REPO_ROOT))
+
+from tools.terrain_reader_srtm import SRTMReader
 
 try:
     from wind_solver import WindSolver
@@ -48,7 +51,6 @@ def run_workflow():
     output_csv = TEST_DIR / "terrain.csv"
     if hgt_file.exists():
         print("Regenerating terrain.csv from SRTM N40W105.hgt using SRTMReader...")
-        from tools.terrain_reader_srtm import SRTMReader
         reader = SRTMReader(str(hgt_file))
         if reader.read():
             lat_ref = 40.5

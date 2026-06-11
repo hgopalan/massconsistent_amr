@@ -81,18 +81,16 @@ class SRTMTile:
         # Parse latitude
         lat_sign = 1 if name[0] == 'N' else -1
         lat_deg = int(name[1:3])
-        lat0 = lat_sign * lat_deg
-        lat1 = lat_sign * (lat_deg - 1) if name[0] == 'S' else lat_sign * (lat_deg + 1)
-        self.lat_min = min(lat0, lat1)
-        self.lat_max = max(lat0, lat1)
+        lat_val = lat_sign * lat_deg
+        self.lat_min = lat_val
+        self.lat_max = lat_val + 1
         
         # Parse longitude
         lon_sign = -1 if name[3] == 'W' else 1
         lon_deg = int(name[4:7])
-        lon0 = lon_sign * lon_deg
-        lon1 = lon_sign * (lon_deg - 1) if name[3] == 'W' else lon_sign * (lon_deg + 1)
-        self.lon_min = min(lon0, lon1)
-        self.lon_max = max(lon0, lon1)
+        lon_val = lon_sign * lon_deg
+        self.lon_min = lon_val
+        self.lon_max = lon_val + 1
     
     def read(self) -> bool:
         """
