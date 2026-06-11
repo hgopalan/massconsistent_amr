@@ -1,0 +1,17 @@
+species_id,surface_type,vd_m_per_s,description,particle_diameter_um
+SO4,grass,0.001,Sulfate over grass (fine aerosol),1.0
+SO4,urban,0.002,Sulfate over urban (enhanced by roughness),1.0
+SO4,water,0.0005,Sulfate over water (smooth surface),1.0
+SO4,forest,0.005,Sulfate over forest (high roughness and canopy),1.0
+NO3,grass,0.0015,Nitrate over grass,1.5
+NO3,urban,0.003,Nitrate over urban,1.5
+NO3,water,0.0008,Nitrate over water,1.5
+NO3,forest,0.006,Nitrate over forest,1.5
+Dust,grass,0.01,Coarse particles over grass,10.0
+Dust,urban,0.02,Coarse particles over urban,10.0
+Dust,water,0.005,Coarse particles over water,10.0
+Dust,forest,0.03,Coarse particles over forest (high collection),10.0
+OC,grass,0.002,Organic carbon over grass,1.0
+OC,urban,0.004,Organic carbon over urban,1.0
+BC,grass,0.003,Black carbon over grass,0.5
+BC,urban,0.005,Black carbon over urban,0.5

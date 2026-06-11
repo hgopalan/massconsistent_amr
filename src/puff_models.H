@@ -159,6 +159,36 @@ struct PuffParams {
     // Stack aerodynamic modeling parameters (Phase 2.2)
     bool stack_tip_downwash_enabled = false; // Enable Briggs stack tip downwash (STD)
     bool briggs_std_model = true;            // Use Briggs STD model (vs. alternative models)
+    
+    // ========================================================================
+    // PHASE 3: Advanced Physics Enhancements
+    // ========================================================================
+    
+    // 3.1: Wind Shear & Veering Parameters
+    bool enable_wind_shear = false;          // Enable height-dependent wind rotation
+    amrex::Real wind_shear_coefficient = 0.05; // Vertical rotation rate coefficient [1/m]
+    amrex::Real veer_angle = 15.0;           // Base veering angle [degrees] (typically 10-30° in BL)
+    amrex::Real z_ref_windshear = 10.0;      // Reference height for wind shear [m]
+    
+    // 3.2: Reactive Chemistry Parameters
+    bool enable_reactive_chemistry = false;  // Enable multi-species reactive chemistry
+    std::string chemistry_file = "";         // Path to chemistry.csv (reaction matrix)
+    amrex::Real chemistry_timestep = 1.0;    // Chemistry time step [s] (for reaction kinetics)
+    bool enable_temperature_dependent_rates = false; // Enable T-dependent rate adjustments
+    bool enable_rh_dependent_rates = false;  // Enable RH-dependent rate adjustments
+    
+    // 3.3: Enhanced Deposition Parameters
+    bool enable_size_dependent_settling = false; // Enable particle size-dependent settling
+    bool enable_rain_dependent_scavenging = false; // Enable precipitation-dependent scavenging
+    std::string dry_deposition_file = "";   // Path to dry_deposition_velocity.csv
+    std::string wet_scavenging_file = "";   // Path to wet_scavenging_coefficients.csv
+    amrex::Real particle_diameter_mean = 1.0e-6; // Mean particle diameter [m] (for size distribution)
+    amrex::Real particle_diameter_std = 0.3; // Geometric standard deviation of diameter
+    
+    // 3.4: Optical Properties & Visibility Parameters
+    bool enable_optical_properties = false;  // Enable advanced IMPROVE optical model
+    std::string optical_properties_file = ""; // Path to optical_properties.csv
+    bool compute_visibility_at_receptors = false; // Compute deciview/visual range at receptors
 };
 
 // ============================================================================
@@ -240,6 +270,72 @@ struct RecirculationZone {
     amrex::Real vortex_strength;    // Strength of rooftop vortex pair [m²/s]
     amrex::Real lateral_spread;     // Lateral spreading due to vortices [m]
     amrex::Real vertical_velocity_max;  // Maximum induced vertical velocity [m/s]
+};
+
+// ============================================================================
+// PHASE 3 DATA STRUCTURES
+// ============================================================================
+
+// ============================================================================
+// Chemical Reaction Structure (Phase 3.2)
+// Represents a single chemical reaction and its rate constants
+// ============================================================================
+struct ChemicalReaction {
+    std::string reaction_id = "";           // Reaction identifier
+    std::string reaction_type = "";         // Type: "oxidation", "formation", "decomposition"
+    std::vector<int> reactant_indices;      // Indices of reactant species
+    std::vector<int> product_indices;       // Indices of product species
+    std::vector<amrex::Real> stoich_reactants;  // Stoichiometric coefficients (reactants)
+    std::vector<amrex::Real> stoich_products;   // Stoichiometric coefficients (products)
+    amrex::Real rate_constant = 0.0;        // Base reaction rate [1/s] or [cm³/(mol·s)]
+    amrex::Real temp_coeff = 0.0;           // Temperature coefficient [1/K]
+    amrex::Real rh_coeff = 0.0;             // Relative humidity coefficient [1/%]
+    amrex::Real activation_energy = 0.0;    // Activation energy [J/mol] (optional)
+};
+
+// ============================================================================
+// Chemistry Parameters Structure (Phase 3.2)
+// Stores loaded chemistry reaction matrix and species database
+// ============================================================================
+struct ChemistryParams {
+    std::vector<ChemicalReaction> reactions;     // Vector of all reactions
+    std::vector<std::string> species_names;      // Species names (SO2, NOx, SO4, HNO3, etc.)
+    std::vector<amrex::Real> molecular_weights;  // Molecular weights [g/mol]
+    std::map<std::string, int> species_index;    // Map species name to index
+    bool loaded = false;                         // Whether chemistry matrix is loaded
+};
+
+// ============================================================================
+// Optical Properties Structure (Phase 3.4)
+// Stores optical property coefficients for visibility calculations
+// ============================================================================
+struct OpticalProperties {
+    std::string species_id = "";                 // Species identifier
+    amrex::Real mass_ext_coeff = 1.0;           // Mass extinction coefficient [m²/g]
+    amrex::Real growth_factor_rh_50 = 1.0;      // Growth factor at RH=50%
+    amrex::Real growth_factor_rh_80 = 1.0;      // Growth factor at RH=80%
+    amrex::Real particle_number_coeff = 1.0e-12; // Particle number coefficient [1/m]
+    amrex::Real henry_constant = 0.0;           // Henry's law constant [M/atm] (for gases)
+};
+
+// ============================================================================
+// Deposition Velocity Structure (Phase 3.3)
+// Stores dry deposition velocity data for different species and surfaces
+// ============================================================================
+struct DepositionVelocity {
+    std::string species_id = "";                 // Species identifier
+    std::map<std::string, amrex::Real> surface_vd;  // Deposition velocity by surface type
+    // surface_vd["grass"], ["urban"], ["water"], etc.
+};
+
+// ============================================================================
+// Wet Scavenging Coefficients Structure (Phase 3.3)
+// Stores precipitation-dependent scavenging removal rates
+// ============================================================================
+struct WetScavengingCoeff {
+    std::string species_id = "";                 // Species identifier
+    amrex::Real lambda0 = 1.0e-4;                // Base scavenging coefficient [s^-1]
+    amrex::Real exponent_a = 0.8;                // Precipitation exponent (Lambda = Lambda0 * P^a)
 };
 
 // ============================================================================
@@ -2373,6 +2469,427 @@ inline bool interpolate_met_profile(
     }
     
     return false;
+}
+
+// ============================================================================
+// PHASE 3: WIND SHEAR & VEERING FUNCTION
+// ============================================================================
+
+/**
+ * Compute height-dependent veered wind vector (Phase 3.1)
+ * 
+ * Models realistic boundary layer wind shear where wind direction rotates
+ * with height. Uses a logarithmic height-dependent rotation.
+ * 
+ * Physical basis: Ekman spiral in boundary layer causes wind to turn
+ * approximately 15-30 degrees from surface to geostrophic wind height.
+ * 
+ * Parameters:
+ *   z - Height [m]
+ *   z_ref - Reference height [m]
+ *   u_ref, v_ref - Wind components at reference height [m/s]
+ *   veer_angle - Total veering angle from surface to ref height [degrees]
+ *   wind_shear_coeff - Shear coefficient controlling rotation profile
+ * 
+ * Outputs:
+ *   u_veered, v_veered - Height-dependent wind components [m/s]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_veered_wind(
+    amrex::Real z,
+    amrex::Real z_ref,
+    amrex::Real u_ref,
+    amrex::Real v_ref,
+    amrex::Real veer_angle,
+    amrex::Real wind_shear_coeff,
+    amrex::Real& u_veered,
+    amrex::Real& v_veered)
+{
+    // Veer angle proportional to log-height
+    amrex::Real z_safe = std::max(z, amrex::Real(0.01));
+    amrex::Real z_ref_safe = std::max(z_ref, amrex::Real(0.1));
+    
+    amrex::Real height_factor = std::log(z_safe / amrex::Real(0.1)) / std::log(z_ref_safe / amrex::Real(0.1));
+    height_factor = std::min(amrex::Real(1.0), std::max(amrex::Real(0.0), height_factor));
+    
+    // Total rotation angle at this height [radians]
+    amrex::Real rotation_angle = veer_angle * height_factor * amrex::Real(M_PI) / amrex::Real(180.0);
+    
+    // Apply rotation using 2D rotation matrix
+    amrex::Real cos_theta = std::cos(rotation_angle);
+    amrex::Real sin_theta = std::sin(rotation_angle);
+    
+    u_veered = u_ref * cos_theta - v_ref * sin_theta;
+    v_veered = u_ref * sin_theta + v_ref * cos_theta;
+}
+
+// ============================================================================
+// PHASE 3: CHEMISTRY FUNCTIONS (Phase 3.2)
+// ============================================================================
+
+/**
+ * Load chemical reaction matrix from CSV file
+ * 
+ * CSV format:
+ *   reaction_id,reaction_type,reactants,products,rate_constant,temp_coeff,rh_coeff
+ *   r1,oxidation,"SO2","SO4",0.001,0.04,-0.005
+ * 
+ * Parameters:
+ *   csv_file - Path to chemistry.csv
+ *   chemistry_params - Output structure with loaded reactions and species
+ * 
+ * Returns:
+ *   true if successful, false otherwise
+ */
+inline bool read_chemistry_csv(
+    const std::string& csv_file,
+    ChemistryParams& chemistry_params)
+{
+    if (csv_file.empty()) {
+        return false;
+    }
+    
+    std::ifstream infile(csv_file);
+    if (!infile.is_open()) {
+        amrex::Print() << "Warning: Could not open chemistry file " << csv_file << "\n";
+        return false;
+    }
+    
+    std::string line;
+    std::map<std::string, int> species_index_local;
+    int species_count = 0;
+    
+    // Skip header line
+    if (!std::getline(infile, line)) {
+        infile.close();
+        return false;
+    }
+    
+    while (std::getline(infile, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        
+        std::vector<std::string> tokens;
+        std::stringstream ss(line);
+        std::string token;
+        
+        // Simple CSV parsing (assumes no commas in quoted fields)
+        while (std::getline(ss, token, ',')) {
+            // Trim whitespace
+            token.erase(0, token.find_first_not_of(" \t\r\n"));
+            token.erase(token.find_last_not_of(" \t\r\n") + 1);
+            tokens.push_back(token);
+        }
+        
+        if (tokens.size() < 7) continue;  // Need at least 7 columns
+        
+        ChemicalReaction rxn;
+        try {
+            rxn.reaction_id = tokens[0];
+            rxn.reaction_type = tokens[1];
+            // tokens[2] = reactants (simplified parsing)
+            // tokens[3] = products (simplified parsing)
+            rxn.rate_constant = std::stod(tokens[4]);
+            rxn.temp_coeff = std::stod(tokens[5]);
+            rxn.rh_coeff = std::stod(tokens[6]);
+            
+            chemistry_params.reactions.push_back(rxn);
+        } catch (...) {
+            // Skip malformed lines
+        }
+    }
+    
+    infile.close();
+    
+    if (chemistry_params.reactions.size() > 0) {
+        chemistry_params.loaded = true;
+        amrex::Print() << "Read " << chemistry_params.reactions.size() 
+                       << " chemical reactions from " << csv_file << "\n";
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * Apply chemical transformations to puff species mass (Phase 3.2)
+ * 
+ * Implements first-order Euler time-stepping for reaction kinetics:
+ *   dm/dt = -k * m   (for first-order decay)
+ *   m(t+dt) = m(t) * exp(-k*dt)
+ * 
+ * Also handles temperature and RH-dependent rate adjustments using
+ * Arrhenius-like and empirical correlations.
+ * 
+ * Parameters:
+ *   species_mass - Array of species mass [units] (modified in-place)
+ *   species_count - Number of species in array
+ *   dt - Time step [s]
+ *   temp - Ambient temperature [K]
+ *   rh - Ambient relative humidity [%]
+ *   chemistry_params - Loaded chemistry reaction matrix
+ */
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_chemistry_reactions(
+    amrex::Real* species_mass,
+    int species_count,
+    amrex::Real dt,
+    amrex::Real temp,
+    amrex::Real rh,
+    amrex::Real temp_ref = amrex::Real(298.15),
+    amrex::Real rh_ref = amrex::Real(50.0),
+    amrex::Real k_base = amrex::Real(0.001),
+    amrex::Real temp_coeff = amrex::Real(0.04),
+    amrex::Real rh_coeff = amrex::Real(0.005))
+{
+    // Simple chemical transformation: SO2 + oxidant -> SO4
+    // Simplified MESOPUFF II-like kinetics
+    
+    if (species_count < 5) return;
+    
+    // Compute temperature-dependent rate adjustment
+    amrex::Real rate_temp_factor = std::exp(temp_coeff * (temp - temp_ref));
+    
+    // Compute RH-dependent rate adjustment
+    amrex::Real rate_rh_factor = amrex::Real(1.0) + rh_coeff * (rh - rh_ref);
+    rate_rh_factor = std::max(amrex::Real(0.5), rate_rh_factor);  // Clamp to physical range
+    
+    // Total adjusted rate
+    amrex::Real k_eff = k_base * rate_temp_factor * rate_rh_factor;
+    
+    // Species: 0=SO2, 1=SO4, 2=NOx, 3=HNO3, 4=NO3
+    
+    // SO2 oxidation: SO2 -> SO4 (stoichiometry 1:1.5 accounting for O3 addition)
+    amrex::Real d_SO2 = species_mass[0] * (amrex::Real(1.0) - std::exp(-k_eff * dt));
+    species_mass[0] -= d_SO2;
+    species_mass[1] += d_SO2 * amrex::Real(1.5);
+    
+    // NOx oxidation: NOx -> HNO3 (stoichiometry 1:1.35)
+    amrex::Real d_NOx = species_mass[2] * (amrex::Real(1.0) - std::exp(-k_eff * amrex::Real(1.5) * dt));
+    species_mass[2] -= d_NOx;
+    species_mass[3] += d_NOx * amrex::Real(1.35);
+    
+    // HNO3 -> NO3 (gas to particle) stoichiometry ~0.98
+    amrex::Real d_HNO3 = species_mass[3] * (amrex::Real(1.0) - std::exp(-k_eff * amrex::Real(0.5) * dt));
+    species_mass[3] -= d_HNO3;
+    species_mass[4] += d_HNO3 * amrex::Real(0.98);
+}
+
+// ============================================================================
+// PHASE 3: DEPOSITION FUNCTIONS (Phase 3.3)
+// ============================================================================
+
+/**
+ * Compute terminal settling velocity using Stokes law with Cunningham correction
+ * 
+ * For small particles, accounts for non-continuum effects via the
+ * Cunningham slip correction factor.
+ * 
+ * Parameters:
+ *   particle_diameter - Particle diameter [m]
+ *   particle_density - Particle density [kg/m³]
+ *   air_density - Air density [kg/m³]
+ *   air_viscosity - Air dynamic viscosity [Pa·s]
+ *   gravity - Gravitational acceleration [m/s²]
+ * 
+ * Returns:
+ *   Terminal settling velocity [m/s]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_terminal_settling_velocity(
+    amrex::Real particle_diameter,
+    amrex::Real particle_density,
+    amrex::Real air_density,
+    amrex::Real air_viscosity,
+    amrex::Real gravity)
+{
+    // Mean free path of air [m]
+    amrex::Real lambda_air = amrex::Real(6.6e-8);
+    
+    // Knudsen number
+    amrex::Real Kn = amrex::Real(2.0) * lambda_air / particle_diameter;
+    
+    // Cunningham slip correction factor
+    amrex::Real Cc = amrex::Real(1.0) + Kn * (amrex::Real(1.257) + amrex::Real(0.4) * std::exp(-amrex::Real(1.1) / Kn));
+    
+    // Stokes settling velocity with slip correction
+    amrex::Real v_s = (particle_density * particle_diameter * particle_diameter * gravity * Cc) 
+                      / (amrex::Real(18.0) * air_viscosity);
+    
+    return v_s;
+}
+
+/**
+ * Compute wet scavenging removal rate (Phase 3.3)
+ * 
+ * Uses empirical relationship: Lambda = Lambda0 * P^a
+ * where Lambda is scavenging coefficient, P is precipitation rate
+ * 
+ * Parameters:
+ *   lambda0 - Base scavenging coefficient [s^-1]
+ *   exponent_a - Precipitation exponent
+ *   precipitation_rate - Precipitation rate [mm/hr]
+ * 
+ * Returns:
+ *   Scavenging removal rate [s^-1]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_wet_scavenging_rate(
+    amrex::Real lambda0,
+    amrex::Real exponent_a,
+    amrex::Real precipitation_rate)
+{
+    // Convert precipitation rate to dimensionless (threshold ~0.1 mm/hr)
+    amrex::Real P_norm = std::max(precipitation_rate / amrex::Real(0.1), amrex::Real(0.0));
+    
+    // Scavenging removal rate dependent on precipitation
+    amrex::Real lambda = lambda0 * std::pow(P_norm, exponent_a);
+    
+    return lambda;
+}
+
+/**
+ * Apply wet and dry deposition mass loss to puff (Phase 3.3)
+ * 
+ * Removes mass from puff based on:
+ *   1. Dry deposition with residence time
+ *   2. Wet scavenging with precipitation-dependent rate
+ * 
+ * Parameters:
+ *   mass - Puff mass [units] (modified in-place)
+ *   dt - Time step [s]
+ *   vd - Dry deposition velocity [m/s]
+ *   puff_height - Height of puff center [m]
+ *   lambda - Wet scavenging coefficient [s^-1]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_deposition_mass_loss(
+    amrex::Real& mass,
+    amrex::Real dt,
+    amrex::Real vd,
+    amrex::Real puff_height,
+    amrex::Real lambda)
+{
+    // Dry deposition: exponential decay with depth scale proportional to vd and wind speed
+    amrex::Real dry_removal_factor = std::exp(-vd * dt / std::max(puff_height, amrex::Real(1.0)));
+    
+    // Wet deposition (scavenging): exponential decay
+    amrex::Real wet_removal_factor = std::exp(-lambda * dt);
+    
+    // Combined removal
+    mass *= dry_removal_factor * wet_removal_factor;
+}
+
+// ============================================================================
+// PHASE 3: OPTICAL PROPERTIES FUNCTIONS (Phase 3.4)
+// ============================================================================
+
+/**
+ * Load optical properties database from CSV (Phase 3.4)
+ * 
+ * CSV format:
+ *   species_id,mass_ext_coeff,growth_factor_rh_50,growth_factor_rh_80,particle_number_coeff
+ *   SO4,3.0,1.5,2.5,1e-12
+ * 
+ * Parameters:
+ *   csv_file - Path to optical_properties.csv
+ *   optical_db - Map to store species -> OpticalProperties
+ * 
+ * Returns:
+ *   Number of species loaded
+ */
+inline int load_optical_properties_csv(
+    const std::string& csv_file,
+    std::map<std::string, OpticalProperties>& optical_db)
+{
+    if (csv_file.empty()) {
+        return 0;
+    }
+    
+    std::ifstream infile(csv_file);
+    if (!infile.is_open()) {
+        amrex::Print() << "Warning: Could not open optical properties file " << csv_file << "\n";
+        return 0;
+    }
+    
+    std::string line;
+    int species_count = 0;
+    
+    // Skip header line
+    if (!std::getline(infile, line)) {
+        infile.close();
+        return 0;
+    }
+    
+    while (std::getline(infile, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        
+        std::vector<std::string> tokens;
+        std::stringstream ss(line);
+        std::string token;
+        
+        while (std::getline(ss, token, ',')) {
+            token.erase(0, token.find_first_not_of(" \t\r\n"));
+            token.erase(token.find_last_not_of(" \t\r\n") + 1);
+            tokens.push_back(token);
+        }
+        
+        if (tokens.size() < 5) continue;
+        
+        OpticalProperties props;
+        try {
+            props.species_id = tokens[0];
+            props.mass_ext_coeff = std::stod(tokens[1]);
+            props.growth_factor_rh_50 = std::stod(tokens[2]);
+            props.growth_factor_rh_80 = std::stod(tokens[3]);
+            props.particle_number_coeff = std::stod(tokens[4]);
+            
+            optical_db[props.species_id] = props;
+            species_count++;
+        } catch (...) {
+            // Skip malformed lines
+        }
+    }
+    
+    infile.close();
+    
+    if (species_count > 0) {
+        amrex::Print() << "Read " << species_count 
+                       << " optical properties from " << csv_file << "\n";
+    }
+    
+    return species_count;
+}
+
+/**
+ * Interpolate RH-dependent growth factor (Phase 3.4)
+ * 
+ * Uses linear interpolation between reference RH values (50%, 80%)
+ * 
+ * Parameters:
+ *   rh - Relative humidity [%]
+ *   growth_50 - Growth factor at RH=50%
+ *   growth_80 - Growth factor at RH=80%
+ * 
+ * Returns:
+ *   Interpolated growth factor
+ */
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_growth_factor_rh(
+    amrex::Real rh,
+    amrex::Real growth_50,
+    amrex::Real growth_80)
+{
+    rh = std::max(amrex::Real(0.0), std::min(amrex::Real(100.0), rh));
+    
+    if (rh <= amrex::Real(50.0)) {
+        return growth_50;
+    } else if (rh >= amrex::Real(80.0)) {
+        return growth_80;
+    } else {
+        // Linear interpolation between 50% and 80%
+        amrex::Real alpha = (rh - amrex::Real(50.0)) / amrex::Real(30.0);
+        return growth_50 + alpha * (growth_80 - growth_50);
+    }
 }
 
 #endif // PUFF_MODELS_H

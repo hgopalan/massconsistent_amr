@@ -1,0 +1,6 @@
+species_id,mass_ext_coeff_m2_per_g,growth_factor_rh_50,growth_factor_rh_80,particle_number_coeff_per_m3,description
+SO4,3.0,1.5,2.5,1.0e-12,Sulfate aerosol at 550 nm
+NO3,2.8,1.4,2.2,8.0e-13,Nitrate aerosol at 550 nm
+OC,4.0,1.0,1.2,2.0e-12,Organic carbon aerosol at 550 nm
+BC,10.0,1.0,1.0,1.0e-12,Black carbon (soot) at 550 nm
+Dust,1.0,1.0,1.5,5.0e-14,Coarse dust particles at 550 nm

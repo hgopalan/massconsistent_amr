@@ -1,0 +1,9 @@
+species_id,lambda0_per_s,exponent_a,description,henry_constant_M_per_atm
+SO2,1.0e-4,0.8,SO2 scavenging (highly soluble gas),1.5
+SO4,5.0e-5,0.7,Sulfate scavenging (particle),0.0
+NOx,3.0e-5,0.6,NOx scavenging (weakly soluble),1.0e-3
+HNO3,1.5e-4,0.85,HNO3 scavenging (very soluble gas),2.1e5
+NO3,6.0e-5,0.7,Nitrate scavenging (particle),0.0
+OC,4.0e-5,0.65,Organic carbon scavenging,1.0e-2
+BC,2.0e-5,0.5,Black carbon scavenging (poor collection),1.0e-6
+Dust,8.0e-5,0.75,Dust scavenging (efficient),0.0

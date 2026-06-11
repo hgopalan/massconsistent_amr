@@ -1,0 +1,6 @@
+reaction_id,reaction_type,reactants,products,rate_constant,temp_coeff,rh_coeff,description
+r1,oxidation,SO2,SO4,0.001,0.04,-0.005,SO2 + oxidant -> SO4 (Sulfur oxidation)
+r2,oxidation,NOx,HNO3,0.0007,0.035,0.002,NOx + O3 -> HNO3 (Nitrogen oxidation)
+r3,gas_particle,HNO3,NO3,0.002,0.02,0.008,HNO3 gas -> NO3 particle (Phase transition)
+r4,decomposition,SO4,,0.0001,0.01,-0.002,SO4 decomposition (slow background)
+r5,decomposition,NO3,,0.00015,0.008,-0.001,NO3 decomposition (slow background)
