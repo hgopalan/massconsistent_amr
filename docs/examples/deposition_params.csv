@@ -1,51 +1,5 @@
-# Deposition Parameters
-# ======================
-#
-# Particle-size and species-specific deposition velocity and scavenging parameters.
-# 
-# Dry Deposition:
-#   - Particle class/species ID
-#   - Particle diameter [μm]
-#   - Particle density [kg/m³]
-#   - Deposition velocity varies by surface type
-# 
-# Wet Deposition (scavenging):
-#   - Scavenging coefficient (dependent on precipitation rate)
-#   - Exponent for precipitation dependence
-#
-# References:
-#   - Zhang et al. (2001). Size-segregated particle dry deposition velocity
-#   - Petroff & Zhang (2010). Development and validation of a size-resolved particle dry deposition scheme
-#   - Seinfeld & Pandis (2016). Atmospheric Chemistry and Physics
-
-# Dry Deposition Parameters
-# particle_id,diameter [um],density [kg/m3],vd_grass [m/s],vd_urban [m/s],vd_water [m/s],vd_forest [m/s],comments
-SO4_fine,0.5,1800.0,0.001,0.002,0.0005,0.003,Sulfate aerosol - fine mode
-SO4_coarse,5.0,1800.0,0.01,0.015,0.008,0.02,Sulfate aerosol - coarse mode
-NO3_fine,0.6,1500.0,0.0012,0.0024,0.0006,0.0035,Nitrate aerosol - fine mode
-NO3_coarse,4.0,1500.0,0.008,0.012,0.006,0.015,Nitrate aerosol - coarse mode
-OC_fine,0.4,1200.0,0.0005,0.001,0.0003,0.0015,Organic carbon - fine mode
-BC,0.2,1800.0,0.0001,0.0002,0.00005,0.0005,Black carbon - very fine
-Dust_fine,1.0,2650.0,0.002,0.003,0.001,0.005,Mineral dust - fine
-Dust_coarse,10.0,2650.0,0.1,0.15,0.05,0.2,Mineral dust - coarse
-Sea_salt_fine,0.8,2200.0,0.001,0.002,0.0005,0.003,Sea salt - fine
-Sea_salt_coarse,20.0,2200.0,0.5,0.8,0.3,1.0,Sea salt - coarse
-
-# Wet Scavenging (Rainout) Parameters
-# species_id,lambda0_base [1/s],precip_exponent,comments
-SO4_fine,1.0e-4,0.80,Sulfate scavenging coefficient at P_ref=0.1 mm/hr
-SO4_coarse,0.5e-4,0.75,Lower scavenging for coarse SO4
-NO3_fine,1.5e-4,0.85,Nitrate scavenging (more efficient than SO4)
-NO3_coarse,0.8e-4,0.80,Coarse nitrate
-OC_fine,1.2e-4,0.82,Organic carbon
-BC,0.8e-4,0.78,Black carbon (least soluble)
-Dust_fine,1.0e-4,0.80,Mineral dust
-Dust_coarse,0.3e-4,0.70,Coarse dust (lower scavenging)
-Sea_salt,2.0e-4,0.90,Sea salt (highly soluble)
-
-# Notes:
-# - Deposition velocities are typically smallest over water (smooth surface)
-# - Forest has higher values due to enhanced surface roughness and vegetation deposition
-# - Scavenging follows: Λ(P) = Λ₀ × (P / P_ref)^a
-#   where P is precipitation rate, P_ref = 0.1 mm/hr, a = exponent
-# - Values from EPA models, CALPUFF, and atmospheric science literature
+# Deposition parameters for each particle class/species
+# particle_class, diameter [um], density [kg/m3], vd_grass [m/s], vd_urban [m/s], vd_water [m/s], vd_forest [m/s]
+SO4_aerosol,0.5,1800.0,0.001,0.002,0.0005,0.003
+NO3_aerosol,1.0,1500.0,0.002,0.004,0.001,0.005
+Dust_coarse,10.0,2600.0,0.1,0.2,0.05,0.15

@@ -1,13 +1,6 @@
-# Meteorological Profiles CSV Format
-# Description: Two spatial profiles at different locations with vertical variation
-# Format: profile_id, x_ref, y_ref, z_agl, u, v, w, K_h, K_v, stability_class
-
-profile_id,x_ref,y_ref,z_agl,u,v,w,K_h,K_v,stability_class
-profile_west,50.0,150.0,0.0,0.0,0.0,0.0,0.5,0.1,D
-profile_west,50.0,150.0,10.0,8.0,0.5,0.0,1.0,0.3,D
-profile_west,50.0,150.0,50.0,10.5,1.0,0.0,2.0,0.8,D
-profile_west,50.0,150.0,100.0,11.5,1.5,0.0,3.0,1.2,D
-profile_east,250.0,150.0,0.0,0.0,0.0,0.0,0.3,0.05,F
-profile_east,250.0,150.0,10.0,7.5,0.2,0.0,0.8,0.2,F
-profile_east,250.0,150.0,50.0,9.0,0.5,0.0,1.5,0.5,F
-profile_east,250.0,150.0,100.0,10.0,0.8,0.0,2.5,0.8,F
+# Spatial meteorology profiles for multi-location initial conditions
+# profile_id, x_ref [m], y_ref [m], z_agl [m], u [m/s], v [m/s], w [m/s], K_h [m2/s], K_v [m2/s], stability_class
+profile_1,100.0,100.0,10.0,10.0,2.0,0.1,1.0,0.5,D
+profile_1,100.0,100.0,50.0,12.0,2.5,0.2,2.0,1.0,D
+profile_1,100.0,100.0,100.0,14.0,3.0,0.3,3.0,1.5,D
+profile_2,200.0,200.0,10.0,9.5,1.8,0.05,0.8,0.4,D

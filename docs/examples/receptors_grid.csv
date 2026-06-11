@@ -1,0 +1,6 @@
+# Receptor locations for concentration output
+# x [m], y [m], z [m], label [string]
+100.0,100.0,1.5,R_1_1_1
+150.0,100.0,1.5,R_1_2_1
+200.0,100.0,1.5,R_1_3_1
+100.0,150.0,1.5,R_2_1_1

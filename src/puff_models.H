@@ -64,6 +64,12 @@ struct TerrainGrid {
     bool enabled = false;                    // Terrain awareness enabled
 };
 
+// Forward declarations for CSV-configurable puff model types
+struct Source;
+struct MetProfile;
+struct Receptor;
+struct DepositionParams;
+
 // ============================================================================
 // Gaussian Puff Parameters
 // ============================================================================

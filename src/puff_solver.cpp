@@ -41,77 +41,44 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <map>
 #include <random>
 
 using namespace amrex;
 
-struct EmissionPoint {
-    Real time;
-    Real rate;
-};
-
-static std::vector<EmissionPoint> read_emissions_file(const std::string& filename) {
-    std::vector<EmissionPoint> profile;
-    if (filename.empty()) return profile;
-    std::ifstream infile(filename);
-    if (!infile.is_open()) {
-        amrex::Print() << "Warning: Could not open emissions file " << filename << "\n";
-        return profile;
+template <typename T>
+static void query_with_fallback(ParmParse& root_pp, ParmParse& nested_pp, const char* name, T& value)
+{
+    if (!nested_pp.query(name, value)) {
+        root_pp.query(name, value);
     }
-    std::string line;
-    // Skip header line if present
-    if (std::getline(infile, line)) {
-        if (!line.empty() && (std::isdigit(line[0]) || line[0] == '-' || line[0] == '.')) {
-            // First line starts with a digit/sign, so it's probably data
-            std::istringstream iss(line);
-            std::string t_str, r_str;
-            if (std::getline(iss, t_str, ',') && std::getline(iss, r_str, ',')) {
-                try {
-                    EmissionPoint ep;
-                    ep.time = std::stod(t_str);
-                    ep.rate = std::stod(r_str);
-                    profile.push_back(ep);
-                } catch (...) {}
-            }
-        }
-    }
-    while (std::getline(infile, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        std::istringstream iss(line);
-        std::string t_str, r_str;
-        if (std::getline(iss, t_str, ',') && std::getline(iss, r_str, ',')) {
-            try {
-                EmissionPoint ep;
-                ep.time = std::stod(t_str);
-                ep.rate = std::stod(r_str);
-                profile.push_back(ep);
-            } catch (...) {}
-        }
-    }
-    // Sort profile by time to be safe
-    std::sort(profile.begin(), profile.end(), [](const EmissionPoint& a, const EmissionPoint& b) {
-        return a.time < b.time;
-    });
-    return profile;
 }
 
-static Real interpolate_emission_rate(Real time, const std::vector<EmissionPoint>& profile, Real default_rate) {
-    if (profile.empty()) return default_rate;
-    if (time <= profile.front().time) return profile.front().rate;
-    if (time >= profile.back().time) return profile.back().rate;
-    
-    // Find interval
-    for (size_t i = 0; i < profile.size() - 1; ++i) {
-        if (time >= profile[i].time && time <= profile[i + 1].time) {
-            Real t0 = profile[i].time;
-            Real t1 = profile[i + 1].time;
-            Real r0 = profile[i].rate;
-            Real r1 = profile[i + 1].rate;
-            if (std::abs(t1 - t0) < 1.0e-10) return r0;
-            return r0 + (r1 - r0) * (time - t0) / (t1 - t0);
-        }
+static Real interpolate_emission_rate(Real time, const std::map<Real, Real>& profile, Real default_rate) {
+    if (profile.empty()) {
+        return default_rate;
     }
-    return default_rate;
+
+    auto upper = profile.lower_bound(time);
+    if (upper == profile.begin()) {
+        return upper->second;
+    }
+    if (upper == profile.end()) {
+        return profile.rbegin()->second;
+    }
+    if (upper->first == time) {
+        return upper->second;
+    }
+
+    auto lower = std::prev(upper);
+    const Real t0 = lower->first;
+    const Real t1 = upper->first;
+    const Real r0 = lower->second;
+    const Real r1 = upper->second;
+    if (std::abs(t1 - t0) < 1.0e-10) {
+        return r0;
+    }
+    return r0 + (r1 - r0) * (time - t0) / (t1 - t0);
 }
 
 static void write_hazard_boundaries(
@@ -441,6 +408,7 @@ int main(int argc, char* argv[])
     amrex::Initialize(argc, argv);
     {
         ParmParse pp;
+        ParmParse pp_puff_model("puff_model");
         
         // Puff model parameters
         bool enable_puff = false;
@@ -475,7 +443,8 @@ int main(int argc, char* argv[])
         // Indoor infiltration, time-varying emissions, and hazard threat zone parameters
         bool enable_indoor_infiltration = false;
         Real ach = 1.5;
-        std::string emissions_file = "";
+        std::string emissions_file = ""; // Legacy input name
+        std::string emissions_timeseries_file = "";
         Real threshold_red = 0.0;
         Real threshold_orange = 0.0;
         Real threshold_yellow = 0.0;
@@ -485,13 +454,12 @@ int main(int argc, char* argv[])
         pp.query("enable_indoor_infiltration", enable_indoor_infiltration);
         pp.query("ach", ach);
         pp.query("emissions_file", emissions_file);
+        query_with_fallback(pp, pp_puff_model, "emissions_timeseries_file", emissions_timeseries_file);
         pp.query("threshold_red", threshold_red);
         pp.query("threshold_orange", threshold_orange);
         pp.query("threshold_yellow", threshold_yellow);
         pp.query("threshold_lfl", threshold_lfl);
         pp.query("threat_zones_output", threat_zones_output);
-
-        std::vector<EmissionPoint> emissions_profile = read_emissions_file(emissions_file);
         
         // Diffusivity and initial puff size
         Real K_h = 1.0;
@@ -640,8 +608,10 @@ int main(int argc, char* argv[])
         pp.query("num_volume_puffs_z", num_volume_puffs_z);
         
         // Receptors
-        std::string receptor_file = "";
+        std::string receptor_file = "";  // Legacy input name
+        std::string receptors_file = "";
         pp.query("receptor_file", receptor_file);
+        query_with_fallback(pp, pp_puff_model, "receptors_file", receptors_file);
         
         bool enable_visibility = false;
         pp.query("enable_visibility", enable_visibility);
@@ -669,49 +639,7 @@ int main(int argc, char* argv[])
         }
         
         // Read receptors file
-        struct Receptor {
-            Real x, y, z;
-            std::string name;
-        };
         std::vector<Receptor> receptors;
-        if (!receptor_file.empty()) {
-            std::ifstream rfile(receptor_file);
-            if (rfile.is_open()) {
-                std::string rline;
-                // Check if has header and skip
-                if (std::getline(rfile, rline)) {
-                    std::string trimmed = rline;
-                    trimmed.erase(0, trimmed.find_first_not_of(" \t"));
-                    if (!trimmed.empty() && trimmed[0] != '#') {
-                        if (std::isalpha(trimmed[0])) {
-                            // It's a header line, skip
-                        } else {
-                            // Not a header, parse it
-                            std::istringstream riss(rline);
-                            Receptor rec;
-                            char rcomma;
-                            if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
-                                rec.name = "receptor_" + std::to_string(receptors.size());
-                                receptors.push_back(rec);
-                            }
-                        }
-                    }
-                }
-                while (std::getline(rfile, rline)) {
-                    if (rline.empty() || rline[0] == '#') continue;
-                    std::istringstream riss(rline);
-                    Receptor rec;
-                    char rcomma;
-                    if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
-                        rec.name = "receptor_" + std::to_string(receptors.size());
-                        receptors.push_back(rec);
-                    }
-                }
-                amrex::Print() << "puff_solver: Loaded " << receptors.size() << " discrete receptors from " << receptor_file << "\n";
-            } else {
-                amrex::Print() << "puff_solver: Warning - could not open receptor file " << receptor_file << "\n";
-            }
-        }
         
         // Terrain parameters
         std::string terrain_file = "";
@@ -925,35 +853,50 @@ int main(int argc, char* argv[])
         std::string puff_output = "puff_concentration.csv";
         pp.query("puff_output", puff_output);
         
-        // Phase 2.1: Multi-source configuration
+        // Phase 2.1 / Phase 4.1: CSV-driven source and configuration inputs
         std::string sources_file = "";
+        std::string deposition_params_file = "";
+        std::string met_profile_file = "";   // Legacy input name
+        std::string met_profiles_file = "";
         std::vector<Source> sources;
+        std::vector<MetProfile> met_profiles;
+        std::map<Real, Real> emission_timeseries;
+        std::map<std::string, DepositionParams> loaded_deposition_params;
         bool stack_tip_downwash_enabled = false;
         bool briggs_std_model = true;
-        
-        pp.query("sources_file", sources_file);
+        bool enable_spatial_met = false;
+
+        query_with_fallback(pp, pp_puff_model, "sources_file", sources_file);
+        query_with_fallback(pp, pp_puff_model, "deposition_params_file", deposition_params_file);
+        query_with_fallback(pp, pp_puff_model, "met_profiles_file", met_profiles_file);
+        pp.query("met_profile_file", met_profile_file);
         pp.query("stack_tip_downwash_enabled", stack_tip_downwash_enabled);
         pp.query("briggs_std_model", briggs_std_model);
-        
-        // Try to read multi-source configuration
-        if (!sources_file.empty()) {
-            if (read_sources_csv(sources_file, sources)) {
-                amrex::Print() << "puff_solver: Multi-source mode activated (" << sources.size() << " sources)\n";
-            } else {
-                amrex::Print() << "puff_solver: Warning - sources_file specified but could not be read, falling back to single source\n";
-                // Fall back to legacy single source
-                Source single_source;
-                single_source.source_id = "source_1";
-                single_source.x = source_x;
-                single_source.y = source_y;
-                single_source.z = source_z;
-                single_source.emission_rate = emission_rate;
-                single_source.emission_duration = emission_duration;
-                single_source.type = source_type;
-                sources.push_back(single_source);
-            }
-        } else {
-            // Use legacy single source parameters (backward compatibility)
+        pp.query("enable_spatial_met", enable_spatial_met);
+
+        if (emissions_timeseries_file.empty()) {
+            emissions_timeseries_file = emissions_file;
+        }
+        if (met_profiles_file.empty()) {
+            met_profiles_file = met_profile_file;
+        }
+        if (receptors_file.empty()) {
+            receptors_file = receptor_file;
+        }
+
+        CSVInputConfig csv_config;
+        csv_config.default_source_x = source_x;
+        csv_config.default_source_y = source_y;
+        csv_config.default_source_z = source_z;
+        csv_config.default_emission_rate = emission_rate;
+        csv_config.default_emission_duration = emission_duration;
+        csv_config.default_source_type = source_type;
+        csv_config.default_met_K_h = K_h;
+        csv_config.default_met_K_v = K_v;
+        csv_config.default_receptor_z = 1.5;
+        CSVInputLoader csv_loader(csv_config);
+
+        auto make_single_source = [&]() {
             Source single_source;
             single_source.source_id = "source_1";
             single_source.x = source_x;
@@ -962,20 +905,29 @@ int main(int argc, char* argv[])
             single_source.emission_rate = emission_rate;
             single_source.emission_duration = emission_duration;
             single_source.type = source_type;
-            sources.push_back(single_source);
+            return single_source;
+        };
+
+        if (!sources_file.empty()) {
+            sources = csv_loader.load_sources_csv(sources_file);
+            if (!sources.empty()) {
+                amrex::Print() << "puff_solver: Multi-source mode activated (" << sources.size() << " sources)\n";
+            } else {
+                amrex::Print() << "puff_solver: Warning - sources_file specified but no valid sources were loaded, falling back to single source\n";
+                sources.push_back(make_single_source());
+            }
+        } else {
+            sources.push_back(make_single_source());
         }
-        
-        // Phase 2.3: Meteorological profile configuration
-        std::string met_profile_file = "";
-        std::vector<MetProfile> met_profiles;
-        bool enable_spatial_met = false;
-        
-        pp.query("met_profile_file", met_profile_file);
-        pp.query("enable_spatial_met", enable_spatial_met);
-        
-        if (!met_profile_file.empty() && enable_spatial_met) {
-            if (!read_met_profiles_csv(met_profile_file, met_profiles)) {
-                amrex::Print() << "puff_solver: Warning - meteorological profile file specified but could not be read\n";
+
+        emission_timeseries = csv_loader.load_emissions_timeseries_csv(emissions_timeseries_file);
+        loaded_deposition_params = csv_loader.load_deposition_params_csv(deposition_params_file);
+        receptors = csv_loader.load_receptors_csv(receptors_file);
+
+        if (!met_profiles_file.empty() && enable_spatial_met) {
+            met_profiles = csv_loader.load_met_profiles_csv(met_profiles_file);
+            if (met_profiles.empty()) {
+                amrex::Print() << "puff_solver: Warning - meteorological profile file specified but no valid profile rows were loaded\n";
             }
         }
         
@@ -1006,8 +958,17 @@ int main(int argc, char* argv[])
                 }
             }
         }
-        if (!emissions_profile.empty()) {
-            amrex::Print() << "  Time-varying emissions enabled (" << emissions_profile.size() << " points from " << emissions_file << ")\n";
+        if (!emission_timeseries.empty()) {
+            amrex::Print() << "  Time-varying emissions enabled (" << emission_timeseries.size() << " points from " << emissions_timeseries_file << ")\n";
+        }
+        if (!loaded_deposition_params.empty()) {
+            amrex::Print() << "  Loaded deposition parameter sets: " << loaded_deposition_params.size() << " from " << deposition_params_file << "\n";
+        }
+        if (!met_profiles.empty()) {
+            amrex::Print() << "  Loaded meteorological profiles: " << met_profiles.size() << " from " << met_profiles_file << "\n";
+        }
+        if (!receptors.empty()) {
+            amrex::Print() << "  Loaded receptors: " << receptors.size() << " from " << receptors_file << "\n";
         }
         if (enable_indoor_infiltration) {
             amrex::Print() << "  Indoor infiltration model enabled (ACH = " << ach << ")\n";
@@ -1222,11 +1183,6 @@ int main(int argc, char* argv[])
                 current_capping_lid_height = compute_thermodynamic_zi(time, thermo_lid_params, thermo_lid_flux_times, thermo_lid_flux_values);
             }
             
-            Real current_emission_rate = emission_rate;
-            if (!emissions_profile.empty()) {
-                current_emission_rate = interpolate_emission_rate(time, emissions_profile, emission_rate);
-            }
-            
             if (enable_lpdm) {
                // Phase 2.1: Emit new particles from all sources
                for (const auto& src : sources) {
@@ -1234,7 +1190,7 @@ int main(int argc, char* argv[])
                    Real src_emission_duration = src.emission_duration;
                    if (time >= src_emission_duration) continue;
                     
-                   Real src_emission_rate = src.emission_rate;
+                   Real src_emission_rate = interpolate_emission_rate(time, emission_timeseries, src.emission_rate);
                    Real step_emitted_mass = src_emission_rate * dt_puff;
                    Real particle_mass = step_emitted_mass / particles_per_step;
                     
@@ -1578,7 +1534,7 @@ int main(int argc, char* argv[])
                     Real src_emission_duration = src.emission_duration;
                     if (time >= src_emission_duration) continue;
                     
-                    Real src_emission_rate = src.emission_rate;
+                    Real src_emission_rate = interpolate_emission_rate(time, emission_timeseries, src.emission_rate);
                     Real puff_mass = src_emission_rate * dt_puff;
                     
                     // Compute effective source height with plume rise
@@ -2075,7 +2031,7 @@ int main(int argc, char* argv[])
                             }
                         }
                         
-                        routf << rec.name << "," << rec.x << "," << rec.y << "," << rec.z << "," << C;
+                        routf << rec.label << "," << rec.x << "," << rec.y << "," << rec.z << "," << C;
                         if (enable_chemistry) {
                             routf << "," << SO2_conc << "," << Sulfate_conc << "," << NOx_conc << "," << HNO3_conc << "," << Nitrate_conc;
                             if (enable_visibility) {
