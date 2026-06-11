@@ -90,7 +90,7 @@ if(MASSCONSISTENT_USE_VENDORED_AMREX AND EXISTS "${AMREX_SUBMODULE_DIR}/CMakeLis
   # The mass-consistent solver uses MLMG (MLABecLaplacian), so linear solvers are required.
   set(AMReX_LINEAR_SOLVERS ON CACHE BOOL "Build AMReX with linear solvers (required for MLMG)" FORCE)
   set(AMReX_PARTICLES OFF CACHE BOOL "Build AMReX without particle support" FORCE)
-  set(AMReX_EB OFF CACHE BOOL "Build AMReX without Embedded Boundary support" FORCE)
+  set(AMReX_EB ON CACHE BOOL "Build AMReX with Embedded Boundary support" FORCE)
   set(AMReX_INSTALL OFF CACHE BOOL "Disable AMReX install rules when used as a subproject" FORCE)
 
   add_subdirectory("${AMREX_SUBMODULE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/external/amrex")

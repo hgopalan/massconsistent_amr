@@ -104,6 +104,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Meteorological Ingestion:** Supports 3D NetCDF NWP inputs (e.g., WRF, GFS) with anisotropic Inverse Distance Weighting to preserve vertical profiles.
 - **MacDonald Canopy Drag:** Models vegetative canopy drag, with exponential wind decay within canopy height ($h_c$) and displacement height corrections.
 - **Building Wake Models:** Incorporates Röckle, Huber-Snyder, and AERMOD PRIME building downwash parameterizations, with street canyon vortex modeling.
+- **AMReX Embedded Boundary (EB) Support:** Alternative geometry representation utilizing AMReX EB2 to represent arbitrary 3D shapes (such as boxes, cylinders, spheres, and STL geometries), marking solid cells via fluid volume fraction.
 - **Analytical Turbine Wakes:** Supports Jensen, Bastankhah Gaussian, TurbOPark, and Gauss-Curl Hybrid wake models, including wake centerline deflection, yaw, and AEP calculation.
 - **Wake Superposition & Added Turbulence:** Computes overlapping deficits (quadratic/linear/geometric) and wake-added turbulence (Crespo-Hernández, Frandsen) with convective buoyant wake destruction.
 
