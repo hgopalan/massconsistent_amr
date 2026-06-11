@@ -4,7 +4,7 @@
 
 ## Scenario Gallery
 
-The solver supports diverse engineering, physical, and environmental wind-modeling scenarios. Below is a gallery of the six core scenarios:
+The solver supports diverse engineering, physical, and environmental wind-modeling scenarios. Below is a gallery of the eight core scenarios:
 
 <table width="100%">
   <tr>
@@ -41,6 +41,18 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
       <h4>6. Geochemical Hotspot & O₂ Delivery Detection</h4>
       <p>Valley AMD (Acid Mine Drainage) discharge point risk-classification based on wind-speed-dependent Sherwood mass transfer correlations.</p>
       <img src="docs/valley_amd_hotspots.png" alt="Valley AMD Hotspots" width="100%"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>7. Agricultural Drone Spray Drift & Deposition</h4>
+      <p>Modeling drone pesticide application, spray drift, dynamic canopy deposition, and rotor downwash velocity mapping over complex terrain.</p>
+      <img src="docs/drone_deposition_plot.png" alt="Agricultural Drone Spray Drift" width="100%"/>
+    </td>
+    <td width="50%" valign="top">
+      <h4>8. Terrain-Aware Synthetic Turbulence</h4>
+      <p>Generating terrain-conforming synthetic turbulence fluctuations over a Gaussian hill topography, restricted to fluid zones with smooth boundary blending.</p>
+      <img src="docs/terrain_following_complex_flow.png" alt="Terrain-Aware Synthetic Turbulence" width="100%"/>
     </td>
   </tr>
 </table>
@@ -115,7 +127,6 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Structure Loading:** Evaluates static base shear, dynamic amplification (gust response), lateral bending deflection, and structural fragility curves.
 
 ### 6. External Coupling & APIs
-- **PHREEQC Geochemical Transport:** Integrates mass-consistent wind fields and dispersion modeling with PHREEQC to simulate reactive geochemical transport. It models acid mine drainage (AMD) valley hotspots, sulfide oxidation kinetics, wind-speed-dependent dust suppression, and dispersion-enhanced ore leaching using Sherwood number correlations.
 - **Wildfire Levelset:** One-way coupling with fire front propagation using sensible heat flux feedback.
 - **FLORIS & PyWake integration:** Exports resolved wind fields and data formats to FLORIS, PyWake, and WAsP.
 
@@ -131,6 +142,12 @@ Run them with CTest from your build directory:
 ```bash
 ctest -L regtest
 ```
+
+## Agricultural Drone Operations
+
+The solver provides a dedicated Python module (`agricultural_drone`) for simulating agricultural drone operations. This module supports parsing and interpolating 3D flight trajectories from CSV telemetry, modeling 3D analytical rotor downwash velocity fields (including jet expansion and forward flight deflection), and simulating spray drift and canopy deposition using either Lagrangian Particle Dispersion Models (LPDM) or Gaussian Puff dispersion.
+
+For guides and API documentation, see the [External Coupling Documentation](docs/external_coupling.rst).
 
 ## External Coupling
 
