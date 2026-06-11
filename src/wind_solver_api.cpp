@@ -115,15 +115,7 @@ void read_building_file(const std::string& filename,
                         std::vector<Real>& ymin,
                         std::vector<Real>& ymax,
                         std::vector<Real>& zmin,
-<<<<<<< HEAD
-                        std::vector<Real>& zmax)
-=======
-                        std::vector<Real>& zmax,
-                        std::vector<int>& geom_type,
-                        std::vector<std::vector<Real>>& polygon_x,
-                        std::vector<std::vector<Real>>& polygon_y,
-                        std::vector<int>& parent_id)
->>>>>>> origin/main
+std::vector<Real>& zmax)
 {
     std::ifstream input(filename);
     if (!input.is_open()) {
@@ -131,21 +123,12 @@ void read_building_file(const std::string& filename,
     }
 
     std::string line;
-<<<<<<< HEAD
-    while (std::getline(input, line)) {
-=======
-    int line_num = 0;
-    while (std::getline(input, line)) {
-        line_num++;
-        
-        // Remove comments
->>>>>>> origin/main
+while (std::getline(input, line)) {
         auto comment_pos = line.find('#');
         if (comment_pos != std::string::npos) {
             line = line.substr(0, comment_pos);
         }
-<<<<<<< HEAD
-        std::replace(line.begin(), line.end(), ',', ' ');
+std::replace(line.begin(), line.end(), ',', ' ');
         std::istringstream iss(line);
         Real x1, x2, y1, y2, z1, z2;
         if (iss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
@@ -155,121 +138,6 @@ void read_building_file(const std::string& filename,
             ymax.push_back(y2);
             zmin.push_back(z1);
             zmax.push_back(z2);
-=======
-        
-        // Skip empty lines
-        std::replace(line.begin(), line.end(), ',', ' ');
-        std::istringstream iss(line);
-        std::string token;
-        if (!(iss >> token)) continue;
-        
-        if (token == "POLYGON:") {
-            // Polygon building: POLYGON: x1 y1 x2 y2 ... xn yn | zmin zmax [height]
-            // Example: POLYGON: 0.0 0.0 100.0 0.0 100.0 100.0 0.0 100.0 | 0.0 30.0
-            int n_verts = 0;
-            std::vector<Real> vx, vy;
-            Real x, y;
-            
-            // Read vertices until delimiter
-            while (iss >> x >> y) {
-                vx.push_back(x);
-                vy.push_back(y);
-                n_verts++;
-            }
-            
-            // Read delimiter (should be |) but in stream form it's optional
-            // Read zmin and zmax
-            Real z_min, z_max;
-            if (n_verts >= 3) {  // Need at least 3 vertices for a polygon
-                // For polygon, xmin/xmax/ymin/ymax are bounding box
-                Real xmin_poly = *std::min_element(vx.begin(), vx.end());
-                Real xmax_poly = *std::max_element(vx.begin(), vx.end());
-                Real ymin_poly = *std::min_element(vy.begin(), vy.end());
-                Real ymax_poly = *std::max_element(vy.begin(), vy.end());
-                
-                // Try to read zmin and zmax from remaining input or use defaults
-                if (iss >> z_min >> z_max) {
-                    // Success
-                } else {
-                    z_min = 0.0;
-                    z_max = 30.0;  // Default height
-                }
-                
-                xmin.push_back(xmin_poly);
-                xmax.push_back(xmax_poly);
-                ymin.push_back(ymin_poly);
-                ymax.push_back(ymax_poly);
-                zmin.push_back(z_min);
-                zmax.push_back(z_max);
-                geom_type.push_back(1);  // BuildingGeometryType::POLYGON
-                polygon_x.push_back(vx);
-                polygon_y.push_back(vy);
-                parent_id.push_back(-1);
-            } else {
-                amrex::Warning("Polygon building on line " + std::to_string(line_num) + 
-                             " has " + std::to_string(n_verts) + " vertices; need >= 3. Skipping.\n");
-            }
-            
-        } else if (token == "VOID:") {
-            // Void zone (internal courtyard): VOID: x1 y1 x2 y2 ... | zmin zmax
-            // Format same as POLYGON but marks an exclusion zone
-            int n_verts = 0;
-            std::vector<Real> vx, vy;
-            Real x, y;
-            
-            while (iss >> x >> y) {
-                vx.push_back(x);
-                vy.push_back(y);
-                n_verts++;
-            }
-            
-            Real z_min, z_max;
-            if (n_verts >= 3) {
-                Real xmin_void = *std::min_element(vx.begin(), vx.end());
-                Real xmax_void = *std::max_element(vx.begin(), vx.end());
-                Real ymin_void = *std::min_element(vy.begin(), vy.end());
-                Real ymax_void = *std::max_element(vy.begin(), vy.end());
-                
-                if (iss >> z_min >> z_max) {
-                    // Success
-                } else {
-                    z_min = 0.0;
-                    z_max = 30.0;
-                }
-                
-                xmin.push_back(xmin_void);
-                xmax.push_back(xmax_void);
-                ymin.push_back(ymin_void);
-                ymax.push_back(ymax_void);
-                zmin.push_back(z_min);
-                zmax.push_back(z_max);
-                geom_type.push_back(2);  // BuildingGeometryType::VOID
-                polygon_x.push_back(vx);
-                polygon_y.push_back(vy);
-                parent_id.push_back(-1);
-            } else {
-                amrex::Warning("Void zone on line " + std::to_string(line_num) + 
-                             " has " + std::to_string(n_verts) + " vertices; need >= 3. Skipping.\n");
-            }
-            
-        } else {
-            // Rectangular building (backward compatible): x1 x2 y1 y2 z1 z2
-            Real x1 = std::stod(token);
-            Real x2, y1, y2, z1, z2;
-            
-            if (iss >> x2 >> y1 >> y2 >> z1 >> z2) {
-                xmin.push_back(x1);
-                xmax.push_back(x2);
-                ymin.push_back(y1);
-                ymax.push_back(y2);
-                zmin.push_back(z1);
-                zmax.push_back(z2);
-                geom_type.push_back(0);  // BuildingGeometryType::RECTANGULAR_BLOCK
-                polygon_x.push_back(std::vector<Real>());  // Empty for rectangles
-                polygon_y.push_back(std::vector<Real>());
-                parent_id.push_back(-1);
-            }
->>>>>>> origin/main
         }
     }
 
@@ -278,25 +146,6 @@ void read_building_file(const std::string& filename,
     }
 }
 
-<<<<<<< HEAD
-=======
-// Legacy wrapper for backward compatibility
-void read_building_file(const std::string& filename,
-                        std::vector<Real>& xmin,
-                        std::vector<Real>& xmax,
-                        std::vector<Real>& ymin,
-                        std::vector<Real>& ymax,
-                        std::vector<Real>& zmin,
-                        std::vector<Real>& zmax)
-{
-    std::vector<int> dummy_geom_type;
-    std::vector<std::vector<Real>> dummy_poly_x, dummy_poly_y;
-    std::vector<int> dummy_parent_id;
-    read_building_file(filename, xmin, xmax, ymin, ymax, zmin, zmax,
-                      dummy_geom_type, dummy_poly_x, dummy_poly_y, dummy_parent_id);
-}
-
->>>>>>> origin/main
 Real idw_terrain(Real xq, Real yq,
                  const std::vector<Real>& x,
                  const std::vector<Real>& y,
@@ -880,14 +729,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
         read_building_file(building_file,
                           state.building_xmin, state.building_xmax,
                           state.building_ymin, state.building_ymax,
-<<<<<<< HEAD
                           state.building_zmin, state.building_zmax);
-=======
-                          state.building_zmin, state.building_zmax,
-                          state.building_geom_type,
-                          state.building_polygon_x, state.building_polygon_y,
-                          state.building_parent_id);
->>>>>>> origin/main
     }
 
     const Real x_lo = *std::min_element(state.terrain_x_data.begin(), state.terrain_x_data.end());
