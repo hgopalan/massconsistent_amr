@@ -30,6 +30,8 @@ struct LpdParticle {
     amrex::Real time_emitted;       // Time when particle was emitted [s]
     amrex::Real age;                // Current age of particle [s]
     bool active;                    // Whether particle is still modeled
+    static constexpr int NUM_SPECIES = 5;
+    amrex::Real species_mass[NUM_SPECIES] = {0.0, 0.0, 0.0, 0.0, 0.0};
 };
 
 // ============================================================================
@@ -49,6 +51,8 @@ LpdParticle create_particle(
     p.time_emitted = time;
     p.age = amrex::Real(0.0);
     p.active = true;
+    for (int i = 0; i < LpdParticle::NUM_SPECIES; ++i) p.species_mass[i] = amrex::Real(0.0);
+    p.species_mass[0] = mass;
     return p;
 }
 

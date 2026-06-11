@@ -548,6 +548,143 @@ int main(int argc, char* argv[])
         pp.query("V_wind", V_wind);
         pp.query("W_wind", W_wind);
         
+        // CALPUFF Enhancements
+        bool coupled_mode = false;
+        bool unsteady_wind = false;
+        std::string wind_plotfile_prefix = "";
+        std::vector<std::string> wind_plotfiles;
+        
+        pp.query("coupled_mode", coupled_mode);
+        pp.query("unsteady_wind", unsteady_wind);
+        pp.query("wind_plotfile_prefix", wind_plotfile_prefix);
+        pp.queryarr("wind_plotfiles", wind_plotfiles);
+        
+        // If a command-line argument is passed (after the inputs file), use it as wind_plotfile_prefix
+        if (argc > 2) {
+            std::string arg2(argv[2]);
+            if (arg2.find(".i") == std::string::npos) {
+                wind_plotfile_prefix = arg2;
+                coupled_mode = true;
+            }
+        }
+        
+        std::string dispersion_scheme = "constant"; // "constant", "pasquill_gifford", "mcelroy_pooler", "turbulence"
+        bool is_urban = false;
+        int pg_stability_class = 3; // Default Neutral (D)
+        
+        pp.query("dispersion_scheme", dispersion_scheme);
+        pp.query("is_urban", is_urban);
+        pp.query("pg_stability_class", pg_stability_class);
+        
+        // If we have standard PG stability enabled, map it to the index 0-5
+        bool enable_pg_stability = false;
+        pp.query("enable_pg_stability", enable_pg_stability);
+        if (enable_pg_stability) {
+            Real solar_radiation = 500.0;
+            bool is_nighttime = false;
+            Real cloud_cover = 0.5;
+            pp.query("solar_radiation", solar_radiation);
+            pp.query("is_nighttime", is_nighttime);
+            pp.query("cloud_cover", cloud_cover);
+            
+            Real speed_ref = std::sqrt(U_wind * U_wind + V_wind * V_wind);
+            PGStabilityClass pg_class = pasquill_gifford_class(speed_ref, solar_radiation, is_nighttime, cloud_cover);
+            pg_stability_class = static_cast<int>(pg_class);
+        }
+        
+        Real base_surface_resistance = 100.0;
+        Real molecular_diffusivity = 1.5e-5;
+        bool is_snow = false;
+        
+        pp.query("base_surface_resistance", base_surface_resistance);
+        pp.query("molecular_diffusivity", molecular_diffusivity);
+        pp.query("is_snow", is_snow);
+        
+        std::string source_type = "point"; // "point", "line", "area", "volume"
+        pp.query("source_type", source_type);
+        
+        // Line source bounds
+        Real line_start_x = 0.0, line_start_y = 0.0, line_start_z = 10.0;
+        Real line_end_x = 10.0, line_end_y = 10.0, line_end_z = 10.0;
+        int num_line_segments = 5;
+        pp.query("line_start_x", line_start_x);
+        pp.query("line_start_y", line_start_y);
+        pp.query("line_start_z", line_start_z);
+        pp.query("line_end_x", line_end_x);
+        pp.query("line_end_y", line_end_y);
+        pp.query("line_end_z", line_end_z);
+        pp.query("num_line_segments", num_line_segments);
+        
+        // Area source bounds
+        Real area_xmin = 0.0, area_xmax = 10.0, area_ymin = 0.0, area_ymax = 10.0, area_z = 10.0;
+        int num_area_puffs_x = 3, num_area_puffs_y = 3;
+        pp.query("area_xmin", area_xmin);
+        pp.query("area_xmax", area_xmax);
+        pp.query("area_ymin", area_ymin);
+        pp.query("area_ymax", area_ymax);
+        pp.query("area_z", area_z);
+        pp.query("num_area_puffs_x", num_area_puffs_x);
+        pp.query("num_area_puffs_y", num_area_puffs_y);
+        
+        // Volume source bounds
+        Real volume_xmin = 0.0, volume_xmax = 10.0, volume_ymin = 0.0, volume_ymax = 10.0, volume_zmin = 0.0, volume_zmax = 10.0;
+        int num_volume_puffs_x = 2, num_volume_puffs_y = 2, num_volume_puffs_z = 2;
+        pp.query("volume_xmin", volume_xmin);
+        pp.query("volume_xmax", volume_xmax);
+        pp.query("volume_ymin", volume_ymin);
+        pp.query("volume_ymax", volume_ymax);
+        pp.query("volume_zmin", volume_zmin);
+        pp.query("volume_zmax", volume_zmax);
+        pp.query("num_volume_puffs_x", num_volume_puffs_x);
+        pp.query("num_volume_puffs_y", num_volume_puffs_y);
+        pp.query("num_volume_puffs_z", num_volume_puffs_z);
+        
+        // Receptors
+        std::string receptor_file = "";
+        pp.query("receptor_file", receptor_file);
+        
+        bool enable_visibility = false;
+        pp.query("enable_visibility", enable_visibility);
+        
+        // Read receptors file
+        struct Receptor {
+            Real x, y, z;
+            std::string name;
+        };
+        std::vector<Receptor> receptors;
+        if (!receptor_file.empty()) {
+            std::ifstream rfile(receptor_file);
+            if (rfile.is_open()) {
+                std::string rline;
+                // Check if has header and skip
+                if (std::getline(rfile, rline)) {
+                    if (rline.find("x") == std::string::npos && rline.find("y") == std::string::npos) {
+                        // Not a header, parse it
+                        std::istringstream riss(rline);
+                        Receptor rec;
+                        char rcomma;
+                        if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
+                            rec.name = "receptor_" + std::to_string(receptors.size());
+                            receptors.push_back(rec);
+                        }
+                    }
+                }
+                while (std::getline(rfile, rline)) {
+                    if (rline.empty() || rline[0] == '#') continue;
+                    std::istringstream riss(rline);
+                    Receptor rec;
+                    char rcomma;
+                    if (riss >> rec.x >> rcomma >> rec.y >> rcomma >> rec.z) {
+                        rec.name = "receptor_" + std::to_string(receptors.size());
+                        receptors.push_back(rec);
+                    }
+                }
+                amrex::Print() << "puff_solver: Loaded " << receptors.size() << " discrete receptors from " << receptor_file << "\n";
+            } else {
+                amrex::Print() << "puff_solver: Warning - could not open receptor file " << receptor_file << "\n";
+            }
+        }
+        
         // Terrain parameters
         std::string terrain_file = "";
         bool enable_terrain_reflection = false;
@@ -902,6 +1039,12 @@ int main(int argc, char* argv[])
         Real wind_dir_x = (wind_speed > 1.0e-10) ? U_wind / wind_speed : 1.0;
         Real wind_dir_y = (wind_speed > 1.0e-10) ? V_wind / wind_speed : 0.0;
         
+        // Initialize multi-dimensional wind field variables
+        std::unique_ptr<MultiFab> vel_mf = nullptr;
+        std::unique_ptr<Geometry> geom = nullptr;
+        Box domain_box;
+        int ng = 1;
+        
         Real v_s = 0.0;
         if (enable_settling) {
             v_s = compute_settling_velocity(particle_density, particle_diameter, gravity, air_viscosity);
@@ -926,6 +1069,56 @@ int main(int argc, char* argv[])
         
         for (int step = 0; step < n_steps_puff; ++step) {
             Real time = step * dt_puff;
+            
+            if (coupled_mode) {
+                bool load_wind = false;
+                std::string current_wind_file = "";
+                if (step == 0) {
+                    load_wind = true;
+                } else if (unsteady_wind) {
+                    load_wind = true;
+                }
+                
+                if (load_wind) {
+                    if (!wind_plotfiles.empty() && step < wind_plotfiles.size()) {
+                        current_wind_file = wind_plotfiles[step];
+                    } else if (!wind_plotfile_prefix.empty()) {
+                        std::string opt1 = wind_plotfile_prefix + "_step" + std::to_string(step);
+                        std::string opt2 = wind_plotfile_prefix + std::to_string(step);
+                        if (amrex::FileExists(opt1 + "/Header")) {
+                            current_wind_file = opt1;
+                        } else if (amrex::FileExists(opt2 + "/Header")) {
+                            current_wind_file = opt2;
+                        } else {
+                            current_wind_file = wind_plotfile_prefix;
+                        }
+                    }
+                    
+                    if (!current_wind_file.empty()) {
+                        read_velocity_plotfile(current_wind_file, vel_mf, geom, domain_box, ng);
+                    } else {
+                        // fallback to uniform wind multi-dimensional construction
+                        if (step == 0) {
+                            amrex::Print() << "puff_solver: full 3D wind plotfile not specified, constructing uniform 3D wind for backwards compatibility\n";
+                            Box domain_box_full(IntVect(0,0,0), IntVect(nx-1, ny-1, nz-1));
+                            BoxArray ba(domain_box_full);
+                            ba.maxSize(16);
+                            DistributionMapping dm(ba);
+                            
+                            RealBox real_box({xmin, ymin, zmin}, {xmax, ymax, zmax});
+                            Array<int, 3> is_periodic{0, 0, 0};
+                            geom = std::make_unique<Geometry>(domain_box_full, real_box, CoordSys::cartesian, is_periodic);
+                            domain_box = domain_box_full;
+                            ng = 1;
+                            
+                            vel_mf = std::make_unique<MultiFab>(ba, dm, 3, ng);
+                            vel_mf->setVal(U_wind, 0, 1);
+                            vel_mf->setVal(V_wind, 1, 1);
+                            vel_mf->setVal(W_wind, 2, 1);
+                        }
+                    }
+                }
+            }
             Real current_capping_lid_height = capping_lid_height;
             if (thermo_lid_params.enabled) {
                 current_capping_lid_height = compute_thermodynamic_zi(time, thermo_lid_params, thermo_lid_flux_times, thermo_lid_flux_values);
