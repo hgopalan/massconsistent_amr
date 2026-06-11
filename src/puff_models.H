@@ -46,6 +46,7 @@
 #include <fstream>
 #include <sstream>
 #include <limits>
+#include "OutputSpecification.H"
 
 // Minimum wind speed for plume rise computation [m/s]
 // Below this threshold, plume rise is not computed to avoid division by near-zero
@@ -205,6 +206,9 @@ struct PuffParams {
     bool enable_optical_properties = false;  // Enable advanced IMPROVE optical model
     std::string optical_properties_file = ""; // Path to optical_properties.csv
     bool compute_visibility_at_receptors = false; // Compute deciview/visual range at receptors
+
+    // Phase 4.2: Output Specification
+    OutputSpec::OutputSpecification output_spec;  // Dynamic output field configuration
 };
 
 // ============================================================================

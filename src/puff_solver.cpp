@@ -634,6 +634,36 @@ int main(int argc, char* argv[])
         pp.query("L_obukhov", L_obukhov);
         pp.query("receptor_output", receptor_output);
 
+        // Phase 4.2: Output specification configuration
+        OutputSpec::OutputSpecification output_spec;
+        output_spec.enable_chemistry = enable_chemistry;
+        output_spec.enable_visibility = enable_visibility;
+        
+        // Parse optional output configuration
+        pp.query("output_enable_wind_components", output_spec.enable_wind_components);
+        pp.query("output_enable_wind_speed", output_spec.enable_wind_speed);
+        pp.query("output_enable_pressure", output_spec.enable_pressure);
+        pp.query("output_enable_terrain", output_spec.enable_terrain);
+        pp.query("output_enable_visibility", output_spec.enable_visibility);
+        pp.query("output_enable_deposition", output_spec.enable_deposition);
+        pp.query("output_enable_quality_flags", output_spec.enable_quality_flags);
+        
+        // Parse visibility metric options
+        pp.query("output_b_ext", output_spec.output_b_ext);
+        pp.query("output_visual_range", output_spec.output_visual_range);
+        pp.query("output_deciview", output_spec.output_deciview);
+        pp.query("output_fog_prob", output_spec.output_fog_prob);
+        pp.query("output_icing_prob", output_spec.output_icing_prob);
+        
+        // Parse deposition options
+        pp.query("output_dry_flux", output_spec.output_dry_flux);
+        pp.query("output_wet_flux", output_spec.output_wet_flux);
+        
+        if (enable_chemistry) {
+            amrex::Print() << "  Output spec: chemistry enabled with "
+                          << output_spec.chemistry_species.size() << " species\n";
+        }
+
         if (enable_pg_stability && !pp.contains("L_obukhov")) {
             L_obukhov = pg_class_to_obukhov_length(static_cast<PGStabilityClass>(pg_stability_class));
         }
@@ -1967,16 +1997,13 @@ int main(int argc, char* argv[])
                 if (!receptors.empty()) {
                     std::string rstep_file = receptor_output + "_step" + std::to_string(step);
                     std::ofstream routf(rstep_file);
-                    routf << "# Discrete Receptors Concentration and Visibility (step " << step << ")\n";
-                    if (enable_chemistry) {
-                        routf << "# name,x,y,z,C_total,SO2,Sulfate,NOx,HNO3,Nitrate";
-                        if (enable_visibility) {
-                            routf << ",b_ext,visual_range,deciview,fog_prob,icing_prob";
-                        }
-                        routf << "\n";
-                    } else {
-                        routf << "# name,x,y,z,C\n";
-                    }
+                    
+                    // Write metadata header with feature flags
+                    routf << output_spec.generate_metadata();
+                    
+                    // Write CSV header using OutputSpecification
+                    std::vector<std::string> base_fields = {"name", "x", "y", "z", "C_total"};
+                    routf << output_spec.generate_csv_header(base_fields) << "\n";
                     routf << std::scientific << std::setprecision(6);
                     
                     for (const auto& rec : receptors) {
@@ -2031,10 +2058,14 @@ int main(int argc, char* argv[])
                             }
                         }
                         
+                        // Write receptor data line using OutputSpecification
                         routf << rec.label << "," << rec.x << "," << rec.y << "," << rec.z << "," << C;
-                        if (enable_chemistry) {
+                        
+                        // Dynamically add fields based on OutputSpecification
+                        if (output_spec.enable_chemistry) {
                             routf << "," << SO2_conc << "," << Sulfate_conc << "," << NOx_conc << "," << HNO3_conc << "," << Nitrate_conc;
-                            if (enable_visibility) {
+                            
+                            if (output_spec.enable_visibility) {
                                 Real b_ext = 10.0;
                                 Real visual_range = 3912.0 / b_ext;
                                 Real deciview = 0.0;
@@ -2044,7 +2075,11 @@ int main(int argc, char* argv[])
                                 Real icing_prob = 0.0;
                                 compute_fog_icing_probability(ambient_temp, ambient_rh, fog_prob, icing_prob);
                                 
-                                routf << "," << b_ext << "," << visual_range << "," << deciview << "," << fog_prob << "," << icing_prob;
+                                if (output_spec.output_b_ext) routf << "," << b_ext;
+                                if (output_spec.output_visual_range) routf << "," << visual_range;
+                                if (output_spec.output_deciview) routf << "," << deciview;
+                                if (output_spec.output_fog_prob) routf << "," << fog_prob;
+                                if (output_spec.output_icing_prob) routf << "," << icing_prob;
                             }
                         }
                         routf << "\n";
@@ -2058,12 +2093,13 @@ int main(int argc, char* argv[])
                 
                 // Write to file (simple ASCII format)
                 std::ofstream outf(step_file);
-                outf << "# LPDM or Gaussian puff concentration field (step " << step << ")\n";
-                if (enable_chemistry) {
-                    outf << "# x [m], y [m], z [m], C_total [units/m³], SO2 [units/m³], Sulfate [units/m³], NOx [units/m³], HNO3 [units/m³], Nitrate [units/m³]\n";
-                } else {
-                    outf << "# x [m], y [m], z [m], C [units/m³]\n";
-                }
+                
+                // Write metadata header
+                outf << output_spec.generate_metadata();
+                
+                // Write CSV header using OutputSpecification
+                std::vector<std::string> grid_base_fields = {"x", "y", "z", "C_total"};
+                outf << output_spec.generate_csv_header(grid_base_fields) << "\n";
                 outf << std::scientific << std::setprecision(6);
                 
                 for (int k = 0; k < nz; ++k) {
@@ -2075,16 +2111,17 @@ int main(int argc, char* argv[])
                             int idx = i + j * nx + k * nx * ny;
                             Real C = concentration[idx];
                                 
-                            if (enable_chemistry) {
+                            outf << x << "," << y << "," << z << "," << C;
+                            
+                            if (output_spec.enable_chemistry) {
                                 Real SO2_c = species_concentration[0][idx];
                                 Real Sulfate_c = species_concentration[1][idx];
                                 Real NOx_c = species_concentration[2][idx];
                                 Real HNO3_c = species_concentration[3][idx];
                                 Real Nitrate_c = species_concentration[4][idx];
-                                outf << x << "," << y << "," << z << "," << C << "," << SO2_c << "," << Sulfate_c << "," << NOx_c << "," << HNO3_c << "," << Nitrate_c << "\n";
-                            } else {
-                                outf << x << "," << y << "," << z << "," << C << "\n";
+                                outf << "," << SO2_c << "," << Sulfate_c << "," << NOx_c << "," << HNO3_c << "," << Nitrate_c;
                             }
+                            outf << "\n";
                         }
                     }
                 }
