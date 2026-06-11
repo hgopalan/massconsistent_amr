@@ -149,12 +149,22 @@ struct PuffParams {
     
     // Multi-source configuration (Phase 2.1)
     std::string sources_file = "";           // Path to CSV with multiple sources (optional)
-    std::vector<Source> sources;             // Vector of emission sources (Phase 2.1)
+    std::vector<Source> sources;             // Legacy vector of emission sources (Phase 2.1)
+
+    // Phase 4: CSV Input Infrastructure
+    std::string emissions_timeseries_file = "";  // Path to time-varying emissions CSV (optional)
+    std::string deposition_params_file = "";     // Path to deposition parameters CSV (optional)
+    std::string met_profiles_file = "";          // Path to meteorological profiles CSV (optional)
+    std::string receptors_file = "";             // Path to receptors CSV (optional)
+    std::vector<Source> loaded_sources;           // Sources loaded from CSV input infrastructure
+    std::map<amrex::Real, amrex::Real> emission_timeseries;  // time -> rate
+    std::map<std::string, DepositionParams> loaded_deposition_params; // species -> deposition params
+    std::vector<MetProfile> met_profiles;         // Vector of meteorological profiles
+    std::vector<Receptor> receptors;              // Receptor definitions loaded from CSV
     
     // Meteorological profile configuration (Phase 2.3)
-    std::string met_profile_file = "";       // Path to meteorological profile CSV (optional)
+    std::string met_profile_file = "";       // Legacy path to meteorological profile CSV (optional)
     bool enable_spatial_met = false;         // Enable spatially-varying meteorology
-    std::vector<MetProfile> met_profiles;    // Vector of meteorological profiles (Phase 2.3)
     
     // Stack aerodynamic modeling parameters (Phase 2.2)
     bool stack_tip_downwash_enabled = false; // Enable Briggs stack tip downwash (STD)
@@ -225,6 +235,31 @@ struct MetProfile {
     std::vector<amrex::Real> K_h;            // Horizontal diffusivity [m²/s]
     std::vector<amrex::Real> K_v;            // Vertical diffusivity [m²/s]
     std::string stability_class = "D";       // Stability class (A-F or "neutral")
+};
+
+// ============================================================================
+// Receptor Structure (Phase 4.1)
+// Represents a discrete concentration output location
+// ============================================================================
+struct Receptor {
+    amrex::Real x = 0.0;                     // Receptor x-coordinate [m]
+    amrex::Real y = 0.0;                     // Receptor y-coordinate [m]
+    amrex::Real z = 1.5;                     // Receptor height [m]
+    std::string label = "R_1";              // Receptor identifier
+};
+
+// ============================================================================
+// Deposition Parameters Structure (Phase 4.1)
+// Stores species/particle-class-specific deposition inputs
+// ============================================================================
+struct DepositionParams {
+    std::string particle_class = "";         // Particle class or species identifier
+    amrex::Real diameter_um = 1.0;           // Particle diameter [um]
+    amrex::Real density = 1000.0;            // Particle density [kg/m^3]
+    amrex::Real vd_grass = 0.0;              // Dry deposition velocity over grass [m/s]
+    amrex::Real vd_urban = 0.0;              // Dry deposition velocity over urban [m/s]
+    amrex::Real vd_water = 0.0;              // Dry deposition velocity over water [m/s]
+    amrex::Real vd_forest = 0.0;             // Dry deposition velocity over forest [m/s]
 };
 
 // ============================================================================
@@ -337,6 +372,11 @@ struct WetScavengingCoeff {
     amrex::Real lambda0 = 1.0e-4;                // Base scavenging coefficient [s^-1]
     amrex::Real exponent_a = 0.8;                // Precipitation exponent (Lambda = Lambda0 * P^a)
 };
+
+// ============================================================================
+// Phase 4.1: Unified CSV Input Loader
+// ============================================================================
+#include "csv_input_loader.H"
 
 // ============================================================================
 // Compute Gaussian concentration from a single puff
@@ -2120,76 +2160,9 @@ inline bool read_sources_csv(
     const std::string& csv_file,
     std::vector<Source>& sources)
 {
-    sources.clear();
-    
-    std::ifstream infile(csv_file);
-    if (!infile.is_open()) {
-        amrex::Print() << "Warning: Could not open sources file " << csv_file << "\n";
-        return false;
-    }
-    
-    std::string line;
-    bool found_header = false;
-    int source_count = 0;
-    
-    while (std::getline(infile, line)) {
-        // Skip empty lines and comments
-        if (line.empty() || line[0] == '#') continue;
-        
-        // Parse header to determine column order
-        if (!found_header && (line.find("source_id") != std::string::npos || 
-                             line.find("x") != std::string::npos)) {
-            found_header = true;
-            continue;
-        }
-        
-        if (!found_header) continue;
-        
-        // Parse data line
-        std::istringstream iss(line);
-        std::vector<std::string> fields;
-        std::string field;
-        while (std::getline(iss, field, ',')) {
-            // Trim whitespace
-            field.erase(0, field.find_first_not_of(" \t\r\n"));
-            field.erase(field.find_last_not_of(" \t\r\n") + 1);
-            if (!field.empty()) fields.push_back(field);
-        }
-        
-        if (fields.size() < 7) continue;  // Minimum: source_id, x, y, z, emission_rate, emission_duration, type
-        
-        try {
-            Source src;
-            src.source_id = fields[0];
-            src.x = std::stod(fields[1]);
-            src.y = std::stod(fields[2]);
-            src.z = std::stod(fields[3]);
-            src.emission_rate = std::stod(fields[4]);
-            src.emission_duration = std::stod(fields[5]);
-            src.type = fields[6];
-            
-            // Optional stack parameters
-            if (fields.size() >= 10) {
-                src.stack_diameter = std::stod(fields[7]);
-                src.stack_exit_velocity = std::stod(fields[8]);
-                src.stack_exit_temperature = std::stod(fields[9]);
-            }
-            
-            sources.push_back(src);
-            source_count++;
-        } catch (...) {
-            amrex::Print() << "Warning: Parsing error in sources CSV at line: " << line << "\n";
-            continue;
-        }
-    }
-    
-    infile.close();
-    
-    if (source_count > 0) {
-        amrex::Print() << "Read " << source_count << " sources from " << csv_file << "\n";
-    }
-    
-    return source_count > 0;
+    CSVInputLoader loader;
+    sources = loader.load_sources_csv(csv_file);
+    return !sources.empty();
 }
 
 // ============================================================================
@@ -2274,92 +2247,9 @@ inline bool read_met_profiles_csv(
     const std::string& csv_file,
     std::vector<MetProfile>& profiles)
 {
-    profiles.clear();
-    
-    std::ifstream infile(csv_file);
-    if (!infile.is_open()) {
-        amrex::Print() << "Warning: Could not open meteorological profiles file " << csv_file << "\n";
-        return false;
-    }
-    
-    std::string line;
-    bool found_header = false;
-    std::map<std::string, MetProfile> profile_map;  // Temporary storage to aggregate levels
-    int profile_count = 0;
-    
-    while (std::getline(infile, line)) {
-        // Skip empty lines and comments
-        if (line.empty() || line[0] == '#') continue;
-        
-        // Parse header
-        if (!found_header && (line.find("profile_id") != std::string::npos || 
-                             line.find("z_agl") != std::string::npos)) {
-            found_header = true;
-            continue;
-        }
-        
-        if (!found_header) continue;
-        
-        // Parse data line
-        std::istringstream iss(line);
-        std::vector<std::string> fields;
-        std::string field;
-        while (std::getline(iss, field, ',')) {
-            // Trim whitespace
-            field.erase(0, field.find_first_not_of(" \t\r\n"));
-            field.erase(field.find_last_not_of(" \t\r\n") + 1);
-            if (!field.empty()) fields.push_back(field);
-        }
-        
-        if (fields.size() < 10) continue;  // Need all columns
-        
-        try {
-            std::string profile_id = fields[0];
-            amrex::Real x_ref = std::stod(fields[1]);
-            amrex::Real y_ref = std::stod(fields[2]);
-            amrex::Real z_agl = std::stod(fields[3]);
-            amrex::Real u = std::stod(fields[4]);
-            amrex::Real v = std::stod(fields[5]);
-            amrex::Real w = std::stod(fields[6]);
-            amrex::Real K_h = std::stod(fields[7]);
-            amrex::Real K_v = std::stod(fields[8]);
-            std::string stability = fields[9];
-            
-            // Aggregate levels for this profile
-            if (profile_map.find(profile_id) == profile_map.end()) {
-                MetProfile prof;
-                prof.profile_id = profile_id;
-                prof.x_ref = x_ref;
-                prof.y_ref = y_ref;
-                prof.stability_class = stability;
-                profile_map[profile_id] = prof;
-            }
-            
-            profile_map[profile_id].z_agl.push_back(z_agl);
-            profile_map[profile_id].u.push_back(u);
-            profile_map[profile_id].v.push_back(v);
-            profile_map[profile_id].w.push_back(w);
-            profile_map[profile_id].K_h.push_back(K_h);
-            profile_map[profile_id].K_v.push_back(K_v);
-        } catch (...) {
-            amrex::Print() << "Warning: Parsing error in met profiles CSV at line: " << line << "\n";
-            continue;
-        }
-    }
-    
-    infile.close();
-    
-    // Convert map to vector
-    for (auto& p : profile_map) {
-        profiles.push_back(p.second);
-        profile_count++;
-    }
-    
-    if (profile_count > 0) {
-        amrex::Print() << "Read " << profile_count << " meteorological profiles from " << csv_file << "\n";
-    }
-    
-    return profile_count > 0;
+    CSVInputLoader loader;
+    profiles = loader.load_met_profiles_csv(csv_file);
+    return !profiles.empty();
 }
 
 /**

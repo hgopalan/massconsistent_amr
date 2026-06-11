@@ -51,8 +51,9 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
     </td>
     <td width="50%" valign="top">
       <h4>8. Terrain-Aware Synthetic Turbulence</h4>
-      <p>Generating terrain-conforming synthetic turbulence fluctuations over a Gaussian hill topography, restricted to fluid zones with smooth boundary blending.</p>
+      <p>Generating terrain-conforming synthetic turbulence fluctuations over a Gaussian hill topography, restricted to fluid zones with smooth boundary blending. The terrain-masked visualization highlights the u, v, and w fluctuation components with height-dependent coherence length scales and atmospheric anisotropy (σu &gt; σv &gt; σw); see Features §4 for the synthetic turbulence capability summary.</p>
       <img src="docs/terrain_following_complex_flow.png" alt="Terrain-Aware Synthetic Turbulence" width="100%"/>
+      <!-- Visualization shows terrain-masked synthetic turbulence component structure over the Gaussian hill with smooth boundary blending in the near-surface transition zone. -->
     </td>
   </tr>
 </table>
@@ -120,7 +121,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 
 ### 4. Synthetic Fluctuations (Turbulence)
 - **Terrain-Aware Masking:** Confines synthetic turbulent fluctuations to fluid regions and blends smoothly near terrain boundaries.
-- **Spectral Turbulence Models:** Generates fluctuations using Kaimal or Von Kármán spectra with height-varying intensity and coherence, plus Mann 3D anisotropic turbulence box modeling.
+- **Spectral Turbulence Models:** Generates terrain-aware synthetic fluctuations using Kaimal or Von Kármán spectra with height-varying intensity and coherence length scales, plus Mann 3D anisotropic turbulence box modeling.
 - **Downstream Export:** Exports OpenFAST/TurbSim compatible binary (.bts) formats.
 
 ### 5. Infrastructure Vulnerability Assessment
