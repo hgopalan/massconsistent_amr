@@ -61,10 +61,26 @@ enum class BuildingShape : int {
 };
 
 // ============================================================================
+<<<<<<< HEAD
 // Building structure
 // ============================================================================
 struct Building {
     amrex::Real xmin, xmax;  // Building bounds [m]
+=======
+// Building geometry type enumeration (for polygon support)
+// ============================================================================
+enum class BuildingGeometryType : int {
+    RECTANGULAR_BLOCK = 0,  // Standard rectangular building
+    POLYGON = 1,            // Arbitrary polygon footprint
+    VOID = 2                // Void zone (internal courtyard/exclusion)
+};
+
+// ============================================================================
+// Building structure (extended for optional polygon support)
+// ============================================================================
+struct Building {
+    amrex::Real xmin, xmax;  // Building bounds [m] (for rectangular only)
+>>>>>>> origin/main
     amrex::Real ymin, ymax;
     amrex::Real zmin, zmax;
     amrex::Real height;      // Effective height H [m]
@@ -74,6 +90,16 @@ struct Building {
     BuildingShape shape = BuildingShape::RECTANGULAR;
     amrex::Real pitch_or_radius = amrex::Real(0.0); // Cylinder radius [m] or roof pitch angle [degrees]
     amrex::Real pitch_direction = amrex::Real(0.0); // Direction of pitch/ridge (radians, CCW from x-axis)
+<<<<<<< HEAD
+=======
+    
+    // Optional: Polygon geometry support (for arbitrary building footprints, L/T/U shapes, courtyards)
+    BuildingGeometryType geom_type = BuildingGeometryType::RECTANGULAR_BLOCK;
+    std::vector<amrex::Real> polygon_x;  // Polygon vertex x-coordinates [m] (only populated if POLYGON)
+    std::vector<amrex::Real> polygon_y;  // Polygon vertex y-coordinates [m] (only populated if POLYGON)
+    bool is_void = false;                 // If true, this is a void zone (internal courtyard/exclusion)
+    int parent_building_id = -1;          // Optional: reference to parent building (for grouping)
+>>>>>>> origin/main
 };
 
 // ============================================================================
@@ -153,6 +179,224 @@ void compute_rooftop_vortex(
 }
 
 // ============================================================================
+<<<<<<< HEAD
+=======
+// POLYGON BUILDING SUPPORT
+//
+// Optional support for arbitrary polygon building footprints, internal courtyards,
+// and complex shapes (L-shaped, T-shaped, U-shaped, etc.).
+// This enables more accurate urban modeling beyond simple rectangular buildings.
+//
+// Key capabilities:
+// - Point-in-polygon testing for cavity exclusion
+// - Effective dimension computation for wind-aligned analysis
+// - Courtyard/void zone support (internal wake exclusion)
+// - Works with all three wake models (Röckle, Huber-Snyder, AERMOD PRIME)
+//
+// Format in buildings.csv:
+//   POLYGON: x1 y1 x2 y2 x3 y3 ... xn yn | zmin zmax [height]
+//   VOID: x1 y1 x2 y2 ... | zmin zmax  (for internal courtyards)
+//
+// Backward compatibility: Existing rectangular building format still works
+// ============================================================================
+
+// ============================================================================
+// Point-in-polygon test using ray-casting algorithm
+//
+// Determines if a 2D point is inside a polygon using the ray-casting method.
+// Casts a ray from the point to infinity and counts polygon edge crossings.
+// Odd number of crossings = inside polygon.
+//
+// Inputs:
+//   px, py           - Query point coordinates [m]
+//   vx, vy           - Arrays of polygon vertex coordinates [m]
+//   n_vertices       - Number of polygon vertices
+//
+// Returns:
+//   true if point is inside polygon, false otherwise
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool point_in_polygon(
+    amrex::Real px, amrex::Real py,
+    const amrex::Real* vx, const amrex::Real* vy,
+    int n_vertices)
+{
+    if (n_vertices < 3) return false;  // Need at least 3 vertices for a polygon
+    
+    bool inside = false;
+    for (int i = 0, j = n_vertices - 1; i < n_vertices; j = i++) {
+        const amrex::Real xi = vx[i], yi = vy[i];
+        const amrex::Real xj = vx[j], yj = vy[j];
+        
+        if ((yi > py) != (yj > py) &&
+            px < (xj - xi) * (py - yi) / (yj - yi) + xi) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+// ============================================================================
+// Compute polygon centroid (center of mass)
+//
+// Uses the shoelace formula to compute the area-weighted centroid of a polygon.
+// Inputs:
+//   vx, vy           - Polygon vertex coordinates [m]
+//   n_vertices       - Number of vertices
+//
+// Outputs:
+//   centroid_x, centroid_y - Coordinates of centroid [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_polygon_centroid(
+    const amrex::Real* vx, const amrex::Real* vy,
+    int n_vertices,
+    amrex::Real& centroid_x, amrex::Real& centroid_y)
+{
+    amrex::Real area = amrex::Real(0.0);
+    centroid_x = amrex::Real(0.0);
+    centroid_y = amrex::Real(0.0);
+    
+    for (int i = 0; i < n_vertices; i++) {
+        const int j = (i + 1) % n_vertices;
+        const amrex::Real cross = vx[i] * vy[j] - vx[j] * vy[i];
+        
+        area += cross;
+        centroid_x += (vx[i] + vx[j]) * cross;
+        centroid_y += (vy[i] + vy[j]) * cross;
+    }
+    
+    if (std::abs(area) > amrex::Real(1.0e-30)) {
+        area = area / amrex::Real(2.0);
+        centroid_x = centroid_x / (amrex::Real(6.0) * area);
+        centroid_y = centroid_y / (amrex::Real(6.0) * area);
+    } else {
+        // Degenerate polygon, use simple average
+        for (int i = 0; i < n_vertices; i++) {
+            centroid_x += vx[i];
+            centroid_y += vy[i];
+        }
+        centroid_x /= n_vertices;
+        centroid_y /= n_vertices;
+    }
+}
+
+// ============================================================================
+// Find the most downwind point of a polygon
+//
+// Projects all polygon vertices onto wind direction and finds the maximum
+// projection (most downwind point). This determines where the building wake begins.
+//
+// Inputs:
+//   vx, vy           - Polygon vertex coordinates [m]
+//   n_vertices       - Number of vertices
+//   wind_dir_x, wind_dir_y - Unit vector in wind direction
+//
+// Returns:
+//   Downwind coordinate of the most downwind vertex [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real find_polygon_wake_start(
+    const amrex::Real* vx, const amrex::Real* vy,
+    int n_vertices,
+    amrex::Real wind_dir_x, amrex::Real wind_dir_y)
+{
+    amrex::Real max_proj = -1.0e30;
+    for (int i = 0; i < n_vertices; i++) {
+        amrex::Real proj = vx[i] * wind_dir_x + vy[i] * wind_dir_y;
+        max_proj = std::max(max_proj, proj);
+    }
+    return max_proj;
+}
+
+// ============================================================================
+// Compute polygon width perpendicular to wind at a given downwind position
+//
+// For a polygon building, the width (crosswind extent) can vary with downwind
+// distance, especially for non-rectangular shapes (L, T, U shapes, etc.).
+// This computes the maximum crosswind extent at a specified downwind location.
+//
+// Inputs:
+//   vx, vy           - Polygon vertex coordinates [m]
+//   n_vertices       - Number of vertices
+//   x_wind_query     - Downwind coordinate to query [m]
+//   wind_dir_x, wind_dir_y - Unit vector in wind direction
+//
+// Returns:
+//   Crosswind extent (width) at query position [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real get_polygon_width_at_distance(
+    const amrex::Real* vx, const amrex::Real* vy,
+    int n_vertices,
+    amrex::Real x_wind_query,
+    amrex::Real wind_dir_x, amrex::Real wind_dir_y)
+{
+    // For simplicity, compute bounding box width in crosswind direction
+    // More sophisticated approaches would interpolate width at specific x_wind
+    amrex::Real min_y = 1.0e30, max_y = -1.0e30;
+    
+    for (int i = 0; i < n_vertices; i++) {
+        // Transform to wind-aligned coordinates
+        amrex::Real y_wind = -vx[i] * wind_dir_y + vy[i] * wind_dir_x;
+        min_y = std::min(min_y, y_wind);
+        max_y = std::max(max_y, y_wind);
+    }
+    
+    amrex::Real width = max_y - min_y;
+    return std::max(width, amrex::Real(1.0e-3));  // Avoid zero width
+}
+
+// ============================================================================
+// Compute effective dimensions for polygon (wind-aligned analysis)
+//
+// For wind-dependent wake models, compute the effective streamwise (length)
+// and crosswind (width) extents of a polygon building.
+//
+// Inputs:
+//   vx, vy           - Polygon vertex coordinates [m]
+//   n_vertices       - Number of vertices
+//   wind_dir_x, wind_dir_y - Unit vector in wind direction
+//   H                - Building height [m]
+//
+// Outputs:
+//   L_eff            - Effective length (streamwise extent) [m]
+//   W_eff            - Effective width (crosswind extent) [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_polygon_effective_dimensions(
+    const amrex::Real* vx, const amrex::Real* vy,
+    int n_vertices,
+    amrex::Real wind_dir_x, amrex::Real wind_dir_y,
+    amrex::Real& L_eff, amrex::Real& W_eff)
+{
+    if (n_vertices < 3) {
+        L_eff = amrex::Real(10.0);
+        W_eff = amrex::Real(10.0);
+        return;
+    }
+    
+    amrex::Real min_x = 1.0e30, max_x = -1.0e30;
+    amrex::Real min_y = 1.0e30, max_y = -1.0e30;
+    
+    for (int i = 0; i < n_vertices; i++) {
+        // Project onto wind direction (streamwise)
+        amrex::Real x_wind = vx[i] * wind_dir_x + vy[i] * wind_dir_y;
+        min_x = std::min(min_x, x_wind);
+        max_x = std::max(max_x, x_wind);
+        
+        // Project perpendicular to wind (crosswind)
+        amrex::Real y_wind = -vx[i] * wind_dir_y + vy[i] * wind_dir_x;
+        min_y = std::min(min_y, y_wind);
+        max_y = std::max(max_y, y_wind);
+    }
+    
+    L_eff = std::max(max_x - min_x, amrex::Real(1.0e-3));
+    W_eff = std::max(max_y - min_y, amrex::Real(1.0e-3));
+}
+
+// ============================================================================
+>>>>>>> origin/main
 // Röckle (1990) building wake model
 //
 // Computes velocity deficit behind a rectangular building due to wake effects.
@@ -1312,4 +1556,314 @@ void apply_street_canyon_effect(
     // No modification needed
 }
 
+<<<<<<< HEAD
+=======
+// ============================================================================
+// POLYGON WAKE MODELS
+//
+// Adaptations of the three wake models (Röckle, Huber-Snyder, AERMOD PRIME)
+// for arbitrary polygon building footprints.
+// ============================================================================
+
+// ============================================================================
+// Polygon Röckle (1990) building wake model
+//
+// Applies Röckle wake physics to polygon-shaped buildings by computing
+// effective dimensions and width-varying cavity/far-wake zones.
+//
+// Inputs:
+//   x, y, z          - Query point coordinates [m]
+//   poly_vx, poly_vy - Polygon vertex arrays [m]
+//   n_vertices       - Number of polygon vertices
+//   poly_zmin        - Building base elevation [m]
+//   poly_height      - Building height [m]
+//   U_ref            - Reference wind speed [m/s]
+//   wd_x, wd_y       - Wind direction unit vector
+//   params           - Wake model parameters
+//
+// Outputs:
+//   du, dv, dw       - Velocity deficit components [m/s]
+//
+// Returns:
+//   true if point is in wake zone, false otherwise
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool polygon_rockle_wake_deficit(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const amrex::Real* poly_vx, const amrex::Real* poly_vy,
+    int n_vertices,
+    amrex::Real poly_zmin, amrex::Real poly_height,
+    amrex::Real U_ref,
+    amrex::Real wd_x, amrex::Real wd_y,
+    const WakeParams& params,
+    amrex::Real& du, amrex::Real& dv, amrex::Real& dw)
+{
+    du = amrex::Real(0.0);
+    dv = amrex::Real(0.0);
+    dw = amrex::Real(0.0);
+    
+    if (!params.enabled || n_vertices < 3) {
+        return false;
+    }
+    
+    // 1. Check if point is inside polygon (inside building = no wake)
+    if (point_in_polygon(x, y, poly_vx, poly_vy, n_vertices)) {
+        return false;
+    }
+    
+    // 2. Compute polygon centroid and transform to wind-aligned coordinates
+    amrex::Real centroid_x, centroid_y;
+    compute_polygon_centroid(poly_vx, poly_vy, n_vertices, centroid_x, centroid_y);
+    
+    amrex::Real dx = x - centroid_x;
+    amrex::Real dy = y - centroid_y;
+    amrex::Real x_wind = dx * wd_x + dy * wd_y;
+    amrex::Real y_wind = -dx * wd_y + dy * wd_x;
+    
+    // 3. Find wake start (most downwind vertex)
+    amrex::Real wake_start = find_polygon_wake_start(poly_vx, poly_vy, n_vertices, wd_x, wd_y);
+    if (x_wind < wake_start) {
+        return false;  // Upstream of building
+    }
+    
+    amrex::Real x_wake = x_wind - wake_start;
+    
+    // 4. Get polygon width at this position
+    amrex::Real W_poly = get_polygon_width_at_distance(poly_vx, poly_vy, n_vertices, x_wind, wd_x, wd_y);
+    amrex::Real H = poly_height;
+    amrex::Real z_local = z - poly_zmin;
+    
+    // 5. Apply Röckle cavity and far-wake zones
+    amrex::Real Lr = params.c1 * H;
+    amrex::Real Hr = amrex::Real(0.67) * H;
+    
+    // Cavity zone
+    if (x_wake <= Lr) {
+        if (std::abs(y_wind) > W_poly / amrex::Real(2.0)) {
+            return false;
+        }
+        if (z_local < amrex::Real(0.0) || z_local > Hr) {
+            return false;
+        }
+        
+        amrex::Real deficit_magnitude = params.c2 * U_ref;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        
+        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, dw);
+        return true;
+    }
+    
+    // Far-wake zone
+    amrex::Real Lf = params.separation_length * H;
+    if (x_wake <= Lf) {
+        amrex::Real decay_factor = amrex::Real(1.0) - (x_wake - Lr) / (Lf - Lr);
+        amrex::Real spread_factor = amrex::Real(1.0) + (x_wake - Lr) / (Lf - Lr);
+        amrex::Real Wf = W_poly * spread_factor;
+        
+        if (std::abs(y_wind) > Wf / amrex::Real(2.0)) {
+            return false;
+        }
+        
+        amrex::Real Hf = Hr * spread_factor;
+        if (z_local < amrex::Real(0.0) || z_local > Hf) {
+            return false;
+        }
+        
+        amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        dw = amrex::Real(0.0);
+        
+        return true;
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// Polygon Huber-Snyder (EPA) building wake model
+//
+// Applies Huber-Snyder wake physics to polygon buildings using effective dimensions.
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool polygon_huber_snyder_wake_deficit(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const amrex::Real* poly_vx, const amrex::Real* poly_vy,
+    int n_vertices,
+    amrex::Real poly_zmin, amrex::Real poly_height,
+    amrex::Real U_ref,
+    amrex::Real wd_x, amrex::Real wd_y,
+    const WakeParams& params,
+    amrex::Real& du, amrex::Real& dv, amrex::Real& dw)
+{
+    du = amrex::Real(0.0);
+    dv = amrex::Real(0.0);
+    dw = amrex::Real(0.0);
+    
+    if (!params.enabled || n_vertices < 3) {
+        return false;
+    }
+    
+    if (point_in_polygon(x, y, poly_vx, poly_vy, n_vertices)) {
+        return false;
+    }
+    
+    amrex::Real centroid_x, centroid_y;
+    compute_polygon_centroid(poly_vx, poly_vy, n_vertices, centroid_x, centroid_y);
+    
+    amrex::Real dx = x - centroid_x;
+    amrex::Real dy = y - centroid_y;
+    amrex::Real x_wind = dx * wd_x + dy * wd_y;
+    amrex::Real y_wind = -dx * wd_y + dy * wd_x;
+    
+    amrex::Real wake_start = find_polygon_wake_start(poly_vx, poly_vy, n_vertices, wd_x, wd_y);
+    if (x_wind < wake_start) return false;
+    
+    amrex::Real x_wake = x_wind - wake_start;
+    amrex::Real W_poly = get_polygon_width_at_distance(poly_vx, poly_vy, n_vertices, x_wind, wd_x, wd_y);
+    amrex::Real H = poly_height;
+    amrex::Real z_local = z - poly_zmin;
+    
+    // Huber-Snyder uses aspect-ratio dependent cavity length
+    amrex::Real aspect_ratio = W_poly / H;
+    amrex::Real Lc = amrex::Real(0.5) * H * std::sqrt(aspect_ratio);
+    amrex::Real Hc = amrex::Real(0.67) * H;
+    
+    // Cavity zone
+    if (x_wake <= Lc) {
+        if (std::abs(y_wind) > W_poly / amrex::Real(2.0)) return false;
+        if (z_local < amrex::Real(0.0) || z_local > Hc) return false;
+        
+        amrex::Real deficit_magnitude = params.c2 * U_ref;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
+        return true;
+    }
+    
+    // Far-wake zone (Huber-Snyder: 5*H)
+    amrex::Real Lw = amrex::Real(5.0) * H;
+    if (x_wake <= Lw) {
+        amrex::Real x_ratio = x_wake / Lc;
+        amrex::Real decay_factor = std::min(
+            amrex::Real(1.0) / std::sqrt(x_ratio),
+            amrex::Real(1.0));
+        
+        amrex::Real spread_factor = amrex::Real(1.0) + (x_wake - Lc) / (Lw - Lc);
+        amrex::Real Ww = W_poly * spread_factor;
+        
+        if (std::abs(y_wind) > Ww / amrex::Real(2.0)) return false;
+        
+        amrex::Real Hw = Hc * spread_factor;
+        if (z_local < amrex::Real(0.0) || z_local > Hw) return false;
+        
+        amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        dw = amrex::Real(0.0);
+        return true;
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// Polygon AERMOD PRIME building wake model
+//
+// Applies AERMOD PRIME wake physics to polygon buildings using effective
+// projected building area and enhanced turbulence modeling.
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+bool polygon_aermod_prime_wake_deficit(
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const amrex::Real* poly_vx, const amrex::Real* poly_vy,
+    int n_vertices,
+    amrex::Real poly_zmin, amrex::Real poly_height,
+    amrex::Real U_ref,
+    amrex::Real wd_x, amrex::Real wd_y,
+    const WakeParams& params,
+    amrex::Real& du, amrex::Real& dv, amrex::Real& dw)
+{
+    du = amrex::Real(0.0);
+    dv = amrex::Real(0.0);
+    dw = amrex::Real(0.0);
+    
+    if (!params.enabled || n_vertices < 3) {
+        return false;
+    }
+    
+    if (point_in_polygon(x, y, poly_vx, poly_vy, n_vertices)) {
+        return false;
+    }
+    
+    // Compute effective dimensions for PBA method
+    amrex::Real L_eff, W_eff;
+    compute_polygon_effective_dimensions(poly_vx, poly_vy, n_vertices, wd_x, wd_y, L_eff, W_eff);
+    
+    amrex::Real centroid_x, centroid_y;
+    compute_polygon_centroid(poly_vx, poly_vy, n_vertices, centroid_x, centroid_y);
+    
+    amrex::Real dx = x - centroid_x;
+    amrex::Real dy = y - centroid_y;
+    amrex::Real x_wind = dx * wd_x + dy * wd_y;
+    amrex::Real y_wind = -dx * wd_y + dy * wd_x;
+    
+    amrex::Real wake_start = find_polygon_wake_start(poly_vx, poly_vy, n_vertices, wd_x, wd_y);
+    if (x_wind < wake_start) return false;
+    
+    amrex::Real x_wake = x_wind - wake_start;
+    amrex::Real H = poly_height;
+    amrex::Real z_local = z - poly_zmin;
+    
+    // AERMOD PRIME cavity zone
+    amrex::Real B_char = std::sqrt(H * W_eff);  // Characteristic dimension
+    amrex::Real aspect_ratio = W_eff / H;
+    
+    amrex::Real Lc = (aspect_ratio > amrex::Real(1.0)) ?
+        amrex::Real(0.9) * B_char :
+        amrex::Real(0.5) * B_char;
+    
+    amrex::Real Hc_peak = (aspect_ratio > amrex::Real(1.0)) ?
+        amrex::Real(0.22) * B_char :
+        amrex::Real(0.38) * B_char;
+    
+    amrex::Real Hc = std::min(amrex::Real(1.5) * Hc_peak, H);
+    
+    // Cavity zone
+    if (x_wake <= Lc) {
+        if (std::abs(y_wind) > W_eff / amrex::Real(2.0)) return false;
+        if (z_local < amrex::Real(0.0) || z_local > Hc) return false;
+        
+        amrex::Real cavity_deficit_factor = amrex::Real(0.5);
+        amrex::Real deficit_magnitude = cavity_deficit_factor * U_ref;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
+        return true;
+    }
+    
+    // Far-wake zone (AERMOD PRIME: 10*H with enhanced mixing)
+    amrex::Real Lf = amrex::Real(10.0) * H;
+    if (x_wake <= Lf) {
+        amrex::Real decay_factor = amrex::Real(1.0) - (x_wake - Lc) / (Lf - Lc);
+        amrex::Real spread_factor = amrex::Real(1.0) + amrex::Real(0.5) * (x_wake - Lc) / Lc;
+        amrex::Real Wf = W_eff * spread_factor;
+        
+        if (std::abs(y_wind) > Wf / amrex::Real(2.0)) return false;
+        
+        amrex::Real Hf = Hc * spread_factor;
+        if (z_local < amrex::Real(0.0) || z_local > Hf) return false;
+        
+        amrex::Real deficit_magnitude = amrex::Real(0.4) * U_ref * decay_factor;
+        du = deficit_magnitude * wd_x;
+        dv = deficit_magnitude * wd_y;
+        dw = amrex::Real(0.0);
+        return true;
+    }
+    
+    return false;
+}
+
+>>>>>>> origin/main
 #endif // WAKE_MODELS_H

@@ -1,0 +1,7 @@
+# Flat terrain for courtyard modeling test
+# Domain: 0-300m in x and y, z=0 everywhere
+# Format: X Y Z [m]
+0.0     0.0    0.0
+300.0   0.0    0.0
+0.0     300.0  0.0
+300.0   300.0  0.0
