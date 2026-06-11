@@ -152,6 +152,46 @@ struct PuffParams {
     // Meteorological profile configuration
     std::string met_profile_file = "";       // Path to meteorological profile CSV (optional)
     bool enable_spatial_met = false;         // Enable spatially-varying meteorology
+    
+    // Stack aerodynamic modeling parameters (Phase 2.2)
+    bool stack_tip_downwash_enabled = false; // Enable Briggs stack tip downwash (STD)
+    bool briggs_std_model = true;            // Use Briggs STD model (vs. alternative models)
+};
+
+// ============================================================================
+// Source Structure (Phase 2.1)
+// Represents a single emission source with optional stack parameters
+// ============================================================================
+struct Source {
+    std::string source_id = "source_1";      // Source identifier
+    amrex::Real x = 0.0;                     // Source x-coordinate [m]
+    amrex::Real y = 0.0;                     // Source y-coordinate [m]
+    amrex::Real z = 10.0;                    // Source height [m]
+    amrex::Real emission_rate = 1.0;         // Emission rate [units/s]
+    amrex::Real emission_duration = 100.0;   // Duration of emission [s]
+    std::string type = "point";              // Source type: "point", "volume", "stack"
+    
+    // Stack aerodynamic parameters (Phase 2.2)
+    amrex::Real stack_diameter = 0.0;        // Stack diameter [m] (0 = no stack model)
+    amrex::Real stack_exit_velocity = 0.0;   // Stack exit velocity [m/s]
+    amrex::Real stack_exit_temperature = 298.15; // Stack exit temperature [K]
+};
+
+// ============================================================================
+// Meteorological Profile Structure (Phase 2.3)
+// Represents a spatial profile of wind and diffusivity
+// ============================================================================
+struct MetProfile {
+    std::string profile_id = "profile_1";    // Profile identifier
+    amrex::Real x_ref = 0.0;                 // Profile reference x-coordinate [m]
+    amrex::Real y_ref = 0.0;                 // Profile reference y-coordinate [m]
+    std::vector<amrex::Real> z_agl;          // Heights above ground level [m]
+    std::vector<amrex::Real> u;              // Wind u-component [m/s]
+    std::vector<amrex::Real> v;              // Wind v-component [m/s]
+    std::vector<amrex::Real> w;              // Wind w-component [m/s]
+    std::vector<amrex::Real> K_h;            // Horizontal diffusivity [m²/s]
+    std::vector<amrex::Real> K_v;            // Vertical diffusivity [m²/s]
+    std::string stability_class = "D";       // Stability class (A-F or "neutral")
 };
 
 // ============================================================================
@@ -1955,6 +1995,376 @@ inline bool interpolate_timeseries_wind(
             u_out = wind_timeseries[i].u * (1.0 - alpha) + wind_timeseries[i+1].u * alpha;
             v_out = wind_timeseries[i].v * (1.0 - alpha) + wind_timeseries[i+1].v * alpha;
             w_out = wind_timeseries[i].w * (1.0 - alpha) + wind_timeseries[i+1].w * alpha;
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// Phase 2.1: Multiple Sources CSV Reader
+// ============================================================================
+
+/**
+ * Read multiple sources from CSV file.
+ * 
+ * CSV Format:
+ *   source_id, x, y, z, emission_rate, emission_duration, type, [stack_diameter, stack_exit_velocity, stack_exit_temperature]
+ * 
+ * Example:
+ *   source_id,x,y,z,emission_rate,emission_duration,type,stack_diameter,stack_exit_velocity,stack_exit_temperature
+ *   source_1,150.0,150.0,10.0,1.0,100.0,point,0.0,0.0,298.15
+ *   source_2,250.0,150.0,15.0,2.0,200.0,stack,1.5,8.0,350.0
+ */
+inline bool read_sources_csv(
+    const std::string& csv_file,
+    std::vector<Source>& sources)
+{
+    sources.clear();
+    
+    std::ifstream infile(csv_file);
+    if (!infile.is_open()) {
+        amrex::Print() << "Warning: Could not open sources file " << csv_file << "\n";
+        return false;
+    }
+    
+    std::string line;
+    bool found_header = false;
+    int source_count = 0;
+    
+    while (std::getline(infile, line)) {
+        // Skip empty lines and comments
+        if (line.empty() || line[0] == '#') continue;
+        
+        // Parse header to determine column order
+        if (!found_header && (line.find("source_id") != std::string::npos || 
+                             line.find("x") != std::string::npos)) {
+            found_header = true;
+            continue;
+        }
+        
+        if (!found_header) continue;
+        
+        // Parse data line
+        std::istringstream iss(line);
+        std::vector<std::string> fields;
+        std::string field;
+        while (std::getline(iss, field, ',')) {
+            // Trim whitespace
+            field.erase(0, field.find_first_not_of(" \t\r\n"));
+            field.erase(field.find_last_not_of(" \t\r\n") + 1);
+            if (!field.empty()) fields.push_back(field);
+        }
+        
+        if (fields.size() < 7) continue;  // Minimum: source_id, x, y, z, emission_rate, emission_duration, type
+        
+        try {
+            Source src;
+            src.source_id = fields[0];
+            src.x = std::stod(fields[1]);
+            src.y = std::stod(fields[2]);
+            src.z = std::stod(fields[3]);
+            src.emission_rate = std::stod(fields[4]);
+            src.emission_duration = std::stod(fields[5]);
+            src.type = fields[6];
+            
+            // Optional stack parameters
+            if (fields.size() >= 10) {
+                src.stack_diameter = std::stod(fields[7]);
+                src.stack_exit_velocity = std::stod(fields[8]);
+                src.stack_exit_temperature = std::stod(fields[9]);
+            }
+            
+            sources.push_back(src);
+            source_count++;
+        } catch (...) {
+            amrex::Print() << "Warning: Parsing error in sources CSV at line: " << line << "\n";
+            continue;
+        }
+    }
+    
+    infile.close();
+    
+    if (source_count > 0) {
+        amrex::Print() << "Read " << source_count << " sources from " << csv_file << "\n";
+    }
+    
+    return source_count > 0;
+}
+
+// ============================================================================
+// Phase 2.2: Briggs Stack Tip Downwash (STD) Model
+// ============================================================================
+
+/**
+ * Compute stack tip downwash velocity deficit using Briggs model.
+ * 
+ * Reference:
+ *   Briggs, G. A. (1975). Plume rise predictions. In Lectures on air pollution and its effects, 
+ *   ed. D. A. Haugen, U.S. Dept. of Commerce, Washington, DC.
+ * 
+ * Parameters:
+ *   stack_diameter - Stack outer diameter [m]
+ *   stack_exit_velocity - Exit velocity from stack [m/s]
+ *   wind_speed - Ambient wind speed at stack height [m/s]
+ *   stability_class - Pasquill stability class (0=A, 1=B, 2=C, 3=D, 4=E, 5=F)
+ * 
+ * Returns:
+ *   Downwash velocity deficit [m/s] (positive value to subtract from exit velocity)
+ */
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_briggs_stack_downwash(
+    amrex::Real stack_diameter,
+    amrex::Real stack_exit_velocity,
+    amrex::Real wind_speed,
+    int stability_class = 3)  // Default to neutral (D)
+{
+    if (stack_diameter <= amrex::Real(0.0) || wind_speed <= amrex::Real(0.0)) {
+        return amrex::Real(0.0);  // No downwash for point sources or calm conditions
+    }
+    
+    // Stack Froude number: Fr = Vs² / (g * D)
+    const amrex::Real g = amrex::Real(9.81);
+    const amrex::Real Fr = stack_exit_velocity * stack_exit_velocity / (g * stack_diameter);
+    
+    if (Fr < amrex::Real(1.0)) {
+        // Buoyant plume (unstable) - minimal downwash
+        return amrex::Real(0.0);
+    }
+    
+    // Downwash velocity ratio: Vs_downwash / Vs
+    // Simplified Briggs formula: depends on stack geometry and wind conditions
+    // For typical industrial stacks: downwash ≈ 0.5 * U (ambient wind speed)
+    amrex::Real downwash_factor = amrex::Real(0.5);
+    
+    // Adjust based on stability (more downwash in stable conditions)
+    if (stability_class >= 4) {  // E or F (stable)
+        downwash_factor = amrex::Real(0.7);
+    } else if (stability_class <= 1) {  // A or B (unstable)
+        downwash_factor = amrex::Real(0.3);
+    }
+    
+    amrex::Real downwash_velocity = downwash_factor * wind_speed;
+    
+    // Limit downwash to not exceed exit velocity
+    downwash_velocity = std::min(downwash_velocity, stack_exit_velocity * amrex::Real(0.95));
+    
+    return downwash_velocity;
+}
+
+// ============================================================================
+// Phase 2.3: Meteorological Profile CSV Reader
+// ============================================================================
+
+/**
+ * Read meteorological profiles from CSV file.
+ * 
+ * CSV Format (long format):
+ *   profile_id, x_ref, y_ref, z_agl, u, v, w, K_h, K_v, stability_class
+ * 
+ * Example:
+ *   profile_id,x_ref,y_ref,z_agl,u,v,w,K_h,K_v,stability_class
+ *   profile_1,100.0,100.0,0.0,0.0,0.0,0.0,0.5,0.1,D
+ *   profile_1,100.0,100.0,10.0,9.8,0.0,0.0,1.0,0.5,D
+ *   profile_1,100.0,100.0,50.0,10.5,0.0,0.0,2.0,1.0,D
+ *   profile_2,200.0,100.0,0.0,0.0,0.0,0.0,0.3,0.05,F
+ *   ...
+ */
+inline bool read_met_profiles_csv(
+    const std::string& csv_file,
+    std::vector<MetProfile>& profiles)
+{
+    profiles.clear();
+    
+    std::ifstream infile(csv_file);
+    if (!infile.is_open()) {
+        amrex::Print() << "Warning: Could not open meteorological profiles file " << csv_file << "\n";
+        return false;
+    }
+    
+    std::string line;
+    bool found_header = false;
+    std::map<std::string, MetProfile> profile_map;  // Temporary storage to aggregate levels
+    int profile_count = 0;
+    
+    while (std::getline(infile, line)) {
+        // Skip empty lines and comments
+        if (line.empty() || line[0] == '#') continue;
+        
+        // Parse header
+        if (!found_header && (line.find("profile_id") != std::string::npos || 
+                             line.find("z_agl") != std::string::npos)) {
+            found_header = true;
+            continue;
+        }
+        
+        if (!found_header) continue;
+        
+        // Parse data line
+        std::istringstream iss(line);
+        std::vector<std::string> fields;
+        std::string field;
+        while (std::getline(iss, field, ',')) {
+            // Trim whitespace
+            field.erase(0, field.find_first_not_of(" \t\r\n"));
+            field.erase(field.find_last_not_of(" \t\r\n") + 1);
+            if (!field.empty()) fields.push_back(field);
+        }
+        
+        if (fields.size() < 10) continue;  // Need all columns
+        
+        try {
+            std::string profile_id = fields[0];
+            amrex::Real x_ref = std::stod(fields[1]);
+            amrex::Real y_ref = std::stod(fields[2]);
+            amrex::Real z_agl = std::stod(fields[3]);
+            amrex::Real u = std::stod(fields[4]);
+            amrex::Real v = std::stod(fields[5]);
+            amrex::Real w = std::stod(fields[6]);
+            amrex::Real K_h = std::stod(fields[7]);
+            amrex::Real K_v = std::stod(fields[8]);
+            std::string stability = fields[9];
+            
+            // Aggregate levels for this profile
+            if (profile_map.find(profile_id) == profile_map.end()) {
+                MetProfile prof;
+                prof.profile_id = profile_id;
+                prof.x_ref = x_ref;
+                prof.y_ref = y_ref;
+                prof.stability_class = stability;
+                profile_map[profile_id] = prof;
+            }
+            
+            profile_map[profile_id].z_agl.push_back(z_agl);
+            profile_map[profile_id].u.push_back(u);
+            profile_map[profile_id].v.push_back(v);
+            profile_map[profile_id].w.push_back(w);
+            profile_map[profile_id].K_h.push_back(K_h);
+            profile_map[profile_id].K_v.push_back(K_v);
+        } catch (...) {
+            amrex::Print() << "Warning: Parsing error in met profiles CSV at line: " << line << "\n";
+            continue;
+        }
+    }
+    
+    infile.close();
+    
+    // Convert map to vector
+    for (auto& p : profile_map) {
+        profiles.push_back(p.second);
+        profile_count++;
+    }
+    
+    if (profile_count > 0) {
+        amrex::Print() << "Read " << profile_count << " meteorological profiles from " << csv_file << "\n";
+    }
+    
+    return profile_count > 0;
+}
+
+/**
+ * Select meteorological profile by puff position (spatial interpolation).
+ * 
+ * Uses nearest-neighbor selection based on horizontal distance.
+ * 
+ * Parameters:
+ *   x, y - Puff position [m]
+ *   profiles - Vector of available meteorological profiles
+ *   prof_out - Output selected profile
+ * 
+ * Returns:
+ *   true if profile found, false if no profiles available
+ */
+inline bool select_met_profile_by_position(
+    amrex::Real x, amrex::Real y,
+    const std::vector<MetProfile>& profiles,
+    const MetProfile*& prof_out)
+{
+    if (profiles.empty()) {
+        return false;
+    }
+    
+    if (profiles.size() == 1) {
+        prof_out = &profiles[0];
+        return true;
+    }
+    
+    // Find nearest profile by horizontal distance
+    amrex::Real min_dist = std::numeric_limits<amrex::Real>::max();
+    int nearest_idx = 0;
+    
+    for (size_t i = 0; i < profiles.size(); ++i) {
+        amrex::Real dx = x - profiles[i].x_ref;
+        amrex::Real dy = y - profiles[i].y_ref;
+        amrex::Real dist = std::sqrt(dx*dx + dy*dy);
+        
+        if (dist < min_dist) {
+            min_dist = dist;
+            nearest_idx = i;
+        }
+    }
+    
+    prof_out = &profiles[nearest_idx];
+    return true;
+}
+
+/**
+ * Interpolate wind and diffusivity at height z from a meteorological profile.
+ * 
+ * Uses linear interpolation for z values between profile levels.
+ * Extrapolates constant values beyond profile bounds.
+ * 
+ * Parameters:
+ *   z_agl - Height above ground level [m]
+ *   profile - Meteorological profile to interpolate
+ *   u_out, v_out, w_out - Output wind components [m/s]
+ *   K_h_out, K_v_out - Output diffusivities [m²/s]
+ * 
+ * Returns:
+ *   true if valid interpolation found, false otherwise
+ */
+inline bool interpolate_met_profile(
+    amrex::Real z_agl,
+    const MetProfile& profile,
+    amrex::Real& u_out, amrex::Real& v_out, amrex::Real& w_out,
+    amrex::Real& K_h_out, amrex::Real& K_v_out)
+{
+    if (profile.z_agl.empty()) {
+        return false;
+    }
+    
+    // Find bounding levels
+    if (z_agl <= profile.z_agl.front()) {
+        u_out = profile.u.front();
+        v_out = profile.v.front();
+        w_out = profile.w.front();
+        K_h_out = profile.K_h.front();
+        K_v_out = profile.K_v.front();
+        return true;
+    }
+    
+    if (z_agl >= profile.z_agl.back()) {
+        u_out = profile.u.back();
+        v_out = profile.v.back();
+        w_out = profile.w.back();
+        K_h_out = profile.K_h.back();
+        K_v_out = profile.K_v.back();
+        return true;
+    }
+    
+    // Linear interpolation between adjacent levels
+    for (size_t i = 0; i < profile.z_agl.size() - 1; ++i) {
+        if (z_agl >= profile.z_agl[i] && z_agl <= profile.z_agl[i+1]) {
+            amrex::Real z0 = profile.z_agl[i];
+            amrex::Real z1 = profile.z_agl[i+1];
+            amrex::Real alpha = (z_agl - z0) / (z1 - z0);
+            
+            u_out = profile.u[i] * (amrex::Real(1.0) - alpha) + profile.u[i+1] * alpha;
+            v_out = profile.v[i] * (amrex::Real(1.0) - alpha) + profile.v[i+1] * alpha;
+            w_out = profile.w[i] * (amrex::Real(1.0) - alpha) + profile.w[i+1] * alpha;
+            K_h_out = profile.K_h[i] * (amrex::Real(1.0) - alpha) + profile.K_h[i+1] * alpha;
+            K_v_out = profile.K_v[i] * (amrex::Real(1.0) - alpha) + profile.K_v[i+1] * alpha;
             return true;
         }
     }
