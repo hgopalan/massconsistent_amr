@@ -225,6 +225,8 @@ add_regression_test(terrain_kinematic_bc physics/terrain_kinematic_bc)
 # scalar_transport/ – 3D scalar transport with mixing length turbulence model
 # ---------------------------------------------------------------------------
 add_regression_test(scalar_transport physics/scalar_transport)
+add_regression_test(scalar_transport_segregated physics/scalar_transport_segregated)
+add_regression_test(scalar_transport_coupled physics/scalar_transport_coupled)
 
 # ---------------------------------------------------------------------------
 # combined_thermal_terrain/ – Combined buoyancy and kinematic BC features

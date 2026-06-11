@@ -61,18 +61,46 @@ void WindSolverApp::initialize() {
 
 void WindSolverApp::execute() {
     t_total = amrex::second();
-    for (int time_step = 0; time_step < num_time_steps; ++time_step) {
-        initialize_wind_fields(time_step);
-        execute_poisson_solve(time_step);
-        apply_divergence_corrections(time_step);
+    bool is_wind_steady = !enable_time_varying;
+
+    if (enable_3d_scalars && scalar_coupling_mode == "segregated") {
+        amrex::Print() << "wind_solver: [Segregated Mode] Running one pseudo-time step for wind solver\n";
+        initialize_wind_fields(0);
+        execute_poisson_solve(0);
+        apply_divergence_corrections(0);
         
-        // Solve scalar transport equations after wind field solution
-        if (enable_3d_scalars && (enable_temperature_transport || enable_moisture_transport)) {
-            amrex::Real dt_transport = compute_adaptive_dt_transport();
-            solve_transport_equations(time_step, dt_transport);
+        for (int time_step = 0; time_step < num_time_steps; ++time_step) {
+            amrex::Print() << "wind_solver: [Segregated Mode] step " << time_step << " of " << num_time_steps << "\n";
+            if (enable_temperature_transport || enable_moisture_transport) {
+                amrex::Real dt_transport = compute_adaptive_dt_transport();
+                solve_transport_equations(time_step, dt_transport);
+            }
+            compute_diagnostics_and_output(time_step);
         }
-        
-        compute_diagnostics_and_output(time_step);
+    } else {
+        // "coupled" mode, or non-scalar mode
+        amrex::Print() << "wind_solver: Running coupled/unsteady simulation over " << num_time_steps << " steps\n";
+        for (int time_step = 0; time_step < num_time_steps; ++time_step) {
+            bool run_wind = true;
+            if (is_wind_steady && scalar_coupling_mode == "coupled" && time_step > 0) {
+                run_wind = false; // Run with frozen wind after initial correction
+            }
+            
+            if (run_wind) {
+                initialize_wind_fields(time_step);
+                execute_poisson_solve(time_step);
+                apply_divergence_corrections(time_step);
+            } else {
+                amrex::Print() << "wind_solver: [Coupled Mode] step " << time_step << " - using frozen wind field\n";
+            }
+            
+            if (enable_3d_scalars && (enable_temperature_transport || enable_moisture_transport)) {
+                amrex::Real dt_transport = compute_adaptive_dt_transport();
+                solve_transport_equations(time_step, dt_transport);
+            }
+            
+            compute_diagnostics_and_output(time_step);
+        }
     }
     amrex::Print() << "wind_solver: ========================================\n";
     amrex::Print() << "wind_solver: total execution time = " 
@@ -489,6 +517,11 @@ void WindSolverApp::parse_inputs() {
     pp.query("scalar_dt", scalar_dt);
     pp.query("scalar_cfl", scalar_cfl);
     pp.query("multi_step_corrector_steps", multi_step_corrector_steps);
+    pp.query("scalar_coupling_mode", scalar_coupling_mode);
+    if (scalar_coupling_mode != "segregated" && scalar_coupling_mode != "coupled") {
+        amrex::Abort("wind_solver: invalid scalar_coupling_mode: " + scalar_coupling_mode + 
+                     " (must be 'segregated' or 'coupled')");
+    }
     
     // Mixing length turbulence model parameters
     pp.query("enable_mixing_length_turbulence", enable_mixing_length_turbulence);
@@ -1175,6 +1208,10 @@ void WindSolverApp::setup_geometry_and_mesh() {
     }
 
     num_time_steps = 1;
+    pp.query("num_time_steps", num_time_steps);
+    if (!enable_time_varying && !enable_3d_scalars) {
+        num_time_steps = 1;
+    }
     if (enable_time_varying) {
         std::ifstream check_file(time_series_file);
         if (check_file.good()) {
@@ -6022,11 +6059,13 @@ void WindSolverApp::solve_transport_equations(int time_step, amrex::Real dt_tran
     if (enable_temperature_transport && temp_3d_ptr) {
        solve_scalar_transport(*temp_3d_ptr, *temp_3d_old_ptr, *vel_c_ptr, 
                              temperature_diffusivity, dt_transport, "temperature");
+      amrex::MultiFab::Copy(*temp_3d_old_ptr, *temp_3d_ptr, 0, 0, 1, temp_3d_old_ptr->nGrow());
     }
     
     if (enable_moisture_transport && moisture_3d_ptr) {
-       solve_scalar_transport(*moisture_3d_ptr, *moisture_3d_old_ptr, *vel_c_ptr,
-                             moisture_diffusivity, dt_transport, "moisture");
+      solve_scalar_transport(*moisture_3d_ptr, *moisture_3d_old_ptr, *vel_c_ptr,
+                            moisture_diffusivity, dt_transport, "moisture");
+      amrex::MultiFab::Copy(*moisture_3d_old_ptr, *moisture_3d_ptr, 0, 0, 1, moisture_3d_old_ptr->nGrow());
     }
 }
 

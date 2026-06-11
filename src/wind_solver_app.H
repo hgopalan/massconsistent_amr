@@ -519,6 +519,7 @@ private:
     amrex::Real scalar_dt = -1.0;                // Time step for scalar transport (negative = auto-compute via CFL)
     amrex::Real scalar_cfl = 0.8;                // CFL number for scalar transport
     int multi_step_corrector_steps = 1;          // Number of corrector iterations for temperature-dependent mass-consistent solve
+    std::string scalar_coupling_mode = "segregated"; // Mode for scalar transport: "segregated" or "coupled"
     
     // Mixing length model parameters for eddy diffusivity
     bool enable_mixing_length_turbulence = true; // Use mixing length model for eddy diffusivity
