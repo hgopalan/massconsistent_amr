@@ -1,0 +1,14 @@
+# Polygon building test cases: L-shaped, T-shaped, and U-shaped footprints
+# For Huber-Snyder wake model evaluation
+# Format: POLYGON: x1 y1 x2 y2 ... xn yn | z1 z2
+# All buildings are 35m tall (0-35m)
+# Domain: 0-300m in x, 0-200m in y
+
+# L-shaped building (two connected rectangles)
+POLYGON: 80.0 80.0 120.0 80.0 120.0 100.0 140.0 100.0 140.0 160.0 80.0 160.0 | 0.0 35.0
+
+# T-shaped building (three sections)
+POLYGON: 150.0 60.0 190.0 60.0 190.0 140.0 220.0 140.0 220.0 170.0 130.0 170.0 130.0 140.0 150.0 140.0 | 0.0 35.0
+
+# U-shaped building (two vertical walls with opening)
+POLYGON: 20.0 20.0 60.0 20.0 60.0 80.0 40.0 80.0 40.0 60.0 80.0 60.0 80.0 80.0 120.0 80.0 120.0 20.0 80.0 20.0 80.0 40.0 60.0 40.0 60.0 20.0 | 0.0 35.0

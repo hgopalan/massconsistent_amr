@@ -1,0 +1,18 @@
+# Polygon building test cases: L-shaped, T-shaped, and U-shaped footprints
+# Format: POLYGON: x1 y1 x2 y2 ... xn yn | z1 z2
+# All buildings are 35m tall (0-35m)
+# Domain: 0-300m in x, 0-200m in y
+
+# L-shaped building (two connected rectangles)
+# Base: 40m x 20m, upper part: 20m x 60m
+POLYGON: 80.0 80.0 120.0 80.0 120.0 100.0 140.0 100.0 140.0 160.0 80.0 160.0 | 0.0 35.0
+
+# T-shaped building (three sections)
+# Vertical stem: 40m wide x 80m long
+# Horizontal cap: 100m wide x 30m deep
+POLYGON: 150.0 60.0 190.0 60.0 190.0 140.0 220.0 140.0 220.0 170.0 130.0 170.0 130.0 140.0 150.0 140.0 | 0.0 35.0
+
+# U-shaped building (two vertical walls with opening)
+# Left wall: 40m x 60m, right wall: 40m x 60m, base: 100m wide x 20m deep
+# Opening in middle: 20m x 40m
+POLYGON: 20.0 20.0 60.0 20.0 60.0 80.0 40.0 80.0 40.0 60.0 80.0 60.0 80.0 80.0 120.0 80.0 120.0 20.0 80.0 20.0 80.0 40.0 60.0 40.0 60.0 20.0 | 0.0 35.0

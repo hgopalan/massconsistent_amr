@@ -1,0 +1,7 @@
+# Flat terrain for polygon AERMOD PRIME test
+# Domain: 0-300m in x, 0-200m in y, z=0 everywhere
+# Format: X Y Z [m]
+0.0     0.0    0.0
+300.0   0.0    0.0
+0.0     200.0  0.0
+300.0   200.0  0.0

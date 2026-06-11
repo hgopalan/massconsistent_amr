@@ -1,0 +1,17 @@
+# Courtyard modeling test: Building with internal void zone
+# Format: 
+#   POLYGON: outer vertices | z1 z2
+#   VOID: inner cavity vertices | z1 z2
+#
+# This demonstrates how to model buildings with internal courtyards and atriums.
+# The VOID zone excludes interior regions from wake calculations.
+
+# Outer perimeter: 200m x 200m square building complex at z=0-35m
+POLYGON: 50.0 50.0 250.0 50.0 250.0 250.0 50.0 250.0 | 0.0 35.0
+
+# Internal courtyard: 100m x 100m void zone (no wake generation from interior)
+# This represents an atrium or open courtyard space
+VOID: 100.0 100.0 200.0 100.0 200.0 200.0 100.0 200.0 | 0.0 35.0
+
+# Additional building section: separate 40m x 40m structure
+POLYGON: 10.0 10.0 50.0 10.0 50.0 50.0 10.0 50.0 | 0.0 25.0
