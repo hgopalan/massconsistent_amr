@@ -925,6 +925,60 @@ int main(int argc, char* argv[])
         std::string puff_output = "puff_concentration.csv";
         pp.query("puff_output", puff_output);
         
+        // Phase 2.1: Multi-source configuration
+        std::string sources_file = "";
+        std::vector<Source> sources;
+        bool stack_tip_downwash_enabled = false;
+        bool briggs_std_model = true;
+        
+        pp.query("sources_file", sources_file);
+        pp.query("stack_tip_downwash_enabled", stack_tip_downwash_enabled);
+        pp.query("briggs_std_model", briggs_std_model);
+        
+        // Try to read multi-source configuration
+        if (!sources_file.empty()) {
+            if (read_sources_csv(sources_file, sources)) {
+                amrex::Print() << "puff_solver: Multi-source mode activated (" << sources.size() << " sources)\n";
+            } else {
+                amrex::Print() << "puff_solver: Warning - sources_file specified but could not be read, falling back to single source\n";
+                // Fall back to legacy single source
+                Source single_source;
+                single_source.source_id = "source_1";
+                single_source.x = source_x;
+                single_source.y = source_y;
+                single_source.z = source_z;
+                single_source.emission_rate = emission_rate;
+                single_source.emission_duration = emission_duration;
+                single_source.type = source_type;
+                sources.push_back(single_source);
+            }
+        } else {
+            // Use legacy single source parameters (backward compatibility)
+            Source single_source;
+            single_source.source_id = "source_1";
+            single_source.x = source_x;
+            single_source.y = source_y;
+            single_source.z = source_z;
+            single_source.emission_rate = emission_rate;
+            single_source.emission_duration = emission_duration;
+            single_source.type = source_type;
+            sources.push_back(single_source);
+        }
+        
+        // Phase 2.3: Meteorological profile configuration
+        std::string met_profile_file = "";
+        std::vector<MetProfile> met_profiles;
+        bool enable_spatial_met = false;
+        
+        pp.query("met_profile_file", met_profile_file);
+        pp.query("enable_spatial_met", enable_spatial_met);
+        
+        if (!met_profile_file.empty() && enable_spatial_met) {
+            if (!read_met_profiles_csv(met_profile_file, met_profiles)) {
+                amrex::Print() << "puff_solver: Warning - meteorological profile file specified but could not be read\n";
+            }
+        }
+        
         // Print settings
         if (enable_lpdm) {
             amrex::Print() << "puff_solver: Lagrangian Particle Dispersion Model (LPDM) enabled\n";
@@ -933,9 +987,25 @@ int main(int argc, char* argv[])
         } else {
             amrex::Print() << "puff_solver: Gaussian puff model enabled\n";
         }
-        amrex::Print() << "  Source: (" << source_x << ", " << source_y 
-                       << ", " << source_z << ")\n";
-        amrex::Print() << "  Emission rate: " << emission_rate << " units/s\n";
+        
+        // Print source information (Phase 2.1)
+        if (sources.size() == 1) {
+            amrex::Print() << "  Source: (" << sources[0].x << ", " << sources[0].y 
+                           << ", " << sources[0].z << ") [single source mode]\n";
+            amrex::Print() << "  Emission rate: " << sources[0].emission_rate << " units/s\n";
+        } else {
+            amrex::Print() << "  Multiple sources (" << sources.size() << "):\n";
+            for (size_t i = 0; i < sources.size(); ++i) {
+                amrex::Print() << "    " << sources[i].source_id << ": (" 
+                              << sources[i].x << ", " << sources[i].y 
+                              << ", " << sources[i].z << ") type=" << sources[i].type
+                              << " rate=" << sources[i].emission_rate << " units/s\n";
+                if (sources[i].stack_diameter > 0.0) {
+                    amrex::Print() << "      Stack: D=" << sources[i].stack_diameter 
+                                  << "m, V_exit=" << sources[i].stack_exit_velocity << "m/s\n";
+                }
+            }
+        }
         if (!emissions_profile.empty()) {
             amrex::Print() << "  Time-varying emissions enabled (" << emissions_profile.size() << " points from " << emissions_file << ")\n";
         }

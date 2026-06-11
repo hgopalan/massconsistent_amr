@@ -146,12 +146,14 @@ struct PuffParams {
     bool enable_unsteady_wind = false;       // Enable time-varying wind fields
     amrex::Real wind_field_start_time = 0.0; // Start time for wind field [s]
     
-    // Multi-source configuration (future expansion)
+    // Multi-source configuration (Phase 2.1)
     std::string sources_file = "";           // Path to CSV with multiple sources (optional)
+    std::vector<Source> sources;             // Vector of emission sources (Phase 2.1)
     
-    // Meteorological profile configuration
+    // Meteorological profile configuration (Phase 2.3)
     std::string met_profile_file = "";       // Path to meteorological profile CSV (optional)
     bool enable_spatial_met = false;         // Enable spatially-varying meteorology
+    std::vector<MetProfile> met_profiles;    // Vector of meteorological profiles (Phase 2.3)
     
     // Stack aerodynamic modeling parameters (Phase 2.2)
     bool stack_tip_downwash_enabled = false; // Enable Briggs stack tip downwash (STD)
