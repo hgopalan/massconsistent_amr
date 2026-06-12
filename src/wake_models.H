@@ -528,8 +528,8 @@ bool rockle_wake_deficit(
         
         // Inside cavity zone: recirculation with negative velocity
         const amrex::Real deficit_magnitude = params.c2 * U_ref * deficit_scale;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
         
         // Phase 3 Enhancement: Add rooftop vortex vertical component
         compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, dw);
@@ -717,8 +717,8 @@ bool huber_snyder_wake_deficit(
         // Inside cavity zone: recirculation with negative velocity
         // Huber-Snyder uses similar deficit magnitude as Röckle
         const amrex::Real deficit_magnitude = params.c2 * U_ref * deficit_scale;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
         
         // Add rooftop vortex (reuse existing parameterization)
         compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
@@ -1065,8 +1065,8 @@ bool aermod_prime_wake_deficit(
         // PRIME uses higher deficit in cavity than Röckle/Huber-Snyder
         const amrex::Real cavity_deficit_factor = amrex::Real(0.5);  // 50% deficit in cavity
         const amrex::Real deficit_magnitude = cavity_deficit_factor * U_ref * deficit_scale;
-        du = deficit_magnitude * wind_dir_x;
-        dv = deficit_magnitude * wind_dir_y;
+        du = -deficit_magnitude * wind_dir_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wind_dir_y;  // Negate to create reverse flow
         
         // Streamline deflection: vertical component from flow over building
         // Enhanced vertical mixing in PRIME cavity
@@ -1632,8 +1632,8 @@ bool polygon_rockle_wake_deficit(
         }
         
         amrex::Real deficit_magnitude = params.c2 * U_ref;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
         
         compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, dw);
         return true;
@@ -1721,8 +1721,8 @@ bool polygon_huber_snyder_wake_deficit(
         if (z_local < amrex::Real(0.0) || z_local > Hc) return false;
         
         amrex::Real deficit_magnitude = params.c2 * U_ref;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
         compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
         return true;
     }
@@ -1822,8 +1822,8 @@ bool polygon_aermod_prime_wake_deficit(
         
         amrex::Real cavity_deficit_factor = amrex::Real(0.5);
         amrex::Real deficit_magnitude = cavity_deficit_factor * U_ref;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
         compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
         return true;
     }
