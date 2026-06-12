@@ -63,60 +63,43 @@ def main():
     # Calculate velocity magnitude
     mag = np.sqrt(u**2 + v**2 + w**2)
     
-    # Select center Y slice
-    j_mid = ny // 2
+    # Select horizontal slice at a height above ground (e.g., 50 m AGL)
+    # Find the closest k index to 50 m
+    target_height = 50.0
+    k_closest = np.argmin(np.abs(z_coords - target_height))
+    actual_height = z_coords[k_closest]
     
-    # Grid for vertical slice plotting (X-Z)
-    X_grid, Z_grid = np.meshgrid(x_coords, z_coords)
+    # Grid for horizontal slice plotting (X-Y)
+    X_grid, Y_grid = np.meshgrid(x_coords, y_coords)
     
-    # Slice arrays
-    mag_slice = mag[:, j_mid, :]
-    u_slice = u[:, j_mid, :]
-    w_slice = w[:, j_mid, :]
+    # Slice arrays at this height
+    mag_slice = mag[k_closest, :, :]
     
     # Plotting
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(10, 8))
     
-    # Mask out region below the terrain (if any)
-    # The terrain profile at y_mid
-    terrain_profile = terrain[j_mid, :]
-    
-    # Create Z coordinates matching terrain-following coordinate transformation
-    # If the solver is strictly terrain-following, the grid cells are at Z_ij = z_s(i,j) + k * dz_local?
-    # In AMReX-based massconsistent_amr, the cells are standard Cartesians, but cells below terrain are masked/solid.
-    # Let's plot actual cartesian grid but mask the cells where z_center < terrain_elevation
-    Z_coords_3d = np.zeros((nz, nx))
-    for k in range(nz):
-        for i in range(nx):
-            Z_coords_3d[k, i] = z_coords[k]
-            
-    mask_below_terrain = Z_coords_3d < terrain_profile[np.newaxis, :]
+    # Mask out region below terrain at this height
+    # Create terrain mask at this height
+    terrain_at_height = terrain.copy()
+    mask_below_terrain = terrain_at_height > actual_height
     mag_masked = np.ma.masked_array(mag_slice, mask=mask_below_terrain)
-    u_masked = np.ma.masked_array(u_slice, mask=mask_below_terrain)
-    w_masked = np.ma.masked_array(w_slice, mask=mask_below_terrain)
     
-    # Plot wind speed contour
-    cp = plt.contourf(X_grid, Z_grid, mag_masked, levels=20, cmap='viridis', alpha=0.85)
+    # Plot wind speed contour (horizontal slice)
+    cp = plt.contourf(X_grid, Y_grid, mag_masked, levels=20, cmap='viridis', alpha=0.85)
     cbar = plt.colorbar(cp)
     cbar.set_label('Wind Speed Magnitude [m/s]', fontsize=11)
     
-    # Plot terrain boundary as a thick line
-    plt.plot(x_coords, terrain_profile, 'k-', linewidth=3, label='Terrain Surface')
-    plt.fill_between(x_coords, zmin, terrain_profile, color='gray', alpha=0.5)
+    # Overlay terrain elevation contours
+    contour_lines = plt.contour(X_grid, Y_grid, terrain_at_height, levels=10, colors='black', 
+                                 linewidths=0.5, alpha=0.4, linestyles='--')
+    plt.clabel(contour_lines, inline=True, fontsize=8, fmt='%.0f m')
     
-    # Plot velocity vectors on top
-    # Sub-sample grid for clean quiver plot
-    step_x = 2
-    step_z = 2
-    plt.quiver(X_grid[::step_z, ::step_x], Z_grid[::step_z, ::step_x],
-               u_masked[::step_z, ::step_x], w_masked[::step_z, ::step_x],
-               color='white', scale=150, width=0.003, alpha=0.9, label='Wind Vectors')
-    
-    plt.title("Terrain-Following Wind Flow Over Gaussian Hill", fontsize=14, fontweight='bold')
+    plt.title(f"Terrain-Following Wind Flow Over Gaussian Hill (at {actual_height:.0f} m AGL)", 
+              fontsize=14, fontweight='bold')
     plt.xlabel("X distance [m]", fontsize=11)
-    plt.ylabel("Z height AGL/MSL [m]", fontsize=11)
+    plt.ylabel("Y distance [m]", fontsize=11)
     plt.xlim(xmin, xmax)
-    plt.ylim(zmin, zmax)
+    plt.ylim(ymin, ymax)
     plt.legend(loc='upper right')
     plt.grid(True, linestyle='--', alpha=0.3)
     

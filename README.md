@@ -10,7 +10,7 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
   <tr>
     <td width="50%" valign="top">
       <h4>1. Complex Terrain-Following Coordinate Flow</h4>
-      <p>Wind speed above complex terrain demonstrating terrain-following coordinate transformation and flow interactions without turbine obstruction.</p>
+      <p>Horizontal wind speed distribution above complex terrain at 50 m above ground level, demonstrating terrain-following coordinate transformation and flow interactions without turbine obstruction.</p>
       <img src="docs/terrain_following_complex_flow.png" alt="Complex Terrain-Following Flow" width="100%"/>
     </td>
     <td width="50%" valign="top">
@@ -22,7 +22,7 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
   <tr>
     <td width="50%" valign="top">
       <h4>3. Urban Street Canyon & Building Wakes</h4>
-      <p>Wind speed distribution in urban layout with complex building geometries including box, L-shaped, T-shaped, U-shaped, and polygonal buildings demonstrating building wake effects and drag parameterizations.</p>
+      <p>Wind speed distribution at 15 m above ground level in an urban layout with complex building geometries including box, L-shaped, T-shaped, U-shaped, and polygonal buildings, showing the building mask and demonstrating wake effects and drag parameterizations.</p>
       <img src="docs/urban_street_canyon.png" alt="Urban Street Canyon" width="100%"/>
     </td>
     <td width="50%" valign="top">
@@ -34,7 +34,7 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
   <tr>
     <td width="50%" valign="top">
       <h4>5. Yawed Wind Turbine Wake Deflection</h4>
-      <p>Analytical wake deficit and lateral center-line deflection under yawed operation (Bastankhah model) to optimize array performance.</p>
+      <p>Analytical wake deficit showing lateral center-line deflection under yawed operation (Bastankhah model) to optimize array performance, with turbine rotor orientation indicators.</p>
       <img src="docs/turbine_wake_deflection.png" alt="Turbine Wake Deflection" width="100%"/>
     </td>
     <td width="50%" valign="top">

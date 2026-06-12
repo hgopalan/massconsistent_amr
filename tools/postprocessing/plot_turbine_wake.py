@@ -189,9 +189,6 @@ def main():
         cp2 = ax2.contourf(X, Y, U_mag, levels=40, cmap='viridis')
         cbar2 = fig.colorbar(cp2, ax=ax2, orientation='horizontal', pad=0.1, aspect=30)
         cbar2.set_label('Wind Velocity at 80 m Hub Height [m/s]', fontsize=11)
-        
-        # Overlay wind streamlines
-        ax2.streamplot(X, Y, U, V, color=(1.0, 1.0, 1.0, 0.35), density=1.5, linewidth=1.0)
 
         # Plot wind turbine rotors
         for i, (x_t, y_t) in enumerate(zip(xs, ys)):
