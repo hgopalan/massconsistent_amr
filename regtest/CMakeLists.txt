@@ -603,6 +603,24 @@ if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
   add_python_regression_test(cell_local_anisotropy_python physics/cell_local_anisotropy test_cell_local_anisotropy.py)
 endif()
 
+# Cell-Local Anisotropy - Slope Source Only
+add_regression_test(cell_local_anisotropy_slope_base physics/cell_local_anisotropy_slope)
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_python_regression_test(cell_local_anisotropy_slope_python physics/cell_local_anisotropy_slope test_cell_local_anisotropy_slope.py)
+endif()
+
+# Cell-Local Anisotropy - Richardson Source Only
+add_regression_test(cell_local_anisotropy_richardson_base physics/cell_local_anisotropy_richardson)
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_python_regression_test(cell_local_anisotropy_richardson_python physics/cell_local_anisotropy_richardson test_cell_local_anisotropy_richardson.py)
+endif()
+
+# Cell-Local Anisotropy - Froude Source Only
+add_regression_test(cell_local_anisotropy_froude_base physics/cell_local_anisotropy_froude)
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_python_regression_test(cell_local_anisotropy_froude_python physics/cell_local_anisotropy_froude test_cell_local_anisotropy_froude.py)
+endif()
+
 # ===========================================================================
 # Analytical Wake & Turbulence Extensions (TurbOPark, Jimenez, Crespo-Hernandez)
 # ===========================================================================

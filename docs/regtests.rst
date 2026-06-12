@@ -681,7 +681,129 @@ the specified rotation and speed adjustment relative to an uncorrected case.
     domain_height = 100.0
     extract_agl = 15.0
 
+cell_local_anisotropy
+^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/physics/cell_local_anisotropy/`` (all three sources combined)
+
+**Purpose:** Verifies that cell-local spatially-varying anisotropic weighting tensor 
+A(x,y,z) is correctly computed and applied. The anisotropy coefficients (α_h / α_v) 
+adapt cell-locally based on terrain slope, Richardson number (atmospheric stability), 
+and Froude number (orographic blocking). This advanced feature captures complex 
+interactions between terrain, wind, and atmospheric conditions.
+
+**Terrain:** Gaussian hill (11 × 11 point cloud over 300 × 300 m domain, peak 50 m).
+
+**Grid:** 10 × 10 × 6 cells (dx = dy = 30 m, dz = 25 m, domain_height = 100 m).
+
+**Wind:** U_ref = 10 m/s (westerly), z_ref = 10 m, z₀ = 0.03 m.
+
+**Thermodynamics:** Stable potential temperature gradient (0.005 K/m) to enable 
+Richardson number variations.
+
+**Expected behaviour:** The mass-consistent solver converges, and alpha_v varies 
+spatially according to local slope, stability, and Froude number. Steeper slopes, 
+stable conditions, and strong wind blocking modulate the vertical anisotropy locally.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_cell_local_anisotropy = true
+    anisotropy_source = all
+    anisotropy_slope_scale = 0.25
+    anisotropy_decay_height = 100.0
+    anisotropy_ri_gamma = 1.0
+    anisotropy_ri_beta = 0.5
+    anisotropy_fr_min = 0.1
+    temperature_file = "temperature.csv"
+    temperature_gradient = 0.005
+
+cell_local_anisotropy_slope
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/physics/cell_local_anisotropy_slope/``
+
+**Purpose:** Isolates and validates the terrain slope contribution to cell-local 
+anisotropy. Only the slope factor (f_slope) is active; Richardson and Froude 
+contributions are disabled.
+
+**Terrain:** Identical to cell_local_anisotropy (Gaussian hill).
+
+**Expected behaviour:** Alpha_v is modulated primarily by local terrain slope. 
+Steep regions show strongest anisotropy adjustment. Highest slope gradients occur 
+on the hill sides, producing the most significant alpha_v variations there.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_cell_local_anisotropy = true
+    anisotropy_source = slope
+    anisotropy_slope_scale = 0.25
+    anisotropy_decay_height = 100.0
+
+cell_local_anisotropy_richardson
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/physics/cell_local_anisotropy_richardson/``
+
+**Purpose:** Isolates and validates the Richardson number (stability) contribution 
+to cell-local anisotropy. Only the Richardson factor (f_ri) is active; slope and 
+Froude contributions are disabled.
+
+**Terrain:** Identical to cell_local_anisotropy (Gaussian hill).
+
+**Thermodynamics:** Stable potential temperature gradient (0.005 K/m).
+
+**Expected behaviour:** Alpha_v is modulated by local atmospheric stability 
+(Richardson number). Stable stratification (positive Ri) reduces alpha_v, while 
+unstable conditions (negative Ri) enhance it. Height-dependent variations of 
+Richardson number create vertical heterogeneity in anisotropy.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_cell_local_anisotropy = true
+    anisotropy_source = richardson
+    anisotropy_ri_gamma = 1.0
+    anisotropy_ri_beta = 0.5
+    temperature_file = "temperature.csv"
+    temperature_gradient = 0.005
+
+cell_local_anisotropy_froude
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/physics/cell_local_anisotropy_froude/``
+
+**Purpose:** Isolates and validates the Froude number (orographic blocking) 
+contribution to cell-local anisotropy. Only the Froude factor (f_fr) is active; 
+slope and Richardson contributions are disabled.
+
+**Terrain:** Identical to cell_local_anisotropy (Gaussian hill).
+
+**Thermodynamics:** Stable potential temperature gradient (0.005 K/m) to enable 
+Froude number variations via buoyancy frequency.
+
+**Expected behaviour:** Alpha_v is modulated by local Froude number, which depends 
+on wind speed, terrain height scale, and atmospheric stability (buoyancy 
+frequency). Low Froude number (weak wind or steep terrain) indicates flow blocking, 
+leading to larger anisotropy adjustments. High Froude number (strong wind) 
+indicates flow acceleration over terrain.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_cell_local_anisotropy = true
+    anisotropy_source = froude
+    anisotropy_fr_min = 0.1
+    temperature_file = "temperature.csv"
+    temperature_gradient = 0.005
+
 Adding New Tests
+
 ----------------
 
 1. Create a new sub-directory under the appropriate category under ``regtest/``, e.g. ``regtest/physics/my_test/``.
