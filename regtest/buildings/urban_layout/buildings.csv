@@ -1,0 +1,19 @@
+# Buildings for urban layout regression test
+# Format: 
+#   For regular box: xmin xmax ymin ymax zmin zmax
+#   For complex shapes: POLYGON: x1 y1 x2 y2 ... xn yn | zmin zmax
+
+# 1. Regular box
+35.0 65.0 35.0 65.0 0.0 30.0
+
+# 2. L-shaped building
+POLYGON: 80.0 80.0 120.0 80.0 120.0 100.0 140.0 100.0 140.0 160.0 80.0 160.0 | 0.0 35.0
+
+# 3. T-shaped building
+POLYGON: 150.0 60.0 190.0 60.0 190.0 140.0 220.0 140.0 220.0 170.0 130.0 170.0 130.0 140.0 150.0 140.0 | 0.0 35.0
+
+# 4. U-shaped building
+POLYGON: 20.0 260.0 40.0 260.0 40.0 200.0 80.0 200.0 80.0 260.0 100.0 260.0 100.0 180.0 20.0 180.0 | 0.0 35.0
+
+# 5. Polygonal building (hexagon)
+POLYGON: 280.0 250.0 265.0 276.0 235.0 276.0 220.0 250.0 235.0 224.0 265.0 224.0 | 0.0 40.0

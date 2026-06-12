@@ -83,3 +83,13 @@ Identifies and classifies acid mine drainage (AMD) risk points along a valley ba
   ```bash
   python3 tools/postprocessing/plot_valley_amd_hotspots.py
   ```
+
+### 8. 3D Puff & Particle Dispersion Modeling (`plot_puff_dispersion.py`)
+Runs/simulates the 3D Puff & Particle Dispersion Modeling scenario over a Gaussian hill.
+- **Left panel**: 2D contour map of terrain elevation with puff emission points and wind vector streamlines.
+- **Right panel**: Ground-level concentration and wet/dry deposition footprint of the dispersed pollutant.
+- **Output**: Generates `docs/puff_deposition_plot.png`.
+- **Run**:
+  ```bash
+  python3 tools/postprocessing/plot_puff_dispersion.py
+  ```

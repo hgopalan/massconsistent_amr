@@ -128,6 +128,7 @@ A suite of specialized plotting scripts is located under the ``tools/postprocess
 
 * **Available Scripts**:
   * ``plot_drone_deposition.py``: Generates the agricultural drone spray terrain & deposition map (``docs/drone_deposition_plot.png``).
+  * ``plot_puff_dispersion.py``: Generates the atmospheric puff and particle dispersion map (``docs/puff_deposition_plot.png``).
   * ``plot_terrain_following.py``: Vertical slice wind flow over a Gaussian hill (``docs/terrain_following_complex_flow.png``).
   * ``plot_gorge_bridge.py``: Gorge bridge canyon channeling and wind loading (``docs/gorge_bridge_crossing.png``).
   * ``plot_urban_street_canyon.py``: Urban street canyon channeling and building wakes (``docs/urban_street_canyon.png``).

@@ -1,0 +1,5 @@
+# Flat terrain for urban layout test - X[m]  Y[m]  Z[m]
+0.0   0.0   0.0
+300.0 0.0   0.0
+0.0   300.0 0.0
+300.0 300.0 0.0

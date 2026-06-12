@@ -52,7 +52,7 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
     <td width="50%" valign="top">
       <h4>8. 3D Puff & Particle Dispersion Modeling</h4>
       <p>Continuous and puff source release tracking over complex terrain, incorporating Pasquill-Gifford atmospheric stability classes, wet/dry deposition, and boundary-layer reflection.</p>
-      <img src="docs/drone_deposition_plot.png" alt="Atmospheric Puff & Particle Dispersion" width="100%"/>
+      <img src="docs/puff_deposition_plot.png" alt="Atmospheric Puff & Particle Dispersion" width="100%"/>
     </td>
   </tr>
 </table>
