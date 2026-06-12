@@ -27,7 +27,7 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
     </td>
     <td width="50%" valign="top">
       <h4>4. Transmission Tower & Line Wind Loading</h4>
-      <p>Structural wind loading, catenary line tension, and sway displacement calculated dynamically across complex ridges.</p>
+      <p>Structural wind loading, catenary line tension, and sway displacement calculated dynamically across complex ridges. In the right panel of the loading visualization (plasma colormap), brighter colors (yellow/orange) indicate high-speed gap-flow winds causing elevated wind-drag mechanical loading and higher catenary line tension, while darker colors (purple/blue) represent lower wind speed and safer, lower line tension regions.</p>
       <img src="docs/transmission_line_loading.png" alt="Transmission Line Loading" width="100%"/>
     </td>
   </tr>
@@ -50,9 +50,9 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
       <img src="docs/drone_deposition_plot.png" alt="Agricultural Drone Spray Drift" width="100%"/>
     </td>
     <td width="50%" valign="top">
-      <h4>8. Terrain-Aware Synthetic Turbulence</h4>
-      <p>Generating terrain-conforming synthetic turbulence fluctuations over a Gaussian hill topography, restricted to fluid zones with smooth boundary blending.</p>
-      <img src="docs/terrain_following_complex_flow.png" alt="Terrain-Aware Synthetic Turbulence" width="100%"/>
+      <h4>8. 3D Puff & Particle Dispersion Modeling</h4>
+      <p>Continuous and puff source release tracking over complex terrain, incorporating Pasquill-Gifford atmospheric stability classes, wet/dry deposition, and boundary-layer reflection.</p>
+      <img src="docs/drone_deposition_plot.png" alt="Atmospheric Puff & Particle Dispersion" width="100%"/>
     </td>
   </tr>
 </table>
