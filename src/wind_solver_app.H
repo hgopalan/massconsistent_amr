@@ -111,6 +111,17 @@ private:
     amrex::Real wake_c2 = 0.3;
     amrex::Real wake_separation_length = 3.0;
     bool wake_superposition = true;
+    
+    // Wake model enhancement parameters
+    bool enable_oblique_scaling = true;
+    bool enable_tall_building_correction = true;
+    bool enable_gaussian_profile = false;
+    bool enable_upwind_recirculation = true;
+    bool enable_reference_correction = false;
+    bool enable_corner_acceleration = true;
+    bool enable_variance_correction = false;
+    bool enable_horseshoe_vortex = true;
+    bool enable_extended_farwake = true;
 
     // Analytical Turbine Wake
     bool enable_turbine_wake = false;
