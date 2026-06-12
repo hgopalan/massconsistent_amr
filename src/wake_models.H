@@ -904,9 +904,6 @@ bool rockle_wake_deficit(
     const amrex::Real x_wake = x_wind - wake_start;
     const amrex::Real Wr = shape_width;               // Cavity width
     
-    // Height above ground (relative to building base)
-    const amrex::Real z_local = z - bldg.zmin;
-    
     // ========================================================================
     // 1. Cavity zone (recirculation zone)
     // ========================================================================
