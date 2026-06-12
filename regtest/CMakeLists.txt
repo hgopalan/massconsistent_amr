@@ -603,6 +603,12 @@ if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
   add_python_regression_test(cell_local_anisotropy_python physics/cell_local_anisotropy test_cell_local_anisotropy.py)
 endif()
 
+# Cell-Local Anisotropy - All Sources
+add_regression_test(cell_local_anisotropy_all_base physics/cell_local_anisotropy_all)
+if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
+  add_python_regression_test(cell_local_anisotropy_all_python physics/cell_local_anisotropy_all test_cell_local_anisotropy_all.py)
+endif()
+
 # Cell-Local Anisotropy - Slope Source Only
 add_regression_test(cell_local_anisotropy_slope_base physics/cell_local_anisotropy_slope)
 if(MASSCONSISTENT_BUILD_PYTHON_BINDINGS)
