@@ -21,7 +21,7 @@ REPO_ROOT = POST_DIR.parent.parent
 DOCS_DIR = REPO_ROOT / "docs"
 
 def main():
-    print("Generating high-resolution 3D Puff & Particle Dispersion visualization...")
+    print("Generating 3D Puff & Particle Dispersion visualization (120x120 grid)...")
     
     # Grid coordinates
     nx, ny = 120, 120
