@@ -133,6 +133,11 @@ add_regression_test(buildings_flat buildings/buildings_flat)
 add_regression_test(buildings_csv buildings/buildings_csv)
 
 # ===========================================================================
+# urban_layout/ – Regular box, L-shaped, T-shaped, U-shaped and polygonal buildings
+# ===========================================================================
+add_regression_test(urban_layout buildings/urban_layout)
+
+# ===========================================================================
 # buildings_terrain/ – Buildings on Gaussian hill (terrain-aligned)
 # ===========================================================================
 add_regression_test(buildings_terrain buildings/buildings_terrain)
@@ -225,6 +230,8 @@ add_regression_test(terrain_kinematic_bc physics/terrain_kinematic_bc)
 # scalar_transport/ – 3D scalar transport with mixing length turbulence model
 # ---------------------------------------------------------------------------
 add_regression_test(scalar_transport physics/scalar_transport)
+add_regression_test(scalar_transport_segregated physics/scalar_transport_segregated)
+add_regression_test(scalar_transport_coupled physics/scalar_transport_coupled)
 
 # ---------------------------------------------------------------------------
 # combined_thermal_terrain/ – Combined buoyancy and kinematic BC features
@@ -382,6 +389,11 @@ add_regression_test(puff_canopy dispersion/puff_canopy)
 # puff_deposition/ – Puff dispersion with dry deposition on ground
 # ---------------------------------------------------------------------------
 add_regression_test(puff_deposition dispersion/puff_deposition)
+
+# ---------------------------------------------------------------------------
+# puff_deposition_terrain/ – Puff wet/dry deposition over Gaussian hill terrain
+# ---------------------------------------------------------------------------
+add_regression_test(puff_deposition_terrain dispersion/puff_deposition_terrain)
 
 # ---------------------------------------------------------------------------
 # puff_scavenging_decay/ – Puff wet deposition and dynamic decay

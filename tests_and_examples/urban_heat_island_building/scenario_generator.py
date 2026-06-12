@@ -109,6 +109,35 @@ class UrbanBuildingScenarioGenerator:
             building_width = 0.05
             
             if dist_i < building_width and dist_j < building_width:
+                # Relative coordinates within the block
+                dx_rel = xi - grid_i * building_spacing
+                dy_rel = yj - grid_j * building_spacing
+                
+                # Check for custom building shapes based on block grid coordinates
+                # Block (1,1) is L-shaped
+                if grid_i == 1 and grid_j == 1:
+                    # L-shape: left vertical wing and bottom horizontal wing
+                    if not (dx_rel < -0.015 or dy_rel < -0.015):
+                        return 0.0
+                
+                # Block (-1,1) is U-shaped
+                elif grid_i == -1 and grid_j == 1:
+                    # U-shape: left, right and bottom wings (open top)
+                    if dx_rel > -0.015 and dx_rel < 0.015 and dy_rel > -0.015:
+                        return 0.0
+                
+                # Block (1,-1) is T-shaped
+                elif grid_i == 1 and grid_j == -1:
+                    # T-shape: top horizontal bar and central vertical stem
+                    if dy_rel < 0.015 and (dx_rel < -0.015 or dx_rel > 0.015):
+                        return 0.0
+                
+                # Block (-1,-1) is courtyard/polygon combo
+                elif grid_i == -1 and grid_j == -1:
+                    # Hollow center courtyard
+                    if np.abs(dx_rel) < 0.02 and np.abs(dy_rel) < 0.02:
+                        return 0.0
+
                 # Height varies by location (taller in some blocks)
                 height_var = 20.0 * (np.sin(grid_i * np.pi) + np.cos(grid_j * np.pi)) / 2.0
                 return building_height_base + height_var
