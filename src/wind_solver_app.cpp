@@ -1186,7 +1186,10 @@ void WindSolverApp::setup_geometry_and_mesh() {
                                  building_rotation,
                                  building_shape,
                                  building_pitch_or_radius,
-                                 building_pitch_direction);
+                                 building_pitch_direction,
+                                 building_geom_type,
+                                 building_polygon_x,
+                                 building_polygon_y);
     }
 
     if (enable_building_porosity && !building_porosity_file.empty()) {

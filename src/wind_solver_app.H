@@ -558,6 +558,11 @@ private:
     std::vector<int> building_shape;
     std::vector<amrex::Real> building_pitch_or_radius;
     std::vector<amrex::Real> building_pitch_direction;
+    
+    // Polygon building support (for arbitrary footprints, courtyards, etc.)
+    std::vector<int> building_geom_type;     // BuildingGeometryType for each building (0=rectangular, 1=polygon, 2=void)
+    std::vector<std::vector<amrex::Real>> building_polygon_x;  // Polygon vertices if geom_type == POLYGON
+    std::vector<std::vector<amrex::Real>> building_polygon_y;  // Polygon vertices if geom_type == POLYGON
 
     std::vector<amrex::Real> porous_building_xmin, porous_building_xmax;
     std::vector<amrex::Real> porous_building_ymin, porous_building_ymax;

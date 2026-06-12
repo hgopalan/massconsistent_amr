@@ -278,7 +278,10 @@ void read_building_file(const std::string& filename,
                         std::vector<Real>& rotation,
                         std::vector<int>& shape,
                         std::vector<Real>& pitch_or_radius,
-                        std::vector<Real>& pitch_direction)
+                        std::vector<Real>& pitch_direction,
+                        std::vector<int>& geom_type,
+                        std::vector<std::vector<Real>>& polygon_x,
+                        std::vector<std::vector<Real>>& polygon_y)
 {
     std::ifstream f(filename);
     if (!f.is_open())
@@ -349,6 +352,13 @@ void read_building_file(const std::string& filename,
                 shape.push_back(shp);
                 pitch_or_radius.push_back(0.0);
                 pitch_direction.push_back(0.0);
+                
+                // Store geometry type and polygon vertices
+                // For POLYGON (shp==3), store 1; for VOID (shp==4), store 2
+                int gt = (shp == SHAPE_POLYGON) ? 1 : ((shp == SHAPE_VOID) ? 2 : 0);
+                geom_type.push_back(gt);
+                polygon_x.push_back(vx);
+                polygon_y.push_back(vy);
             } else if (n_verts < 3) {
                 amrex::Warning("Building on line " + std::to_string(line_num) + 
                               " has " + std::to_string(n_verts) + " vertices; need >= 3. Skipping.\n");
@@ -408,6 +418,11 @@ void read_building_file(const std::string& filename,
                 shape.push_back(shp);
                 pitch_or_radius.push_back(p_or_r);
                 pitch_direction.push_back(p_dir);
+                
+                // For rectangular buildings: geometry type = 0, empty polygon vectors
+                geom_type.push_back(0);
+                polygon_x.push_back(std::vector<Real>());
+                polygon_y.push_back(std::vector<Real>());
             }
         }
     }
