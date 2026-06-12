@@ -210,6 +210,132 @@ The mass-consistency solver then adjusts the flow to ensure ∇·\ **u** = 0.
     extract_file  = wind_wake_10m.csv
     plot_file     = plt_wake_single_building
 
+wake_polygon_shapes
+^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/wakes/wake_polygon_shapes/``
+
+**Purpose:** Validates polygon building support with complex shapes (L, T, U-shaped
+buildings) using the Röckle wake model.
+
+**Terrain:** Flat domain (300 × 200 m, z = 0 everywhere).
+
+**Buildings:** Three polygon buildings:
+
+* L-shaped building: 40m × 20m + 20m × 60m sections, 35m tall
+* T-shaped building: Vertical stem (40m × 80m) with horizontal cap (100m × 30m), 35m tall
+* U-shaped building: 100m × 60m outer perimeter, 35m tall
+
+**Grid:** 60 × 40 × 30 cells (dx = dy = dz = 5 m, domain_height = 300 m).
+
+**Wind:** U_ref = 10 m/s (westerly, along +x), z_ref = 10 m, z₀ = 0.1 m.
+
+**Wake model:** Röckle formulation with polygon vertex processing
+(c1=0.9, c2=0.3, separation_length=3.0).
+
+**Expected behaviour:** The solver correctly computes wake deficits for non-rectangular
+building footprints using point-in-polygon testing and effective polygon dimensions.
+Polygon centroids and effective widths are calculated for each building orientation.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    building_file = buildings.csv
+    enable_wake = true
+    wake_model = rockle
+    wake_c1 = 0.9
+    wake_c2 = 0.3
+    wake_separation_length = 3.0
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    dx = 5.0
+    dy = 5.0
+    dz = 5.0
+    domain_height = 300
+    extract_file = wind_wake_10m.csv
+
+wake_polygon_huber_snyder
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/wakes/wake_polygon_huber_snyder/``
+
+**Purpose:** Validates polygon building support with EPA Huber-Snyder wake model,
+verifying proper cavity/far-wake zone transitions for complex shapes.
+
+**Terrain:** Flat domain (300 × 200 m, z = 0 everywhere).
+
+**Buildings:** Same three polygon buildings as wake_polygon_shapes test.
+
+**Wake model:** Huber-Snyder EPA model with extended cavity zone
+(c1=1.5, c2=0.4, separation_length=4.0).
+
+**Expected behaviour:** Polygon buildings compute wake deficits using Huber-Snyder
+cavity entrance effects and horizontal turbulence parameterization. Wake zone
+transitions (near-cavity/far-wake) follow EPA formulation for effective dimensions.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_wake = true
+    wake_model = huber_snyder
+    wake_c1 = 1.5
+    wake_c2 = 0.4
+    wake_separation_length = 4.0
+    C_h = 0.5
+    C_v = 0.3
+
+wake_polygon_aermod_prime
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/wakes/wake_polygon_aermod_prime/``
+
+**Purpose:** Validates polygon building support with AERMOD PRIME wake model,
+verifying strong cavity deficit and proper wake growth for complex geometries.
+
+**Terrain:** Flat domain (300 × 200 m, z = 0 everywhere).
+
+**Buildings:** Same three polygon buildings as other polygon tests.
+
+**Wake model:** AERMOD PRIME cavity parameterization for polygon footprints.
+
+**Expected behaviour:** Polygon buildings produce larger wake deficits consistent
+with AERMOD PRIME formulation. Interior cavity wind speeds reduced significantly
+with gradual far-wake recovery following Gaussian plume assumptions.
+
+wake_courtyard_modeling
+^^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/wakes/wake_courtyard_modeling/``
+
+**Purpose:** Validates internal void zone (courtyard/atrium) exclusion from wake
+calculations for polygon buildings with complex internal geometry.
+
+**Terrain:** Flat domain (300 × 300 m, z = 0 everywhere).
+
+**Buildings:** 
+
+* Outer polygon: 200m × 200m perimeter building at z=0-35m
+* Internal void zone: 100m × 100m courtyard at z=0-35m (excluded from wakes)
+* Separate structure: 40m × 40m polygon at z=0-25m
+
+**Expected behaviour:** Wind speeds inside the void zone are preserved (≥95% of
+reference) since void zones do not generate wakes. Superposition correctly
+combines wakes from multiple polygon and void structures. Exterior regions show
+wake deficits from surrounding buildings.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_wake = true
+    wake_model = rockle
+    enable_superposition = true
+    building_file = buildings.csv
+
 raws_synthetic
 ^^^^^^^^^^^^^^
 

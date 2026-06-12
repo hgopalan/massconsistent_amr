@@ -1186,7 +1186,10 @@ void WindSolverApp::setup_geometry_and_mesh() {
                                  building_rotation,
                                  building_shape,
                                  building_pitch_or_radius,
-                                 building_pitch_direction);
+                                 building_pitch_direction,
+                                 building_geom_type,
+                                 building_polygon_x,
+                                 building_polygon_y);
     }
 
     if (enable_building_porosity && !building_porosity_file.empty()) {
@@ -3668,6 +3671,45 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_pitch_or_radius.begin(), building_pitch_or_radius.end(), d_bldg_pitch_or_radius.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, building_pitch_direction.begin(), building_pitch_direction.end(), d_bldg_pitch_direction.begin());
         
+        // GPU memory for polygon buildings: flatten nested vectors into single arrays
+        std::vector<Real> polygon_x_flat, polygon_y_flat;
+        std::vector<int> polygon_vertex_start(n_buildings);  // Start index for each building
+        std::vector<int> polygon_vertex_count(n_buildings);  // Vertex count for each building
+        std::vector<int> d_geom_type_host(n_buildings);      // Geometry type for each building
+        
+        for (int b = 0; b < n_buildings; ++b) {
+            polygon_vertex_start[b] = static_cast<int>(polygon_x_flat.size());
+            d_geom_type_host[b] = building_geom_type[b];
+            
+            if (building_geom_type[b] > 0 && b < static_cast<int>(building_polygon_x.size())) {
+                // Polygon or void building
+                polygon_vertex_count[b] = static_cast<int>(building_polygon_x[b].size());
+                for (int v = 0; v < polygon_vertex_count[b]; ++v) {
+                    polygon_x_flat.push_back(building_polygon_x[b][v]);
+                    polygon_y_flat.push_back(building_polygon_y[b][v]);
+                }
+            } else {
+                // Rectangular building
+                polygon_vertex_count[b] = 0;
+            }
+        }
+        
+        // Allocate GPU device vectors for polygon data
+        Gpu::DeviceVector<Real> d_polygon_x(polygon_x_flat.size());
+        Gpu::DeviceVector<Real> d_polygon_y(polygon_y_flat.size());
+        Gpu::DeviceVector<int> d_polygon_start(n_buildings);
+        Gpu::DeviceVector<int> d_polygon_count(n_buildings);
+        Gpu::DeviceVector<int> d_geom_type(n_buildings);
+        
+        // Copy polygon data to device
+        if (!polygon_x_flat.empty()) {
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, polygon_x_flat.begin(), polygon_x_flat.end(), d_polygon_x.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, polygon_y_flat.begin(), polygon_y_flat.end(), d_polygon_y.begin());
+        }
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, polygon_vertex_start.begin(), polygon_vertex_start.end(), d_polygon_start.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, polygon_vertex_count.begin(), polygon_vertex_count.end(), d_polygon_count.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, d_geom_type_host.begin(), d_geom_type_host.end(), d_geom_type.begin());
+        
         Real const* d_bldg_xmin_ptr = d_bldg_xmin.data();
         Real const* d_bldg_xmax_ptr = d_bldg_xmax.data();
         Real const* d_bldg_ymin_ptr = d_bldg_ymin.data();
@@ -3679,6 +3721,13 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         Real const* d_bldg_pitch_or_radius_ptr = d_bldg_pitch_or_radius.data();
         Real const* d_bldg_pitch_direction_ptr = d_bldg_pitch_direction.data();
         
+        // Polygon building device pointers
+        Real const* d_polygon_x_ptr = d_polygon_x.data();
+        Real const* d_polygon_y_ptr = d_polygon_y.data();
+        int const* d_polygon_start_ptr = d_polygon_start.data();
+        int const* d_polygon_count_ptr = d_polygon_count.data();
+        int const* d_geom_type_ptr = d_geom_type.data();
+        
         const int n_bldg_cap = n_buildings;
         const Real dx_wake = dx;
         const Real dy_wake = dy;
@@ -3689,6 +3738,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         const bool use_superposition = wake_superposition;
         const bool use_street_canyon = enable_street_canyon;
         const Real canyon_reduction = street_canyon_reduction;
+        const Real U_ref_wake = U_ref;
+        const Real V_ref_wake = V_ref;
         
         for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -3718,16 +3769,74 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                         n_bldg_cap, wake_params);
                 } else {
                     for (int b = 0; b < n_bldg_cap; ++b) {
-                        Building bldg = compute_building_dimensions(
-                            d_bldg_xmin_ptr[b], d_bldg_xmax_ptr[b],
-                            d_bldg_ymin_ptr[b], d_bldg_ymax_ptr[b],
-                            d_bldg_zmin_ptr[b], d_bldg_zmax_ptr[b]);
-                        bldg.rotation = d_bldg_rotation_ptr[b];
-                        bldg.shape = static_cast<BuildingShape>(d_bldg_shape_ptr[b]);
-                        bldg.pitch_or_radius = d_bldg_pitch_or_radius_ptr[b];
-                        bldg.pitch_direction = d_bldg_pitch_direction_ptr[b];
-                        
-                        apply_single_building_wake(x, y, z, u, v, w, bldg, wake_params);
+                        // Check if this is a polygon/void building or rectangular building
+                        if (d_geom_type_ptr[b] > 0 && d_polygon_count_ptr[b] > 0) {
+                            // Polygon or void building - dispatch to polygon wake function
+                            int v_start = d_polygon_start_ptr[b];
+                            int n_verts = d_polygon_count_ptr[b];
+                            Real poly_height = d_bldg_zmax_ptr[b] - d_bldg_zmin_ptr[b];
+                            Real poly_zmin = d_bldg_zmin_ptr[b];
+                            
+                            // Wind direction (normalize U_ref and V_ref)
+                            Real U_mag = std::sqrt(U_ref_wake * U_ref_wake + V_ref_wake * V_ref_wake);
+                            Real wd_x = 1.0;
+                            Real wd_y = 0.0;
+                            if (U_mag > 1.0e-10) {
+                                wd_x = U_ref_wake / U_mag;
+                                wd_y = V_ref_wake / U_mag;
+                            }
+                            
+                            // Skip void zones (geom_type == 2)
+                            if (d_geom_type_ptr[b] == 2) {
+                                continue;
+                            }
+                            
+                            Real du = 0.0, dv = 0.0, dw = 0.0;
+                            bool hit = false;
+                            
+                            // Dispatch based on wake model type
+                            if (wake_params.model_type == WakeModelType::AERMOD_PRIME) {
+                                hit = polygon_aermod_prime_wake_deficit(
+                                    x, y, z,
+                                    d_polygon_x_ptr + v_start, d_polygon_y_ptr + v_start,
+                                    n_verts, poly_zmin, poly_height,
+                                    U_mag, wd_x, wd_y, wake_params,
+                                    du, dv, dw);
+                            } else if (wake_params.model_type == WakeModelType::HUBER_SNYDER) {
+                                hit = polygon_huber_snyder_wake_deficit(
+                                    x, y, z,
+                                    d_polygon_x_ptr + v_start, d_polygon_y_ptr + v_start,
+                                    n_verts, poly_zmin, poly_height,
+                                    U_mag, wd_x, wd_y, wake_params,
+                                    du, dv, dw);
+                            } else {
+                                // Default: Röckle model
+                                hit = polygon_rockle_wake_deficit(
+                                    x, y, z,
+                                    d_polygon_x_ptr + v_start, d_polygon_y_ptr + v_start,
+                                    n_verts, poly_zmin, poly_height,
+                                    U_mag, wd_x, wd_y, wake_params,
+                                    du, dv, dw);
+                            }
+                            
+                            if (hit) {
+                                u += du;
+                                v += dv;
+                                w += dw;
+                            }
+                        } else {
+                            // Rectangular building - use existing code path
+                            Building bldg = compute_building_dimensions(
+                                d_bldg_xmin_ptr[b], d_bldg_xmax_ptr[b],
+                                d_bldg_ymin_ptr[b], d_bldg_ymax_ptr[b],
+                                d_bldg_zmin_ptr[b], d_bldg_zmax_ptr[b]);
+                            bldg.rotation = d_bldg_rotation_ptr[b];
+                            bldg.shape = static_cast<BuildingShape>(d_bldg_shape_ptr[b]);
+                            bldg.pitch_or_radius = d_bldg_pitch_or_radius_ptr[b];
+                            bldg.pitch_direction = d_bldg_pitch_direction_ptr[b];
+                            
+                            apply_single_building_wake(x, y, z, u, v, w, bldg, wake_params);
+                        }
                     }
                 }
                 
