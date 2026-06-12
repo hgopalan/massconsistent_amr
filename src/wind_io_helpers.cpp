@@ -8,6 +8,14 @@
 
 namespace WindIO {
 
+// Building geometry type constants
+constexpr int SHAPE_RECTANGULAR = 0;    // Rectangular box
+constexpr int SHAPE_CYLINDRICAL = 1;    // Cylindrical building
+constexpr int SHAPE_PITCHED_ROOF = 2;   // Building with pitched roof
+constexpr int SHAPE_POLYGON = 3;        // Polygon footprint
+constexpr int SHAPE_VOID = 4;           // Void zone (interior courtyard)
+constexpr int MIN_POLYGON_VERTICES = 3; // Minimum vertices for polygon
+
 // Read an X Y Z terrain file (whitespace or comma separated; '#' comments).
 void read_terrain_file(const std::string& filename,
                        std::vector<Real>& xd,
@@ -285,9 +293,11 @@ void read_building_file(const std::string& filename,
         if (pos != std::string::npos) line = line.substr(0, pos);
         
         // Check if this is a POLYGON or VOID line
-        if (line.find("POLYGON:") != std::string::npos || line.find("VOID:") != std::string::npos) {
+        auto polygon_pos = line.find("POLYGON:");
+        auto void_pos = line.find("VOID:");
+        if (polygon_pos != std::string::npos || void_pos != std::string::npos) {
             // Parse polygon or void building
-            int shp = (line.find("POLYGON:") != std::string::npos) ? 3 : 4;  // 3 = POLYGON, 4 = VOID
+            int shp = (polygon_pos != std::string::npos) ? SHAPE_POLYGON : SHAPE_VOID;
             
             // Find the pipe delimiter that separates vertices from heights
             auto pipe_pos = line.find('|');
@@ -322,7 +332,7 @@ void read_building_file(const std::string& filename,
             // Parse heights
             std::istringstream ss_heights(heights_part);
             Real z1, z2;
-            if (n_verts >= 3 && (ss_heights >> z1 >> z2)) {
+            if (n_verts >= MIN_POLYGON_VERTICES && (ss_heights >> z1 >> z2)) {
                 // Calculate bounding box from polygon vertices
                 Real x_min = *std::min_element(vx.begin(), vx.end());
                 Real x_max = *std::max_element(vx.begin(), vx.end());
@@ -346,7 +356,6 @@ void read_building_file(const std::string& filename,
                 amrex::Warning("Building on line " + std::to_string(line_num) + 
                               " missing height values after pipe. Skipping.\n");
             }
-        } else {
             // Rectangular building: x1 x2 y1 y2 z1 z2 [rotation] [shape] [pitch_or_radius] [pitch_direction]
             // replace commas with spaces
             std::replace(line.begin(), line.end(), ',', ' ');
@@ -355,7 +364,7 @@ void read_building_file(const std::string& filename,
             Real x1, x2, y1, y2, z1, z2;
             if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
                 Real angle = 0.0;
-                int shp = 0; // 0 = RECTANGULAR, 1 = CYLINDRICAL, 2 = PITCHED_ROOF
+                int shp = SHAPE_RECTANGULAR;  // Default to rectangular
                 Real p_or_r = 0.0;
                 Real p_dir = 0.0;
                 if (ss >> angle) {
@@ -369,17 +378,17 @@ void read_building_file(const std::string& filename,
                             shp = std::stoi(shape_str);
                         } catch (const std::invalid_argument&) {
                             if (shape_str == "cylindrical" || shape_str == "cylinder") {
-                                shp = 1;
+                                shp = SHAPE_CYLINDRICAL;
                             } else if (shape_str == "pitched_roof" || shape_str == "pitched") {
-                                shp = 2;
+                                shp = SHAPE_PITCHED_ROOF;
                             } else {
-                                shp = 0;
+                                shp = SHAPE_RECTANGULAR;
                             }
                         } catch (const std::out_of_range&) {
-                            shp = 0;
+                            shp = SHAPE_RECTANGULAR;
                         }
                         if (ss >> p_or_r) {
-                            if (shp == 2) { // PITCHED_ROOF
+                            if (shp == SHAPE_PITCHED_ROOF) {  // PITCHED_ROOF
                                 p_or_r = p_or_r * MathConstants::deg_to_rad;
                             }
                             if (ss >> p_dir) {
