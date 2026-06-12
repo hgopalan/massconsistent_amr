@@ -361,7 +361,7 @@ void read_building_file(const std::string& filename,
             std::replace(line.begin(), line.end(), ',', ' ');
             std::istringstream ss(line);
             
-            Real x1, x2, y1, y2, z1, z2;
+            Real x1, x2, y1, y2; // z1, z2;
             if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
                 Real angle = 0.0;
                 int shp = SHAPE_RECTANGULAR;  // Default to rectangular
