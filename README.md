@@ -10,8 +10,8 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
   <tr>
     <td width="50%" valign="top">
       <h4>1. Complex Terrain-Following Coordinate Flow</h4>
-      <p>Randomized hill simulation with wind turbine array demonstrating complex terrain-following coordinate transformation and flow interactions.</p>
-      <img src="docs/randomized_hill_simulation.png" alt="Complex Terrain-Following Flow" width="100%"/>
+      <p>Wind speed above complex terrain demonstrating terrain-following coordinate transformation and flow interactions without turbine obstruction.</p>
+      <img src="docs/terrain_following_complex_flow.png" alt="Complex Terrain-Following Flow" width="100%"/>
     </td>
     <td width="50%" valign="top">
       <h4>2. Gorge Bridge Crossing Wind Loading</h4>
@@ -22,8 +22,8 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
   <tr>
     <td width="50%" valign="top">
       <h4>3. Urban Street Canyon & Building Wakes</h4>
-      <p>Urban layout with complex building geometries including box, L-shaped, T-shaped, U-shaped, and polygonal buildings demonstrating building wake effects and drag parameterizations.</p>
-      <img src="docs/urban_layout.png" alt="Urban Street Canyon" width="100%"/>
+      <p>Wind speed distribution in urban layout with complex building geometries including box, L-shaped, T-shaped, U-shaped, and polygonal buildings demonstrating building wake effects and drag parameterizations.</p>
+      <img src="docs/urban_street_canyon.png" alt="Urban Street Canyon" width="100%"/>
     </td>
     <td width="50%" valign="top">
       <h4>4. Transmission Tower & Line Wind Loading</h4>
