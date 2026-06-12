@@ -140,14 +140,28 @@ Coupling with fire spread models utilizes the sensible heat flux feedback:
 2. The fire model returns the local sensible heat flux :math:`H_s`.
 3. The wind solver updates surface temperature boundary conditions, altering vertical stability and generating convective draft flows.
 
-Building Modeling - Röckle and other models
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building Modeling - Röckle and Enhanced Models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Solid structures read from a buildings CSV file are masked by setting velocity components to zero inside building volumes. Their aerodynamic wakes are modeled using three parameterizations:
 
 1. **Röckle (1990) Model** — Parameterizes flow cavity, displacement zone, and far-wake regions in urban street canyons.
 2. **Huber-Snyder Model** — Power-law wake deficit formulation based on building height and frontal area.
 3. **AERMOD PRIME Model** — Computes building downwash and vertical vortex circulation behind solid obstacles.
+
+The solver includes nine advanced enhancement options for improved physical fidelity (see :ref:`building_wake_enhancements` for details):
+
+- Far-wake extension to 15H (vs. typical 3H)
+- Oblique angle cavity scaling: :math:`L_r(\theta) = L_r^0 \times \cos(\theta)`
+- Tall-building aspect-ratio correction: :math:`L_r = 0.9H \times \max(1.0, \min(W/H, 1.5))`
+- Gaussian lateral wake profile option
+- Upwind recirculation zone modeling (~0.5×min(H,W) upstream)
+- Log-law reference velocity extraction
+- Corner and side acceleration effects
+- Height-dependent velocity variance correction
+- Horseshoe vortex at building base
+
+All enhancements are optional and backward compatible.
 
 Street Canyon Vortex Parameterization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

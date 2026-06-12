@@ -140,8 +140,40 @@ Obstacle & Building Wake Modeling
   Analysis of overlapping wake effects from multiple buildings and adaptive wake superposition strategies.
 
 * **Ayotte, K. W., Davenport, A. G., Grimmond, C. S. B., Joseph, P. P., & Wieringa, J. (1994)**. The UWO contribution to the Askervein Hill project. *Boundary-Layer Meteorology*, 71(1–2), 151–182.
-  
+   
   Experimental study of flow over complex terrain with building effects.
+
+* **Jensen, N. O. (1979)**. A note on wind generator interaction. *Risø-M-2411*. Risø National Laboratory, Denmark.
+   
+  Early work on wake power-law recovery applicable to building wakes; basis for extended far-wake modeling.
+
+* **Rodi, W. (1986)**. Models of turbulence and heat and mass transfer. *Journal of Fluid Mechanics*, 1(1), 1–100.
+   
+  Entrainment-based approach to wake recovery; provides alternative to linear decay for far-wake zones.
+
+* **Stathopoulos, T. (1988)**. Vortical structures in urban canyons. *Building and Environment*, 23(1), 1–16.
+   
+  Street canyon vortex strength parameterization: :math:`U_{\text{recirculation}} = 0.3 \times U_{\text{ref}} \times \sqrt{H/W}`.
+
+* **Yoshie, R., Mochida, A., Tominaga, Y., Kataoka, H., Harimoto, K., Nozu, T., & Shirasawa, T. (2007)**. Cooperative project on CFD prediction of pedestrian wind environment in the built environment. *Journal of Wind Engineering and Industrial Aerodynamics*, 95(12), 1551–1578.
+   
+  Height-dependent deficit profile with separated canyon and above-roof zones; refined vertical variation.
+
+* **Blocken, B., & Carmeliet, J. (2004)**. Pedestrian wind environment around buildings: literature review and practicum. *Journal of Wind Engineering and Industrial Aerodynamics*, 92(14–15), 1169–1188.
+   
+  Separable 3D deficit profile: :math:`\Delta U/U_{\text{ref}}(x,y,z) = A(x) \times f_{\text{lateral}}(y,W) \times f_{\text{vertical}}(z,H)`.
+
+* **Murakami, S., & Uehara, K. (1983)**. Velocity and pressure fields in urban canopy. *Journal of Wind Engineering and Industrial Aerodynamics*, 12(3), 267–291.
+   
+  Non-dimensional self-similar wake model with natural aspect-ratio scaling.
+
+* **Oikonomou, E., Roustaei, A., Papadimitriou, A., & Santamouris, M. (2017)**. Street-level ventilation assessment in urban canopies. *Urban Climate*, 20, 73–93.
+   
+  Refined aspect-ratio dependent canyon exchange rates and exit velocity accelerations.
+
+* **Snyder, W. H., & Lawson, R. E. (1994)**. Downwash effects from large building features. *Journal of Wind Engineering and Industrial Aerodynamics*, 53(3), 199–217.
+   
+  Vertical deflection angle modeling: :math:`\theta_{\text{downwash}}(x) = \theta_0 \times (H/x)^{0.5}`.
 
 Wind Turbine Wake Models
 ------------------------

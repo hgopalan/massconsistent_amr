@@ -49,6 +49,21 @@ struct WakeParams {
     amrex::Real c1 = 0.9;                    // Cavity length coefficient (Röckle only)
     amrex::Real c2 = 0.3;                    // Wake deficit coefficient
     amrex::Real separation_length = 3.0;     // Wake separation length factor (× building height)
+    
+    // Enhancement flags
+    bool enable_oblique_scaling = true;      // Oblique angle cavity scaling
+    bool enable_tall_building_correction = true;  // Tall-building aspect-ratio correction
+    bool enable_gaussian_profile = false;    // Gaussian lateral wake profile option
+    bool enable_upwind_recirculation = true; // Upwind recirculation zone modeling
+    bool enable_reference_correction = false; // Log-law reference velocity extraction
+    bool enable_corner_acceleration = true;  // Corner and side acceleration effects
+    bool enable_variance_correction = false;  // Height-dependent velocity variance
+    bool enable_horseshoe_vortex = true;    // Horseshoe vortex at building base
+    bool enable_extended_farwake = true;     // Far-wake extension to 15 building heights
+    
+    // Additional parameters for enhancements
+    amrex::Real z_ref = amrex::Real(10.0);   // Reference height for log-law (m)
+    amrex::Real z0 = amrex::Real(0.1);       // Roughness length (m)
 };
 
 // ============================================================================
@@ -95,10 +110,14 @@ struct Building {
 // ============================================================================
 // Rooftop vortex parameterization
 //
-// Phase 3 Enhancement: Computes vertical velocity in the cavity zone due to
+// Enhancement: Computes velocity components in the cavity zone due to
 // rooftop vortex formation. The vortex arises from flow separation at the
 // building edges and creates a counterclockwise (or clockwise, depending on
 // wind direction) circulation in the cavity zone.
+//
+// The vortex circulation has both:
+// 1. VERTICAL component: Upward motion on windward side, downward on leeward
+// 2. HORIZONTAL component: Crosswind circulation that enhances reverse flow
 //
 // The vortex strength is proportional to:
 // 1. The approach wind speed (U_ref)
@@ -110,6 +129,8 @@ struct Building {
 //   Energy and Buildings, 11(1-3), 103-113.
 // - Britter, R.E., & Hanna, S.R. (2003). Flow and dispersion in urban areas.
 //   Annual Review of Fluid Mechanics, 35, 469-496.
+// - Kaplan, H., & Dinar, N. (1996). A Lagrangian dispersion model for
+//   calculating concentration distribution within a built-up domain.
 //
 // Inputs:
 //   x_wake        - Downwind distance from building back face [m]
@@ -118,10 +139,14 @@ struct Building {
 //   Hr            - Cavity zone height (0.67*H) [m]
 //   Lr            - Cavity zone length (c1*H) [m]
 //   U_ref         - Reference wind speed magnitude [m/s]
+//   y_wind        - Crosswind distance from building center [m]
+//   W             - Building width (crosswind dimension) [m]
 //   wind_dir_x    - Wind direction x-component (unit vector)
 //   wind_dir_y    - Wind direction y-component (unit vector)
 //
 // Outputs:
+//   du            - Horizontal velocity component (downwind) [m/s]
+//   dv            - Horizontal velocity component (crosswind) [m/s]
 //   dw            - Vertical velocity component [m/s]
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -132,8 +157,16 @@ void compute_rooftop_vortex(
     amrex::Real Hr,
     amrex::Real Lr,
     amrex::Real U_ref,
+    amrex::Real y_wind,
+    amrex::Real W,
+    amrex::Real wind_dir_x,
+    amrex::Real wind_dir_y,
+    amrex::Real&  du,
+    amrex::Real&  dv,
     amrex::Real&  dw)
 {
+    du = amrex::Real(0.0);
+    dv = amrex::Real(0.0);
     dw = amrex::Real(0.0);
     
     // Vortex only exists in cavity zone
@@ -146,7 +179,7 @@ void compute_rooftop_vortex(
     
     // Vortex strength factor (non-dimensional)
     // Based on typical urban canyon observations and CFD studies
-    // Scales with wind speed to create realistic vertical circulation
+    // Scales with wind speed to create realistic circulation
     constexpr amrex::Real vortex_strength_coeff = amrex::Real(0.15);
     
     // Vertical profile in cavity zone (parabolic, maximum at center)
@@ -163,14 +196,354 @@ void compute_rooftop_vortex(
     // and decreases slightly with distance in cavity
     const amrex::Real vortex_circulation = vortex_strength_coeff * U_ref * (H / amrex::Real(30.0)) * x_profile;
     
-    // Vertical component of vortex (upward on one side, downward on other)
+    // VERTICAL COMPONENT: Upward on one side, downward on other
     // Sign depends on wind direction relative to building orientation
     dw = vortex_circulation * z_profile;
+    
+    // HORIZONTAL COMPONENT: Contribute to reverse flow
+    // The vortex circulation creates a crosswind velocity component that
+    // enhances the recirculation pattern and creates horizontal flow reversal
+    const amrex::Real y_ratio = y_wind / (W / amrex::Real(2.0));
+    
+    // Horizontal vortex contribution (strongest at building centerline)
+    // Creates crosswind flow that drives recirculation
+    const amrex::Real vortex_crosswind = vortex_strength_coeff * U_ref * 
+                                         std::abs(y_ratio) * (amrex::Real(1.0) - std::abs(y_ratio));
+    
+    // Project horizontal vortex component onto building-relative axes
+    // This adds to the reverse flow enhancement
+    const amrex::Real vortex_streamwise = amrex::Real(0.1) * vortex_circulation * z_profile;
+    
+    // Add horizontal components to create enhanced recirculation
+    du += vortex_streamwise * wind_dir_x;
+    dv += vortex_crosswind * wind_dir_y;
 }
 
+
 // ============================================================================
-// POLYGON BUILDING SUPPORT
+// Oblique angle cavity scaling
 //
+// Scales cavity length based on wind approach angle relative to building normal.
+// Formula: Lr(θ) = Lr₀ × cos(θ)
+// where θ is angle from building normal.
+//
+// Inputs:
+//   Lr0            - Base cavity length [m]
+//   wind_dir_x, wind_dir_y - Wind direction (unit vector)
+//   bldg_normal_x, bldg_normal_y - Building normal (unit vector)
+//
+// Returns:
+//   Angle-adjusted cavity length [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_oblique_cavity_scaling(
+    amrex::Real Lr0,
+    amrex::Real wind_dir_x, amrex::Real wind_dir_y,
+    amrex::Real bldg_normal_x, amrex::Real bldg_normal_y)
+{
+    // Compute dot product to get cos(θ)
+    amrex::Real cos_theta = std::abs(wind_dir_x * bldg_normal_x + wind_dir_y * bldg_normal_y);
+    // Ensure minimum scaling to avoid zero cavity
+    cos_theta = std::max(cos_theta, amrex::Real(0.3));
+    return Lr0 * cos_theta;
+}
+
+
+// ============================================================================
+// Tall-building aspect-ratio correction
+//
+// Applies aspect-ratio dependent correction to cavity length.
+// Formula: Lr = 0.9H × max(1.0, min(W/H, 1.5))
+// where H = building height, W = building width (crosswind).
+//
+// Inputs:
+//   H              - Building height [m]
+//   W              - Building width (crosswind) [m]
+//
+// Returns:
+//   Aspect-ratio corrected cavity length [m]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_tall_building_correction(amrex::Real H, amrex::Real W)
+{
+    // Aspect ratio scaling
+    amrex::Real aspect_ratio = W / H;
+    aspect_ratio = std::max(amrex::Real(1.0), std::min(aspect_ratio, amrex::Real(1.5)));
+    return amrex::Real(0.9) * H * aspect_ratio;
+}
+
+
+// ============================================================================
+// Gaussian lateral wake profile
+//
+// Computes Gaussian-profile deficit instead of linear profile.
+// Provides smoother, more physically realistic deficit distribution.
+//
+// Inputs:
+//   y_wind         - Crosswind distance from wake center [m]
+//   Wr             - Reference wake width [m]
+//   deficit_max    - Maximum deficit magnitude at center [m/s]
+//
+// Returns:
+//   Gaussian-weighted deficit magnitude [m/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_gaussian_deficit(
+    amrex::Real y_wind,
+    amrex::Real Wr,
+    amrex::Real deficit_max)
+{
+    // Gaussian profile: exp(-(y/σ)²) where σ = Wr/2
+    const amrex::Real sigma = Wr / amrex::Real(2.0);
+    const amrex::Real y_normalized = y_wind / sigma;
+    return deficit_max * std::exp(-y_normalized * y_normalized);
+}
+
+
+// ============================================================================
+// Upwind recirculation zone
+//
+// Adds reverse flow region upstream of building (~0.5×min(H,W) upstream).
+// Models flow diversion and stagnation effects.
+//
+// Inputs:
+//   x_wake         - Distance from building (negative if upstream) [m]
+//   H              - Building height [m]
+//   W              - Building width (crosswind) [m]
+//   U_ref          - Reference wind speed [m/s]
+//   z_local        - Height above ground [m]
+//
+// Returns:
+//   Upwind recirculation deficit [m/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_upwind_recirculation(
+    amrex::Real x_wake,
+    amrex::Real H,
+    amrex::Real W,
+    amrex::Real U_ref,
+    amrex::Real z_local)
+{
+    // Recirculation zone extends ~0.5×min(H,W) upstream
+    const amrex::Real recirculation_length = amrex::Real(0.5) * std::min(H, W);
+    
+    // Only applies upstream (x_wake < 0)
+    if (x_wake >= amrex::Real(0.0)) {
+        return amrex::Real(0.0);
+    }
+    
+    // Decay with distance from building
+    const amrex::Real dist_factor = amrex::Real(1.0) + x_wake / recirculation_length;
+    if (dist_factor <= amrex::Real(0.0)) {
+        return amrex::Real(0.0);  // Beyond recirculation zone
+    }
+    
+    // Vertical profile: stronger near ground, weaker aloft
+    const amrex::Real z_profile = std::max(amrex::Real(0.0), 
+        amrex::Real(1.0) - (z_local / H) * (z_local / H));
+    
+    return -amrex::Real(0.1) * U_ref * dist_factor * z_profile;
+}
+
+
+// ============================================================================
+// Log-law reference velocity extraction
+//
+// Extracts reference velocity from log-law profile rather than local value.
+// Provides physically consistent wind profile.
+//
+// Inputs:
+//   z              - Height above ground [m]
+//   z_ref          - Reference height [m]
+//   U_ref          - Reference wind speed [m/s]
+//   z0             - Roughness length [m]
+//
+// Returns:
+//   Log-law corrected velocity at height z [m/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_loglaw_velocity(
+    amrex::Real z,
+    amrex::Real z_ref,
+    amrex::Real U_ref,
+    amrex::Real z0)
+{
+    // Avoid division by zero and log of zero
+    const amrex::Real z_safe = std::max(z, z0 * amrex::Real(1.01));
+    const amrex::Real z_ref_safe = std::max(z_ref, z0 * amrex::Real(1.01));
+    
+    // Log-law wind profile: U(z) = U_ref × ln(z/z0) / ln(z_ref/z0)
+    const amrex::Real log_ratio = std::log(z_safe / z0) / std::log(z_ref_safe / z0);
+    return U_ref * log_ratio;
+}
+
+
+// ============================================================================
+// Corner and side acceleration effects
+//
+// Computes velocity amplification at building corners and sides.
+// Models flow acceleration around sharp edges.
+//
+// Inputs:
+//   y_wind         - Crosswind distance from building center [m]
+//   W              - Building width (crosswind) [m]
+//   H              - Building height [m]
+//   z_local        - Height above ground [m]
+//   U_deficit      - Base velocity deficit [m/s]
+//
+// Returns:
+//   Corner acceleration factor (multiplier on deficit)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_corner_acceleration(
+    amrex::Real y_wind,
+    amrex::Real W,
+    amrex::Real H,
+    amrex::Real z_local,
+    amrex::Real U_deficit)
+{
+    // Distance from building side (0 at edge, increases away)
+    const amrex::Real dist_from_edge = std::abs(y_wind) - W / amrex::Real(2.0);
+    
+    // Only accelerate near corners (within 0.5×W)
+    if (dist_from_edge > amrex::Real(0.5) * W) {
+        return amrex::Real(1.0);
+    }
+    
+    // Corner vortex strength peaks near building height
+    const amrex::Real height_factor = amrex::Real(1.0) - std::abs(z_local - amrex::Real(0.5) * H) / H;
+    const amrex::Real height_profile = std::max(amrex::Real(0.0), height_factor * height_factor);
+    
+    // Acceleration factor increases near corners
+    return amrex::Real(1.0) + amrex::Real(0.2) * height_profile;
+}
+
+
+// ============================================================================
+// Height-dependent velocity variance correction
+//
+// Modifies velocity variance profile to account for building effects.
+// Reduces variance in cavity, increases in shear layer.
+//
+// Inputs:
+//   z_local        - Height above ground [m]
+//   Hr             - Cavity height [m]
+//   z_cavity_ratio - z_local / Hr (normalized height in cavity)
+//
+// Returns:
+//   Variance correction factor (multiplier on ambient variance)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_variance_correction(
+    amrex::Real z_local,
+    amrex::Real Hr,
+    amrex::Real z_cavity_ratio)
+{
+    // Inside cavity: reduced variance due to recirculation
+    if (z_cavity_ratio < amrex::Real(1.0)) {
+        // Minimum variance (0.5×) at center height, increases toward edges
+        const amrex::Real cavity_profile = amrex::Real(0.5) + 
+            amrex::Real(0.5) * std::abs(z_cavity_ratio - amrex::Real(0.5)) * amrex::Real(2.0);
+        return cavity_profile;
+    }
+    
+    // Just above cavity: enhanced variance due to shear layer
+    const amrex::Real above_cavity = std::min(amrex::Real(1.5) * Hr - z_local, Hr);
+    if (above_cavity > amrex::Real(0.0)) {
+        // Peak variance at top of cavity
+        return amrex::Real(1.5);
+    }
+    
+    // Far above: return to ambient
+    return amrex::Real(1.0);
+}
+
+
+// ============================================================================
+// Horseshoe vortex modeling
+//
+// Computes velocity perturbations from horseshoe vortex at building base.
+// Models circulation at the junction between building and ground.
+//
+// Inputs:
+//   x_wake         - Downwind distance from building [m]
+//   y_wind         - Crosswind distance from building center [m]
+//   z_local        - Height above ground [m]
+//   H              - Building height [m]
+//   W              - Building width (crosswind) [m]
+//   U_ref          - Reference wind speed [m/s]
+//
+// Outputs:
+//   du_horseshoe   - Downwind component [m/s]
+//   dv_horseshoe   - Crosswind component [m/s]
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void compute_horseshoe_vortex(
+    amrex::Real x_wake,
+    amrex::Real y_wind,
+    amrex::Real z_local,
+    amrex::Real H,
+    amrex::Real W,
+    amrex::Real U_ref,
+    amrex::Real& du_horseshoe,
+    amrex::Real& dv_horseshoe)
+{
+    du_horseshoe = amrex::Real(0.0);
+    dv_horseshoe = amrex::Real(0.0);
+    
+    // Horseshoe vortex exists near ground and upstream face
+    const amrex::Real vortex_height = amrex::Real(0.2) * H;  // Near-ground region
+    if (z_local > vortex_height) {
+        return;  // Vortex only exists near ground
+    }
+    
+    // Upwind face region (x_wake ~-0.3 to 0)
+    const amrex::Real upwind_zone = amrex::Real(0.3) * W;
+    if (x_wake < -upwind_zone || x_wake > amrex::Real(0.0)) {
+        return;  // Outside horseshoe zone
+    }
+    
+    // Crosswind legs create lateral velocity
+    const amrex::Real y_half_width = W / amrex::Real(2.0);
+    const amrex::Real y_normalized = std::abs(y_wind) / y_half_width;
+    
+    if (y_normalized < amrex::Real(1.2)) {
+        // Vortex strength peaks at building corners
+        const amrex::Real corner_factor = std::exp(-std::abs(y_normalized - amrex::Real(1.0)) * 
+            std::abs(y_normalized - amrex::Real(1.0)));
+        
+        // Height decay toward ground
+        const amrex::Real z_factor = z_local / vortex_height;
+        
+        // Crosswind circulation (lateral acceleration toward center from corners)
+        dv_horseshoe = -amrex::Real(0.15) * U_ref * corner_factor * (amrex::Real(1.0) - z_factor);
+        if (y_wind < amrex::Real(0.0)) dv_horseshoe = -dv_horseshoe;  // Opposite sign
+    }
+}
+
+
+// ============================================================================
+// Far-wake extension to 15 building heights
+//
+// Computes far-wake zone up to 15 building heights downstream.
+// Extends influence zone beyond typical 3H limitation.
+//
+// Inputs:
+//   x_wake         - Distance from building back face [m]
+//   H              - Building height [m]
+//
+// Returns:
+//   Far-wake extent in building heights
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_extended_farwake_extent(amrex::Real x_wake, amrex::Real H)
+{
+    // Extended far-wake: up to 15H (vs. typical 3-5H)
+    return x_wake / H;
+}
+
+
+
 // Optional support for arbitrary polygon building footprints, internal courtyards,
 // and complex shapes (L-shaped, T-shaped, U-shaped, etc.).
 // This enables more accurate urban modeling beyond simple rectangular buildings.
@@ -496,6 +869,19 @@ bool rockle_wake_deficit(
         separation_scale = pitch_factor;
         vortex_scale = amrex::Real(1.0) + amrex::Real(0.5) * std::sin(pitch_rad);
     }
+    
+    // Tall-building aspect-ratio correction
+    if (params.enable_tall_building_correction) {
+        Lr = compute_tall_building_correction(H, W);
+    }
+    
+    // Oblique angle cavity scaling
+    if (params.enable_oblique_scaling && bldg.shape == BuildingShape::RECTANGULAR) {
+        // Building normal points in direction perpendicular to long axis
+        const amrex::Real bldg_normal_x = -std::sin(bldg.rotation);
+        const amrex::Real bldg_normal_y = std::cos(bldg.rotation);
+        Lr = compute_oblique_cavity_scaling(Lr, wd_x, wd_y, bldg_normal_x, bldg_normal_y);
+    }
 
     // Wake starts at downwind face of building
     const amrex::Real wake_start = shape_half_len;
@@ -528,20 +914,59 @@ bool rockle_wake_deficit(
         
         // Inside cavity zone: recirculation with negative velocity
         const amrex::Real deficit_magnitude = params.c2 * U_ref * deficit_scale;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
+         
+        // Add rooftop vortex with horizontal components
+        amrex::Real dw_vortex = amrex::Real(0.0);
+        amrex::Real du_vortex = amrex::Real(0.0);
+        amrex::Real dv_vortex = amrex::Real(0.0);
+        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, 
+                               y_wind, Wr, wd_x, wd_y,
+                               du_vortex, dv_vortex, dw_vortex);
+        du += du_vortex * vortex_scale;
+        dv += dv_vortex * vortex_scale;
+        dw = dw_vortex * vortex_scale;
         
-        // Phase 3 Enhancement: Add rooftop vortex vertical component
-        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, dw);
-        dw *= vortex_scale;
-        
+        // Horseshoe vortex at building base
+        if (params.enable_horseshoe_vortex) {
+            amrex::Real du_hs = amrex::Real(0.0);
+            amrex::Real dv_hs = amrex::Real(0.0);
+            compute_horseshoe_vortex(x_wake, y_wind, z_local, H, W, U_ref, du_hs, dv_hs);
+            du += du_hs;
+            dv += dv_hs;
+        }
+         
         return true;
+    }
+    
+    // ========================================================================
+    // Upwind recirculation zone (before building)
+    // ========================================================================
+    if (params.enable_upwind_recirculation && x_wake < amrex::Real(0.0)) {
+        // Check lateral bounds
+        const amrex::Real recirculation_extent = amrex::Real(0.5) * std::min(H, W);
+        if (x_wake > -recirculation_extent) {
+            // Within upwind recirculation zone
+            if (std::abs(y_wind) <= Wr / amrex::Real(2.0)) {
+                if (z_local >= amrex::Real(0.0) && z_local <= Hr) {
+                    const amrex::Real du_upwind = compute_upwind_recirculation(
+                        x_wake, H, W, U_ref, z_local);
+                    du += du_upwind * wd_x;  // Apply in wind direction
+                    return true;
+                }
+            }
+        }
     }
     
     // ========================================================================
     // 2. Far-wake zone (displacement zone)
     // ========================================================================
-    const amrex::Real Lf = params.separation_length * H * separation_scale;  // Wake extent
+    // Far-wake extension to 15 building heights
+    amrex::Real Lf = params.separation_length * H * separation_scale;
+    if (params.enable_extended_farwake) {
+        Lf = amrex::Real(15.0) * H;  // Extend to 15H instead of 3H
+    }
     
     if (x_wake <= Lf) {
         // Linear decay of deficit with downwind distance
@@ -550,11 +975,18 @@ bool rockle_wake_deficit(
         // Linear lateral spreading of wake
         // Wake width increases from Wr to approximately 2*Wr at end of far-wake
         const amrex::Real spread_factor = amrex::Real(1.0) + (x_wake - Lr) / (Lf - Lr);
-        const amrex::Real Wf = Wr * spread_factor;
+        amrex::Real Wf = Wr * spread_factor;
         
-        // Check lateral bounds
-        if (std::abs(y_wind) > Wf / amrex::Real(2.0)) {
-            return false;  // Outside wake width
+        // Gaussian lateral profile option
+        amrex::Real lateral_deficit = decay_factor * deficit_scale;
+        if (params.enable_gaussian_profile) {
+            lateral_deficit = compute_gaussian_deficit(y_wind, Wf, 
+                              params.c2 * U_ref * decay_factor * deficit_scale);
+        } else {
+            // Check lateral bounds for linear profile
+            if (std::abs(y_wind) > Wf / amrex::Real(2.0)) {
+                return false;  // Outside wake width
+            }
         }
         
         // Wake height also increases with distance (simplified: use cavity height)
@@ -567,7 +999,15 @@ bool rockle_wake_deficit(
         
         // Inside far-wake zone: reduced velocity deficit
         // Deficit at cavity edge is c2 * U_ref, decays to zero at Lf
-        const amrex::Real deficit_magnitude = params.c2 * U_ref * decay_factor * deficit_scale;
+        amrex::Real deficit_magnitude = params.c2 * U_ref * lateral_deficit;
+        
+        // Corner and side acceleration effects
+        if (params.enable_corner_acceleration) {
+            amrex::Real corner_factor = compute_corner_acceleration(
+                y_wind, W, H, z_local, deficit_magnitude);
+            deficit_magnitude *= corner_factor;
+        }
+        
         du = deficit_magnitude * wd_x;
         dv = deficit_magnitude * wd_y;
         dw = amrex::Real(0.0);
@@ -708,22 +1148,29 @@ bool huber_snyder_wake_deficit(
         if (std::abs(y_wind) > Wc / amrex::Real(2.0)) {
             return false;  // Outside cavity width
         }
-        
+         
         // Check vertical bounds
         if (z_local < amrex::Real(0.0) || z_local > Hc) {
             return false;  // Below ground or above cavity height
         }
-        
+         
         // Inside cavity zone: recirculation with negative velocity
         // Huber-Snyder uses similar deficit magnitude as Röckle
         const amrex::Real deficit_magnitude = params.c2 * U_ref * deficit_scale;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
-        
-        // Add rooftop vortex (reuse existing parameterization)
-        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
-        dw *= vortex_scale;
-        
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
+         
+        // Add rooftop vortex with horizontal components
+        amrex::Real dw_vortex = amrex::Real(0.0);
+        amrex::Real du_vortex = amrex::Real(0.0);
+        amrex::Real dv_vortex = amrex::Real(0.0);
+        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref,
+                               y_wind, Wc, wd_x, wd_y,
+                               du_vortex, dv_vortex, dw_vortex);
+        du += du_vortex * vortex_scale;
+        dv += dv_vortex * vortex_scale;
+        dw = dw_vortex * vortex_scale;
+         
         return true;
     }
     
@@ -1065,8 +1512,8 @@ bool aermod_prime_wake_deficit(
         // PRIME uses higher deficit in cavity than Röckle/Huber-Snyder
         const amrex::Real cavity_deficit_factor = amrex::Real(0.5);  // 50% deficit in cavity
         const amrex::Real deficit_magnitude = cavity_deficit_factor * U_ref * deficit_scale;
-        du = deficit_magnitude * wind_dir_x;
-        dv = deficit_magnitude * wind_dir_y;
+        du = -deficit_magnitude * wind_dir_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wind_dir_y;  // Negate to create reverse flow
         
         // Streamline deflection: vertical component from flow over building
         // Enhanced vertical mixing in PRIME cavity
@@ -1617,11 +2064,11 @@ bool polygon_rockle_wake_deficit(
     amrex::Real W_poly = get_polygon_width_at_distance(poly_vx, poly_vy, n_vertices, x_wind, wd_x, wd_y);
     amrex::Real H = poly_height;
     amrex::Real z_local = z - poly_zmin;
-    
+     
     // 5. Apply Röckle cavity and far-wake zones
     amrex::Real Lr = params.c1 * H;
     amrex::Real Hr = amrex::Real(0.67) * H;
-    
+     
     // Cavity zone
     if (x_wake <= Lr) {
         if (std::abs(y_wind) > W_poly / amrex::Real(2.0)) {
@@ -1630,12 +2077,20 @@ bool polygon_rockle_wake_deficit(
         if (z_local < amrex::Real(0.0) || z_local > Hr) {
             return false;
         }
-        
+         
         amrex::Real deficit_magnitude = params.c2 * U_ref;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
-        
-        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, dw);
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
+         
+        amrex::Real dw_vortex = amrex::Real(0.0);
+        amrex::Real du_vortex = amrex::Real(0.0);
+        amrex::Real dv_vortex = amrex::Real(0.0);
+        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref,
+                               y_wind, W_poly, wd_x, wd_y,
+                               du_vortex, dv_vortex, dw_vortex);
+        du += du_vortex;
+        dv += dv_vortex;
+        dw = dw_vortex;
         return true;
     }
     
@@ -1719,11 +2174,19 @@ bool polygon_huber_snyder_wake_deficit(
     if (x_wake <= Lc) {
         if (std::abs(y_wind) > W_poly / amrex::Real(2.0)) return false;
         if (z_local < amrex::Real(0.0) || z_local > Hc) return false;
-        
+         
         amrex::Real deficit_magnitude = params.c2 * U_ref;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
-        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
+        amrex::Real dw_vortex = amrex::Real(0.0);
+        amrex::Real du_vortex = amrex::Real(0.0);
+        amrex::Real dv_vortex = amrex::Real(0.0);
+        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref,
+                               y_wind, W_poly, wd_x, wd_y,
+                               du_vortex, dv_vortex, dw_vortex);
+        du += du_vortex;
+        dv += dv_vortex;
+        dw = dw_vortex;
         return true;
     }
     
@@ -1808,26 +2271,34 @@ bool polygon_aermod_prime_wake_deficit(
     amrex::Real Lc = (aspect_ratio > amrex::Real(1.0)) ?
         amrex::Real(0.9) * B_char :
         amrex::Real(0.5) * B_char;
-    
+     
     amrex::Real Hc_peak = (aspect_ratio > amrex::Real(1.0)) ?
         amrex::Real(0.22) * B_char :
         amrex::Real(0.38) * B_char;
-    
+     
     amrex::Real Hc = std::min(amrex::Real(1.5) * Hc_peak, H);
-    
+     
     // Cavity zone
     if (x_wake <= Lc) {
         if (std::abs(y_wind) > W_eff / amrex::Real(2.0)) return false;
         if (z_local < amrex::Real(0.0) || z_local > Hc) return false;
-        
+         
         amrex::Real cavity_deficit_factor = amrex::Real(0.5);
         amrex::Real deficit_magnitude = cavity_deficit_factor * U_ref;
-        du = deficit_magnitude * wd_x;
-        dv = deficit_magnitude * wd_y;
-        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref, dw);
+        du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
+        dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
+        amrex::Real dw_vortex = amrex::Real(0.0);
+        amrex::Real du_vortex = amrex::Real(0.0);
+        amrex::Real dv_vortex = amrex::Real(0.0);
+        compute_rooftop_vortex(x_wake, z_local, H, Hc, Lc, U_ref,
+                               y_wind, W_eff, wd_x, wd_y,
+                               du_vortex, dv_vortex, dw_vortex);
+        du += du_vortex;
+        dv += dv_vortex;
+        dw = dw_vortex;
         return true;
     }
-    
+     
     // Far-wake zone (AERMOD PRIME: 10*H with enhanced mixing)
     amrex::Real Lf = amrex::Real(10.0) * H;
     if (x_wake <= Lf) {

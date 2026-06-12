@@ -3820,9 +3820,9 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                             }
                             
                             if (hit) {
-                                u += du;
-                                v += dv;
-                                w += dw;
+                                u -= du;  // Apply deficit by subtraction (same as rectangular buildings)
+                                v -= dv;
+                                w -= dw;
                             }
                         } else {
                             // Rectangular building - use existing code path
