@@ -258,6 +258,8 @@ void read_alpha_coefficients_file(const std::string& filename,
 }
 
 // Read building file: xmin xmax ymin ymax zmin zmax (whitespace or comma separated; '#' comments).
+// Also supports POLYGON format: POLYGON: x1 y1 x2 y2 ... xn yn | zmin zmax
+// And VOID format: VOID: x1 y1 x2 y2 ... xn yn | zmin zmax
 void read_building_file(const std::string& filename,
                         std::vector<Real>& xmin,
                         std::vector<Real>& xmax,
@@ -275,59 +277,128 @@ void read_building_file(const std::string& filename,
         amrex::Abort("wind_solver: cannot open building file: " + filename);
 
     std::string line;
+    int line_num = 0;
     while (std::getline(f, line)) {
+        line_num++;
         // strip comments
         auto pos = line.find('#');
         if (pos != std::string::npos) line = line.substr(0, pos);
-        // replace commas with spaces
-        std::replace(line.begin(), line.end(), ',', ' ');
-        std::istringstream ss(line);
-        Real x1, x2, y1, y2, z1, z2;
-        if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
-            Real angle = 0.0;
-            int shp = 0; // 0 = RECTANGULAR, 1 = CYLINDRICAL, 2 = PITCHED_ROOF
-            Real p_or_r = 0.0;
-            Real p_dir = 0.0;
-            if (ss >> angle) {
-                angle = angle * MathConstants::deg_to_rad;
-                std::string shape_str;
-                if (ss >> shape_str) {
-                    for (char &c : shape_str) {
-                        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                    }
-                    try {
-                        shp = std::stoi(shape_str);
-                    } catch (const std::invalid_argument&) {
-                        if (shape_str == "cylindrical" || shape_str == "cylinder") {
-                            shp = 1;
-                        } else if (shape_str == "pitched_roof" || shape_str == "pitched") {
-                            shp = 2;
-                        } else {
+        
+        // Check if this is a POLYGON or VOID line
+        if (line.find("POLYGON:") != std::string::npos || line.find("VOID:") != std::string::npos) {
+            // Parse polygon or void building
+            int shp = (line.find("POLYGON:") != std::string::npos) ? 3 : 4;  // 3 = POLYGON, 4 = VOID
+            
+            // Find the pipe delimiter that separates vertices from heights
+            auto pipe_pos = line.find('|');
+            if (pipe_pos == std::string::npos) {
+                amrex::Warning("Building on line " + std::to_string(line_num) + 
+                              " missing pipe delimiter. Skipping.\n");
+                continue;
+            }
+            
+            // Extract vertices part (before pipe)
+            std::string vertices_part = line.substr(0, pipe_pos);
+            std::string heights_part = line.substr(pipe_pos + 1);
+            
+            // Replace pipe with space for parsing
+            std::replace(vertices_part.begin(), vertices_part.end(), ',', ' ');
+            std::replace(heights_part.begin(), heights_part.end(), ',', ' ');
+            
+            // Parse vertices
+            std::istringstream ss_verts(vertices_part);
+            std::string token;
+            ss_verts >> token;  // Skip "POLYGON:" or "VOID:"
+            
+            std::vector<Real> vx, vy;
+            Real x, y;
+            int n_verts = 0;
+            while (ss_verts >> x >> y) {
+                vx.push_back(x);
+                vy.push_back(y);
+                n_verts++;
+            }
+            
+            // Parse heights
+            std::istringstream ss_heights(heights_part);
+            Real z1, z2;
+            if (n_verts >= 3 && (ss_heights >> z1 >> z2)) {
+                // Calculate bounding box from polygon vertices
+                Real x_min = *std::min_element(vx.begin(), vx.end());
+                Real x_max = *std::max_element(vx.begin(), vx.end());
+                Real y_min = *std::min_element(vy.begin(), vy.end());
+                Real y_max = *std::max_element(vy.begin(), vy.end());
+                
+                xmin.push_back(x_min);
+                xmax.push_back(x_max);
+                ymin.push_back(y_min);
+                ymax.push_back(y_max);
+                zmin.push_back(z1);
+                zmax.push_back(z2);
+                rotation.push_back(0.0);
+                shape.push_back(shp);
+                pitch_or_radius.push_back(0.0);
+                pitch_direction.push_back(0.0);
+            } else if (n_verts < 3) {
+                amrex::Warning("Building on line " + std::to_string(line_num) + 
+                              " has " + std::to_string(n_verts) + " vertices; need >= 3. Skipping.\n");
+            } else {
+                amrex::Warning("Building on line " + std::to_string(line_num) + 
+                              " missing height values after pipe. Skipping.\n");
+            }
+        } else {
+            // Rectangular building: x1 x2 y1 y2 z1 z2 [rotation] [shape] [pitch_or_radius] [pitch_direction]
+            // replace commas with spaces
+            std::replace(line.begin(), line.end(), ',', ' ');
+            std::istringstream ss(line);
+            
+            Real x1, x2, y1, y2, z1, z2;
+            if (ss >> x1 >> x2 >> y1 >> y2 >> z1 >> z2) {
+                Real angle = 0.0;
+                int shp = 0; // 0 = RECTANGULAR, 1 = CYLINDRICAL, 2 = PITCHED_ROOF
+                Real p_or_r = 0.0;
+                Real p_dir = 0.0;
+                if (ss >> angle) {
+                    angle = angle * MathConstants::deg_to_rad;
+                    std::string shape_str;
+                    if (ss >> shape_str) {
+                        for (char &c : shape_str) {
+                            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                        }
+                        try {
+                            shp = std::stoi(shape_str);
+                        } catch (const std::invalid_argument&) {
+                            if (shape_str == "cylindrical" || shape_str == "cylinder") {
+                                shp = 1;
+                            } else if (shape_str == "pitched_roof" || shape_str == "pitched") {
+                                shp = 2;
+                            } else {
+                                shp = 0;
+                            }
+                        } catch (const std::out_of_range&) {
                             shp = 0;
                         }
-                    } catch (const std::out_of_range&) {
-                        shp = 0;
-                    }
-                    if (ss >> p_or_r) {
-                        if (shp == 2) { // PITCHED_ROOF
-                            p_or_r = p_or_r * MathConstants::deg_to_rad;
-                        }
-                        if (ss >> p_dir) {
-                            p_dir = p_dir * MathConstants::deg_to_rad;
+                        if (ss >> p_or_r) {
+                            if (shp == 2) { // PITCHED_ROOF
+                                p_or_r = p_or_r * MathConstants::deg_to_rad;
+                            }
+                            if (ss >> p_dir) {
+                                p_dir = p_dir * MathConstants::deg_to_rad;
+                            }
                         }
                     }
                 }
+                xmin.push_back(x1);
+                xmax.push_back(x2);
+                ymin.push_back(y1);
+                ymax.push_back(y2);
+                zmin.push_back(z1);
+                zmax.push_back(z2);
+                rotation.push_back(angle);
+                shape.push_back(shp);
+                pitch_or_radius.push_back(p_or_r);
+                pitch_direction.push_back(p_dir);
             }
-            xmin.push_back(x1);
-            xmax.push_back(x2);
-            ymin.push_back(y1);
-            ymax.push_back(y2);
-            zmin.push_back(z1);
-            zmax.push_back(z2);
-            rotation.push_back(angle);
-            shape.push_back(shp);
-            pitch_or_radius.push_back(p_or_r);
-            pitch_direction.push_back(p_dir);
         }
     }
     if (xmin.empty())
