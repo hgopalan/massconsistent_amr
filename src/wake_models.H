@@ -836,6 +836,15 @@ bool rockle_wake_deficit(
     const amrex::Real x_wind =  dx * wd_x + dy * wd_y;
     const amrex::Real y_wind = -dx * wd_y + dy * wd_x;
     
+    // Height above ground (used for log-law correction)
+    const amrex::Real z_local = z - bldg.zmin;
+    
+    // Apply reference velocity correction from log-law profile if enabled
+    amrex::Real U_ref_corrected = U_ref;
+    if (params.enable_reference_correction && z_local > amrex::Real(0.0)) {
+        U_ref_corrected = compute_loglaw_velocity(z_local, params.z_ref, U_ref, params.z0);
+    }
+    
     // Shape-specific parameters
     amrex::Real shape_width = W;
     amrex::Real shape_half_len = bldg.length / amrex::Real(2.0);
@@ -895,9 +904,6 @@ bool rockle_wake_deficit(
     const amrex::Real x_wake = x_wind - wake_start;
     const amrex::Real Wr = shape_width;               // Cavity width
     
-    // Height above ground (relative to building base)
-    const amrex::Real z_local = z - bldg.zmin;
-    
     // ========================================================================
     // 1. Cavity zone (recirculation zone)
     // ========================================================================
@@ -913,7 +919,7 @@ bool rockle_wake_deficit(
         }
         
         // Inside cavity zone: recirculation with negative velocity
-        const amrex::Real deficit_magnitude = params.c2 * U_ref * deficit_scale;
+        const amrex::Real deficit_magnitude = params.c2 * U_ref_corrected * deficit_scale;
         du = -deficit_magnitude * wd_x;  // Negate to create reverse flow
         dv = -deficit_magnitude * wd_y;  // Negate to create reverse flow
          
@@ -921,7 +927,7 @@ bool rockle_wake_deficit(
         amrex::Real dw_vortex = amrex::Real(0.0);
         amrex::Real du_vortex = amrex::Real(0.0);
         amrex::Real dv_vortex = amrex::Real(0.0);
-        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref, 
+        compute_rooftop_vortex(x_wake, z_local, H, Hr, Lr, U_ref_corrected, 
                                y_wind, Wr, wd_x, wd_y,
                                du_vortex, dv_vortex, dw_vortex);
         du += du_vortex * vortex_scale;
@@ -932,7 +938,7 @@ bool rockle_wake_deficit(
         if (params.enable_horseshoe_vortex) {
             amrex::Real du_hs = amrex::Real(0.0);
             amrex::Real dv_hs = amrex::Real(0.0);
-            compute_horseshoe_vortex(x_wake, y_wind, z_local, H, W, U_ref, du_hs, dv_hs);
+            compute_horseshoe_vortex(x_wake, y_wind, z_local, H, W, U_ref_corrected, du_hs, dv_hs);
             du += du_hs;
             dv += dv_hs;
         }
@@ -951,7 +957,7 @@ bool rockle_wake_deficit(
             if (std::abs(y_wind) <= Wr / amrex::Real(2.0)) {
                 if (z_local >= amrex::Real(0.0) && z_local <= Hr) {
                     const amrex::Real du_upwind = compute_upwind_recirculation(
-                        x_wake, H, W, U_ref, z_local);
+                        x_wake, H, W, U_ref_corrected, z_local);
                     du += du_upwind * wd_x;  // Apply in wind direction
                     return true;
                 }
@@ -981,7 +987,7 @@ bool rockle_wake_deficit(
         amrex::Real lateral_deficit = decay_factor * deficit_scale;
         if (params.enable_gaussian_profile) {
             lateral_deficit = compute_gaussian_deficit(y_wind, Wf, 
-                              params.c2 * U_ref * decay_factor * deficit_scale);
+                              params.c2 * U_ref_corrected * decay_factor * deficit_scale);
         } else {
             // Check lateral bounds for linear profile
             if (std::abs(y_wind) > Wf / amrex::Real(2.0)) {
@@ -999,7 +1005,7 @@ bool rockle_wake_deficit(
         
         // Inside far-wake zone: reduced velocity deficit
         // Deficit at cavity edge is c2 * U_ref, decays to zero at Lf
-        amrex::Real deficit_magnitude = params.c2 * U_ref * lateral_deficit;
+        amrex::Real deficit_magnitude = params.c2 * U_ref_corrected * lateral_deficit;
         
         // Corner and side acceleration effects
         if (params.enable_corner_acceleration) {

@@ -163,6 +163,17 @@ void WindSolverApp::parse_inputs() {
     pp.query("wake_c2", wake_c2);
     pp.query("wake_separation_length", wake_separation_length);
     pp.query("wake_superposition", wake_superposition);
+    
+    // Wake model enhancement parameters
+    pp.query("enable_oblique_scaling", enable_oblique_scaling);
+    pp.query("enable_tall_building_correction", enable_tall_building_correction);
+    pp.query("enable_gaussian_profile", enable_gaussian_profile);
+    pp.query("enable_upwind_recirculation", enable_upwind_recirculation);
+    pp.query("enable_reference_correction", enable_reference_correction);
+    pp.query("enable_corner_acceleration", enable_corner_acceleration);
+    pp.query("enable_variance_correction", enable_variance_correction);
+    pp.query("enable_horseshoe_vortex", enable_horseshoe_vortex);
+    pp.query("enable_extended_farwake", enable_extended_farwake);
 
     // Analytical Turbine Wake parameters
     pp.query("enable_turbine_wake", enable_turbine_wake);
@@ -3636,6 +3647,17 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         wake_params.c1 = wake_c1;
         wake_params.c2 = wake_c2;
         wake_params.separation_length = wake_separation_length;
+        
+        // Wake model enhancement parameters
+        wake_params.enable_oblique_scaling = enable_oblique_scaling;
+        wake_params.enable_tall_building_correction = enable_tall_building_correction;
+        wake_params.enable_gaussian_profile = enable_gaussian_profile;
+        wake_params.enable_upwind_recirculation = enable_upwind_recirculation;
+        wake_params.enable_reference_correction = enable_reference_correction;
+        wake_params.enable_corner_acceleration = enable_corner_acceleration;
+        wake_params.enable_variance_correction = enable_variance_correction;
+        wake_params.enable_horseshoe_vortex = enable_horseshoe_vortex;
+        wake_params.enable_extended_farwake = enable_extended_farwake;
         
         if (wake_model_type == "aermod_prime" || wake_model_type == "aermod-prime" ||
             wake_model_type == "AERMOD_PRIME" || wake_model_type == "AERMOD-PRIME" ||
