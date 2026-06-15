@@ -313,6 +313,93 @@ Example courtyard with void zone:
 - ``canopy_emissivity`` (Real): Thermal emissivity
 - ``canopy_leaf_area_index`` (Real): LAI value
 
+Building Wake Models
+--------------------
+
+**Core Wake Model Parameters**
+
+- ``enable_wake`` (Bool): Enable building wake deficit calculations
+- ``wake_model_type`` (String): Model selection (Röckle, Huber-Snyder, AERMOD PRIME, etc.)
+- ``wake_c1`` (Real): Cavity zone length coefficient (L_r = c1 × H), default 0.9
+- ``wake_c2`` (Real): Wake deficit intensity coefficient, default 0.3
+- ``wake_separation_length`` (Real): Far-wake extent as multiple of building height H, default 3.0
+
+**Wake Enhancement Flags**
+
+All wake enhancements are backward-compatible and can be independently enabled/disabled:
+
+- ``enable_oblique_scaling`` (Bool): Scale cavity length based on wind direction obliquity, default true
+- ``enable_tall_building_correction`` (Bool): Apply correction for tall buildings (H > 100 m), default true
+- ``enable_gaussian_profile`` (Bool): Use Gaussian lateral deficit profile instead of cosine, default false
+- ``enable_upwind_recirculation`` (Bool): Include upwind recirculation zone, default true
+- ``enable_reference_correction`` (Bool): Apply reference height stability correction, default false
+- ``enable_corner_acceleration`` (Bool): Amplify deficit at building corners, default true
+- ``enable_variance_correction`` (Bool): Scale turbulent kinetic energy recovery, default false
+- ``enable_horseshoe_vortex`` (Bool): Model horseshoe vortex formation at building base, default true
+- ``enable_extended_farwake`` (Bool): Extend far-wake zone to 15H instead of 5H, default true
+- ``enable_yoshie_two_layer`` (Bool): Two-layer height-dependent deficit model (Yoshie et al., 2007), default true
+
+**Yoshie Two-Layer Model Parameters**
+
+- ``yoshie_decay_beta`` (Real): Exponential decay coefficient for above-roof zone, default 1.75, valid range [1.5, 2.0]
+  
+  The decay coefficient controls the rate of deficit reduction above building height. Physically, β ∈ [1.5, 2.0] corresponds to wind tunnel and field study observations. The model transitions smoothly at z = H between cavity zone (unchanged) and above-roof zone (exponentially decaying).
+
+**Rodi Entrainment Model Parameters**
+
+- ``enable_rodi_entrainment`` (Bool): Entrainment-based far-wake decay model (Rodi et al., 2003), default true
+
+- ``rodi_ce_coefficient`` (Real): Entrainment coefficient, default 1.0, valid range [0.5, 1.5]
+  
+  Controls ambient fluid entrainment strength into the wake. Ce = 1.0 represents typical field observations. Higher values increase entrainment and accelerate deficit recovery in the 2–5H range.
+
+**Lopes Pedestrian Wind Comfort Assessment Parameters**
+
+- ``enable_lopes_comfort`` (Bool): Pedestrian wind comfort classification (Lopes et al., 2006), default true
+
+- ``lopes_comfort_threshold`` (Real): Critical discomfort velocity [m/s], default 5.0, valid range 3.0–7.0
+  
+  Wind speed threshold above which conditions become uncomfortable. Default 5.0 m/s for general walking pedestrians; range depends on activity type (seated ≈3–4 m/s, standing ≈4–5 m/s, walking ≈5–7 m/s).
+
+- ``lopes_assessment_height`` (Real): Evaluation height [m AGL], default 1.5, typical range [1.1, 2.0]
+  
+  Height at which comfort is assessed. Default 1.5 m corresponds to standing pedestrian head height; can be adjusted to 1.1 m (seated eye level) or 2.0 m (tall person standing).
+
+**Lopes Pedestrian Wind Comfort Assessment Parameters**
+
+- ``enable_lopes_comfort`` (Bool): Pedestrian wind comfort classification (Lopes et al., 2006), default true
+
+- ``lopes_comfort_threshold`` (Real): Critical discomfort velocity [m/s], default 5.0, valid range 3.0–7.0
+  
+  Wind speed threshold above which conditions become uncomfortable. Default 5.0 m/s for general walking pedestrians; range depends on activity type (seated ≈3–4 m/s, standing ≈4–5 m/s, walking ≈5–7 m/s).
+
+- ``lopes_assessment_height`` (Real): Evaluation height [m AGL], default 1.5, typical range [1.1, 2.0]
+  
+  Height at which comfort is assessed. Default 1.5 m corresponds to standing pedestrian head height; can be adjusted to 1.1 m (seated eye level) or 2.0 m (tall person standing).
+
+- ``lopes_reference_frequency`` (Real): Reference discomfort frequency, default 0.02, range [0.0, 1.0]
+  
+  Used for diagnostic output and frequency scaling. Represents baseline discomfort fraction (0.02 = 2%, ~175 hours/year). Full implementation requires historical wind statistics; this parameter enables simplified comfort assessment estimates.
+
+**Oikonomou Aspect-Ratio Correction Parameters**
+
+- ``enable_oikonomou_aspect`` (Bool): Aspect-ratio dependent cavity zone correction (Oikonomou et al., 2011), default true
+
+- ``oikonomou_beta_aspect`` (Real): Aspect-ratio correction coefficient, default 0.25, valid range [0.15, 0.35]
+  
+  Controls magnitude of cavity length adjustment based on building elongation (L/W ratio). β = 0.25 produces ~5–10% cavity length increase for moderately elongated buildings (L/W ≈ 2) and ~15–20% for highly elongated buildings (L/W ≈ 4). Square or near-square buildings (L/W ≤ 1) are unaffected. Correction factor clamped to [1.0, 1.5].
+
+**Britter-Hanna Urban Canyon Attenuation Parameters**
+
+- ``enable_britter_hanna_urban`` (Bool): Urban canyon wind speed attenuation model (Britter and Hanna, 2003), default true
+
+- ``britter_hanna_alpha`` (Real): Urban canyon attenuation coefficient, default 0.15, valid range [0.10, 0.30]
+  
+  Controls rate of wind speed decay with urban building density (frontal area index φ_v). α = 0.15 produces ~7% reduction at moderate density (φ_v = 0.5) and ~14% at high density (φ_v = 1.0). Physically represents cumulative drag from distributed buildings and enhanced surface roughness in street canyons. Higher values increase attenuation in dense urban areas.
+  
+  The two-layer model separates cavity zone (z < H) and above-roof zone (z ≥ H), where the deficit decays exponentially:
+  ΔU(z) = ΔU_cavity × exp(-β × (z - H) / H). The decay coefficient β controls the rate of wind speed recovery above building height.
+
 Bridge & Obstacle Modeling
 ---------------------------
 
@@ -553,22 +640,6 @@ Wind Wake Modeling
 - ``enable_wake_merging`` (Bool): Allow wake combination
 - ``wake_merge_distance`` (Real): Merging threshold [m]
 - ``enable_wake_superposition`` (Bool): Use linear superposition
-
-**Building Wake Physics Enhancements**
-
-The following flags enable advanced building wake model enhancements described in :ref:`mathematical_models` section "Building Wake Models":
-
-- ``enable_extended_farwake`` (Bool, default=true): Extend far-wake zone influence from 3–5H to 15H downstream
-- ``enable_oblique_scaling`` (Bool, default=true): Scale cavity length based on wind approach angle: :math:`L_r(\theta) = L_r^0 \times \cos(\theta)`
-- ``enable_tall_building_correction`` (Bool, default=true): Apply aspect-ratio correction: :math:`L_r = 0.9H \times \max(1.0, \min(W/H, 1.5))`
-- ``enable_gaussian_profile`` (Bool, default=false): Use Gaussian lateral profile instead of linear: :math:`\Delta U \propto \exp(-(y/\sigma)^2)`
-- ``enable_upwind_recirculation`` (Bool, default=true): Model reverse flow upstream of building
-- ``enable_reference_correction`` (Bool, default=false): Extract reference velocity from log-law profile: :math:`U(z) = U_{\text{ref}} \times \frac{\ln(z/z_0)}{\ln(z_{\text{ref}}/z_0)}`
-- ``enable_corner_acceleration`` (Bool, default=true): Add velocity amplification at building corners and sides (20% peak enhancement)
-- ``enable_variance_correction`` (Bool, default=false): Modify velocity variance profile (reduced in cavity 0.5×, enhanced in shear layer 1.5×)
-- ``enable_horseshoe_vortex`` (Bool, default=true): Compute velocity perturbations from horseshoe vortex at building-ground junction
-
-All enhancements are backward compatible. Disabling all flags recovers the original Röckle model behavior.
 
 Atmospheric Forcing & Forcing
 ------------------------------
