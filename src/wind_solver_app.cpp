@@ -194,6 +194,16 @@ void WindSolverApp::parse_inputs() {
     
     amrex::Real lopes_reference_frequency = amrex::Real(0.02);
     pp.query("lopes_reference_frequency", lopes_reference_frequency);
+    
+    pp.query("enable_oikonomou_aspect", enable_oikonomou_aspect);
+    
+    amrex::Real oikonomou_beta_aspect = amrex::Real(0.25);
+    pp.query("oikonomou_beta_aspect", oikonomou_beta_aspect);
+    
+    pp.query("enable_britter_hanna_urban", enable_britter_hanna_urban);
+    
+    amrex::Real britter_hanna_alpha = amrex::Real(0.15);
+    pp.query("britter_hanna_alpha", britter_hanna_alpha);
 
     // Analytical Turbine Wake parameters
     pp.query("enable_turbine_wake", enable_turbine_wake);
@@ -3686,6 +3696,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         wake_params.lopes_comfort_threshold = lopes_comfort_threshold;
         wake_params.lopes_assessment_height = lopes_assessment_height;
         wake_params.lopes_reference_frequency = lopes_reference_frequency;
+        wake_params.enable_oikonomou_aspect = enable_oikonomou_aspect;
+        wake_params.oikonomou_beta_aspect = oikonomou_beta_aspect;
+        wake_params.enable_britter_hanna_urban = enable_britter_hanna_urban;
+        wake_params.britter_hanna_alpha = britter_hanna_alpha;
         
         if (wake_model_type == "aermod_prime" || wake_model_type == "aermod-prime" ||
             wake_model_type == "AERMOD_PRIME" || wake_model_type == "AERMOD-PRIME" ||

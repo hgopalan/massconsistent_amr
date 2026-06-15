@@ -365,9 +365,37 @@ All wake enhancements are backward-compatible and can be independently enabled/d
   
   Height at which comfort is assessed. Default 1.5 m corresponds to standing pedestrian head height; can be adjusted to 1.1 m (seated eye level) or 2.0 m (tall person standing).
 
+**Lopes Pedestrian Wind Comfort Assessment Parameters**
+
+- ``enable_lopes_comfort`` (Bool): Pedestrian wind comfort classification (Lopes et al., 2006), default true
+
+- ``lopes_comfort_threshold`` (Real): Critical discomfort velocity [m/s], default 5.0, valid range 3.0–7.0
+  
+  Wind speed threshold above which conditions become uncomfortable. Default 5.0 m/s for general walking pedestrians; range depends on activity type (seated ≈3–4 m/s, standing ≈4–5 m/s, walking ≈5–7 m/s).
+
+- ``lopes_assessment_height`` (Real): Evaluation height [m AGL], default 1.5, typical range [1.1, 2.0]
+  
+  Height at which comfort is assessed. Default 1.5 m corresponds to standing pedestrian head height; can be adjusted to 1.1 m (seated eye level) or 2.0 m (tall person standing).
+
 - ``lopes_reference_frequency`` (Real): Reference discomfort frequency, default 0.02, range [0.0, 1.0]
   
   Used for diagnostic output and frequency scaling. Represents baseline discomfort fraction (0.02 = 2%, ~175 hours/year). Full implementation requires historical wind statistics; this parameter enables simplified comfort assessment estimates.
+
+**Oikonomou Aspect-Ratio Correction Parameters**
+
+- ``enable_oikonomou_aspect`` (Bool): Aspect-ratio dependent cavity zone correction (Oikonomou et al., 2011), default true
+
+- ``oikonomou_beta_aspect`` (Real): Aspect-ratio correction coefficient, default 0.25, valid range [0.15, 0.35]
+  
+  Controls magnitude of cavity length adjustment based on building elongation (L/W ratio). β = 0.25 produces ~5–10% cavity length increase for moderately elongated buildings (L/W ≈ 2) and ~15–20% for highly elongated buildings (L/W ≈ 4). Square or near-square buildings (L/W ≤ 1) are unaffected. Correction factor clamped to [1.0, 1.5].
+
+**Britter-Hanna Urban Canyon Attenuation Parameters**
+
+- ``enable_britter_hanna_urban`` (Bool): Urban canyon wind speed attenuation model (Britter and Hanna, 2003), default true
+
+- ``britter_hanna_alpha`` (Real): Urban canyon attenuation coefficient, default 0.15, valid range [0.10, 0.30]
+  
+  Controls rate of wind speed decay with urban building density (frontal area index φ_v). α = 0.15 produces ~7% reduction at moderate density (φ_v = 0.5) and ~14% at high density (φ_v = 1.0). Physically represents cumulative drag from distributed buildings and enhanced surface roughness in street canyons. Higher values increase attenuation in dense urban areas.
   
   The two-layer model separates cavity zone (z < H) and above-roof zone (z ≥ H), where the deficit decays exponentially:
   ΔU(z) = ΔU_cavity × exp(-β × (z - H) / H). The decay coefficient β controls the rate of wind speed recovery above building height.

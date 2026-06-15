@@ -130,6 +130,10 @@ private:
     amrex::Real lopes_comfort_threshold = amrex::Real(5.0);
     amrex::Real lopes_assessment_height = amrex::Real(1.5);
     amrex::Real lopes_reference_frequency = amrex::Real(0.02);
+    bool enable_oikonomou_aspect = true;
+    amrex::Real oikonomou_beta_aspect = amrex::Real(0.25);
+    bool enable_britter_hanna_urban = true;
+    amrex::Real britter_hanna_alpha = amrex::Real(0.15);
 
     // Analytical Turbine Wake
     bool enable_turbine_wake = false;

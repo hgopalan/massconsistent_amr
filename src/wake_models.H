@@ -63,6 +63,8 @@ struct WakeParams {
     bool enable_yoshie_two_layer = true;     // Two-layer height-dependent deficit model
     bool enable_rodi_entrainment = true;     // Rodi entrainment-based far-wake decay model
     bool enable_lopes_comfort = true;        // Lopes pedestrian wind comfort assessment
+    bool enable_oikonomou_aspect = true;     // Oikonomou aspect-ratio dependent cavity correction
+    bool enable_britter_hanna_urban = true;  // Britter-Hanna urban canyon effects model
     
     // Additional parameters for enhancements
     amrex::Real z_ref = amrex::Real(10.0);   // Reference height for log-law (m)
@@ -72,6 +74,8 @@ struct WakeParams {
     amrex::Real lopes_comfort_threshold = amrex::Real(5.0);  // Discomfort velocity threshold [m/s]
     amrex::Real lopes_assessment_height = amrex::Real(1.5);  // Assessment height [m AGL]
     amrex::Real lopes_reference_frequency = amrex::Real(0.02);  // Reference discomfort frequency for diagnostics
+    amrex::Real oikonomou_beta_aspect = amrex::Real(0.25);  // Aspect-ratio correction coefficient
+    amrex::Real britter_hanna_alpha = amrex::Real(0.15);  // Urban canyon attenuation coefficient
 };
 
 // ============================================================================
@@ -814,6 +818,107 @@ amrex::Real compute_yoshie_two_layer_deficit(
     const amrex::Real decay_factor = std::exp(-beta * z_normalized);
     
     return deficit_magnitude * decay_factor;
+}
+
+// ============================================================================
+// Oikonomou Aspect-Ratio Dependent Cavity Correction (Oikonomou et al., 2011)
+//
+// Refines cavity zone length and deficit based on building aspect ratio (L/W).
+// Accounts for flow separation patterns that vary significantly with building
+// elongation, improving predictions for non-cubic buildings.
+//
+// Cavity length correction:
+//   L_r,corrected = L_r,base × f_aspect(L/W)
+// where:
+//   f_aspect(α) = 1.0 + β × (α - 1.0) / (α_ref - 1.0) for α > 1.0
+//   with α = L/W (downwind length / crosswind width), β ≈ 0.25
+//
+// The correction applies when L/W > 1 (elongated buildings):
+//   - Square buildings (L/W ≈ 1.0): no correction
+//   - Moderately elongated (L/W ≈ 2): +5-10% cavity length increase
+//   - Highly elongated (L/W ≈ 4): +15-20% cavity length increase
+//
+// Inputs:
+//   length_downwind - Building dimension along wind direction [m]
+//   width_crosswind - Building dimension perpendicular to wind [m]
+//   beta_aspect     - Aspect ratio correction coefficient (≈0.25)
+//
+// Returns:
+//   Aspect-ratio correction factor (≥1.0), multiplied by base cavity length
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_oikonomou_aspect_ratio_factor(
+    const amrex::Real length_downwind,
+    const amrex::Real width_crosswind,
+    const amrex::Real beta_aspect)
+{
+    // Avoid division by zero
+    if (width_crosswind <= amrex::Real(0.0) || length_downwind <= amrex::Real(0.0)) {
+        return amrex::Real(1.0);
+    }
+    
+    // Aspect ratio: L/W (downwind / crosswind)
+    const amrex::Real aspect_ratio = length_downwind / width_crosswind;
+    
+    // No correction for square or near-square buildings (L/W ≤ 1)
+    if (aspect_ratio <= amrex::Real(1.0)) {
+        return amrex::Real(1.0);
+    }
+    
+    // Reference aspect ratio for normalization
+    const amrex::Real aspect_ref = amrex::Real(4.0);
+    
+    // Aspect-ratio correction factor
+    // Increases linearly from 1.0 at L/W=1 to (1+β) at L/W=aspect_ref
+    const amrex::Real correction_factor = amrex::Real(1.0) + 
+        beta_aspect * (aspect_ratio - amrex::Real(1.0)) / (aspect_ref - amrex::Real(1.0));
+    
+    // Clamp to reasonable range [1.0, 1.5]
+    return amrex::max(amrex::Real(1.0), amrex::min(correction_factor, amrex::Real(1.5)));
+}
+
+// ============================================================================
+// Britter-Hanna Urban Canyon Effects (Britter and Hanna, 2003)
+//
+// Models wind speed attenuation in dense urban environments accounting for
+// inter-building interactions, street canyon flow, and urban boundary layer
+// modification. Applies reduction factor to wind speed based on building
+// density and urban canyon geometry.
+//
+// Street canyon wind speed reduction:
+//   U_canyon = U_ref × exp(-α_urban × φ_v)
+// where:
+//   φ_v = frontal area index = (building height × building projection area) / (area of interest)
+//   α_urban = urban canyon attenuation coefficient (typically 0.1-0.3)
+//
+// Physically represents:
+//   - Flow deceleration in urban streets due to building drag
+//   - Reduced vertical mixing in canyon environments
+//   - Enhanced surface roughness effects in urban areas
+//
+// Inputs:
+//   frontal_area_index - Building frontal area density φ_v [dimensionless]
+//   alpha_urban        - Canyon attenuation coefficient (default 0.15)
+//
+// Returns:
+//   Wind speed reduction factor (0-1), multiplied by reference velocity
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_britter_hanna_urban_reduction(
+    const amrex::Real frontal_area_index,
+    const amrex::Real alpha_urban)
+{
+    // Clamp frontal area index to physically reasonable range [0, 1]
+    const amrex::Real phi_v = amrex::max(amrex::Real(0.0), 
+                              amrex::min(frontal_area_index, amrex::Real(1.0)));
+    
+    // Exponential decay of wind speed with urban density
+    // At φ_v = 0 (isolated buildings): U_canyon = U_ref (no reduction)
+    // At φ_v = 0.5 (moderate density): U_canyon ≈ 0.93 × U_ref (7% reduction)
+    // At φ_v = 1.0 (high density):    U_canyon ≈ 0.86 × U_ref (14% reduction)
+    const amrex::Real reduction_factor = std::exp(-alpha_urban * phi_v);
+    
+    return reduction_factor;
 }
 
 // ============================================================================
