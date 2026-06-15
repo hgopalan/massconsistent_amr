@@ -178,6 +178,11 @@ void WindSolverApp::parse_inputs() {
     
     amrex::Real yoshie_decay_beta = amrex::Real(1.75);
     pp.query("yoshie_decay_beta", yoshie_decay_beta);
+    
+    pp.query("enable_rodi_entrainment", enable_rodi_entrainment);
+    
+    amrex::Real rodi_ce_coefficient = amrex::Real(1.0);
+    pp.query("rodi_ce_coefficient", rodi_ce_coefficient);
 
     // Analytical Turbine Wake parameters
     pp.query("enable_turbine_wake", enable_turbine_wake);
@@ -3664,6 +3669,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         wake_params.enable_extended_farwake = enable_extended_farwake;
         wake_params.enable_yoshie_two_layer = enable_yoshie_two_layer;
         wake_params.yoshie_decay_beta = yoshie_decay_beta;
+        wake_params.enable_rodi_entrainment = enable_rodi_entrainment;
+        wake_params.rodi_ce_coefficient = rodi_ce_coefficient;
         
         if (wake_model_type == "aermod_prime" || wake_model_type == "aermod-prime" ||
             wake_model_type == "AERMOD_PRIME" || wake_model_type == "AERMOD-PRIME" ||

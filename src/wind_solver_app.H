@@ -124,6 +124,8 @@ private:
     bool enable_extended_farwake = true;
     bool enable_yoshie_two_layer = true;
     amrex::Real yoshie_decay_beta = amrex::Real(1.75);
+    bool enable_rodi_entrainment = true;
+    amrex::Real rodi_ce_coefficient = amrex::Real(1.0);
 
     // Analytical Turbine Wake
     bool enable_turbine_wake = false;
