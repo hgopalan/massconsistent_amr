@@ -149,7 +149,7 @@ Solid structures read from a buildings CSV file are masked by setting velocity c
 2. **Huber-Snyder Model** — Power-law wake deficit formulation based on building height and frontal area.
 3. **AERMOD PRIME Model** — Computes building downwash and vertical vortex circulation behind solid obstacles.
 
-The solver includes nine advanced enhancement options for improved physical fidelity (see :ref:`building_wake_enhancements` for details):
+The solver includes nine advanced enhancement options for improved physical fidelity (see :ref:`mathematical_models` section "Building Wake Models" for details):
 
 - Far-wake extension to 15H (vs. typical 3H)
 - Oblique angle cavity scaling: :math:`L_r(\theta) = L_r^0 \times \cos(\theta)`
@@ -431,14 +431,8 @@ This scenario simulates street canyon wind acceleration and thermal buoyancy eff
 Radiative Effects and Sky View Factor
 --------------------------------------
 
-Overview
-~~~~~~~~
-
 Sky View Factor and Solar Shading
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Overview
-^^^^^^^^
 
 Sky View Factor (SVF) and solar shading are unified computational approaches to account for radiation transmission and shadowing effects in complex terrain and urban environments. The key innovation is that **buildings and terrain are treated uniformly** as elevation features, enabling natural terrain-building interactions without special casing.
 
