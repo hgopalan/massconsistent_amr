@@ -54,6 +54,52 @@ WindSolver Class Reference
 * ``write_plotfile(name)``: Writes the standard MultiFab cell-centered outputs in VisIt/ParaView compatible AMReX plotfile format.
 * ``finalize()``: Destroys the C++ state singleton and cleans up AMReX runtime resources.
 
+Building Wake Enhancement Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Building wake enhancements can be controlled directly through the inputs file passed to the ``WindSolver`` constructor. All enhancements are optional and backward compatible. The following parameters enable or disable fourteen advanced wake modeling features:
+
+**Global Flags** (enable/disable enhancements):
+
+.. code-block:: python
+
+    # In the inputs.i file passed to WindSolver:
+    enable_oblique_scaling = true              # Scale cavity by wind approach angle
+    enable_tall_building_correction = true     # Aspect-ratio correction for tall buildings
+    enable_gaussian_profile = false            # Gaussian vs. linear lateral profile
+    enable_upwind_recirculation = true         # Model reverse flow upstream
+    enable_reference_correction = false        # Log-law reference velocity extraction
+    enable_corner_acceleration = true          # Corner and side flow acceleration
+    enable_variance_correction = false         # Height-dependent velocity variance
+    enable_horseshoe_vortex = true             # Horseshoe vortex at building base
+    enable_extended_farwake = true             # Extend far-wake to 15H
+    enable_yoshie_two_layer = true             # Yoshie height-dependent deficit model
+    enable_rodi_entrainment = true             # Rodi entrainment-based far-wake decay
+    enable_lopes_comfort = true                # Pedestrian wind comfort assessment
+    enable_oikonomou_aspect = true             # Aspect-ratio dependent cavity correction
+    enable_britter_hanna_urban = true          # Urban canyon wind speed attenuation
+
+**Model-Specific Parameters**:
+
+.. code-block:: python
+
+    # Yoshie two-layer model
+    yoshie_decay_beta = 1.75                   # Exponential decay coefficient (1.5-2.0)
+
+    # Rodi entrainment model
+    rodi_ce_coefficient = 1.0                  # Entrainment coefficient (0.5-1.5)
+
+    # Lopes pedestrian comfort assessment
+    lopes_comfort_threshold = 5.0              # Critical velocity (m/s)
+    lopes_assessment_height = 1.5              # Assessment height above ground (m AGL)
+    lopes_reference_frequency = 0.02           # Reference discomfort frequency
+
+    # Oikonomou aspect-ratio correction
+    oikonomou_beta_aspect = 0.25               # Aspect-ratio correction coefficient (0.15-0.35)
+
+    # Britter-Hanna urban canyon attenuation
+    britter_hanna_alpha = 0.15                 # Attenuation coefficient (0.1-0.3)
+
 Coupled Wind-Fire Simulation Integration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Python bindings enable tight integration with external community fire spread solvers (such as ``wildfire_levelset``):

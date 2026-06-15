@@ -12,7 +12,6 @@ terrain-following, mass-consistent 3-D wind diagnostic tool built on
    :caption: Contents:
 
    building
-   building_wake_enhancements
    mathematical_models
    numerical_methods
    python_api

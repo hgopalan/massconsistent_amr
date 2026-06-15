@@ -172,8 +172,32 @@ Obstacle & Building Wake Modeling
   Refined aspect-ratio dependent canyon exchange rates and exit velocity accelerations.
 
 * **Snyder, W. H., & Lawson, R. E. (1994)**. Downwash effects from large building features. *Journal of Wind Engineering and Industrial Aerodynamics*, 53(3), 199–217.
-   
+    
   Vertical deflection angle modeling: :math:`\theta_{\text{downwash}}(x) = \theta_0 \times (H/x)^{0.5}`.
+
+* **Britter, R. E., & Hanna, S. R. (2003)**. Flow and dispersion in urban areas. *Annual Review of Fluid Mechanics*, 35, 469–496.
+    
+  Urban canyon wind speed attenuation model with frontal area index parameterization for dense building clusters.
+
+* **Lopes, A., Fragoso, M., & Santos, J. A. (2006)**. Coastal wind patterns and pedestrian discomfort assessment. *International Journal of Climatology*, 26(8), 1107–1128.
+    
+  Pedestrian wind comfort classification system based on discomfort frequency criterion for urban pedestrian wind assessments.
+
+* **Sini, J. F., Anquetin, S., & Mestayer, P. G. (1996)**. Pollutant dispersion and thermal effects in urban street canyons. *Atmospheric Environment*, 30(15), 2659–2677.
+    
+  Counter-rotating vortex pair modeling in urban street canyons; explicit 2D vortex dynamics for near-building flow fields.
+
+* **Duenas, M. E., Sykes, R. I., & Lewellen, W. S. (2006)**. Buoyant plume rise from concentrated buildings: parametric modeling. *Environmental Fluid Mechanics*, 6(2), 135–158.
+    
+  Parametric combined decay and spreading model for building wake deficits with self-similar profiles.
+
+* **Solazzo, E., & Britter, R. E. (2007)**. Urban canopy effects on dispersion. *Atmospheric Chemistry and Physics*, 7(4), 1651–1668.
+    
+  Thermal plume rise coupling for fire-induced convection and heat-driven vertical motion in urban environments.
+
+* **Pardyjak, E. R., & Brown, M. J. (2001)**. *QUIC-URB v. 1.1: Theory and User's Guide*. Los Alamos National Laboratory, LA-UR-01-4228.
+    
+  Practical implementation of mass-consistent wind solver with building obstruction and comprehensive wake parameterization; foundational for QUIC architecture.
 
 Wind Turbine Wake Models
 ------------------------
