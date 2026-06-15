@@ -1,0 +1,6 @@
+# Flat terrain for EnKF test case
+# Format: x, y, z
+0.0, 0.0, 0.0
+1600.0, 0.0, 0.0
+0.0, 1600.0, 0.0
+1600.0, 1600.0, 0.0

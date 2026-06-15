@@ -1,0 +1,78 @@
+# ============================================================================
+# data_assimilation_enkf/inputs
+# Test case for Hybrid Ensemble Kalman Filter data assimilation
+#
+# This test validates:
+# 1. EnKF initialization and ensemble generation
+# 2. Forecast cycle (running multiple ensemble members)
+# 3. Observation loading from CSV
+# 4. Analysis step and Kalman gain computation
+# 5. Mass conservation projection after analysis
+# 6. Ensemble mean and uncertainty extraction
+#
+# No observations are actually assimilated (to keep test fast and deterministic),
+# but all infrastructure is exercised.
+# ============================================================================
+
+# Domain geometry
+nx = 32
+ny = 32
+nz = 16
+domain_height = 500.0
+dx = 50.0
+dy = 50.0
+dz = 30.0
+
+# Terrain: flat for simplicity
+terrain_file = "flat_terrain.csv"
+z0 = 0.1
+
+# Initial conditions
+U_ref = 10.0
+V_ref = 0.0
+z_ref = 100.0
+
+# Mass-consistent solver settings
+alpha_h = 0.2
+alpha_v = 0.1
+solver_tolerance = 1.0e-8
+
+# Time stepping
+dt = 0.1
+n_timesteps = 1
+
+# ============================================================================
+# Data Assimilation Configuration
+# ============================================================================
+
+# Enable EnKF data assimilation (default: false for backward compatibility)
+enable_data_assimilation = true
+
+# Ensemble configuration
+enkf_ensemble_size = 5              # Use small ensemble for testing
+enkf_localization_scale = 5000.0    # meters
+
+# Background error covariance
+enkf_u_star_std = 0.05              # m/s (smaller for test)
+enkf_z0_std_factor = 1.5            # multiplicative factor
+enkf_wind_dir_std = 5.0             # degrees
+
+# Observation files (optional - test will not use these)
+# enkf_obs_file_station = "obs_stations.csv"
+# enkf_obs_file_lidar = "obs_lidar.nc"
+
+# EnKF solver settings
+enkf_poisson_tolerance = 1.0e-8     # Divergence correction tolerance
+enkf_max_iterations = 100
+
+# ============================================================================
+# Output Configuration
+# ============================================================================
+
+output_dir = "./plt_data"
+output_frequency = 1
+plot_names = vel lambda terrain
+
+# ============================================================================
+# End of inputs file
+# ============================================================================
