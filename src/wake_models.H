@@ -62,12 +62,16 @@ struct WakeParams {
     bool enable_extended_farwake = true;     // Far-wake extension to 15 building heights
     bool enable_yoshie_two_layer = true;     // Two-layer height-dependent deficit model
     bool enable_rodi_entrainment = true;     // Rodi entrainment-based far-wake decay model
+    bool enable_lopes_comfort = true;        // Lopes pedestrian wind comfort assessment
     
     // Additional parameters for enhancements
     amrex::Real z_ref = amrex::Real(10.0);   // Reference height for log-law (m)
     amrex::Real z0 = amrex::Real(0.1);       // Roughness length (m)
     amrex::Real yoshie_decay_beta = amrex::Real(1.75);  // Decay coefficient for above-roof deficit (1.5-2.0)
     amrex::Real rodi_ce_coefficient = amrex::Real(1.0);  // Entrainment coefficient (0.5-1.5)
+    amrex::Real lopes_comfort_threshold = amrex::Real(5.0);  // Discomfort velocity threshold [m/s]
+    amrex::Real lopes_assessment_height = amrex::Real(1.5);  // Assessment height [m AGL]
+    amrex::Real lopes_reference_frequency = amrex::Real(0.02);  // Reference discomfort frequency for diagnostics
 };
 
 // ============================================================================

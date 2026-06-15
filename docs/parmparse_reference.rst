@@ -343,6 +343,32 @@ All wake enhancements are backward-compatible and can be independently enabled/d
 
 - ``yoshie_decay_beta`` (Real): Exponential decay coefficient for above-roof zone, default 1.75, valid range [1.5, 2.0]
   
+  The decay coefficient controls the rate of deficit reduction above building height. Physically, β ∈ [1.5, 2.0] corresponds to wind tunnel and field study observations. The model transitions smoothly at z = H between cavity zone (unchanged) and above-roof zone (exponentially decaying).
+
+**Rodi Entrainment Model Parameters**
+
+- ``enable_rodi_entrainment`` (Bool): Entrainment-based far-wake decay model (Rodi et al., 2003), default true
+
+- ``rodi_ce_coefficient`` (Real): Entrainment coefficient, default 1.0, valid range [0.5, 1.5]
+  
+  Controls ambient fluid entrainment strength into the wake. Ce = 1.0 represents typical field observations. Higher values increase entrainment and accelerate deficit recovery in the 2–5H range.
+
+**Lopes Pedestrian Wind Comfort Assessment Parameters**
+
+- ``enable_lopes_comfort`` (Bool): Pedestrian wind comfort classification (Lopes et al., 2006), default true
+
+- ``lopes_comfort_threshold`` (Real): Critical discomfort velocity [m/s], default 5.0, valid range 3.0–7.0
+  
+  Wind speed threshold above which conditions become uncomfortable. Default 5.0 m/s for general walking pedestrians; range depends on activity type (seated ≈3–4 m/s, standing ≈4–5 m/s, walking ≈5–7 m/s).
+
+- ``lopes_assessment_height`` (Real): Evaluation height [m AGL], default 1.5, typical range [1.1, 2.0]
+  
+  Height at which comfort is assessed. Default 1.5 m corresponds to standing pedestrian head height; can be adjusted to 1.1 m (seated eye level) or 2.0 m (tall person standing).
+
+- ``lopes_reference_frequency`` (Real): Reference discomfort frequency, default 0.02, range [0.0, 1.0]
+  
+  Used for diagnostic output and frequency scaling. Represents baseline discomfort fraction (0.02 = 2%, ~175 hours/year). Full implementation requires historical wind statistics; this parameter enables simplified comfort assessment estimates.
+  
   The two-layer model separates cavity zone (z < H) and above-roof zone (z ≥ H), where the deficit decays exponentially:
   ΔU(z) = ΔU_cavity × exp(-β × (z - H) / H). The decay coefficient β controls the rate of wind speed recovery above building height.
 

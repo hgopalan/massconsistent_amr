@@ -126,6 +126,10 @@ private:
     amrex::Real yoshie_decay_beta = amrex::Real(1.75);
     bool enable_rodi_entrainment = true;
     amrex::Real rodi_ce_coefficient = amrex::Real(1.0);
+    bool enable_lopes_comfort = true;
+    amrex::Real lopes_comfort_threshold = amrex::Real(5.0);
+    amrex::Real lopes_assessment_height = amrex::Real(1.5);
+    amrex::Real lopes_reference_frequency = amrex::Real(0.02);
 
     // Analytical Turbine Wake
     bool enable_turbine_wake = false;

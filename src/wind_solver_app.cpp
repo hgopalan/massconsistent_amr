@@ -183,6 +183,17 @@ void WindSolverApp::parse_inputs() {
     
     amrex::Real rodi_ce_coefficient = amrex::Real(1.0);
     pp.query("rodi_ce_coefficient", rodi_ce_coefficient);
+    
+    pp.query("enable_lopes_comfort", enable_lopes_comfort);
+    
+    amrex::Real lopes_comfort_threshold = amrex::Real(5.0);
+    pp.query("lopes_comfort_threshold", lopes_comfort_threshold);
+    
+    amrex::Real lopes_assessment_height = amrex::Real(1.5);
+    pp.query("lopes_assessment_height", lopes_assessment_height);
+    
+    amrex::Real lopes_reference_frequency = amrex::Real(0.02);
+    pp.query("lopes_reference_frequency", lopes_reference_frequency);
 
     // Analytical Turbine Wake parameters
     pp.query("enable_turbine_wake", enable_turbine_wake);
@@ -3671,6 +3682,10 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         wake_params.yoshie_decay_beta = yoshie_decay_beta;
         wake_params.enable_rodi_entrainment = enable_rodi_entrainment;
         wake_params.rodi_ce_coefficient = rodi_ce_coefficient;
+        wake_params.enable_lopes_comfort = enable_lopes_comfort;
+        wake_params.lopes_comfort_threshold = lopes_comfort_threshold;
+        wake_params.lopes_assessment_height = lopes_assessment_height;
+        wake_params.lopes_reference_frequency = lopes_reference_frequency;
         
         if (wake_model_type == "aermod_prime" || wake_model_type == "aermod-prime" ||
             wake_model_type == "AERMOD_PRIME" || wake_model_type == "AERMOD-PRIME" ||
