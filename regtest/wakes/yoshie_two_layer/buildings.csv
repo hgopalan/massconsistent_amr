@@ -1,0 +1,2 @@
+id,xmin,xmax,ymin,ymax,zmin,zmax,height,width,length,rotation,shape
+1,100.0,130.0,95.0,105.0,0.0,30.0,30.0,10.0,30.0,0.0,RECTANGULAR

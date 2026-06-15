@@ -174,6 +174,36 @@ void WindSolverApp::parse_inputs() {
     pp.query("enable_variance_correction", enable_variance_correction);
     pp.query("enable_horseshoe_vortex", enable_horseshoe_vortex);
     pp.query("enable_extended_farwake", enable_extended_farwake);
+    pp.query("enable_yoshie_two_layer", enable_yoshie_two_layer);
+    
+    amrex::Real yoshie_decay_beta = amrex::Real(1.75);
+    pp.query("yoshie_decay_beta", yoshie_decay_beta);
+    
+    pp.query("enable_rodi_entrainment", enable_rodi_entrainment);
+    
+    amrex::Real rodi_ce_coefficient = amrex::Real(1.0);
+    pp.query("rodi_ce_coefficient", rodi_ce_coefficient);
+    
+    pp.query("enable_lopes_comfort", enable_lopes_comfort);
+    
+    amrex::Real lopes_comfort_threshold = amrex::Real(5.0);
+    pp.query("lopes_comfort_threshold", lopes_comfort_threshold);
+    
+    amrex::Real lopes_assessment_height = amrex::Real(1.5);
+    pp.query("lopes_assessment_height", lopes_assessment_height);
+    
+    amrex::Real lopes_reference_frequency = amrex::Real(0.02);
+    pp.query("lopes_reference_frequency", lopes_reference_frequency);
+    
+    pp.query("enable_oikonomou_aspect", enable_oikonomou_aspect);
+    
+    amrex::Real oikonomou_beta_aspect = amrex::Real(0.25);
+    pp.query("oikonomou_beta_aspect", oikonomou_beta_aspect);
+    
+    pp.query("enable_britter_hanna_urban", enable_britter_hanna_urban);
+    
+    amrex::Real britter_hanna_alpha = amrex::Real(0.15);
+    pp.query("britter_hanna_alpha", britter_hanna_alpha);
 
     // Analytical Turbine Wake parameters
     pp.query("enable_turbine_wake", enable_turbine_wake);
@@ -3658,6 +3688,18 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         wake_params.enable_variance_correction = enable_variance_correction;
         wake_params.enable_horseshoe_vortex = enable_horseshoe_vortex;
         wake_params.enable_extended_farwake = enable_extended_farwake;
+        wake_params.enable_yoshie_two_layer = enable_yoshie_two_layer;
+        wake_params.yoshie_decay_beta = yoshie_decay_beta;
+        wake_params.enable_rodi_entrainment = enable_rodi_entrainment;
+        wake_params.rodi_ce_coefficient = rodi_ce_coefficient;
+        wake_params.enable_lopes_comfort = enable_lopes_comfort;
+        wake_params.lopes_comfort_threshold = lopes_comfort_threshold;
+        wake_params.lopes_assessment_height = lopes_assessment_height;
+        wake_params.lopes_reference_frequency = lopes_reference_frequency;
+        wake_params.enable_oikonomou_aspect = enable_oikonomou_aspect;
+        wake_params.oikonomou_beta_aspect = oikonomou_beta_aspect;
+        wake_params.enable_britter_hanna_urban = enable_britter_hanna_urban;
+        wake_params.britter_hanna_alpha = britter_hanna_alpha;
         
         if (wake_model_type == "aermod_prime" || wake_model_type == "aermod-prime" ||
             wake_model_type == "AERMOD_PRIME" || wake_model_type == "AERMOD-PRIME" ||

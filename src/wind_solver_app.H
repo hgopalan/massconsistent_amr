@@ -122,6 +122,18 @@ private:
     bool enable_variance_correction = false;
     bool enable_horseshoe_vortex = true;
     bool enable_extended_farwake = true;
+    bool enable_yoshie_two_layer = true;
+    amrex::Real yoshie_decay_beta = amrex::Real(1.75);
+    bool enable_rodi_entrainment = true;
+    amrex::Real rodi_ce_coefficient = amrex::Real(1.0);
+    bool enable_lopes_comfort = true;
+    amrex::Real lopes_comfort_threshold = amrex::Real(5.0);
+    amrex::Real lopes_assessment_height = amrex::Real(1.5);
+    amrex::Real lopes_reference_frequency = amrex::Real(0.02);
+    bool enable_oikonomou_aspect = true;
+    amrex::Real oikonomou_beta_aspect = amrex::Real(0.25);
+    bool enable_britter_hanna_urban = true;
+    amrex::Real britter_hanna_alpha = amrex::Real(0.15);
 
     // Analytical Turbine Wake
     bool enable_turbine_wake = false;
