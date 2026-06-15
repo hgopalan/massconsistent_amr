@@ -633,3 +633,184 @@ References for SVF and Shading
 4. Richter, B., Strahler, A.H., Kaufmann, R.K. (2005). A global map of the base emissivity of bare soil. *Remote Sensing of Environment*, 102, 76–86.
 5. Kasten, F., Czeplak, G. (1980). Solar and terrestrial radiation dependent on the amount and type of cloud. *Solar Energy*, 24(2), 177–189.
 6. Liu, B.Y.H., Jordan, R.C. (1960). The interrelationship and characteristic distribution of direct, diffuse and total solar radiation. *Solar Energy*, 4(3), 1–19.
+
+Building Wake Models
+--------------------
+
+The mass-consistent solver includes advanced parameterizations for building wake physics that improve prediction accuracy for urban flow fields. This section documents the mathematical formulations behind the nine building wake model enhancements.
+
+Core Röckle Wake Model
+~~~~~~~~~~~~~~~~~~~~~~
+
+The Röckle (1990) model divides the wake region into three zones:
+
+**Cavity Zone** (Recirculation Region)
+
+The cavity extends from the building downwind face to approximately :math:`L_r = c_1 \times H` building heights downstream, where :math:`c_1 \approx 0.9` and :math:`H` is building height.
+
+.. math::
+
+    \Delta U_{\text{cavity}} = -c_2 \times (U_{\text{ref}} - U_{\text{ground}})
+
+where the cavity deficit is scaled by the difference between reference height wind speed and ground-level wind speed, with empirical constant :math:`c_2 \approx 0.3`.
+
+**Far-Wake Zone**
+
+The far-wake extends from :math:`L_r` to approximately :math:`x_{\max} = c_3 \times H` (default :math:`c_3 = 3.0`), where wind recovery is gradual:
+
+.. math::
+
+    \Delta U_{\text{far}} = \Delta U_{\text{cav\_entrance}} \times \left(1 - \frac{x - L_r}{x_{\max} - L_r}\right)
+
+Building Wake Physics Enhancements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**1. Far-Wake Extension to 15H**
+
+Extends far-wake influence from typical 3–5H to 15 building heights downstream, capturing long-range wake recovery:
+
+.. math::
+
+    x_{\max} = 15 \times H
+
+**2. Oblique Angle Cavity Scaling**
+
+Scales cavity length based on wind approach angle :math:`\theta` from building normal:
+
+.. math::
+
+    L_r(\theta) = L_r^0 \times \cos(\theta), \quad \text{with minimum} \quad L_r^{\min} = 0.3 \times L_r^0
+
+**3. Tall-Building Aspect-Ratio Correction**
+
+Applies aspect-ratio dependent correction for non-cubic buildings:
+
+.. math::
+
+    L_r = 0.9H \times \max(1.0, \min(W/H, 1.5))
+
+where :math:`W` is the crosswind building width.
+
+**4. Gaussian Lateral Wake Profile**
+
+Optional smooth lateral deficit distribution:
+
+.. math::
+
+    \Delta U(y) = \Delta U_{\max} \times \exp\left(-\left(\frac{y}{\sigma}\right)^2\right), \quad \sigma = W/2
+
+**5. Upwind Recirculation Zone**
+
+Models reverse flow approximately :math:`0.5 \times \min(H,W)` upstream with height-dependent decay:
+
+.. math::
+
+    x_{\text{upstream}} = -0.5 \times \min(H, W)
+
+    \Delta U_{\text{upwind}} = -0.1 \times U_{\text{ref}} \times \left(1.0 - (z/H)^2\right)
+
+**6. Log-Law Reference Velocity Correction**
+
+Extracts reference velocity from log-law profile to provide consistent boundary conditions:
+
+.. math::
+
+    U(z) = U_{\text{ref}} \times \frac{\ln(z/z_0)}{\ln(z_{\text{ref}}/z_0)}
+
+**7. Corner and Side Acceleration**
+
+Adds velocity amplification at building edges:
+
+.. math::
+
+    a_{\text{corner}} = 1.0 + 0.2 \times \left(1.0 - (z/H)^2\right)
+
+**8. Height-Dependent Velocity Variance Correction**
+
+Modifies velocity variance profile for turbulence intensity:
+
+.. math::
+
+    \sigma_v(z) = \begin{cases}
+    0.5 & \text{cavity: } z < H_r \\
+    1.5 & \text{shear layer: } H_r < z < 1.5H_r \\
+    1.0 & \text{above: } z > 1.5H_r
+    \end{cases}
+
+**9. Horseshoe Vortex Modeling**
+
+Computes velocity perturbations from circulation at building-ground junction:
+
+.. math::
+
+    \Delta v_{\text{horseshoe}} = \pm 0.15 \times U_{\text{ref}} \times (1 - z/h_{\text{vortex}})
+
+where the lateral velocity perturbation creates crosswind acceleration toward building center, confined to approximately 0.2H above ground.
+
+Future Wake Model Enhancements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**High-Priority Implementations (Simple, High Impact)**
+
+*Rodi Entrainment Model* — Continuous wake recovery via entrainment:
+
+.. math::
+
+    \frac{dU}{dx} = -b \cdot U \cdot \frac{dH}{dx}, \quad b = 0.15-0.25
+
+*Yoshie Height-Dependent Deficit* — Two-layer model for above-roof effects:
+
+.. math::
+
+    \frac{\Delta U}{U_{\text{ref}}}(z) = \begin{cases}
+    \frac{\Delta U_{\text{canyon}}}{U_{\text{ref}}} & z < H \\
+    \frac{\Delta U_{\text{canyon}}}{U_{\text{ref}}} \times \exp(-\beta(z-H)/H) & z \geq H
+    \end{cases}
+
+*Oikonomou Aspect-Ratio Refinement* — Improved aspect-ratio scaling:
+
+.. math::
+
+    U_{\text{exit}} = U_{\text{ref}} \times \left[0.2 + 0.8 \times (1 + H/W)^{-0.5}\right]
+
+**Medium-Priority Implementations**
+
+*Jensen Power-Law Recovery* — Extended far-wake profile:
+
+.. math::
+
+    \Delta U(x, y) = U_{\text{ref}} \times c \times \left(\frac{H}{x}\right)^{\alpha} \times \exp\left(-\left(\frac{y}{y_w}\right)^2\right)
+
+with :math:`c \approx 0.5`, :math:`\alpha \approx 0.5`.
+
+*Blocken Separable Form* — 3D separable factorization:
+
+.. math::
+
+    \frac{\Delta U}{U_{\text{ref}}}(x, y, z) = A(x) \times f_{\text{lateral}}(y, W) \times f_{\text{vertical}}(z, H)
+
+*Murakami Non-Dimensional Form* — Self-similar scaling:
+
+.. math::
+
+    \frac{\Delta U^*}{U_{\text{ref}}} = \beta \times \left(\frac{H^*}{x^* + H^*}\right)^{\alpha}
+
+**Lower-Priority Implementations**
+
+*Snyder-Lawson Downwash Angle* — Vertical deflection:
+
+.. math::
+
+    z_{\text{displaced}}(x, y) = \arctan(0.3 \times W/H) \times x \times \left[1 - (2y/W)^2\right] \times (H/x)^{0.5}
+
+*Duenas Parametric Model* — Combined decay and spreading:
+
+.. math::
+
+    \frac{\Delta U}{U_{\text{ref}}} = (c_1 + c_2 \times x/H) \times \exp\left(-\left(\frac{y - y_{\text{offset}}}{\sigma}\right)^2\right)
+
+*Sini Counter-Rotating Vortex Pair* — Explicit 2D vortex dynamics:
+
+.. math::
+
+    (u, v) = \pm \frac{\Gamma}{2\pi} \times \frac{[(x-x_c), -(y-y_c)]}{[(x-x_c)^2 + (y-y_c)^2]}
