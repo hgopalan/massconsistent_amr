@@ -122,6 +122,8 @@ private:
     bool enable_variance_correction = false;
     bool enable_horseshoe_vortex = true;
     bool enable_extended_farwake = true;
+    bool enable_yoshie_two_layer = true;
+    amrex::Real yoshie_decay_beta = amrex::Real(1.75);
 
     // Analytical Turbine Wake
     bool enable_turbine_wake = false;

@@ -60,10 +60,12 @@ struct WakeParams {
     bool enable_variance_correction = false;  // Height-dependent velocity variance
     bool enable_horseshoe_vortex = true;    // Horseshoe vortex at building base
     bool enable_extended_farwake = true;     // Far-wake extension to 15 building heights
+    bool enable_yoshie_two_layer = true;     // Two-layer height-dependent deficit model
     
     // Additional parameters for enhancements
     amrex::Real z_ref = amrex::Real(10.0);   // Reference height for log-law (m)
     amrex::Real z0 = amrex::Real(0.1);       // Roughness length (m)
+    amrex::Real yoshie_decay_beta = amrex::Real(1.75);  // Decay coefficient for above-roof deficit (1.5-2.0)
 };
 
 // ============================================================================
@@ -757,6 +759,58 @@ void compute_polygon_effective_dimensions(
 }
 
 // ============================================================================
+// Yoshie Two-Layer Height-Dependent Deficit Model
+//
+// Implements the Yoshie et al. (2007) two-layer wake deficit model which
+// separates the cavity zone (z < H) from the above-roof zone (z >= H).
+// This model improves prediction of wind speed recovery above building height.
+//
+// In the cavity zone (z < H), the deficit is unchanged from the standard model.
+// In the above-roof zone (z >= H), the deficit decays exponentially with height:
+//
+//    ΔU(z) = ΔU_cavity * exp(-β * (z - H) / H)
+//
+// where:
+//    ΔU_cavity = deficit at building height (cavity edge)
+//    β = decay coefficient (default 1.75, range 1.5-2.0)
+//    z = height above ground
+//    H = building height
+//
+// References:
+//    Yoshie et al. (2007). "Cooperative project on CFD prediction of
+//    pedestrian wind environment in the Tokyo Bay area: Phase 1 results
+//    of mean wind and turbulent quantities." Journal of Wind Engineering
+//    and Industrial Aerodynamics, 95(1), 1-21.
+//
+// Inputs:
+//    deficit_magnitude - Deficit value at cavity edge (magnitude)
+//    z_local          - Height above building base [m]
+//    H                - Building height [m]
+//    beta             - Decay coefficient (1.5-2.0)
+//
+// Output:
+//    Modified deficit magnitude accounting for height-dependent decay
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_yoshie_two_layer_deficit(
+    amrex::Real deficit_magnitude,
+    amrex::Real z_local,
+    amrex::Real H,
+    amrex::Real beta)
+{
+    // Below building height: return unchanged deficit
+    if (z_local <= H) {
+        return deficit_magnitude;
+    }
+    
+    // Above building height: apply exponential decay
+    const amrex::Real z_normalized = (z_local - H) / H;
+    const amrex::Real decay_factor = std::exp(-beta * z_normalized);
+    
+    return deficit_magnitude * decay_factor;
+}
+
+// ============================================================================
 // Röckle (1990) building wake model
 //
 // Computes velocity deficit behind a rectangular building due to wake effects.
@@ -1006,6 +1060,12 @@ bool rockle_wake_deficit(
         // Inside far-wake zone: reduced velocity deficit
         // Deficit at cavity edge is c2 * U_ref, decays to zero at Lf
         amrex::Real deficit_magnitude = params.c2 * U_ref_corrected * lateral_deficit;
+        
+        // Apply Yoshie two-layer height correction if enabled
+        if (params.enable_yoshie_two_layer) {
+            deficit_magnitude = compute_yoshie_two_layer_deficit(
+                deficit_magnitude, z_local, H, params.yoshie_decay_beta);
+        }
         
         // Corner and side acceleration effects
         if (params.enable_corner_acceleration) {

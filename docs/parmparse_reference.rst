@@ -313,6 +313,39 @@ Example courtyard with void zone:
 - ``canopy_emissivity`` (Real): Thermal emissivity
 - ``canopy_leaf_area_index`` (Real): LAI value
 
+Building Wake Models
+--------------------
+
+**Core Wake Model Parameters**
+
+- ``enable_wake`` (Bool): Enable building wake deficit calculations
+- ``wake_model_type`` (String): Model selection (Röckle, Huber-Snyder, AERMOD PRIME, etc.)
+- ``wake_c1`` (Real): Cavity zone length coefficient (L_r = c1 × H), default 0.9
+- ``wake_c2`` (Real): Wake deficit intensity coefficient, default 0.3
+- ``wake_separation_length`` (Real): Far-wake extent as multiple of building height H, default 3.0
+
+**Wake Enhancement Flags**
+
+All wake enhancements are backward-compatible and can be independently enabled/disabled:
+
+- ``enable_oblique_scaling`` (Bool): Scale cavity length based on wind direction obliquity, default true
+- ``enable_tall_building_correction`` (Bool): Apply correction for tall buildings (H > 100 m), default true
+- ``enable_gaussian_profile`` (Bool): Use Gaussian lateral deficit profile instead of cosine, default false
+- ``enable_upwind_recirculation`` (Bool): Include upwind recirculation zone, default true
+- ``enable_reference_correction`` (Bool): Apply reference height stability correction, default false
+- ``enable_corner_acceleration`` (Bool): Amplify deficit at building corners, default true
+- ``enable_variance_correction`` (Bool): Scale turbulent kinetic energy recovery, default false
+- ``enable_horseshoe_vortex`` (Bool): Model horseshoe vortex formation at building base, default true
+- ``enable_extended_farwake`` (Bool): Extend far-wake zone to 15H instead of 5H, default true
+- ``enable_yoshie_two_layer`` (Bool): Two-layer height-dependent deficit model (Yoshie et al., 2007), default true
+
+**Yoshie Two-Layer Model Parameters**
+
+- ``yoshie_decay_beta`` (Real): Exponential decay coefficient for above-roof zone, default 1.75, valid range [1.5, 2.0]
+  
+  The two-layer model separates cavity zone (z < H) and above-roof zone (z ≥ H), where the deficit decays exponentially:
+  ΔU(z) = ΔU_cavity × exp(-β × (z - H) / H). The decay coefficient β controls the rate of wind speed recovery above building height.
+
 Bridge & Obstacle Modeling
 ---------------------------
 

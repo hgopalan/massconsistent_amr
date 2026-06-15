@@ -174,6 +174,10 @@ void WindSolverApp::parse_inputs() {
     pp.query("enable_variance_correction", enable_variance_correction);
     pp.query("enable_horseshoe_vortex", enable_horseshoe_vortex);
     pp.query("enable_extended_farwake", enable_extended_farwake);
+    pp.query("enable_yoshie_two_layer", enable_yoshie_two_layer);
+    
+    amrex::Real yoshie_decay_beta = amrex::Real(1.75);
+    pp.query("yoshie_decay_beta", yoshie_decay_beta);
 
     // Analytical Turbine Wake parameters
     pp.query("enable_turbine_wake", enable_turbine_wake);
@@ -3658,6 +3662,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         wake_params.enable_variance_correction = enable_variance_correction;
         wake_params.enable_horseshoe_vortex = enable_horseshoe_vortex;
         wake_params.enable_extended_farwake = enable_extended_farwake;
+        wake_params.enable_yoshie_two_layer = enable_yoshie_two_layer;
+        wake_params.yoshie_decay_beta = yoshie_decay_beta;
         
         if (wake_model_type == "aermod_prime" || wake_model_type == "aermod-prime" ||
             wake_model_type == "AERMOD_PRIME" || wake_model_type == "AERMOD-PRIME" ||
