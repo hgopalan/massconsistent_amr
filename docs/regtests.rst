@@ -450,7 +450,7 @@ Disabling all enhancement flags recovers the original Röckle model behavior.
     enable_horseshoe_vortex = true
 
 For comprehensive testing details, parameter descriptions, and physics explanations,
-see :ref:`building_wake_enhancements` and ``regtest/wakes/wake_enhancements/README_TESTS.md``.
+see :ref:`numerical_methods` section "Building Wake Physics Implementation" and ``regtest/wakes/wake_enhancements/README_TESTS.md``.
 
 raws_synthetic
 ^^^^^^^^^^^^^^
