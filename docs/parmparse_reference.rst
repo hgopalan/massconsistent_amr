@@ -554,6 +554,22 @@ Wind Wake Modeling
 - ``wake_merge_distance`` (Real): Merging threshold [m]
 - ``enable_wake_superposition`` (Bool): Use linear superposition
 
+**Building Wake Physics Enhancements**
+
+The following flags enable advanced building wake model enhancements described in :ref:`mathematical_models` section "Building Wake Models":
+
+- ``enable_extended_farwake`` (Bool, default=true): Extend far-wake zone influence from 3–5H to 15H downstream
+- ``enable_oblique_scaling`` (Bool, default=true): Scale cavity length based on wind approach angle: :math:`L_r(\theta) = L_r^0 \times \cos(\theta)`
+- ``enable_tall_building_correction`` (Bool, default=true): Apply aspect-ratio correction: :math:`L_r = 0.9H \times \max(1.0, \min(W/H, 1.5))`
+- ``enable_gaussian_profile`` (Bool, default=false): Use Gaussian lateral profile instead of linear: :math:`\Delta U \propto \exp(-(y/\sigma)^2)`
+- ``enable_upwind_recirculation`` (Bool, default=true): Model reverse flow upstream of building
+- ``enable_reference_correction`` (Bool, default=false): Extract reference velocity from log-law profile: :math:`U(z) = U_{\text{ref}} \times \frac{\ln(z/z_0)}{\ln(z_{\text{ref}}/z_0)}`
+- ``enable_corner_acceleration`` (Bool, default=true): Add velocity amplification at building corners and sides (20% peak enhancement)
+- ``enable_variance_correction`` (Bool, default=false): Modify velocity variance profile (reduced in cavity 0.5×, enhanced in shear layer 1.5×)
+- ``enable_horseshoe_vortex`` (Bool, default=true): Compute velocity perturbations from horseshoe vortex at building-ground junction
+
+All enhancements are backward compatible. Disabling all flags recovers the original Röckle model behavior.
+
 Atmospheric Forcing & Forcing
 ------------------------------
 
