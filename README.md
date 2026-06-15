@@ -132,6 +132,10 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Wildfire Levelset:** One-way coupling with fire front propagation using sensible heat flux feedback.
 - **FLORIS & PyWake integration:** Exports resolved wind fields and data formats to FLORIS, PyWake, and WAsP.
 
+### 7. Data Assimilation
+- **Hybrid Ensemble Kalman Filter (EnKF):** Optional feature for rapid wind field correction using sparse observations from weather stations, LiDAR, and UAVs. Features covariance localization, mass conservation projection, and GPU-ready architecture. Disabled by default; enable via ParmParse configuration.
+- See [Data Assimilation Documentation](https://hgopalan.github.io/massconsistent_amr/data_assimilation_usage.html) for usage and [Development Status](https://hgopalan.github.io/massconsistent_amr/data_assimilation_development.html) for technical details.
+
 ## Test Cases
 
 Test cases are located in `test/` and documented in `test/README.md`.
