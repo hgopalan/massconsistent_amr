@@ -336,8 +336,7 @@ Britter-Hanna Urban Canyon Attenuation Parameters
 Recommended Literature for Future Building Wake Enhancements
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-High-Priority Implementations (Simple, High Impact)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The following models represent candidate enhancements to extend the wake physics capabilities:
 
 **Rodi Entrainment Model (Rodi, 1986)**
 
@@ -347,7 +346,7 @@ Expression for continuous wake recovery:
 
    \frac{dU}{dx} = -b \cdot U \cdot \frac{dH}{dx}
 
-where :math:`b = 0.15-0.25` is the entrainment coefficient. This replaces simple linear decay with physically-grounded continuous entrainment.
+where :math:`b = 0.15-0.25` is the entrainment coefficient. This approach replaces simple linear decay with physically-grounded continuous entrainment.
 
 **Yoshie Height-Dependent Deficit (Yoshie et al., 2007)**
 
@@ -367,9 +366,6 @@ Improved aspect-ratio scaling:
 .. math::
 
    U_{\text{exit}} = U_{\text{ref}} \times \left[0.2 + 0.8 \times (1 + H/W)^{-0.5}\right]
-
-Medium-Priority Implementations (Moderate Complexity, Good Physics)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Jensen Power-Law Recovery (Jensen, 1979)**
 
@@ -405,9 +401,6 @@ Self-similar scaling:
 
 with :math:`\alpha \approx 1.0`, :math:`\beta \approx 0.3`.
 
-Lower-Priority Implementations (Advanced or Specialized)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 **Snyder-Lawson Downwash Angle (Snyder & Lawson, 1994)**
 
 Vertical deflection modeling:
@@ -428,7 +421,7 @@ with :math:`\sigma = \sigma_0 + c_3 \times x`.
 
 **Solazzo Plume Rise (Solazzo & Britter, 2007)**
 
-Thermal coupling (Phase 4+):
+Thermal buoyancy effects:
 
 .. math::
 
@@ -680,36 +673,12 @@ Computes wind loading and thermal response for electrical transmission lines:
 where convective cooling :math:`q_{\text{convection}}` is a nonlinear function of local wind speed.
 - **Dynamic Ampacity Rating:** Calculates maximum allowable current :math:`I_{\text{max}}` such that conductor temperature remains below structural safety limits.
 
-Case Study Scenarios in Complex Terrain
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Altamont Pass 500 kV Transmission Line
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This scenario models gap flow wind acceleration through Altamont Pass, CA, evaluating dynamic line rating, conductor sag, and wind drag along 300 transmission line spans. It demonstrates the utility of mass-consistent flow modeling over coarse NOAA forecasts.
-
-Gorge Bridge Crossing
-^^^^^^^^^^^^^^^^^^^^^
-
-This scenario models canyon wind channeling and vertical wind shear across a deep gorge. It computes lateral sway, bending moments, and vortex shedding frequencies along the bridge span, comparing structural response to ISO comfort standards.
-
-Urban Heat Island Building
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This scenario simulates street canyon wind acceleration and thermal buoyancy effects within a dense block of tall buildings. It evaluates static and dynamic base shear, lateral deflection, and structural fragility curves.
-
-.. _sky_view_factor:
-
-Sky View Factor and Solar Shading
-==================================
-
-Overview
-~~~~~~~~
+Solar Radiation and Sky View Factor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Sky View Factor (SVF) and solar shading are unified computational approaches to account for radiation transmission and shadowing effects in complex terrain and urban environments. The key innovation is that **buildings and terrain are treated uniformly** as elevation features, enabling natural terrain-building interactions without special casing.
 
-Sky View Factor (SVF) Computation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**SVF Computation**
 
 SVF quantifies the fraction of the sky hemisphere visible from a surface point. It depends on local topography and ranges from 0 (completely sheltered, e.g., bottom of deep canyon) to 1 (completely open, e.g., flat plain).
 
@@ -739,7 +708,7 @@ Both terrain and buildings are represented as height features in the combined el
 - Urban canyon geometry (effective SVF reduction)
 
 Solar Radiation and Shading
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+****************************
 
 Solar shading depends on the solar position relative to terrain and building features.
 
@@ -818,7 +787,7 @@ The cloud-attenuated radiation is then:
 where :math:`\rho` is surface albedo.
 
 Configuration and Usage
-~~~~~~~~~~~~~~~~~~~~~~~
+****************************
 
 **Parameters:**
 
@@ -876,7 +845,7 @@ The transmittance values :math:`\tau_{\text{direct}}` and :math:`\tau_{\text{dif
 The total atmospheric transmittance at surface depends on solar geometry (cos(zenith) for direct, sky integration ≈0.25 for diffuse), so actual surface irradiance = :math:`Q_{\text{direct}} + Q_{\text{diffuse}}` with geometric weighting.
 
 Limitations and Future Work
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+****************************
 
 **Current Limitations:**
 
@@ -896,8 +865,8 @@ Limitations and Future Work
 6. Radiative transfer (cloud optical depth, cloud phase)
 7. Aerosol optical depth effects on clear-sky direct/diffuse ratio
 
-References for SVF and Shading
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+References
+****************************
 
 1. Oke, T.R. (1988). Street design and urban canopy layer climate. *Energy and Buildings*, 11, 103–113.
 2. Watson, I.D., Johnson, G.T. (1987). Graphical estimation of sky view factors in urban environments. *Journal of Climatology*, 7, 193–197.
@@ -905,3 +874,21 @@ References for SVF and Shading
 4. Richter, B., Strahler, A.H., Kaufmann, R.K. (2005). A global map of the base emissivity of bare soil. *Remote Sensing of Environment*, 102, 76–86.
 5. Kasten, F., Czeplak, G. (1980). Solar and terrestrial radiation dependent on the amount and type of cloud. *Solar Energy*, 24(2), 177–189.
 6. Liu, B.Y.H., Jordan, R.C. (1960). The interrelationship and characteristic distribution of direct, diffuse and total solar radiation. *Solar Energy*, 4(3), 1–19.
+
+Case Study Scenarios in Complex Terrain
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Altamont Pass 500 kV Transmission Line
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This scenario models gap flow wind acceleration through Altamont Pass, CA, evaluating dynamic line rating, conductor sag, and wind drag along 300 transmission line spans. It demonstrates the utility of mass-consistent flow modeling over coarse NOAA forecasts.
+
+Gorge Bridge Crossing
+^^^^^^^^^^^^^^^^^^^^^
+
+This scenario models canyon wind channeling and vertical wind shear across a deep gorge. It computes lateral sway, bending moments, and vortex shedding frequencies along the bridge span, comparing structural response to ISO comfort standards.
+
+Urban Heat Island Building
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This scenario simulates street canyon wind acceleration and thermal buoyancy effects within a dense block of tall buildings. It evaluates static and dynamic base shear, lateral deflection, and structural fragility curves.
