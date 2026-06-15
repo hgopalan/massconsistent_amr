@@ -79,7 +79,6 @@
 namespace amrex {
     class MultiFab;
     class Geometry;
-    class IntVect;
 }
 
 /**

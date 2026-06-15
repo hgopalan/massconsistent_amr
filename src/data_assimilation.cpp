@@ -229,10 +229,12 @@ void DataAssimilationManager::get_ensemble_uncertainty(
         for (MFIter mfi(variance_term); mfi.isValid(); ++mfi) {
             auto& arr = variance_term[mfi];
             auto& std_arr = std_dev_field[mfi];
+            const amrex::Box& box = arr.box();
             
-            for (auto it = arr.begin(); it != arr.end(); ++it) {
+            for (amrex::BoxIterator bi(box); bi.ok(); ++bi) {
+                const amrex::IntVect& iv = bi();
                 for (int n = 0; n < 3; ++n) {
-                    std_arr(*it, n) += arr(*it, n) * arr(*it, n) / ensemble_size;
+                    std_arr(iv, n) += arr(iv, n) * arr(iv, n) / ensemble_size;
                 }
             }
         }
@@ -241,10 +243,12 @@ void DataAssimilationManager::get_ensemble_uncertainty(
     // Take square root to get std dev
     for (MFIter mfi(std_dev_field); mfi.isValid(); ++mfi) {
         auto& arr = std_dev_field[mfi];
+        const amrex::Box& box = arr.box();
         
-        for (auto it = arr.begin(); it != arr.end(); ++it) {
+        for (amrex::BoxIterator bi(box); bi.ok(); ++bi) {
+            const amrex::IntVect& iv = bi();
             for (int n = 0; n < 3; ++n) {
-                arr(*it, n) = std::sqrt(std::max(0.0, arr(*it, n)));
+                arr(iv, n) = std::sqrt(std::max(0.0, arr(iv, n)));
             }
         }
     }
