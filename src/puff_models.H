@@ -1267,10 +1267,10 @@ void initialize_dense_gas_puff(
     amrex::Real wind_speed)
 {
     // Compute density ratio
-    puff.density_ratio = DenseGas::compute_density_ratio(gas_density);
+    puff.density_ratio = compute_density_ratio(gas_density);
     
     // Compute reduced gravity
-    puff.reduced_gravity = DenseGas::compute_reduced_gravity(puff.density_ratio);
+    puff.reduced_gravity = compute_reduced_gravity(puff.density_ratio);
     
     // Set initial layer height
     puff.initial_slab_height = initial_layer_height;
@@ -1278,11 +1278,11 @@ void initialize_dense_gas_puff(
     
     // Compute initial Froude number
     const amrex::Real U = amrex::max(wind_speed, amrex::Real(0.1));
-    puff.froude_number = DenseGas::compute_froude_number(
+    puff.froude_number = compute_froude_number(
         U, puff.reduced_gravity, initial_layer_height);
     
     // Classify regime
-    DenseGasRegime regime = DenseGas::classify_regime(puff.froude_number);
+    DenseGasRegime regime = classify_regime(puff.froude_number);
     puff.dense_gas_regime = static_cast<int>(regime);
     
     // Initial transition factor (0 = pure SLAB)
@@ -1315,7 +1315,7 @@ void update_dense_gas_puff(
     amrex::Real slab_power_exponent = 2.0/3.0)
 {
     // Update SLAB layer height
-    puff.slab_height = DenseGas::slab_layer_height(
+    puff.slab_height = slab_layer_height(
         distance_downwind,
         puff.initial_slab_height,
         slab_decay_scale,
@@ -1323,15 +1323,15 @@ void update_dense_gas_puff(
     
     // Update Froude number
     const amrex::Real U = amrex::max(wind_speed, amrex::Real(0.1));
-    puff.froude_number = DenseGas::compute_froude_number(
+    puff.froude_number = compute_froude_number(
         U, puff.reduced_gravity, puff.slab_height);
     
     // Update regime classification
-    DenseGasRegime regime = DenseGas::classify_regime(puff.froude_number);
+    DenseGasRegime regime = classify_regime(puff.froude_number);
     puff.dense_gas_regime = static_cast<int>(regime);
     
     // Update transition factor
-    puff.transition_factor = DenseGas::compute_transition_factor(
+    puff.transition_factor = compute_transition_factor(
         puff.slab_height, puff.initial_slab_height, puff.froude_number,
         distance_downwind);
 }
