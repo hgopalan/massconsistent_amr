@@ -1,0 +1,4 @@
+# Case 1: Isolated Rectangular Building Wake
+# Building: H=30m, W=20m, L=40m. Centered at x=100, y=100.
+# Format: xmin  xmax  ymin  ymax  zmin  zmax
+80.0  120.0  90.0  110.0  0.0  30.0
