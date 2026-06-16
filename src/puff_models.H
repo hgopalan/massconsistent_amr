@@ -1224,8 +1224,118 @@ Puff create_puff(
     puff.cavity_age = amrex::Real(0.0);
     for (int i = 0; i < Puff::NUM_SPECIES; ++i) puff.species_mass[i] = amrex::Real(0.0);
     puff.species_mass[0] = mass;
+    
+    // Initialize dense gas parameters (default: passive gas)
+    puff.density_ratio = amrex::Real(1.0);
+    puff.reduced_gravity = amrex::Real(0.0);
+    puff.froude_number = amrex::Real(1.0);
+    puff.slab_height = amrex::Real(0.0);
+    puff.initial_slab_height = amrex::Real(0.0);
+    puff.dense_gas_regime = 0;  // 0=gravity, 1=transitional, 2=wind
+    puff.transition_factor = amrex::Real(0.0);  // 0=SLAB, 1=Gaussian
+    
     return puff;
 }
+
+// ============================================================================
+// Initialize dense gas properties for a puff
+//
+// Sets up SLAB/UGC dense gas parameters for a newly emitted puff, including:
+// - Density ratio calculation
+// - Reduced gravity (buoyancy)
+// - Initial Froude number
+// - SLAB layer height
+// - Regime classification
+//
+// Inputs:
+//   puff                  - Puff to initialize
+//   gas_density           - Gas density [kg/m³]
+//   initial_layer_height  - Initial SLAB layer height H₀ [m]
+//   slab_decay_scale      - Characteristic decay scale x_max [m]
+//   wind_speed            - Wind speed [m/s]
+//
+// Modifies:
+//   puff.density_ratio, puff.reduced_gravity, puff.froude_number, 
+//   puff.slab_height, puff.initial_slab_height, puff.dense_gas_regime
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void initialize_dense_gas_puff(
+    Puff& puff,
+    amrex::Real gas_density,
+    amrex::Real initial_layer_height,
+    amrex::Real slab_decay_scale,
+    amrex::Real wind_speed)
+{
+    // Compute density ratio
+    puff.density_ratio = DenseGas::compute_density_ratio(gas_density);
+    
+    // Compute reduced gravity
+    puff.reduced_gravity = DenseGas::compute_reduced_gravity(puff.density_ratio);
+    
+    // Set initial layer height
+    puff.initial_slab_height = initial_layer_height;
+    puff.slab_height = initial_layer_height;
+    
+    // Compute initial Froude number
+    const amrex::Real U = amrex::max(wind_speed, amrex::Real(0.1));
+    puff.froude_number = DenseGas::compute_froude_number(
+        U, puff.reduced_gravity, initial_layer_height);
+    
+    // Classify regime
+    DenseGasRegime regime = DenseGas::classify_regime(puff.froude_number);
+    puff.dense_gas_regime = static_cast<int>(regime);
+    
+    // Initial transition factor (0 = pure SLAB)
+    puff.transition_factor = amrex::Real(0.0);
+}
+
+// ============================================================================
+// Update dense gas properties for an evolving puff
+//
+// Updates SLAB layer height, Froude number, and transition factor based on
+// puff age and downwind distance.
+//
+// Inputs:
+//   puff                  - Puff to update
+//   distance_downwind     - Downwind distance from source [m]
+//   wind_speed            - Wind speed [m/s]
+//   slab_decay_scale      - Characteristic decay scale x_max [m]
+//   slab_power_exponent   - SLAB height decay exponent (default: 2/3)
+//
+// Modifies:
+//   puff.slab_height, puff.froude_number, puff.dense_gas_regime,
+//   puff.transition_factor
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void update_dense_gas_puff(
+    Puff& puff,
+    amrex::Real distance_downwind,
+    amrex::Real wind_speed,
+    amrex::Real slab_decay_scale,
+    amrex::Real slab_power_exponent = 2.0/3.0)
+{
+    // Update SLAB layer height
+    puff.slab_height = DenseGas::slab_layer_height(
+        distance_downwind,
+        puff.initial_slab_height,
+        slab_decay_scale,
+        slab_power_exponent);
+    
+    // Update Froude number
+    const amrex::Real U = amrex::max(wind_speed, amrex::Real(0.1));
+    puff.froude_number = DenseGas::compute_froude_number(
+        U, puff.reduced_gravity, puff.slab_height);
+    
+    // Update regime classification
+    DenseGasRegime regime = DenseGas::classify_regime(puff.froude_number);
+    puff.dense_gas_regime = static_cast<int>(regime);
+    
+    // Update transition factor
+    puff.transition_factor = DenseGas::compute_transition_factor(
+        puff.slab_height, puff.initial_slab_height, puff.froude_number,
+        distance_downwind);
+}
+
 
 // ============================================================================
 // Compute building cavity zone geometry (AERMOD PRIME model)
