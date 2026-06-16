@@ -1109,6 +1109,30 @@ bool rockle_wake_deficit(
         Lr = compute_oblique_cavity_scaling(Lr, wd_x, wd_y, bldg_normal_x, bldg_normal_y);
     }
 
+    // Distance relative to upwind face
+    const amrex::Real x_upstream = x_wind + shape_half_len;
+    const amrex::Real Wr = shape_width;               // Cavity width
+
+    // ========================================================================
+    // Upwind recirculation zone (before building)
+    // ========================================================================
+    if (params.enable_upwind_recirculation && x_upstream < amrex::Real(0.0)) {
+        const amrex::Real recirculation_extent = amrex::Real(0.5) * std::min(H, W);
+        if (x_upstream > -recirculation_extent) {
+            // Within upwind recirculation zone
+            if (std::abs(y_wind) <= Wr / amrex::Real(2.0)) {
+                if (z_local >= amrex::Real(0.0) && z_local <= Hr) {
+                    const amrex::Real du_upwind = compute_upwind_recirculation(
+                        x_upstream, H, W, U_ref_corrected, z_local);
+                    du = du_upwind * wd_x;  // Apply in wind direction
+                    dv = du_upwind * wd_y;  // Apply in wind direction
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // Wake starts at downwind face of building
     const amrex::Real wake_start = shape_half_len;
     
@@ -1119,7 +1143,6 @@ bool rockle_wake_deficit(
     
     // Distance downwind from building back face
     const amrex::Real x_wake = x_wind - wake_start;
-    const amrex::Real Wr = shape_width;               // Cavity width
     
     // ========================================================================
     // 1. Cavity zone (recirculation zone)
@@ -1161,25 +1184,6 @@ bool rockle_wake_deficit(
         }
          
         return true;
-    }
-    
-    // ========================================================================
-    // Upwind recirculation zone (before building)
-    // ========================================================================
-    if (params.enable_upwind_recirculation && x_wake < amrex::Real(0.0)) {
-        // Check lateral bounds
-        const amrex::Real recirculation_extent = amrex::Real(0.5) * std::min(H, W);
-        if (x_wake > -recirculation_extent) {
-            // Within upwind recirculation zone
-            if (std::abs(y_wind) <= Wr / amrex::Real(2.0)) {
-                if (z_local >= amrex::Real(0.0) && z_local <= Hr) {
-                    const amrex::Real du_upwind = compute_upwind_recirculation(
-                        x_wake, H, W, U_ref_corrected, z_local);
-                    du += du_upwind * wd_x;  // Apply in wind direction
-                    return true;
-                }
-            }
-        }
     }
     
     // ========================================================================
