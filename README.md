@@ -117,6 +117,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 ### 3. Dispersion Model
 - **Gaussian Puff Dispersion:** Tracks 3D Gaussian puffs with Pasquill-Gifford stability, Briggs plume rise, gravitational settling, dry deposition, and precipitation scavenging.
 - **Lagrangian Particle LPDM:** Simulates stochastic particle trajectories with Wiener processes, including a vertical drift correction to prevent spurious accumulation in inhomogeneous diffusivity fields.
+- **Dense Gas Dispersion (SLAB/UGC):** Models hazardous material releases with density-ratio tracking, Froude number regime detection, gravity-driven spreading, and SLAB layer height decay for applications including CO₂, HF, Cl₂ emissions.
 - **Simple Reactive Chemistry:** First-order exponential decay of NO₂, SO₂, and HCl with stoichiometric product formation (AERMOD TOXICS level). Supports optional seasonal and temperature corrections.
 
 ### 4. Synthetic Fluctuations (Turbulence)

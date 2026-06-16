@@ -802,6 +802,123 @@ indicates flow acceleration over terrain.
     temperature_file = "temperature.csv"
     temperature_gradient = 0.005
 
+puff_dense_gas_co2
+^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/dispersion/puff_dense_gas_co2/``
+
+**Purpose:** Validates the SLAB/UGC (Source-Layer Analysis with Buoyancy / 
+Upper-layer Gravity-driven Current) dense gas dispersion model for hazardous 
+material releases. Tests CO₂ (carbon dioxide) with density ratio ρ_gas/ρ_air > 1, 
+demonstrating gravity-dominated spreading in the initial near-field.
+
+**Terrain:** Flat domain (500 × 500 m, z = 0 m).
+
+**Grid:** 50 × 50 × 50 cells (dx = dy = 10 m, dz = 2 m, domain_height = 100 m).
+
+**Source:** 1.0 kg/s CO₂ release at ground level (z = 0.5 m), center of domain.
+
+**Wind:** 5 m/s westerly (U_wind = 5 m/s). Low wind speed emphasizes gravity-driven 
+spreading (Froude number Fr ≈ 0.5–1.0, transitional regime).
+
+**Dense Gas Parameters:**
+- Molecular weight: 44.01 g/mol (CO₂)
+- Density at std: 1.98 kg/m³
+- Initial layer height H₀: 5.0 m
+- Decay scale x_max: 200.0 m
+- Layer height decay: H(x) = H₀ × [1-(x/x_max)^(2/3)]
+
+**Expected behavior:** CO₂ forms a dense layer at ground level with lateral 
+spreading dominated by gravity. Concentration maximum at z ≈ 2–3 m (center of 
+dense layer). Plume widens as gravity-driven spreading continues downwind, with 
+layer height decaying with distance per SLAB formula. Transition to passive 
+Gaussian dispersion occurs at large downwind distances or when Froude number 
+increases.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_puff = true
+    enable_dense_gas = true
+    source_z = 0.5
+    gas_molecular_weight = 44.01
+    gas_density = 1.98
+    initial_layer_height = 5.0
+    slab_decay_scale = 200.0
+    U_wind = 5.0
+
+puff_dense_gas_hf
+^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/dispersion/puff_dense_gas_hf/``
+
+**Purpose:** Validates dense gas model for hydrogen fluoride (HF), a more toxic 
+and denser hazmat species. Demonstrates sensitivity of SLAB/UGC model to 
+molecular weight and density ratio variations.
+
+**Terrain:** Flat domain (500 × 500 m, z = 0 m).
+
+**Source:** 0.5 kg/s HF release at ground level.
+
+**Wind:** 8 m/s westerly (moderately higher wind speed than CO₂ test).
+
+**Dense Gas Parameters:**
+- Molecular weight: 20.01 g/mol (HF)
+- Density at std: 0.927 kg/m³ (actually lighter than CO₂, but denser than air)
+- Initial layer height H₀: 3.0 m (shallower than CO₂)
+- Decay scale x_max: 150.0 m
+
+**Expected behavior:** HF shows different near-field behavior than CO₂: smaller 
+initial layer height, faster lateral spreading rate due to higher molecular weight 
+effects on gravitational forcing. Froude number ≈ 1.0–1.5 indicates transitional 
+regime with balanced wind and gravity effects.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_puff = true
+    enable_dense_gas = true
+    gas_molecular_weight = 20.01
+    gas_density = 0.927
+    initial_layer_height = 3.0
+    U_wind = 8.0
+
+puff_dense_gas_terrain
+^^^^^^^^^^^^^^^^^^^^^^
+
+**Location:** ``regtest/dispersion/puff_dense_gas_terrain/``
+
+**Purpose:** Validates dense gas dispersion model interaction with complex terrain. 
+Tests CO₂ release from elevated source on a Gaussian hill, demonstrating how 
+terrain topography affects SLAB layer dynamics and concentration distribution.
+
+**Terrain:** Gaussian hill with peak elevation 20 m at domain center (same as 
+gaussian_hill test), over 500 × 500 m domain.
+
+**Grid:** 50 × 50 × 50 cells (dx = dy = 10 m, dz = 2 m).
+
+**Source:** 1.0 kg/s CO₂ release at z = 25 m on hill slope.
+
+**Wind:** 10 m/s westerly (stronger wind emphasizes wind-dominated transport).
+
+**Expected behavior:** Dense gas layer height varies with local terrain elevation. 
+Plume interacts with hill slope, following terrain contours in near-field. Froude 
+number varies spatially due to terrain-induced wind speed modulation. Dense layer 
+erodes faster downwind due to stronger wind. Concentration field exhibits 
+asymmetry due to terrain-flow coupling.
+
+**Key input parameters:**
+
+.. code-block:: text
+
+    enable_puff = true
+    enable_dense_gas = true
+    enable_terrain_reflection = true
+    source_z = 25.0
+    U_wind = 10.0
+
 Adding New Tests
 
 ----------------
@@ -833,3 +950,4 @@ regression suite automatically after each successful build::
 
 This ensures that every push and pull request verifies both compilation and
 solver correctness on multiple operating systems.
+

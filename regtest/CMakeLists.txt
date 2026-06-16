@@ -421,6 +421,21 @@ add_regression_test(puff_downwash_multi_time dispersion/puff_downwash_multi_time
 add_regression_test(puff_aloha_features dispersion/puff_aloha_features)
 
 # ---------------------------------------------------------------------------
+# puff_dense_gas_co2/ – SLAB/UGC dense gas model: CO₂ release (ρ_ratio > 1)
+# ---------------------------------------------------------------------------
+add_regression_test(puff_dense_gas_co2 dispersion/puff_dense_gas_co2)
+
+# ---------------------------------------------------------------------------
+# puff_dense_gas_hf/ – SLAB/UGC dense gas model: HF release (hazmat)
+# ---------------------------------------------------------------------------
+add_regression_test(puff_dense_gas_hf dispersion/puff_dense_gas_hf)
+
+# ---------------------------------------------------------------------------
+# puff_dense_gas_terrain/ – SLAB/UGC dense gas model with terrain interaction
+# ---------------------------------------------------------------------------
+add_regression_test(puff_dense_gas_terrain dispersion/puff_dense_gas_terrain)
+
+# ---------------------------------------------------------------------------
 # lpdm_terrain/ – Lagrangian Particle Dispersion Model on terrain
 # ---------------------------------------------------------------------------
 add_regression_test(lpdm_terrain dispersion/lpdm_terrain)

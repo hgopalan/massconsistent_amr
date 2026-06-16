@@ -149,7 +149,21 @@ struct PuffParams {
     amrex::Real chemistry_temp_ref = 298.15;       // Reference temperature [K]
     amrex::Real chemistry_Q10 = 2.0;               // Q10 temperature sensitivity
     int chemistry_month = 6;                       // Month for seasonal adjustment (1-12)
+
+    // Dense gas (SLAB/UGC) parameters for hazardous material releases
+    bool enable_dense_gas = false;           // Enable SLAB/UGC dense gas model
+    amrex::Real gas_molecular_weight = 44.01; // Molar mass [g/mol] (default: CO₂)
+    amrex::Real gas_density = 1.98;          // Gas density at std conditions [kg/m³]
+    amrex::Real initial_layer_height = 10.0; // Initial SLAB layer height H₀ [m]
+    amrex::Real slab_decay_scale = 100.0;    // Characteristic decay scale x_max [m]
+    amrex::Real slab_power_exponent = 2.0/3.0;  // SLAB height decay exponent (default: 2/3)
+    amrex::Real lateral_spreading_coeff = 0.15; // Lateral spreading coefficient C_spread
+    amrex::Real entrainment_coefficient = 0.1;  // Vertical mixing entrainment β
+    amrex::Real froude_threshold_transition = 2.0; // Froude number for passive transition
 };
+
+// Include dense gas models for integration with puff solver
+#include "dense_gas_models.H"
 
 // ============================================================================
 // Puff Structure
@@ -174,6 +188,15 @@ struct Puff {
     amrex::Real C_NO = 0.0;         // Nitric oxide (product)
     amrex::Real C_SO4 = 0.0;        // Sulfate ions (product)
     amrex::Real C_CL = 0.0;         // Chloride ions (product)
+    
+    // Dense gas (SLAB) parameters
+    amrex::Real density_ratio = 1.0;        // ρ_gas / ρ_air (1.0 = passive)
+    amrex::Real reduced_gravity = 0.0;      // g' = g × (ρ_ratio - 1) [m/s²]
+    amrex::Real froude_number = 1.0;        // Fr = U / sqrt(g'×H) [dimensionless]
+    amrex::Real slab_height = 0.0;          // Current dense layer height H(x) [m]
+    amrex::Real initial_slab_height = 0.0;  // Initial layer height H₀ [m]
+    int dense_gas_regime = 0;               // Regime classification (0=gravity, 1=transitional, 2=wind)
+    amrex::Real transition_factor = 0.0;    // Transition to passive (0=SLAB, 1=Gaussian)
 };
 
 // ============================================================================
