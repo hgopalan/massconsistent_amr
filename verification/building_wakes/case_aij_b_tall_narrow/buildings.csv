@@ -1,0 +1,4 @@
+# AIJ Case B: Isolated Tall Narrow Building
+# Building: H=30m, W=10m, L=10m. Centered at x=150, y=100.
+# Format: xmin  xmax  ymin  ymax  zmin  zmax
+145.0  155.0  95.0  105.0  0.0  30.0

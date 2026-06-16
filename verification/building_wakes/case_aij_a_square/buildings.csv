@@ -1,0 +1,4 @@
+# AIJ Case A: Isolated Square Building
+# Building: H=20m, W=20m, L=20m. Centered at x=150, y=100.
+# Format: xmin  xmax  ymin  ymax  zmin  zmax
+140.0  160.0  90.0  110.0  0.0  20.0
