@@ -421,6 +421,21 @@ add_regression_test(puff_downwash_multi_time dispersion/puff_downwash_multi_time
 add_regression_test(puff_aloha_features dispersion/puff_aloha_features)
 
 # ---------------------------------------------------------------------------
+# puff_dense_gas_co2/ – SLAB/UGC dense gas model: CO₂ release (ρ_ratio > 1)
+# ---------------------------------------------------------------------------
+add_regression_test(puff_dense_gas_co2 dispersion/puff_dense_gas_co2)
+
+# ---------------------------------------------------------------------------
+# puff_dense_gas_hf/ – SLAB/UGC dense gas model: HF release (hazmat)
+# ---------------------------------------------------------------------------
+add_regression_test(puff_dense_gas_hf dispersion/puff_dense_gas_hf)
+
+# ---------------------------------------------------------------------------
+# puff_dense_gas_terrain/ – SLAB/UGC dense gas model with terrain interaction
+# ---------------------------------------------------------------------------
+add_regression_test(puff_dense_gas_terrain dispersion/puff_dense_gas_terrain)
+
+# ---------------------------------------------------------------------------
 # lpdm_terrain/ – Lagrangian Particle Dispersion Model on terrain
 # ---------------------------------------------------------------------------
 add_regression_test(lpdm_terrain dispersion/lpdm_terrain)
@@ -431,7 +446,21 @@ add_regression_test(lpdm_terrain dispersion/lpdm_terrain)
 add_regression_test(lpdm_drift_spatial_lid dispersion/lpdm_drift_spatial_lid)
 
 # ---------------------------------------------------------------------------
-# realistic_farm_case/ - Realistic agricultural drone spray and deposition regression test
+# puff_chemistry_no2_decay/ - NO₂ photochemical decay validation
+# =========================================================================
+# Tests simple reactive chemistry with 1st-order exponential decay
+# Expected: ~50% decay at 4-hour half-life
+# ---------------------------------------------------------------------------
+add_regression_test(puff_chemistry_no2_decay dispersion/puff_chemistry_no2_decay)
+
+# ---------------------------------------------------------------------------
+# puff_chemistry_so2_oxidation/ - SO₂ oxidation to sulfate
+# =========================================================================
+# Tests SO₂ oxidation with 24-hour half-life and product formation
+# Expected: ~71% remaining at 5.56 hours (0.78 half-lives)
+# ---------------------------------------------------------------------------
+add_regression_test(puff_chemistry_so2_oxidation dispersion/puff_chemistry_so2_oxidation)
+
 # ---------------------------------------------------------------------------
 add_python_regression_test(realistic_farm_case dispersion/realistic_farm_case test_realistic_farm_case.py)
 

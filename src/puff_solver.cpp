@@ -667,6 +667,29 @@ int main(int argc, char* argv[])
         if (enable_pg_stability && !pp.contains("L_obukhov")) {
             L_obukhov = pg_class_to_obukhov_length(static_cast<PGStabilityClass>(pg_stability_class));
         }
+
+        // ===================================================================
+        // Dense Gas (SLAB/UGC) Parameters for Hazmat Releases
+        // ===================================================================
+        bool enable_dense_gas = false;
+        Real gas_molecular_weight = 44.01;   // CO₂ by default [g/mol]
+        Real gas_density = 1.98;             // CO₂ density at std [kg/m³]
+        Real initial_layer_height = 10.0;    // Initial SLAB layer height H₀ [m]
+        Real slab_decay_scale = 100.0;       // Characteristic decay scale x_max [m]
+        Real slab_power_exponent = 2.0/3.0;  // SLAB height decay exponent
+        Real lateral_spreading_coeff = 0.15; // Lateral spreading coefficient C_spread
+        Real entrainment_coefficient = 0.1;  // Vertical mixing entrainment β
+        Real froude_threshold_transition = 2.0; // Froude number for passive transition
+        
+        pp.query("enable_dense_gas", enable_dense_gas);
+        pp.query("gas_molecular_weight", gas_molecular_weight);
+        pp.query("gas_density", gas_density);
+        pp.query("initial_layer_height", initial_layer_height);
+        pp.query("slab_decay_scale", slab_decay_scale);
+        pp.query("slab_power_exponent", slab_power_exponent);
+        pp.query("lateral_spreading_coeff", lateral_spreading_coeff);
+        pp.query("entrainment_coefficient", entrainment_coefficient);
+        pp.query("froude_threshold_transition", froude_threshold_transition);
         
         // Read receptors file
         struct Receptor {
@@ -1517,6 +1540,13 @@ int main(int argc, char* argv[])
                             pz += plume_rise;
                         }
                         Puff new_puff = create_puff(px, py, pz, segment_mass, sigma_y0, sigma_z0, time);
+                        
+                        // Initialize dense gas properties if enabled
+                        if (enable_dense_gas) {
+                            initialize_dense_gas_puff(new_puff, gas_density, initial_layer_height,
+                                                    slab_decay_scale, wind_speed);
+                        }
+                        
                         puffs.push_back(new_puff);
                     }
                 } else if (source_type == "area") {
@@ -1535,6 +1565,13 @@ int main(int argc, char* argv[])
                                 pz += plume_rise;
                             }
                             Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
+                            
+                            // Initialize dense gas properties if enabled
+                            if (enable_dense_gas) {
+                                initialize_dense_gas_puff(new_puff, gas_density, initial_layer_height,
+                                                        slab_decay_scale, wind_speed);
+                            }
+                            
                             puffs.push_back(new_puff);
                         }
                     }
@@ -1550,6 +1587,13 @@ int main(int argc, char* argv[])
                                 Real py = volume_ymin + (static_cast<Real>(j_vol) + 0.5) * dy_vol;
                                 Real pz = volume_zmin + (static_cast<Real>(k_vol) + 0.5) * dz_vol;
                                 Puff new_puff = create_puff(px, py, pz, sub_mass, sigma_y0, sigma_z0, time);
+                                
+                                // Initialize dense gas properties if enabled
+                                if (enable_dense_gas) {
+                                    initialize_dense_gas_puff(new_puff, gas_density, initial_layer_height,
+                                                            slab_decay_scale, wind_speed);
+                                }
+                                
                                 puffs.push_back(new_puff);
                             }
                         }
@@ -1558,6 +1602,13 @@ int main(int argc, char* argv[])
                     Puff new_puff = create_puff(
                         source_x, source_y, effective_source_z,
                         puff_mass, sigma_y0, sigma_z0, time);
+                    
+                    // Initialize dense gas properties if enabled
+                    if (enable_dense_gas) {
+                        initialize_dense_gas_puff(new_puff, gas_density, initial_layer_height,
+                                                slab_decay_scale, wind_speed);
+                    }
+                    
                     puffs.push_back(new_puff);
                 }
                 }
