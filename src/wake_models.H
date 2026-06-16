@@ -1108,6 +1108,15 @@ bool rockle_wake_deficit(
         const amrex::Real bldg_normal_y = std::cos(bldg.rotation);
         Lr = compute_oblique_cavity_scaling(Lr, wd_x, wd_y, bldg_normal_x, bldg_normal_y);
     }
+    
+    // Oikonomou aspect-ratio dependent cavity correction
+    // Refines cavity length for elongated buildings based on L/W ratio
+    if (params.enable_oikonomou_aspect && bldg.shape == BuildingShape::RECTANGULAR) {
+        const amrex::Real length_downwind = amrex::Real(2.0) * shape_half_len;
+        const amrex::Real aspect_factor = compute_oikonomou_aspect_ratio_factor(
+            length_downwind, shape_width, params.oikonomou_beta_aspect);
+        Lr *= aspect_factor;
+    }
 
     // Distance relative to upwind face
     const amrex::Real x_upstream = x_wind + shape_half_len;
@@ -1870,6 +1879,36 @@ void apply_single_building_wake(
         u -= du;
         v -= dv;
         w -= dw;
+        
+        // Apply Britter-Hanna urban canyon attenuation
+        // Reduces wind speed in dense urban environments based on building density
+        if (params.enable_britter_hanna_urban) {
+            // Compute frontal area index: φ_v = (H × area_projection) / area_ref
+            // Simplified approach: use building frontal projection
+            const amrex::Real bldg_height = bldg.zmax - bldg.zmin;
+            const amrex::Real bldg_width = std::abs(bldg.ymax - bldg.ymin);
+            const amrex::Real bldg_depth = std::abs(bldg.xmax - bldg.xmin);
+            
+            // Estimate frontal area index as fraction of building volume per unit volume
+            // φ_v ranges from 0 (isolated) to 1.0 (dense urban)
+            const amrex::Real frontal_area = bldg_height * bldg_width;
+            
+            // Estimate reference area as ~100x product of building dimensions
+            const amrex::Real ref_area = amrex::Real(100.0) * bldg_width * bldg_depth;
+            amrex::Real phi_v = frontal_area / ref_area;
+            
+            // Clamp to reasonable range
+            phi_v = amrex::max(amrex::Real(0.0), amrex::min(phi_v, amrex::Real(1.0)));
+            
+            // Apply urban canyon reduction factor
+            const amrex::Real urban_reduction = compute_britter_hanna_urban_reduction(
+                phi_v, params.britter_hanna_alpha);
+            
+            // Attenuate velocity components
+            u *= urban_reduction;
+            v *= urban_reduction;
+            w *= urban_reduction;
+        }
     }
 }
 

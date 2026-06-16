@@ -115,6 +115,75 @@ where the user-specified CFL parameter (typically 0.8) ensures strict numerical 
 Dispersion Model
 ----------------
 
+Building Wake Model Discretization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The building wake models are implemented as local velocity deficit functions evaluated at each grid point. The Röckle wake model divides the wake region into three zones with distinct deficit profiles:
+
+1. **Cavity Zone Discretization:** Points within :math:`0 < x_{\text{wake}} < L_r` and :math:`|y_{\text{wind}}| < W/2` experience recirculation deficit. The deficit magnitude is computed as:
+
+   .. math::
+
+      \Delta U_{\text{cavity}} = -c_2 \times U_{\text{ref}} \times \text{deficit\_scale}
+
+   where :math:`c_2 \approx 0.3` is the empirical cavity deficit coefficient.
+
+2. **Far-Wake Zone Discretization:** Points in the range :math:`L_r < x_{\text{wake}} < L_f` are subject to linear (or entrainment-based) deficit decay. The normalized distance in the far-wake is computed as:
+
+   .. math::
+
+      x_{\text{normalized}} = \frac{x_{\text{wake}} - L_r}{L_f - L_r}
+
+   The default linear decay factor is then modified by the Rodi entrainment model if enabled:
+
+   .. math::
+
+      \text{decay\_factor} = 1.0 - C_e \times x_{\text{normalized}}^2
+
+   where :math:`C_e \approx 1.0` (default) is the entrainment coefficient.
+
+3. **Height-Dependent Deficit Modification:** Above the building height (:math:`z > H`), the Yoshie two-layer model applies exponential decay to the deficit:
+
+   .. math::
+
+      \Delta U(z) = \Delta U_{\text{base}} \times \exp(-\beta(z - H)/H)
+
+   where :math:`\beta \approx 1.75` controls the above-roof decay rate.
+
+**Grid Operations:**
+
+- All deficit calculations are performed at the cell-center locations on the AMReX MultiFab grid.
+- Wind-aligned coordinates are computed from building geometry and local wind direction using rotation matrices.
+- Velocity deficits are superposed across overlapping wakes using distance-weighted blending to ensure smooth field transitions.
+
+Urban Canyon Density Effects
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For building ensembles in dense urban environments, the Britter-Hanna urban canyon attenuation model reduces wind speeds based on local building density:
+
+.. math::
+
+   \phi_v = \frac{A_{\text{frontal}} \times H}{A_{\text{reference}}}
+
+The wind speed reduction factor is applied as:
+
+.. math::
+
+   U_{\text{attenuated}} = U_{\text{original}} \times \exp(-\alpha_{\text{urban}} \times \phi_v)
+
+where :math:`\alpha_{\text{urban}} \approx 0.15` is the urban canyon attenuation coefficient.
+
+Aspect-Ratio Corrections
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+For non-cubic buildings, the Oikonomou aspect-ratio dependent cavity correction modifies the cavity length based on the building elongation:
+
+.. math::
+
+   L_r(\text{corrected}) = L_r^{\text{base}} \times \left(1.0 + \beta_{\text{aspect}} \frac{\alpha - 1.0}{\alpha_{\text{ref}} - 1.0}\right)
+
+where :math:`\alpha = L/W` is the building aspect ratio and :math:`\beta_{\text{aspect}} \approx 0.25`.
+
 Puff Model Numerical Tracking
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

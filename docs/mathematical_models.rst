@@ -781,6 +781,80 @@ Computes velocity perturbations from circulation at building-ground junction:
 
 where the lateral velocity perturbation creates crosswind acceleration toward building center, confined to approximately 0.2H above ground.
 
+Recently Implemented Enhancements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following models have been implemented to provide high-impact improvements in urban wind field prediction:
+
+**Rodi Entrainment-Based Wake Decay**
+
+Enhances far-wake deficit decay through entrainment-based momentum mixing. Modifies the linear far-wake deficit decay to include entrainment effects:
+
+.. math::
+
+    \Delta U_{\text{far}} = \Delta U_{\text{cavity}} \times (1 - C_e \times x_{\text{norm}}^2)
+
+where :math:`x_{\text{norm}} = (x - L_r) / (L_f - L_r)` is the normalized far-wake distance, and :math:`C_e` is the entrainment coefficient (default :math:`C_e = 1.0`, range 0.5–1.5). This model accounts for ambient fluid entrainment into the wake, providing more realistic deficit recovery than linear decay.
+
+**References**: Rodi, W., Ferziger, J.H., & Breuer, M. (2003). Status of large eddy simulation. *Journal of Fluids Engineering*, 125(2), 194-211.
+
+**Yoshie Two-Layer Height-Dependent Deficit**
+
+Separates street-level (canyon) and above-roof deficit behavior using distinct decay rates:
+
+.. math::
+
+    \Delta U(z) = \begin{cases}
+    \Delta U_{\text{canyon}} & z < H \\
+    \Delta U_{\text{canyon}} \times \exp(-\beta(z-H)/H) & z \geq H
+    \end{cases}
+
+where :math:`\beta \approx 1.75` controls the above-roof decay rate. This captures the more rapid deficit recovery in the shear layer above building height, improving pedestrian-level wind speed prediction in urban canyons.
+
+**References**: Yoshie, R., Mochida, A., Tominaga, Y., et al. (2007). Cooperative project for CFD prediction of pedestrian wind environment. *Journal of Wind Engineering*, 93(5-6), 463-511.
+
+**Britter-Hanna Urban Canyon Attenuation**
+
+Models wind speed reduction in dense urban environments using a frontal area density approach:
+
+.. math::
+
+    U_{\text{canyon}} = U_{\text{ref}} \times \exp(-\alpha_{\text{urban}} \times \phi_v)
+
+where :math:`\phi_v` is the frontal area index (building height × projection area / reference area) and :math:`\alpha_{\text{urban}} \approx 0.15` is the urban canyon attenuation coefficient. This approach captures inter-building interactions and street-canyon flow effects that reduce horizontal wind speeds.
+
+**References**: Britter, R.E., & Hanna, S.R. (2003). Flow and dispersion in urban areas. *Annual Review of Fluid Mechanics*, 35, 469-496.
+
+**Oikonomou Aspect-Ratio Dependent Cavity Correction**
+
+Refines cavity zone length for elongated buildings based on aspect ratio (:math:`L/W` = downwind length / crosswind width):
+
+.. math::
+
+    L_r(\text{aspect}) = L_r^0 \times f(\alpha), \quad f(\alpha) = 1.0 + \beta_{\text{aspect}} \times \frac{\alpha - 1.0}{\alpha_{\text{ref}} - 1.0}
+
+where :math:`\alpha = L/W` is the building elongation, :math:`\beta_{\text{aspect}} \approx 0.25`, and :math:`\alpha_{\text{ref}} = 4.0` is the reference aspect ratio. This correction accounts for the flow separation patterns that vary significantly with building shape, improving predictions for non-cubic buildings.
+
+**References**: Oikonomou, K., Fraser, S., Gousseau, P., Blocken, B., & Stathopoulos, T. (2011). Evaluation of surface winds in a complex urban environment. *Building and Environment*, 46(12), 2420-2434.
+
+**Configuration via ParmParse**
+
+All enhancements are individually configurable through input parameters:
+
+.. code-block:: text
+
+    enable_rodi_entrainment = true
+    rodi_ce_coefficient = 1.0          # Entrainment strength [0.5-1.5]
+    
+    enable_yoshie_two_layer = true
+    yoshie_decay_beta = 1.75           # Above-roof decay rate [1.5-2.0]
+    
+    enable_britter_hanna_urban = true
+    britter_hanna_alpha = 0.15         # Canyon attenuation coefficient [0.1-0.3]
+    
+    enable_oikonomou_aspect = true
+    oikonomou_beta_aspect = 0.25       # Aspect-ratio correction strength [0.15-0.35]
+
 Future Wake Model Enhancements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
