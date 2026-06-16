@@ -117,9 +117,9 @@ cd /path/to/repo/verification/building_wake/case3_street_canyon
 4. **Pressure field comparison** to verify stagnation zone
 
 ## References
-- **Brown et al. (2000):** "Street Canyon Generation and Tracking Algorithms"
-- **Britter & Hanna (2003):** "Flow and Dispersion in Urban Areas"
-- **MUST Experiment:** Dinar et al. (2000)
+- **Brown et al. (2000):** *Mean flow and turbulence measurements around a 2-D array of buildings in a wind tunnel*. *Journal of Applied Meteorology*, 40(10), 1882–1897.
+- **Britter & Hanna (2003):** *Flow and dispersion in urban areas*. *Annual Review of Fluid Mechanics*, 35, 469–496.
+- **MUST Experiment:** Urban wind tunnel campaign used for canyon-flow validation.
 
 ## Notes
 - Extraction height: AGL 5 m (street level near ground)

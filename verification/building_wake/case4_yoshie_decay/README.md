@@ -173,9 +173,8 @@ print(f"  Above-roof (z=32m): U = {u_yo_above:.2f} m/s")
 5. **Sensitivity analysis** on decay coefficient β
 
 ## References
-- **Yoshie et al. (2007):** "Cooperative Project on CFD Prediction of Pedestrian Wind Environment with Complicated Phenomena around High-Rise Building in Urban Areas"
-- **Pardyjak & Brown (2001):** "Large-Eddy Simulation of the Antecedent Square-Prism Wake"
-- **QUIC-URB Model:** Gowardhan et al. (2011)
+- **Yoshie et al. (2007):** *Cooperative project on CFD prediction of pedestrian wind environment in the built environment*. *Journal of Wind Engineering and Industrial Aerodynamics*, 95(12), 1551–1578.
+- **Pardyjak & Brown (2001):** *QUIC-URB v. 1.1: Theory and User's Guide*. Los Alamos National Laboratory, LA-UR-01-4228.
 
 ## Notes
 - Extraction heights: 15m (below-roof, z < H) and 32m (above-roof, z > H)

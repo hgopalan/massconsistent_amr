@@ -87,8 +87,8 @@ cd /path/to/repo/verification/building_wake/case2_tall_building
 - `case2_extract_enhanced.csv` - Enhanced wind field extraction (AGL 25m)
 
 ## References
-- **Gowardhan et al. (2011):** "Evaluation of a Fast and Simple Obstruction Modeling Approach for Use in Urban Wind Resource Estimation"
-- **QUIC-URB Model:** Britter & Hanna (2003)
+- **Gowardhan et al. (2011):** *Evaluation of a Fast and Simple Obstruction Modeling Approach for Use in Urban Wind Resource Estimation*.
+- **Yoshie et al. (2007):** *Cooperative project on CFD prediction of pedestrian wind environment in the built environment*. *Journal of Wind Engineering and Industrial Aerodynamics*, 95(12), 1551–1578.
 
 ## Notes
 - Extraction height: AGL 25 m (midway between roof and building top)
