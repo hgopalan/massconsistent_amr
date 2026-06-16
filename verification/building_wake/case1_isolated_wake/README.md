@@ -88,8 +88,7 @@ cd /path/to/repo/verification/building_wake/case1_isolated_wake
 - `case1_extract_enhanced.csv` - Enhanced wind field extraction
 
 ## References
-- **Pardyjak & Brown (2001):** "Large-Eddy Simulation of the Antecedent Square-Prism Wake"
-- **QUIC-URB Model:** Gowardhan et al. (2011)
+- **Pardyjak & Brown (2001):** *QUIC-URB v. 1.1: Theory and User's Guide*. Los Alamos National Laboratory, LA-UR-01-4228.
 
 ## Notes
 - Extraction height: AGL 15 m (centerline through building)

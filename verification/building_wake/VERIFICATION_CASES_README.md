@@ -50,7 +50,7 @@ Verifies tall building aspect-ratio correction and corner flow acceleration.
 - **Aspect ratio:** H/W = 3.33
 - **Tests:** Baseline vs Enhanced (with aspect-ratio correction + corner acceleration)
 - **Key enhancements:** Tall building correction, corner speedup
-- **Reference:** Gowardhan et al. (2011)
+- **Reference:** Gowardhan et al. (2011), Yoshie et al. (2007)
 
 **Run:**
 ```bash
@@ -90,7 +90,7 @@ Verifies two-layer model with exponential above-roof deficit decay.
   - `inputs_yoshie_above.i` - Yoshie at z=32m (above-roof)
 - **Key enhancements:** Yoshie two-layer model, exponential decay
 - **Yoshie parameter:** `yoshie_decay_beta = 1.75`
-- **Reference:** Yoshie et al. (2007)
+- **Reference:** Yoshie et al. (2007), Pardyjak & Brown (2001)
 
 **Run:**
 ```bash
@@ -267,11 +267,11 @@ Memory requirements: ~100-500 MB per run depending on grid size
 ## References
 
 ### Academic Papers
-- **Pardyjak & Brown (2001):** "Large-Eddy Simulation of the Antecedent Square-Prism Wake"
-- **Gowardhan et al. (2011):** "Evaluation of a Fast and Simple Obstruction Modeling Approach for Use in Urban Wind Resource Estimation"
-- **Yoshie et al. (2007):** "Cooperative Project on CFD Prediction of Pedestrian Wind Environment"
-- **Brown et al. (2000):** "Street Canyon Geometry and Tracking Algorithms"
-- **Britter & Hanna (2003):** "Flow and Dispersion in Urban Areas"
+- **Pardyjak & Brown (2001):** *QUIC-URB v. 1.1: Theory and User's Guide*. Los Alamos National Laboratory, LA-UR-01-4228.
+- **Gowardhan et al. (2011):** *Evaluation of a Fast and Simple Obstruction Modeling Approach for Use in Urban Wind Resource Estimation*.
+- **Yoshie et al. (2007):** *Cooperative project on CFD prediction of pedestrian wind environment in the built environment*. *Journal of Wind Engineering and Industrial Aerodynamics*, 95(12), 1551–1578.
+- **Brown et al. (2000):** *Mean flow and turbulence measurements around a 2-D array of buildings in a wind tunnel*. *Journal of Applied Meteorology*, 40(10), 1882–1897.
+- **Britter & Hanna (2003):** *Flow and dispersion in urban areas*. *Annual Review of Fluid Mechanics*, 35, 469–496.
 
 ### Related Models
 - **QUIC-URB:** Fast diagnostic wind solver from University of Utah

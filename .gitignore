@@ -30,6 +30,7 @@ terrain.csv
 !regtest/**/terrain.csv
 !test/**/terrain.csv
 !tests_and_examples/**/terrain.csv
+!verification/building_wake/**/terrain.csv
 
 # Ignore test and simulation output concentration step files
 *.csv_step*

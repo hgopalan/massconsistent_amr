@@ -16,7 +16,7 @@ Verification Cases:
    - Tall-building aspect-ratio correction for cavity length
    - Corner/side velocity amplification
    - Oblique angle cavity scaling
-3. 2D Building Array & Street Canyon (vs. Brown et al., 2000 & MUST Experiment)
+3. 2D Building Array & Street Canyon (vs. Brown et al., 2000 and the MUST Experiment)
    - Upwind recirculation zone modeling (reverse flow and stagnation)
    - Britter-Hanna urban canyon wind speed attenuation
 4. Above-Roof Deficit Decay (vs. Yoshie et al., 2007)
@@ -387,7 +387,7 @@ def verify_case2_tall_oblique_corner():
 
 def verify_case3_arrays():
     """
-    Case 3: 2D Building Array & Street Canyon (vs. Brown et al., 2000 & MUST Experiment)
+    Case 3: 2D Building Array & Street Canyon (vs. Brown et al., 2000 and the MUST Experiment)
     """
     print("\n=======================================================")
     print("RUNNING CASE 3: 2D BUILDING ARRAY & STREET CANYON WAKE")
