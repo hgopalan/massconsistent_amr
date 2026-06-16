@@ -1,0 +1,7 @@
+# Case 3: 2D Building Array & Street Canyon
+# Two identical buildings with canyon in between
+# Bldg 1: H=20, W=20, L=40. Location: xmin=80, xmax=100, ymin=80, ymax=120
+# Bldg 2: H=20, W=20, L=40. Location: xmin=130, xmax=150, ymin=80, ymax=120
+# Format: xmin  xmax  ymin  ymax  zmin  zmax
+80.0  100.0  80.0  120.0  0.0  20.0
+130.0  150.0  80.0  120.0  0.0  20.0

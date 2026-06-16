@@ -1,0 +1,4 @@
+# Case 2: Tall Building with Aspect-Ratio & Corner Effects
+# Building: H=50m, W=15m, L=20m (tall narrow building). Centered at x=100, y=100.
+# Format: xmin  xmax  ymin  ymax  zmin  zmax
+90.0  110.0  92.5  107.5  0.0  50.0
