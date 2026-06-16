@@ -8,7 +8,7 @@ This section compiles the scientific publications, reports, and models that form
 Core Mass-Consistent Wind Solver
 ---------------------------------
 
-* **Sherman, C. A. (1978)**. A mass-consistent model for wind fields over complex terrain. `DOI: 10.1175/1520-0450(1978)017<0312:AMCMFW>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1978)017<0312:AMCMFW>2.0.CO;2>`_ *Journal of Applied Meteorology*, 17(3), 312–319.
+* **Sherman, C. A. (1978)**. A mass-consistent model for wind fields over complex terrain. `DOI: 10.1175/1520-0450(1978)017\<0312:AMCMFW\>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1978)017%3C0312:AMCMFW%3E2.0.CO;2>`_ *Journal of Applied Meteorology*, 17(3), 312–319.
   
   Foundational paper establishing the variational, mass-consistent methodology for adjusting initial wind profiles to enforce mass conservation (∇·**u** = 0).
 
@@ -20,7 +20,7 @@ Core Mass-Consistent Wind Solver
   
   Practical implementation of mass-consistent wind solver for urban flow modeling with building obstruction and wake effects. Foundational for QUIC architecture.
 
-* **Brown, M. J., Pardyjak, E. R., Klewicki, J. C., Eckman, R. M., & Clawson, K. L. (2000)**. Mean flow and turbulence measurements around a 2-D array of buildings in a wind tunnel. `DOI: 10.1175/1520-0450(2000)039<1882:MFTAMA>2.0.CO;2 <https://doi.org/10.1175/1520-0450(2000)039<1882:MFTAMA>2.0.CO;2>`_ *Journal of Applied Meteorology*, 40(10), 1882–1897.
+* **Brown, M. J., Pardyjak, E. R., Klewicki, J. C., Eckman, R. M., & Clawson, K. L. (2000)**. Mean flow and turbulence measurements around a 2-D array of buildings in a wind tunnel. `DOI: 10.1175/1520-0450(2000)039\<1882:MFTAMA\>2.0.CO;2 <https://doi.org/10.1175/1520-0450(2000)039%3C1882:MFTAMA%3E2.0.CO;2>`_ *Journal of Applied Meteorology*, 40(10), 1882–1897.
   
   Experimental validation of mass-consistent urban wind models against 2D building arrays.
 
@@ -35,7 +35,7 @@ Boundary Layer Meteorology & Stability
   
   Comprehensive reference on atmospheric boundary layer physics, including turbulence, similarity theory, and vertical profiles.
 
-* **Businger, J. A., Wyngaard, J. C., Izumi, Y., & Bradley, E. F. (1971)**. Flux-profile relationships in the atmospheric surface layer. `DOI: 10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2 <https://doi.org/10.1175/1520-0469(1971)028<0181:FPRITA>2.0.CO;2>`_ *Journal of Atmospheric Sciences*, 28(2), 181–189.
+* **Businger, J. A., Wyngaard, J. C., Izumi, Y., & Bradley, E. F. (1971)**. Flux-profile relationships in the atmospheric surface layer. `DOI: 10.1175/1520-0469(1971)028\<0181:FPRITA\>2.0.CO;2 <https://doi.org/10.1175/1520-0469(1971)028%3C0181:FPRITA%3E2.0.CO;2>`_ *Journal of Atmospheric Sciences*, 28(2), 181–189.
   
   Empirical stability correction functions (Businger-Dyer) for non-neutral atmospheric conditions, used for Monin-Obukhov similarity theory implementations.
 
@@ -43,11 +43,11 @@ Boundary Layer Meteorology & Stability
   
   Detailed review of stability correction functions for different atmospheric conditions and their practical application in wind profile parameterizations.
 
-* **Paulson, C. A. (1970)**. The mathematical representation of wind speed and temperature profiles in the unstable atmospheric surface layer. `DOI: 10.1175/1520-0450(1970)009<0857:TMRWST>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1970)009<0857:TMRWST>2.0.CO;2>`_ *Journal of Applied Meteorology*, 9(6), 857–861.
+* **Paulson, C. A. (1970)**. The mathematical representation of wind speed and temperature profiles in the unstable atmospheric surface layer. `DOI: 10.1175/1520-0450(1970)009\<0857:TMRWST\>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1970)009%3C0857:TMRWST%3E2.0.CO;2>`_ *Journal of Applied Meteorology*, 9(6), 857–861.
   
   Stability functions for unstable conditions in boundary layer modeling.
 
-* **Holtslag, A. A. M., & De Bruin, H. A. R. (1988)**. Applied modeling of the nighttime surface energy balance over land. `DOI: 10.1175/1520-0450(1988)027<0689:AMOTNW>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1988)027<0689:AMOTNW>2.0.CO;2>`_ *Journal of Applied Meteorology*, 27, 689–704.
+* **Holtslag, A. A. M., & De Bruin, H. A. R. (1988)**. Applied modeling of the nighttime surface energy balance over land. `DOI: 10.1175/1520-0450(1988)027\<0689:AMOTNW\>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1988)027%3C0689:AMOTNW%3E2.0.CO;2>`_ *Journal of Applied Meteorology*, 27, 689–704.
   
   Holtslag-De Bruin stability model for strong stable conditions; used in bulk Richardson number-based stability model selection.
 
@@ -93,7 +93,7 @@ Atmospheric Stability & Richardson Number Methods
   
   Original definition of bulk Richardson number for characterizing atmospheric stability.
 
-* **Mahrt, L. (1981)**. The exit velocity of ra radiative cooling flows. `DOI: 10.1175/1520-0469(1981)038<2433:TEVORC>2.0.CO;2 <https://doi.org/10.1175/1520-0469(1981)038<2433:TEVORC>2.0.CO;2>`_ *Journal of the Atmospheric Sciences*, 38(11), 2433–2449.
+* **Mahrt, L. (1981)**. The exit velocity of ra radiative cooling flows. `DOI: 10.1175/1520-0469(1981)038\<2433:TEVORC\>2.0.CO;2 <https://doi.org/10.1175/1520-0469(1981)038%3C2433:TEVORC%3E2.0.CO;2>`_ *Journal of the Atmospheric Sciences*, 38(11), 2433–2449.
   
   Study of strongly stable boundary layer dynamics relevant to Richardson number-based model selection.
 
@@ -108,7 +108,7 @@ Canopy & Vegetation Modeling
   
   Relationship between canopy structural parameters (plan area index, frontal area index) and effective roughness.
 
-* **MacDonald, R. W., Griffiths, R. F., & Hall, D. J. (1998)**. An improved method for the estimation of surface roughness of obstacle arrays. `DOI: 10.1175/1520-0450(1998)037<1857:AIMOEO>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1998)037<1857:AIMOEO>2.0.CO;2>`_ *Journal of Applied Meteorology*, 37(12), 1857–1864.
+* **MacDonald, R. W., Griffiths, R. F., & Hall, D. J. (1998)**. An improved method for the estimation of surface roughness of obstacle arrays. `DOI: 10.1175/1520-0450(1998)037\<1857:AIMOEO\>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1998)037%3C1857:AIMOEO%3E2.0.CO;2>`_ *Journal of Applied Meteorology*, 37(12), 1857–1864.
   
   Systematic approach to computing effective roughness from canopy geometry.
 
@@ -226,7 +226,7 @@ Wind Turbine Wake Models
   
   Frandsen (STF) wake-added turbulence model for wake recovery in wind farms.
 
-* **Crespo, A., Hernández, J., & Frandsen, S. (1999)**. Survey of modelling methods for wind turbine wakes and wind farms. `DOI: 10.1002/(SICI)1099-1824(199903/04)2:1<1::AID-WE16>3.0.CO;2-7 <https://doi.org/10.1002/(SICI)1099-1824(199903/04)2:1<1::AID-WE16>3.0.CO;2-7>`_ *Wind Energy*, 2(1), 1–24.
+* **Crespo, A., Hernández, J., & Frandsen, S. (1999)**. Survey of modelling methods for wind turbine wakes and wind farms. `DOI: 10.1002/(SICI)1099-1824(199903/04)2:1\<1::AID-WE16\>3.0.CO;2-7 <https://doi.org/10.1002/(SICI)1099-1824(199903/04)2:1%3C1::AID-WE16%3E3.0.CO;2-7>`_ *Wind Energy*, 2(1), 1–24.
   
   Comprehensive review of wake models including Crespo-Hernández wake turbulence formulation.
 
@@ -272,7 +272,7 @@ Turbulence & Spectral Models
   
   Comprehensive reference on turbulence in the atmospheric boundary layer including spectral models.
 
-* **Kaimal, J. C., Wyngaard, J. C., Haugen, D. A., Coté, O. R., & Izumi, Y. (1976)**. Turbulence structure in the convective boundary layer. `DOI: 10.1175/1520-0469(1976)033<2152:TSITCB>2.0.CO;2 <https://doi.org/10.1175/1520-0469(1976)033<2152:TSITCB>2.0.CO;2>`_ *Journal of the Atmospheric Sciences*, 33(11), 2152–2169.
+* **Kaimal, J. C., Wyngaard, J. C., Haugen, D. A., Coté, O. R., & Izumi, Y. (1976)**. Turbulence structure in the convective boundary layer. `DOI: 10.1175/1520-0469(1976)033\<2152:TSITCB\>2.0.CO;2 <https://doi.org/10.1175/1520-0469(1976)033%3C2152:TSITCB%3E2.0.CO;2>`_ *Journal of the Atmospheric Sciences*, 33(11), 2152–2169.
   
   Kaimal spectrum formulation for atmospheric turbulence; widely used in atmospheric modeling.
 
@@ -517,7 +517,7 @@ Transmission Line & Conductor Thermal Rating
 Gap Flow & Orographic Wind Enhancement
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Delparte, C., Hacker, J. P., & Jiménez, M. (2000)**. Gap flow wind acceleration in the Altamont Pass, California. `DOI: 10.1175/1520-0450(2000)039<0619:GFWAAO>2.0.CO;2 <https://doi.org/10.1175/1520-0450(2000)039<0619:GFWAAO>2.0.CO;2>`_ *Journal of Applied Meteorology*, 39(5), 619–635.
+* **Delparte, C., Hacker, J. P., & Jiménez, M. (2000)**. Gap flow wind acceleration in the Altamont Pass, California. `DOI: 10.1175/1520-0450(2000)039\<0619:GFWAAO\>2.0.CO;2 <https://doi.org/10.1175/1520-0450(2000)039%3C0619:GFWAAO%3E2.0.CO;2>`_ *Journal of Applied Meteorology*, 39(5), 619–635.
    
   Detailed modeling and observations of gap flow wind acceleration mechanism relevant to Altamont Pass transmission corridor.
 
@@ -525,7 +525,7 @@ Gap Flow & Orographic Wind Enhancement
    
   Physics of flow acceleration over ridges and through mountain passes with application to wind energy.
 
-* **Doyle, J. D., & Durran, D. R. (2002)**. The dynamics of mountain-wave-induced rotors. `DOI: 10.1175/1520-0469(2002)059<0186:TBOMWR>2.0.CO;2 <https://doi.org/10.1175/1520-0469(2002)059<0186:TBOMWR>2.0.CO;2>`_ *Journal of the Atmospheric Sciences*, 59(2), 186–201.
+* **Doyle, J. D., & Durran, D. R. (2002)**. The dynamics of mountain-wave-induced rotors. `DOI: 10.1175/1520-0469(2002)059\<0186:TBOMWR\>2.0.CO;2 <https://doi.org/10.1175/1520-0469(2002)059%3C0186:TBOMWR%3E2.0.CO;2>`_ *Journal of the Atmospheric Sciences*, 59(2), 186–201.
    
   Rotors and complex flow patterns in mountainous terrain relevant to energy conversion and wind loading.
 
@@ -540,7 +540,7 @@ Urban Canopy & Heat Island Effects
    
   Street canyon parameterization and influence on wind, temperature, and energy balance.
 
-* **Grimmond, C. S. B., & Oke, T. R. (1999)**. Aerodynamic properties of urban areas derived from analysis of surface form. `DOI: 10.1175/1520-0450(1999)038<1262:APOUAD>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1999)038<1262:APOUAD>2.0.CO;2>`_ *Journal of Applied Meteorology*, 38(12), 1262–1292.
+* **Grimmond, C. S. B., & Oke, T. R. (1999)**. Aerodynamic properties of urban areas derived from analysis of surface form. `DOI: 10.1175/1520-0450(1999)038\<1262:APOUAD\>2.0.CO;2 <https://doi.org/10.1175/1520-0450(1999)038%3C1262:APOUAD%3E2.0.CO;2>`_ *Journal of Applied Meteorology*, 38(12), 1262–1292.
    
   Methods for characterizing urban roughness and displacement height from building morphology.
 
