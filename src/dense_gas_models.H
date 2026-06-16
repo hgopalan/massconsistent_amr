@@ -169,7 +169,7 @@ amrex::Real compute_froude_number(
     amrex::Real min_height = 0.1)
 {
     const amrex::Real H = amrex::max(layer_height, min_height);
-    const amrex::Real g_prime = amrex::abs(reduced_gravity);
+    const amrex::Real g_prime = std::abs(reduced_gravity);
     
     if (g_prime <= amrex::Real(1.0e-10) || wind_speed <= amrex::Real(1.0e-10)) {
         return amrex::Real(1.0);  // Return neutral value for no density difference
@@ -253,7 +253,7 @@ amrex::Real compute_slab_decay_scale(
     amrex::Real wind_speed,
     amrex::Real coefficient = 1.5)
 {
-    const amrex::Real g_prime = amrex::abs(reduced_gravity);
+    const amrex::Real g_prime = std::abs(reduced_gravity);
     const amrex::Real U = amrex::max(wind_speed, amrex::Real(0.1));
     const amrex::Real H = amrex::max(H0, amrex::Real(0.1));
     
@@ -349,7 +349,7 @@ amrex::Real lateral_spreading_slab(
     amrex::Real layer_height,
     amrex::Real coefficient = 0.15)
 {
-    const amrex::Real g_prime = amrex::abs(reduced_gravity);
+    const amrex::Real g_prime = std::abs(reduced_gravity);
     const amrex::Real H = amrex::max(layer_height, amrex::Real(0.01));
     const amrex::Real x = amrex::max(distance, amrex::Real(0.0));
     
@@ -391,7 +391,7 @@ amrex::Real vertical_mixing_depth(
     amrex::Real wind_speed,
     amrex::Real beta = 0.1)
 {
-    const amrex::Real g_prime = amrex::abs(reduced_gravity);
+    const amrex::Real g_prime = std::abs(reduced_gravity);
     const amrex::Real U = amrex::max(wind_speed, amrex::Real(0.01));
     const amrex::Real H = amrex::max(H0, amrex::Real(0.1));
     const amrex::Real x = amrex::max(distance, amrex::Real(0.0));
