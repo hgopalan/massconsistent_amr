@@ -431,7 +431,21 @@ add_regression_test(lpdm_terrain dispersion/lpdm_terrain)
 add_regression_test(lpdm_drift_spatial_lid dispersion/lpdm_drift_spatial_lid)
 
 # ---------------------------------------------------------------------------
-# realistic_farm_case/ - Realistic agricultural drone spray and deposition regression test
+# puff_chemistry_no2_decay/ - NO₂ photochemical decay validation
+# =========================================================================
+# Tests simple reactive chemistry with 1st-order exponential decay
+# Expected: ~50% decay at 4-hour half-life
+# ---------------------------------------------------------------------------
+add_regression_test(puff_chemistry_no2_decay dispersion/puff_chemistry_no2_decay)
+
+# ---------------------------------------------------------------------------
+# puff_chemistry_so2_oxidation/ - SO₂ oxidation to sulfate
+# =========================================================================
+# Tests SO₂ oxidation with 24-hour half-life and product formation
+# Expected: ~71% remaining at 5.56 hours (0.78 half-lives)
+# ---------------------------------------------------------------------------
+add_regression_test(puff_chemistry_so2_oxidation dispersion/puff_chemistry_so2_oxidation)
+
 # ---------------------------------------------------------------------------
 add_python_regression_test(realistic_farm_case dispersion/realistic_farm_case test_realistic_farm_case.py)
 

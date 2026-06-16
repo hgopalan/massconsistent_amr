@@ -450,3 +450,189 @@ To model dynamic pesticide deposition and capture by plant foliage and soil, the
           print(f"Total Emitted: {balance['total_emitted_mass']} g")
           print(f"Total Accounted: {balance['total_accounted']} g")
 
+Simple Reactive Chemistry (AERMOD TOXICS Level)
+-----------------------------------------------
+
+Overview
+~~~~~~~~
+
+The simple reactive chemistry module enables first-order exponential decay of chemical species in plume transport, matching EPA AERMOD TOXICS capabilities. This module supports passive tracer decay with stoichiometric product formation, optional seasonal variation, and temperature-dependent reaction rates.
+
+Supported Species
+~~~~~~~~~~~~~~~~~
+
+**Reactants:**
+
+- **NO₂ (Nitrogen Dioxide)**: Photochemical decay to NO with default 4-hour half-life
+- **SO₂ (Sulfur Dioxide)**: Oxidation to SO₄²⁻ with default 24-hour half-life
+- **HCl (Hydrogen Chloride)**: Hydrolysis to Cl⁻ with default 12-hour half-life
+- **Custom species**: User-specified 1st-order decay constants
+
+**Products:**
+
+- **NO (Nitric Oxide)**: Produced from NO₂ decay (1:1 molar stoichiometry)
+- **SO₄²⁻ (Sulfate Ions)**: Produced from SO₂ oxidation (1.5:1 mass ratio)
+- **Cl⁻ (Chloride Ions)**: Produced from HCl hydrolysis (0.97:1 mass ratio)
+
+Physics Basis
+~~~~~~~~~~~~~
+
+**First-Order Exponential Decay:**
+
+.. math::
+
+   C(t) = C(0) \times \exp(-\lambda t)
+
+where :math:`\lambda = \frac{\ln(2)}{t_{1/2}}` and :math:`t_{1/2}` is the half-life.
+
+**Product Formation (Mass Conservation):**
+
+.. math::
+
+   C_{\text{product}}(t) = C_{\text{product}}(0) + 
+   [C_{\text{reactant}}(0) - C_{\text{reactant}}(t)] \times r_s
+
+where :math:`r_s` is the stoichiometric ratio (mass basis).
+
+**Temperature Correction (Q10 Model):**
+
+.. math::
+
+   \lambda(T) = \lambda(T_{\text{ref}}) \times Q_{10}^{\frac{T - T_{\text{ref}}}{10}}
+
+Default :math:`Q_{10} = 2.0` (doubling per 10 K).
+
+**Seasonal Adjustment:**
+
+Empirical factors applied to decay constants:
+- **Winter (Dec-Feb)**: 0.5× - 0.7× (reduced oxidation, less UV)
+- **Summer (Jun-Aug)**: 1.3× - 1.5× (enhanced oxidation, more UV)
+- **Spring/Fall**: 1.0× (intermediate)
+
+Configuration
+~~~~~~~~~~~~~
+
+In the input file (``inputs.i``):
+
+.. code-block:: bash
+
+   # Enable simple reactive chemistry
+   puff_chemistry_enabled = true
+   
+   # Half-lives [hours]
+   puff_chemistry_half_life_NO2 = 4.0    # NO₂ photolysis
+   puff_chemistry_half_life_SO2 = 24.0   # SO₂ oxidation
+   puff_chemistry_half_life_HCL = 12.0   # HCl hydrolysis
+   
+   # Track decay products
+   puff_chemistry_enable_products = true
+   
+   # Optional: Enable seasonal variation
+   puff_chemistry_enable_seasonal_adjust = false
+   
+   # Optional: Enable temperature correction
+   puff_chemistry_enable_temp_adjust = false
+   puff_chemistry_temp_ref = 298.15      # Reference temperature [K]
+   puff_chemistry_Q10 = 2.0               # Temperature sensitivity
+   
+   # Month for seasonal adjustment (1-12)
+   puff_chemistry_month = 6
+   
+   # Initial species concentrations [ppb or μg/m³]
+   puff_initial_NO2 = 100.0
+   puff_initial_SO2 = 200.0
+   puff_initial_HCL = 50.0
+   puff_initial_NO = 0.0
+   puff_initial_SO4 = 0.0
+   puff_initial_CL = 0.0
+
+Usage Examples
+~~~~~~~~~~~~~~
+
+**Example 1: NO₂ Decay**
+
+.. code-block:: bash
+
+   puff_chemistry_enabled = true
+   puff_chemistry_half_life_NO2 = 4.0  # 4-hour half-life
+   puff_chemistry_enable_products = true
+   puff_initial_NO2 = 100.0            # 100 ppb initial
+
+After 4 hours of transport (at 10 m/s wind: ~144 km downwind):
+- C(NO₂) ≈ 50 ppb (50% remaining)
+- C(NO) ≈ 50 ppb (produced from decay)
+
+**Example 2: SO₂ with Seasonal Adjustment**
+
+.. code-block:: bash
+
+   puff_chemistry_enabled = true
+   puff_chemistry_half_life_SO2 = 24.0
+   puff_chemistry_enable_seasonal_adjust = true
+   puff_chemistry_month = 7             # July (summer)
+   puff_initial_SO2 = 200.0
+
+Summer (month=7):
+- Effective half-life: ~16 hours (24 / 1.5)
+- Faster oxidation rate
+
+Winter (month=1):
+- Effective half-life: ~48 hours (24 / 0.5)
+- Slower oxidation rate
+
+Output Fields
+~~~~~~~~~~~~~
+
+When chemistry is enabled, the following concentration fields are available in output files:
+
+- ``C_NO2`` — Nitrogen dioxide concentration [ppb]
+- ``C_SO2`` — Sulfur dioxide concentration [ppb]
+- ``C_HCL`` — Hydrogen chloride concentration [ppb]
+- ``C_NO`` — Nitric oxide concentration [ppb]
+- ``C_SO4`` — Sulfate ion concentration [ppb]
+- ``C_CL`` — Chloride ion concentration [ppb]
+
+Regression Tests
+~~~~~~~~~~~~~~~~
+
+Two reference test cases validate chemistry functionality:
+
+1. **puff_chemistry_no2_decay**: 4-hour half-life decay of 100 ppb NO₂ over 4-hour transport time. Expected: ~50 ppb remaining.
+
+2. **puff_chemistry_so2_oxidation**: 24-hour half-life oxidation of 200 ppb SO₂ over 5.56-hour transport. Expected: ~142 ppb SO₂, ~105 ppb SO₄.
+
+Run tests with:
+
+.. code-block:: bash
+
+   cd build
+   ctest -R "puff_chemistry" -V
+
+Limitations and Future Work
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Current Limitations:**
+
+- No multi-species feedback (each species decays independently)
+- No photolysis angle dependence (uses fixed half-lives)
+- No humidity or cloud effects on oxidation rates
+- No radical chemistry (OH, HO₂, NO₃)
+- Product formation is stoichiometric only (no intermediate products)
+
+**Future Enhancements:**
+
+- NOₓ-O₃ photochemical cycle with feedback
+- Humidity-dependent SO₂ oxidation
+- Photolysis rates based on solar angle and cloud cover
+- Radical chemistry mechanisms (simplified CAMx-level)
+- Aqueous-phase chemistry (clouds/fog)
+- Temperature/humidity-dependent rate constants from literature
+
+References
+~~~~~~~~~~
+
+- EPA (2005). AERMOD TOXICS Module: Reactive Tracer Formulation
+- Finlayson-Pitts, B. J., & Pitts, J. N. (2000). Chemistry of the Upper and Lower Atmosphere. Academic Press.
+- Atkinson, R., Baulch, D. L., Cox, R. A., et al. (2004). Evaluated kinetic and photochemical data for atmospheric chemistry. Atmos. Chem. Phys., 4, 1461-1738.
+
+

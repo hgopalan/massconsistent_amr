@@ -38,6 +38,7 @@
 #include "wake_models.H"
 #include "canopy_models.H"
 #include "stability_models.H"
+#include "reactive_chemistry_simple.H"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -136,6 +137,18 @@ struct PuffParams {
     amrex::Real ambient_temp = 298.15;       // Ambient temperature [K]
     amrex::Real ambient_rh = 50.0;           // Ambient relative humidity [%]
     amrex::Real ambient_solar = 500.0;       // Ambient solar radiation [W/m^2]
+    
+    // Simple reactive chemistry parameters (AERMOD TOXICS level)
+    bool enable_chemistry = false;           // Enable simple reactive chemistry
+    amrex::Real chemistry_half_life_NO2 = 4.0;   // NO₂ photochemical decay half-life [hours]
+    amrex::Real chemistry_half_life_SO2 = 24.0;  // SO₂ oxidation half-life [hours]
+    amrex::Real chemistry_half_life_HCL = 12.0;  // HCl hydrolysis half-life [hours]
+    bool chemistry_enable_products = true;       // Track decay products (NO, SO₄, Cl⁻)
+    bool chemistry_enable_seasonal_adjust = false;  // Enable seasonal variation
+    bool chemistry_enable_temp_adjust = false;      // Enable temperature correction
+    amrex::Real chemistry_temp_ref = 298.15;       // Reference temperature [K]
+    amrex::Real chemistry_Q10 = 2.0;               // Q10 temperature sensitivity
+    int chemistry_month = 6;                       // Month for seasonal adjustment (1-12)
 };
 
 // ============================================================================
@@ -153,6 +166,14 @@ struct Puff {
     amrex::Real cavity_age = 0.0;   // Time spent in cavity zone [s]
     static constexpr int NUM_SPECIES = 5;
     amrex::Real species_mass[NUM_SPECIES] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    
+    // Chemical species concentrations [ppb or μg/m³]
+    amrex::Real C_NO2 = 0.0;        // Nitrogen dioxide
+    amrex::Real C_SO2 = 0.0;        // Sulfur dioxide
+    amrex::Real C_HCL = 0.0;        // Hydrogen chloride
+    amrex::Real C_NO = 0.0;         // Nitric oxide (product)
+    amrex::Real C_SO4 = 0.0;        // Sulfate ions (product)
+    amrex::Real C_CL = 0.0;         // Chloride ions (product)
 };
 
 // ============================================================================

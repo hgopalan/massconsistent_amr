@@ -1,6 +1,6 @@
 # massconsistent_amr
 
-**massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM). It also integrates with external tools via Python, supporting wind farm utilities (FLORIS, PyWake), wildfire modeling, and geochemical reactive transport (PHREEQC).
+**massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM) with simple reactive chemistry. It also integrates with external tools via Python, supporting wind farm utilities (FLORIS, PyWake), wildfire modeling, and geochemical reactive transport (PHREEQC).
 
 ## Scenario Gallery
 
@@ -117,6 +117,7 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 ### 3. Dispersion Model
 - **Gaussian Puff Dispersion:** Tracks 3D Gaussian puffs with Pasquill-Gifford stability, Briggs plume rise, gravitational settling, dry deposition, and precipitation scavenging.
 - **Lagrangian Particle LPDM:** Simulates stochastic particle trajectories with Wiener processes, including a vertical drift correction to prevent spurious accumulation in inhomogeneous diffusivity fields.
+- **Simple Reactive Chemistry:** First-order exponential decay of NO₂, SO₂, and HCl with stoichiometric product formation (AERMOD TOXICS level). Supports optional seasonal and temperature corrections.
 
 ### 4. Synthetic Fluctuations (Turbulence)
 - **Terrain-Aware Masking:** Confines synthetic turbulent fluctuations to fluid regions and blends smoothly near terrain boundaries.
@@ -138,7 +139,7 @@ Test cases are located in `test/` and documented in `test/README.md`.
 
 ## Regression Tests
 
-Over 80 automated regression tests are located in `regtest/` covering the core solver, wake models, turbulence, dispersion, and wildfire coupling.
+Over 80+ automated regression tests are located in `regtest/` covering the core solver, wake models, turbulence, dispersion (including reactive chemistry), and wildfire coupling.
 
 Run them with CTest from your build directory:
 ```bash
