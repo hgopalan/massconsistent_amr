@@ -1228,9 +1228,9 @@ void WindSolverApp::validate_configuration() {
 }
 
 void WindSolverApp::setup_geometry_and_mesh() {
+    ParmParse pp;
     t_phase = amrex::second();
     if (terrain_file == "synthetic") {
-        ParmParse pp;
         Real synth_xmin = 0.0;
         Real synth_xmax = 300.0;
         Real synth_ymin = 0.0;
@@ -1375,7 +1375,6 @@ void WindSolverApp::setup_geometry_and_mesh() {
     }
 
     num_time_steps = 1;
-    ParmParse pp;
     pp.query("num_time_steps", num_time_steps);
     if (!enable_time_varying && !enable_3d_scalars) {
         num_time_steps = 1;
