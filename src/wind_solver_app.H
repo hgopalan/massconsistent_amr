@@ -328,6 +328,7 @@ private:
     // Time-varying
     bool enable_time_varying = false;
     std::string time_series_file = "time_series.csv";
+    bool enable_data_assimilation = false;
 
     // Building porosity
     bool enable_building_porosity = false;
@@ -581,6 +582,7 @@ private:
     amrex::Real dx = 0.0, dy = 0.0, dz = 0.0;
 
     // Buildings
+    std::string building_file = "";
     std::vector<amrex::Real> building_xmin, building_xmax;
     std::vector<amrex::Real> building_ymin, building_ymax;
     std::vector<amrex::Real> building_zmin, building_zmax;

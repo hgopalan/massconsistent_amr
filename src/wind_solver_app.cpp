@@ -498,6 +498,10 @@ void WindSolverApp::parse_inputs() {
     // Time-Varying Wind Boundary Conditions
     pp.query("enable_time_varying", enable_time_varying);
     pp.query("time_series_file", time_series_file);
+    pp.query("enable_data_assimilation", enable_data_assimilation);
+
+    // Buildings
+    pp.query("building_file", building_file);
 
     // Building Porosity Model
     pp.query("enable_building_porosity", enable_building_porosity);
@@ -1338,9 +1342,6 @@ void WindSolverApp::setup_geometry_and_mesh() {
     dx = (x_hi - x_lo) / nx;
     dy = (y_hi - y_lo) / ny;
 
-    std::string building_file = "";
-    ParmParse pp;
-    pp.query("building_file", building_file);
     if (!building_file.empty()) {
         WindIO::read_building_file(building_file, 
                                  building_xmin, building_xmax,
@@ -1374,6 +1375,7 @@ void WindSolverApp::setup_geometry_and_mesh() {
     }
 
     num_time_steps = 1;
+    ParmParse pp;
     pp.query("num_time_steps", num_time_steps);
     if (!enable_time_varying && !enable_3d_scalars) {
         num_time_steps = 1;
