@@ -701,9 +701,9 @@ int main(int argc, char* argv[])
         Real ammonia_water_salinity = 0.0;          // Water salinity [PSU]
         bool ammonia_enable_seasonal_adjust = false;
         bool ammonia_enable_temp_adjust = false;
-        int chemistry_month = 6;                    // Default: June
-        Real chemistry_temp_ref = 298.15;           // Reference temperature [K]
-        Real chemistry_Q10 = 2.0;                   // Temperature sensitivity factor
+        int chemistry_month = 6;                    // Default: June (mid-year seasonal reference)
+        Real chemistry_temp_ref = 298.15;           // Reference temperature [K] = 25°C (standard reference)
+        Real chemistry_Q10 = 2.0;                   // Temperature sensitivity factor (typical for biological processes)
           
         pp.query("enable_ammonia_chemistry", enable_ammonia_chemistry);
         pp.query("ammonia_half_life_land", ammonia_half_life_land);
