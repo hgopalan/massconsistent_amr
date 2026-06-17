@@ -1,22 +1,20 @@
 .. _data_assimilation_development:
 
-Data Assimilation: Implementation Status and Development
-========================================================
+Data Assimilation Implementation
+================================
 
 Overview
 --------
 
-The massconsistent_amr solver includes a complete implementation of **Hybrid Ensemble Kalman Filter (EnKF)** data assimilation across 5 development phases. This document describes the current implementation status, architecture decisions, and future development roadmap.
+The massconsistent_amr solver includes a hybrid Ensemble Kalman Filter (EnKF) implementation for data assimilation. This document describes the EnKF architecture, configuration, and design decisions.
 
-Implementation Status
+Core Features
 ---------------------
 
-Phase 1: Core EnKF Framework ✅ COMPLETE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Core EnKF Framework
+~~~~~~~~~~~~~~~~~~~
 
-**Status**: Fully functional and tested
-
-**Components**:
+Components:
 
 - Ensemble initialization with parameter perturbations
 - Gaussian ensemble member generation (u*, z0, wind direction)
@@ -25,12 +23,12 @@ Phase 1: Core EnKF Framework ✅ COMPLETE
 - Analysis step with covariance localization
 - Statistical diagnostics (mean, std, divergence)
 
-**Key Files**:
+Key Files:
 
 - ``src/ensemble_kalman_filter.H`` (390 lines)
 - ``src/ensemble_kalman_filter.cpp`` (470 lines)
 
-**Capabilities**:
+Capabilities:
 
 .. code-block:: cpp
 
@@ -50,12 +48,10 @@ Phase 1: Core EnKF Framework ✅ COMPLETE
     // Compute diagnostics
     real div_max = enkf.compute_max_divergence();
 
-Phase 2: Observation Integration ✅ COMPLETE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Observation Integration
+~~~~~~~~~~~~~~~~~~~~~~~
 
-**Status**: Fully functional with CSV support, NetCDF interface ready
-
-**Components**:
+Components:
 
 - CSV observation file parsing
 - NetCDF interface (placeholder, ready for library integration)
@@ -63,30 +59,28 @@ Phase 2: Observation Integration ✅ COMPLETE
 - Error handling and validation
 - Support for point observations (stations, soundings)
 
-**Key Files**:
+Key Files:
 
 - ``src/ensemble_kalman_filter.cpp`` (methods: ``add_observation``, ``load_observations_from_csv``, ``load_observations_from_netcdf``, ``evaluate_observation_operator``)
 
-**Observation Format** (CSV):
+Observation Format (CSV):
 
 .. code-block:: text
 
     x(m), y(m), z(m), u(m/s), v(m/s), w(m/s), error(m/s), source, component
     100.0, 200.0, 50.0, 8.5, 1.2, 0.1, 0.5, station_1, 3
 
-**Supported Components**:
+Supported Components:
 
 - Component 0: u-wind
 - Component 1: v-wind  
 - Component 2: w-wind
 - Component 3: wind speed (computed from u, v)
 
-Phase 3: Mass Conservation Projection ✅ COMPLETE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Mass Conservation Projection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Status**: Fully functional with divergence correction interface
-
-**Components**:
+Components:
 
 - Divergence computation on model grid
 - Poisson solver interface for pressure correction
@@ -94,11 +88,11 @@ Phase 3: Mass Conservation Projection ✅ COMPLETE
 - Wind field projection to divergence-free space
 - Divergence diagnostics and max error tracking
 
-**Key Files**:
+Key Files:
 
 - ``src/ensemble_kalman_filter.cpp`` (method: ``project_to_divergence_free``)
 
-**Algorithm**:
+Algorithm:
 
 After analysis step, ensure ∇·u = 0 by solving:
 
@@ -108,80 +102,12 @@ After analysis step, ensure ∇·u = 0 by solving:
     
     \mathbf{u}_{final} = \mathbf{u}_{analysis} + \nabla \lambda
 
-**Configuration**:
+Configuration:
 
 .. code-block:: ini
 
     enkf_poisson_tolerance = 1.0e-8      # Solver convergence tolerance
     enkf_max_iterations = 100            # Max iterations
-
-Phase 4: GPU Acceleration Architecture 🟡 READY
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Status**: Architecture designed and integrated, CUDA kernels not yet implemented
-
-**Components**:
-
-- Data structures compatible with AMReX GPU backend
-- Callback-based ensemble loop design
-- Framework for batch covariance operations
-- Memory layout optimized for GPU execution
-- SYCL/HIP/CUDA abstraction layer
-
-**Design**:
-
-.. code-block:: cpp
-
-    // Callback-based ensemble loop (GPU-friendly)
-    std::function<void(const MultiFab&)> solve_callback = 
-        [&](const MultiFab& wind) { /* GPU solve kernel */ };
-    
-    da_mgr.forecast_ensemble(solve_callback, ensemble_members);
-    // Each ensemble member runs in parallel on GPU
-
-**Performance Expectations**:
-
-With N_e = 10 ensemble members and N_obs = 100 observations:
-
-- CPU (single core): 5-10 minutes per cycle
-- GPU (V100): ~30 seconds per cycle (15x speedup)
-- GPU (A100): ~10 seconds per cycle (50x speedup)
-
-**Future Work**:
-
-- Implement ensemble loop parallelization kernel
-- Batch covariance matrix operations on GPU
-- Pinned memory management for CPU/GPU transfers
-- Asynchronous solver execution
-
-Phase 5: Testing & Validation Infrastructure 🟡 READY
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Status**: Infrastructure created, full validation tests not yet implemented
-
-**Components**:
-
-- Regression test directory structure
-- Input files for automated testing
-- Python test runner framework
-- Infrastructure for OSSE (Observing System Simulation Experiment)
-
-**Test Directory**:
-
-.. code-block:: text
-
-    regtest/diagnostics/data_assimilation_enkf/
-    ├── inputs                 # Test configuration
-    ├── flat_terrain.csv       # Flat domain for deterministic tests
-    └── test_data_assimilation.py   # Python runner
-
-**Future Work**:
-
-- Implement OSSE with synthetic observations
-- Real data validation against NREL/NOAA datasets
-- Accuracy metrics computation (RMSE, bias, correlation)
-- Comparison studies vs other methods
-- Performance benchmarking on target hardware
 
 Architecture and Design Decisions
 ---------------------------------
@@ -282,79 +208,6 @@ Feature is completely backward compatible:
 4. All existing input files work unchanged
 5. Existing tests pass without modification
 
-Files Changed/Added
--------------------
-
-New Source Files (~1,420 lines)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. list-table::
-   :header-rows: 1
-
-   * - File
-     - Lines
-     - Purpose
-   * - src/ensemble_kalman_filter.H
-     - 390
-     - Core EnKF interface and API
-   * - src/ensemble_kalman_filter.cpp
-     - 470
-     - EnKF algorithm implementation
-   * - src/data_assimilation.H
-     - 270
-     - High-level solver integration interface
-   * - src/data_assimilation.cpp
-     - 290
-     - Manager implementation and configuration
-
-Documentation Updates (~500 lines)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. list-table::
-   :header-rows: 1
-
-   * - File
-     - Lines
-     - Changes
-   * - docs/mathematical_models.rst
-     - +450
-     - Added complete "Data Assimilation" section with equations
-   * - docs/parmparse_reference.rst
-     - +60
-     - Added all 9+ EnKF configuration parameters
-   * - docs/data_assimilation_usage.rst
-     - +250
-     - New user guide (this file)
-   * - docs/data_assimilation_development.rst
-     - +400
-     - Implementation status and architecture (this file)
-
-Build System Changes
-~~~~~~~~~~~~~~~~~~~~
-
-.. list-table::
-   :header-rows: 1
-
-   * - File
-     - Changes
-   * - CMakeLists.txt
-     - Added ensemble_kalman_filter.cpp and data_assimilation.cpp to executable and library targets; added CUDA language support
-
-Tests
-~~~~~
-
-.. list-table::
-   :header-rows: 1
-
-   * - File
-     - Purpose
-   * - regtest/diagnostics/data_assimilation_enkf/inputs
-     - EnKF test configuration
-   * - regtest/diagnostics/data_assimilation_enkf/flat_terrain.csv
-     - Flat domain for deterministic tests
-   * - regtest/diagnostics/data_assimilation_enkf/test_data_assimilation.py
-     - Python test runner
-
 Technical Challenges and Solutions
 ----------------------------------
 
@@ -408,54 +261,6 @@ Challenge 4: Sparse Observations in 3D
 - Localization prevents spurious correlations
 - Covariance localization captures regional effects
 
-Success Criteria
-----------------
-
-✅ Completed
-
-- [x] Phases 1-3 fully implemented with all core algorithms
-- [x] Backward compatible (feature disabled by default)
-- [x] ParmParse configuration with all options
-- [x] Mathematical documentation with equations
-- [x] User guide with examples
-- [x] Regression test infrastructure
-- [x] GPU-ready architecture
-- [x] Build integration with CMake
-
-🟡 In Progress / Planned
-
-- [ ] CUDA kernel implementation (Phase 4)
-- [ ] OSSE validation tests (Phase 5)
-- [ ] Real data benchmarking
-- [ ] GPU performance profiling
-- [ ] Production-level Kalman gain computation
-- [ ] NetCDF library integration
-- [ ] Advanced features (adaptive localization, non-Gaussian ensembles)
-
-Future Development Roadmap
----------------------------
-
-**Short Term (1-2 months)**:
-
-1. Complete Phase 4: GPU kernel implementation
-2. Complete Phase 5: Validation tests
-3. Profiling and optimization
-4. Deployment to production cluster
-
-**Medium Term (3-6 months)**:
-
-1. Adaptive localization based on ensemble spread
-2. Non-Gaussian ensemble perturbations
-3. NetCDF/LiDAR data integration
-4. Real-world case studies
-
-**Long Term (6-12 months)**:
-
-1. Particle filter alternative to EnKF
-2. Weak-constraint formulation (four-dimensional data assimilation)
-3. Integration with wind farm modeling (FLORIS, PyWake)
-4. Machine learning-assisted observation quality control
-
 References
 ----------
 
@@ -496,29 +301,6 @@ For implementation references:
 - Ensemble Kalman Filter reviews: Vetra-Carvalho et al. (2018)
 - Covariance localization: Gaspari & Cohn (1999)
 - Data assimilation in meteorology: Bannister (2017)
-
-Code Statistics
----------------
-
-**Total Lines of Code Added**:
-
-- Source code: ~1,420 lines
-- Documentation: ~1,100 lines
-- Tests: ~50 lines
-- Total: ~2,570 lines
-
-**Code Organization**:
-
-- Core algorithm: 860 lines (ensemble_kalman_filter.*)
-- Integration layer: 560 lines (data_assimilation.*)
-- Documentation: 500+ lines (RST files)
-- Tests: 50 lines (Python scripts)
-
-**Complexity**:
-
-- Cyclomatic complexity: Moderate (multiple decision points in analysis step)
-- Memory complexity: O(N_e × N_cells) for ensemble storage
-- Time complexity: O(N_e × N_obs) for analysis step
 
 Known Limitations
 -----------------
