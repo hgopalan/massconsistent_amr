@@ -690,7 +690,26 @@ int main(int argc, char* argv[])
         pp.query("lateral_spreading_coeff", lateral_spreading_coeff);
         pp.query("entrainment_coefficient", entrainment_coefficient);
         pp.query("froude_threshold_transition", froude_threshold_transition);
-        
+         
+        // ===================================================================
+        // Ammonia (NH₃) Chemistry Parameters
+        // ===================================================================
+        bool enable_ammonia_chemistry = false;
+        Real ammonia_half_life_land = 216.0;   // Default: 9 days [hours]
+        bool ammonia_enable_water_exchange = true;  // Fast dissolution over water
+        Real ammonia_water_temperature = 288.15;    // Water temperature [K]
+        Real ammonia_water_salinity = 0.0;          // Water salinity [PSU]
+        bool ammonia_enable_seasonal_adjust = false;
+        bool ammonia_enable_temp_adjust = false;
+         
+        pp.query("enable_ammonia_chemistry", enable_ammonia_chemistry);
+        pp.query("ammonia_half_life_land", ammonia_half_life_land);
+        pp.query("ammonia_enable_water_exchange", ammonia_enable_water_exchange);
+        pp.query("ammonia_water_temperature", ammonia_water_temperature);
+        pp.query("ammonia_water_salinity", ammonia_water_salinity);
+        pp.query("ammonia_enable_seasonal_adjust", ammonia_enable_seasonal_adjust);
+        pp.query("ammonia_enable_temp_adjust", ammonia_enable_temp_adjust);
+         
         // Read receptors file
         struct Receptor {
             Real x, y, z;
@@ -1832,6 +1851,24 @@ int main(int argc, char* argv[])
                     puff.species_mass[0] = puff.mass;
                 }
                     
+                // Apply ammonia chemistry (oxidation over land or exchange over water)
+                if (enable_ammonia_chemistry) {
+                    apply_ammonia_chemistry_to_puff(
+                        puff,
+                        dt_puff,
+                        wind_speed,
+                        ammonia_enable_water_exchange,
+                        ammonia_water_temperature,
+                        ammonia_water_salinity,
+                        ammonia_half_life_land,
+                        ammonia_enable_seasonal_adjust,
+                        ammonia_enable_temp_adjust,
+                        ambient_temp,
+                        chemistry_month,
+                        chemistry_temp_ref,
+                        chemistry_Q10);
+                }
+                
                 // Update age
                 update_puff_age(puff, dt_puff);
                     

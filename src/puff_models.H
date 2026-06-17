@@ -137,7 +137,7 @@ struct PuffParams {
     amrex::Real ambient_temp = 298.15;       // Ambient temperature [K]
     amrex::Real ambient_rh = 50.0;           // Ambient relative humidity [%]
     amrex::Real ambient_solar = 500.0;       // Ambient solar radiation [W/m^2]
-    
+     
     // Simple reactive chemistry parameters (AERMOD TOXICS level)
     bool enable_chemistry = false;           // Enable simple reactive chemistry
     amrex::Real chemistry_half_life_NO2 = 4.0;   // NO₂ photochemical decay half-life [hours]
@@ -149,6 +149,15 @@ struct PuffParams {
     amrex::Real chemistry_temp_ref = 298.15;       // Reference temperature [K]
     amrex::Real chemistry_Q10 = 2.0;               // Q10 temperature sensitivity
     int chemistry_month = 6;                       // Month for seasonal adjustment (1-12)
+     
+    // Ammonia (NH₃) chemistry parameters
+    bool enable_ammonia_chemistry = false;        // Enable ammonia oxidation/absorption
+    amrex::Real ammonia_half_life_land = 216.0;   // Oxidation half-life over land [hours] (9 days)
+    bool ammonia_enable_water_exchange = true;    // Enable fast dissolution over water
+    amrex::Real ammonia_water_temperature = 288.15;  // Water surface temperature [K]
+    amrex::Real ammonia_water_salinity = 0.0;     // Water salinity [PSU] (0=fresh, 35=seawater)
+    bool ammonia_enable_seasonal_adjust = false;  // Enable seasonal oxidation variation
+    bool ammonia_enable_temp_adjust = false;      // Enable temperature-dependent oxidation
 
     // Dense gas (SLAB/UGC) parameters for hazardous material releases
     bool enable_dense_gas = false;           // Enable SLAB/UGC dense gas model
@@ -178,9 +187,9 @@ struct Puff {
     bool active;                    // Whether puff should be modeled
     bool in_cavity = false;         // Whether puff is in building cavity zone
     amrex::Real cavity_age = 0.0;   // Time spent in cavity zone [s]
-    static constexpr int NUM_SPECIES = 5;
-    amrex::Real species_mass[NUM_SPECIES] = {0.0, 0.0, 0.0, 0.0, 0.0};
-    
+    static constexpr int NUM_SPECIES = 7;
+    amrex::Real species_mass[NUM_SPECIES] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+     
     // Chemical species concentrations [ppb or μg/m³]
     amrex::Real C_NO2 = 0.0;        // Nitrogen dioxide
     amrex::Real C_SO2 = 0.0;        // Sulfur dioxide
@@ -188,6 +197,8 @@ struct Puff {
     amrex::Real C_NO = 0.0;         // Nitric oxide (product)
     amrex::Real C_SO4 = 0.0;        // Sulfate ions (product)
     amrex::Real C_CL = 0.0;         // Chloride ions (product)
+    amrex::Real C_NH3 = 0.0;        // Ammonia (lighter-than-air, buoyant)
+    amrex::Real C_NH4 = 0.0;        // Ammonium (product of NH₃ oxidation or water absorption)
     
     // Dense gas (SLAB) parameters
     amrex::Real density_ratio = 1.0;        // ρ_gas / ρ_air (1.0 = passive)
@@ -1830,6 +1841,61 @@ void apply_chemical_transformation(
     amrex::Real d_HNO3 = species_mass[3] * (amrex::Real(1.0) - std::exp(-k3 * dt));
     species_mass[3] -= d_HNO3;
     species_mass[4] += d_HNO3 * amrex::Real(0.98);
+}
+
+// ============================================================================
+// Apply ammonia chemistry and dissolution to a puff
+//
+// Handles ammonia oxidation over land or gas-liquid exchange over water.
+// This is called for each puff during the time-stepping loop.
+//
+// Inputs:
+//   puff             - Puff structure (modified in-place)
+//   dt               - Time step [s]
+//   wind_speed       - Wind speed [m/s] (used for water exchange)
+//   enable_water_exchange - Whether to use water exchange (over-water scenario)
+//   water_temp       - Water surface temperature [K]
+//   water_salinity   - Water salinity [PSU]
+//   half_life_land   - Oxidation half-life over land [hours]
+//   enable_seasonal  - Enable seasonal adjustment
+//   enable_temp_adj  - Enable temperature adjustment
+//   T_ambient        - Ambient temperature [K]
+//   month            - Month (1-12)
+//   T_ref            - Reference temperature [K]
+//   Q10              - Q10 factor
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void apply_ammonia_chemistry_to_puff(
+    Puff& puff,
+    amrex::Real dt,
+    amrex::Real wind_speed = 5.0,
+    bool enable_water_exchange = true,
+    amrex::Real water_temp = 288.15,
+    amrex::Real water_salinity = 0.0,
+    amrex::Real half_life_land = 216.0,
+    bool enable_seasonal = false,
+    bool enable_temp_adj = false,
+    amrex::Real T_ambient = 298.15,
+    int month = 6,
+    amrex::Real T_ref = 298.15,
+    amrex::Real Q10 = 2.0)
+{
+    // Call the ammonia chemistry function from reactive_chemistry_simple.H
+    update_ammonia_chemistry(
+        puff.C_NH3,
+        puff.C_NH4,
+        dt,
+        half_life_land,
+        enable_water_exchange,
+        wind_speed,
+        water_temp,
+        water_salinity,
+        enable_seasonal,
+        enable_temp_adj,
+        T_ambient,
+        month,
+        T_ref,
+        Q10);
 }
 
 #endif // PUFF_MODELS_H
