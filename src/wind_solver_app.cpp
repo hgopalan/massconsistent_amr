@@ -1223,6 +1223,7 @@ void WindSolverApp::validate_configuration() {
     }
 }
 
+void WindSolverApp::setup_geometry_and_mesh() {
     t_phase = amrex::second();
     if (terrain_file == "synthetic") {
         ParmParse pp;
