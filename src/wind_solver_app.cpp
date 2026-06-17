@@ -1099,9 +1099,130 @@ void WindSolverApp::parse_inputs() {
     deriv_method_int = 0;
     if (deriv_method == "weno3") deriv_method_int = 1;
     else if (deriv_method == "weno5") deriv_method_int = 2;
+    
+    // Validate configuration for conflicts
+    validate_configuration();
 }
 
-void WindSolverApp::setup_geometry_and_mesh() {
+void WindSolverApp::validate_configuration() {
+    /**
+     * @brief Check for conflicting or incompatible capability combinations
+     */
+    
+    bool has_warning = false;
+    
+    // --- CONFLICT 1: Building Wakes + Turbine Wakes ---
+    // These use different physical models and methodologies
+    if (enable_wake && enable_turbine_wake) {
+        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: Both building wakes (enable_wake=true) and turbine wakes\n";
+        amrex::Print() << "wind_solver: (enable_turbine_wake=true) are enabled simultaneously.\n";
+        amrex::Print() << "wind_solver: These models use incompatible methodologies and mixing them may\n";
+        amrex::Print() << "wind_solver: produce unphysical results. It is recommended to use ONE of:\n";
+        amrex::Print() << "wind_solver:   - Building wakes for urban wind modeling\n";
+        amrex::Print() << "wind_solver:   - Turbine wakes for wind farm modeling\n";
+        amrex::Print() << "wind_solver: *** PROCEEDING WITH CAUTION ***\n";
+        has_warning = true;
+    }
+    
+    // --- CONFLICT 2: Canopy + Buildings ---
+    // Canopy is a porous media approach while buildings are solid obstacles
+    if (enable_canopy && !building_file.empty() && building_file != "") {
+        amrex::Print() << "wind_solver: *** INFO ***\n";
+        amrex::Print() << "wind_solver: Both canopy (enable_canopy=true) and buildings are present.\n";
+        amrex::Print() << "wind_solver: These can be combined, but ensure they do not spatially overlap.\n";
+        amrex::Print() << "wind_solver: Canopy represents vegetation (porous drag), buildings are solid.\n";
+    }
+    
+    // --- CONFLICT 3: Multiple Initialization Modes ---
+    // Verify that only one primary initialization mode is selected
+    int init_modes_count = 0;
+    if (init_mode == "loglaw") init_modes_count++;
+    if (init_mode == "uniform") init_modes_count++;
+    if (init_mode == "raws" || init_mode == "surface_data") init_modes_count++;
+    if (init_mode == "mann_box") init_modes_count++;
+    if (init_mode == "windfield") init_modes_count++;
+    
+    if (init_modes_count > 1) {
+        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: Multiple initialization modes detected.\n";
+        amrex::Print() << "wind_solver: Using: " << init_mode << "\n";
+    }
+    
+    // --- CONFLICT 4: Buoyancy + Incompatible Features ---
+    // Buoyancy requires temperature information
+    if (enable_buoyancy_stratification && temperature_file.empty()) {
+        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: Buoyancy stratification enabled (enable_buoyancy_stratification=true)\n";
+        amrex::Print() << "wind_solver: but no temperature file specified (temperature_file empty).\n";
+        amrex::Print() << "wind_solver: Buoyancy effects will not be active. Specify temperature_file to enable.\n";
+        has_warning = true;
+    }
+    
+    // --- CONFLICT 5: Stability Correction Redundancy ---
+    // Both Monin-Obukhov stability and diurnal temperature can be over-determined
+    if (enable_stability_correction && enable_diurnal_temperature && enable_buoyancy_stratification) {
+        amrex::Print() << "wind_solver: *** INFO ***\n";
+        amrex::Print() << "wind_solver: Stability correction, diurnal temperature, and buoyancy all enabled.\n";
+        amrex::Print() << "wind_solver: These features are compatible but can create complex feedback loops.\n";
+        amrex::Print() << "wind_solver: Monitor results for physically reasonable behavior.\n";
+    }
+    
+    // --- CONFLICT 6: Turbine Wake Models Compatibility ---
+    // Bastankhah deflection requires Bastankhah wake model
+    if (enable_bastankhah_deflection && turbine_wake_model_type != "bastankhah") {
+        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: Bastankhah yaw deflection enabled (enable_bastankhah_deflection=true)\n";
+        amrex::Print() << "wind_solver: but turbine_wake_model_type = " << turbine_wake_model_type << "\n";
+        amrex::Print() << "wind_solver: Bastankhah deflection only works with Bastankhah wake model.\n";
+        amrex::Print() << "wind_solver: Set turbine_wake_model_type = bastankhah to use deflection.\n";
+        has_warning = true;
+    }
+    
+    // --- CONFLICT 7: Data Assimilation with Time-Varying Wind ---
+    // Data assimilation can be complex with time-varying forcing
+    if (enable_data_assimilation && enable_time_varying) {
+        amrex::Print() << "wind_solver: *** INFO ***\n";
+        amrex::Print() << "wind_solver: Data assimilation enabled with time-varying forcing.\n";
+        amrex::Print() << "wind_solver: Assimilation windows should not exceed temporal variation scale.\n";
+    }
+    
+    // --- CONFLICT 8: Street Canyon + Building Wakes ---
+    // Street canyon detection can conflict with explicit building wake modeling
+    if (enable_street_canyon && enable_wake) {
+        amrex::Print() << "wind_solver: *** INFO ***\n";
+        amrex::Print() << "wind_solver: Street canyon modeling enabled with building wakes.\n";
+        amrex::Print() << "wind_solver: Street canyon parameterizations will apply within detected canyons.\n";
+        amrex::Print() << "wind_solver: Ensure buildings are properly specified in building_file.\n";
+    }
+    
+    // --- CAPABILITY: Wall Functions Limitations ---
+    // Wall functions have specific domain requirements
+    if ((enable_terrain_wall_function || enable_building_wall_function) && 
+        (dz > 10.0 || dz < 1.0)) {
+        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: Wall functions enabled with dz = " << dz << " m.\n";
+        amrex::Print() << "wind_solver: Wall functions typically require 1m < dz < 10m.\n";
+        amrex::Print() << "wind_solver: Current grid spacing may not be suitable.\n";
+        has_warning = true;
+    }
+    
+    // --- CAPABILITY: Synthetic Turbulence Domain Requirements ---
+    // Synthetic turbulence needs sufficient domain height
+    if (enable_synthetic_turbulence && domain_height < 200.0) {
+        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: Synthetic turbulence enabled with small domain_height = " 
+                       << domain_height << " m.\n";
+        amrex::Print() << "wind_solver: Recommend domain_height > 200m for realistic turbulence.\n";
+    }
+    
+    if (has_warning) {
+        amrex::Print() << "wind_solver: ========================================\n";
+        amrex::Print() << "wind_solver: Configuration validation complete. Check warnings above.\n";
+        amrex::Print() << "wind_solver: ========================================\n\n";
+    }
+}
+
     t_phase = amrex::second();
     if (terrain_file == "synthetic") {
         ParmParse pp;
