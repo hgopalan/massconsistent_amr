@@ -701,7 +701,10 @@ int main(int argc, char* argv[])
         Real ammonia_water_salinity = 0.0;          // Water salinity [PSU]
         bool ammonia_enable_seasonal_adjust = false;
         bool ammonia_enable_temp_adjust = false;
-         
+        int chemistry_month = 6;                    // Default: June
+        Real chemistry_temp_ref = 298.15;           // Reference temperature [K]
+        Real chemistry_Q10 = 2.0;                   // Temperature sensitivity factor
+          
         pp.query("enable_ammonia_chemistry", enable_ammonia_chemistry);
         pp.query("ammonia_half_life_land", ammonia_half_life_land);
         pp.query("ammonia_enable_water_exchange", ammonia_enable_water_exchange);
@@ -709,6 +712,9 @@ int main(int argc, char* argv[])
         pp.query("ammonia_water_salinity", ammonia_water_salinity);
         pp.query("ammonia_enable_seasonal_adjust", ammonia_enable_seasonal_adjust);
         pp.query("ammonia_enable_temp_adjust", ammonia_enable_temp_adjust);
+        pp.query("chemistry_month", chemistry_month);
+        pp.query("chemistry_temp_ref", chemistry_temp_ref);
+        pp.query("chemistry_Q10", chemistry_Q10);
          
         // Read receptors file
         struct Receptor {
