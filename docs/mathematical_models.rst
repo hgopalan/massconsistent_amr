@@ -652,18 +652,8 @@ The mass-consistent solver includes nine advanced building wake physics enhancem
 8. **Height-Dependent Velocity Variance Correction** — Modifies velocity variance profile for turbulence intensity
 9. **Horseshoe Vortex Modeling** — Computes velocity perturbations from circulation at building-ground junction
 
-Implementation Status
-~~~~~~~~~~~~~~~~~~~~~
+See Also:
 
-✅ **COMPLETE**: All 9 features are fully implemented and tested.
-
-- **9/9 Features Implemented** — 100% completion
-- **7/9 Features Actively Enabled by Default** — 78% active integration
-- **15 Unit Tests** — All physics functions validated with boundary conditions
-- **3 Python Integration Tests** — Full solver integration verified
-- **Zero Regressions** — All changes backward compatible
-
-**See Also:**
 - :ref:`numerical_methods` section "Building Wake Physics Implementation" for implementation details
 - :ref:`parmparse_reference` section "Building Wake Physics Enhancements" for configuration parameters
 - :ref:`regtests` section ``wake_enhancements`` for testing infrastructure
