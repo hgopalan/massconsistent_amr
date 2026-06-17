@@ -932,224 +932,1021 @@ Programmatic coupling allows passing dynamic 3D wind velocity arrays to external
     wind.finalize()
     fire.finalize()
 
-Step-by-Step Walkthrough Tutorials
-----------------------------------
+Walk-through Tutorials
+----------------------
 
-Walkthrough Section 1: Baseline Wind Solver & Terrain Setup
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This walkthrough demonstrates configuring a baseline mass-consistent wind solve over synthetic Gaussian topography.
+This section provides comprehensive, hands-on tutorials progressing from simple to advanced scenarios. Each tutorial is organized by primary physics modeling focus, with complete example configurations and step-by-step explanations of each parameter.
 
-**Annotated Input Deck (``inputs.i``):**
+Mass Consistent Solver Fundamentals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: ini
+**Tutorial 1.1: Simple Baseline Setup (Flat Terrain)**
 
-    # Terrain configuration
-    terrain_file = terrain.csv          # Point-cloud file
+This basic tutorial demonstrates the essential parameters needed to run a simple mass-consistent wind solver on flat terrain.
 
-    # Wind profile initialization
-    init_mode    = loglaw               # Log-law initialization
-    U_ref        = 15.0                 # Reference wind x-component [m/s]
-    V_ref        = 0.0                  # Reference wind y-component [m/s]
-    z_ref        = 10.0                 # Reference height AGL [m]
-    z0           = 0.03                 # Aerodynamic roughness length [m]
+**Key Concepts:**
 
-    # Computational grid spacing [m]
-    dx           = 25.0
-    dy           = 25.0
-    dz           = 20.0
+* Reference wind velocity and height
+* Aerodynamic roughness (surface roughness length)
+* Computational grid spacing
+* Domain vertical extent
+* Basic output configuration
 
-    # Domain vertical height [m]
-    domain_height = 200.0               # Height above maximum terrain peak
-
-    # Mass-consistency parameters
-    alpha_h      = 1.0                  # Horizontal penalty coefficient
-    alpha_v      = 1.0                  # Vertical penalty coefficient
-
-    # Extraction and output
-    plot_file    = plt_case1_output     # Output plotfile prefix
-    extract_agl  = 30.0                 # Extract wind velocity at 30m AGL
-    extract_file = wind_extract.csv
-
-Run this baseline scenario located at ``tests_and_examples/case1_gaussian_hill/``::
-
-    python3 test_case1.py
-
-Walkthrough Section 2: Advanced Solver & Boundary Layer Dynamics
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This tutorial covers height-dependent anisotropy, Ekman spiral veer correction, buoyancy effects, and high-order derivative schemes (WENO-5).
-
-**Annotated Input Deck (``inputs.i``):**
+**Annotated Input File:**
 
 .. code-block:: ini
 
-    terrain_file  = terrain.csv
-    init_mode     = loglaw
-    U_ref         = 10.0
-    V_ref         = -5.0
-    z_ref         = 10.0
-    z0            = 0.05
+    # === ESSENTIAL PARAMETERS FOR BASIC RUNS ===
+    # Terrain configuration - use "synthetic" for flat terrain generation
+    terrain_file = terrain.csv      # Path to terrain point-cloud (X Y Z format)
+    
+    # Wind profile initialization 
+    init_mode    = loglaw           # Use logarithmic profile (van Kármán)
+    U_ref        = 10.0             # Reference wind speed in x-direction [m/s]
+    V_ref        = 0.0              # Reference wind speed in y-direction [m/s]
+    z_ref        = 10.0             # Height where U_ref/V_ref are defined [m AGL]
+    z0           = 0.1              # Aerodynamic roughness length [m] - 0.05-0.1 for grass, 0.5-1.5 for urban
+    
+    # Computational domain and grid
+    dx           = 30.0             # Horizontal grid spacing in x-direction [m]
+    dy           = 30.0             # Horizontal grid spacing in y-direction [m]
+    dz           = 15.0             # Vertical grid spacing [m]
+    domain_height = 300.0           # Total domain height above terrain [m]
+    
+    # Mass-consistency: Poisson equation anisotropy coefficients
+    alpha_h      = 1.0              # Horizontal penalty coefficient (1.0 = isotropic)
+    alpha_v      = 1.0              # Vertical penalty coefficient
+    
+    # Linear solver settings (MLMG: Multi-Level Multi-Grid)
+    mlmg_verbose = 1                # Verbosity: 0=silent, 1=basic, 4=detailed
+    tol_rel      = 1.e-8            # Relative convergence tolerance
+    max_grid_size = 32              # Maximum AMReX box size per dimension
+    
+    # Output configuration
+    plot_file    = plt_baseline     # Output plotfile prefix (creates plt_baseline00000/)
+    extract_agl  = 20.0             # Extract 2D wind field at 20m AGL
+    extract_file = wind_extract.csv # CSV output filename
 
-    dx            = 50.0
-    dy            = 50.0
-    dz            = 30.0
-    domain_height = 300.0
-
-    # Height-Dependent Anisotropy
-    use_height_dependent_alpha_v = true
-    alpha_v_surface              = 1.5
-    alpha_v_top                  = 0.5
-    alpha_h                      = 1.0
-
-    # Ekman Spiral Veer
-    enable_ekman_veer            = true
-    latitude                     = 45.3
-    ekman_veer_total             = 25.0
-    ekman_veer_height            = 200.0
-
-    # Buoyancy Stratification
-    enable_buoyancy_stratification = true
-    temperature_file             = temperature.csv
-    temperature_reference        = 285.0
-    buoyancy_coefficient         = 1.2
-    buoyancy_method              = rhs
-
-    # Numerical Methods
-    deriv_method                 = weno5
-    tol_rel                      = 1.e-9
-    mlmg_max_iter                = 300
-    mlmg_bottom_solver           = bicgstab
-
-    plot_file                    = plt_advanced_bl
-
-Walkthrough Section 3: Vegetation & Forest Canopy Modeling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This section configures forest canopies using MacDonald top-canopy adjustments and Shaw-Pereira exponential decay inside porous canopy layers.
-
-**Annotated Input Deck (``inputs.i``):**
-
-.. code-block:: ini
-
-    terrain_file       = terrain.csv
-    init_mode          = loglaw
-    U_ref              = 10.0
-    V_ref              = 0.0
-    z_ref              = 50.0
-    z0                 = 0.05
-
-    dx                 = 50.0
-    dy                 = 50.0
-    dz                 = 5.0
-
-    domain_height      = 200.0
-
-    # Forest Canopy Parameters
-    enable_canopy            = true
-    canopy_height            = 20.0
-    frontal_area_index       = 0.25
-    plan_area_index          = 0.20
-    canopy_drag_coeff        = 0.2
-    use_exponential_profile  = true
-    canopy_attenuation       = 2.5
-
-    plot_file                = plt_canopy_forest
-
-Walkthrough Section 4: Atmospheric Stability and Slope Flows
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This tutorial configures non-neutral atmospheric boundary layers and slope-driven thermal flows.
-
-**Annotated Input Deck (``inputs.i``):**
-
-.. code-block:: ini
-
-    # Enable stability corrections
-    enable_stability_correction = true
-    stability_length            = -150.0            # Unstable convective layer
-
-    # Thermally-driven slope flows
-    enable_katabatic_flow       = true              # Enable katabatic parameterization
-    slope_flow_u_max            = 3.5               # Max slope flow velocity [m/s]
-    slope_flow_z_max            = 15.0              # Height of peak velocity [m/s]
-
-Walkthrough Section 5: Passive Gaussian Puff Dispersion
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This tutorial demonstrates coupling wind transport with Gaussian pollutant dispersion, first-order chemical decay, and deposition.
-
-**Annotated Input Deck (``inputs.i``):**
-
-.. code-block:: ini
-
-    enable_puff              = true
-    source_x                 = 150.0
-    source_y                 = 150.0
-    source_z                 = 10.0
-    emission_rate            = 1.0
-    emission_duration        = 50.0
-
-    K_h                      = 1.0
-    K_v                      = 0.5
-    sigma_y0                 = 1.0
-    sigma_z0                 = 1.0
-
-    enable_decay             = true
-    decay_constant           = 0.001
-
-    enable_puff_deposition   = true
-    deposition_velocity      = 0.01
-
-    # Adaptive (CFL-Limited) Time-Stepping
-    enable_adaptive_time_stepping = true
-    cfl_limit                = 0.5
-
-Run the standalone puff solver::
-
-    ./build/puff_solver regtest/puff_gaussian/inputs.i
-
-Walkthrough Section 6: Synthetic Turbulence & BTS Generation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This walkthrough generates terrain-aware synthetic turbulence fluctuations and exports them in OpenFAST-compatible binary format.
-
-**Annotated Input Deck (``inputs.i``):**
-
-.. code-block:: ini
-
-    enable_synthetic_turbulence    = true
-    turbulence_spectrum_model      = VonKarman
-    turbulence_intensity_model     = PowerLaw
-    turbulence_coherence_model     = Gaussian
-    turbulence_intensity_ref       = 0.12
-    turbulence_length_scale_u      = 300.0
-    turbulence_length_scale_v      = 200.0
-    turbulence_length_scale_w      = 120.0
-    turbulence_random_seed         = 12345
-    turbulence_export_format       = bts
-    turbulence_output_file         = turbulence.bts
-
-Walkthrough Section 7: Agricultural Drone Spraying Walkthrough
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This walkthrough demonstrates the comprehensive, production-grade modeling of agricultural drone spraying operations, including spray drift evaluation, drone downwash/ground-effect spreading, dynamic canopy deposition, and weather window optimization.
-
-**Simulation Steps & Architecture:**
-
-1. **Trajectory Parsing & Interpolation**: Drone flight logs (telemetry data) containing 3D positions, speed, heading, and nozzle state are loaded and interpolated continuously over time using the ``DroneTrajectory`` class.
-2. **Mass Flow Scaling**: Volumetric nozzle flow rate (L/min) is dynamically scaled to physical pesticide mass release (g/s) using the ``MassEmissionRegulator`` class.
-3. **Transport & Downwash**: Droplets are classified into size bins (fine, medium, coarse), advected by the 3D mass-consistent wind solver field, pushed downward/sideways by analytical rotor downwash (including ground-effect spreading), and settle due to gravitational forces (Stokes' law with Cunningham slip correction).
-4. **Physicochemical Decay**: Droplets undergo temperature- and humidity-dependent evaporation (Tetens equation & d² law) and photo-chemical degradation.
-5. **Canopy Interception & Deposition Mapping**: Spatially-varying canopy foliage (Leaf Area Index, Frontal Area Index) intercepts descending droplets. Deposition is mapped onto ground, lower foliage, and canopy-top registers. Mass conservation is rigorously validated across all compartments.
-
-**Analysis & Execution Commands:**
-
-To run the sensitivity analysis, weather window optimizer, or the regression test, execute the following commands from the repository root:
+**Example Execution:**
 
 .. code-block:: bash
 
-    # Run sensitivity analysis across nozzles, wind, and stability
-    python3 tools/drone_sensitivity_analysis.py
+    ./build/wind_solver inputs.i
+    # Output: AMReX plotfile (plt_baseline00000/) + CSV extraction (wind_extract.csv)
 
-    # Run weather window optimization against scenario library
-    python3 tools/weather_window_optimizer.py
+**Expected Results:**
 
-    # Execute the realistic farm case regression test
-    python3 regtest/dispersion/realistic_farm_case/test_realistic_farm_case.py
+* A 3D AMReX plotfile containing (u, v, w) velocity components
+* A CSV file with 2D wind field at specified AGL height
+* Logarithmic velocity profile vertically, mass-consistent horizontally
+
+**Common Modifications:**
+
+- Change ``z0`` to model different surface types (0.001 for ocean, 0.3 for trees)
+- Adjust ``dx/dy/dz`` for finer/coarser resolution vs. computational cost
+- Set ``extract_agl`` to multiple heights for vertical profile analysis
+- Increase ``domain_height`` for taller domains (e.g., 600m for complex terrain)
+
+**Tutorial 1.2: Gaussian Hill with Advanced Parameters**
+
+This tutorial adds a realistic synthetic terrain and introduces height-dependent anisotropy, Ekman spiral effects, and buoyancy stratification.
+
+**Key Concepts:**
+
+* Synthetic terrain generation
+* Height-dependent anisotropy coefficients
+* Ekman spiral veer corrections
+* Atmospheric stability and buoyancy effects
+* High-order derivative schemes (WENO-5)
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === SYNTHETIC TERRAIN SETUP ===
+    # Generate Gaussian hill terrain programmatically instead of reading file
+    terrain_file = synthetic
+    synthetic_type = gaussian_hill
+    synthetic_xmin = 0.0
+    synthetic_xmax = 1000.0
+    synthetic_ymin = 0.0
+    synthetic_ymax = 1000.0
+    synthetic_nx = 21                   # Grid points for terrain interpolation
+    synthetic_ny = 21
+    synthetic_peak = 150.0              # Hill peak elevation [m]
+    synthetic_sigma = 200.0             # Gaussian width [m]
+    synthetic_center_x = 500.0          # Hill center X coordinate
+    synthetic_center_y = 500.0          # Hill center Y coordinate
+    
+    # === WIND INITIALIZATION ===
+    init_mode    = loglaw
+    U_ref        = 12.0
+    V_ref        = -3.0               # Non-zero cross-wind (oblique flow)
+    z_ref        = 10.0
+    z0           = 0.08
+    
+    # === GRID CONFIGURATION ===
+    dx           = 40.0
+    dy           = 40.0
+    dz           = 20.0
+    domain_height = 400.0             # Tall enough for complex terrain (2-3× max elevation)
+    
+    # === HEIGHT-DEPENDENT ANISOTROPY (Advanced) ===
+    # Penalty coefficients vary with height to capture boundary layer effects
+    use_height_dependent_alpha_v = true
+    alpha_v_surface = 1.5             # Stronger vertical coupling near ground
+    alpha_v_top     = 0.5             # Weaker coupling aloft
+    alpha_h         = 1.0             # Constant horizontal coupling
+    
+    # === EKMAN SPIRAL VEER (Geostrophic effect) ===
+    # Wind direction rotates with height due to Coriolis force
+    enable_ekman_veer = true
+    latitude = 45.0                   # Latitude [degrees N]
+    ekman_veer_total = 30.0           # Total veer from surface to top [degrees]
+    ekman_veer_height = 300.0         # Height over which veer occurs [m]
+    
+    # === BUOYANCY STRATIFICATION (Atmospheric Stability) ===
+    # Include thermal effects (density variations)
+    enable_buoyancy_stratification = true
+    temperature_file = temperature.csv  # Vertical temperature profile
+    temperature_reference = 288.0       # Reference temperature [K]
+    buoyancy_coefficient = 0.5         # Strength of thermal coupling
+    buoyancy_method = velocity         # Method: "velocity", "rhs"
+    
+    # === NUMERICAL METHOD SELECTION ===
+    deriv_method = weno5              # High-order derivatives: weno3, weno5
+    tol_rel = 1.e-9                   # Tighter tolerance for complex physics
+    mlmg_max_iter = 300               # Max iterations (increased for complex cases)
+    mlmg_bottom_solver = bicgstab     # Bottom solver: bicgstab, cg
+    
+    # === STABILITY CORRECTIONS ===
+    enable_stability_correction = true
+    stability_length = -100.0         # Monin-Obukhov length (negative=unstable)
+    
+    # === OUTPUT ===
+    plot_file = plt_gaussian_hill_advanced
+    extract_agl = 25.0
+    extract_file = wind_extract_advanced.csv
+
+**Example Execution:**
+
+.. code-block:: bash
+
+    # Requires temperature.csv in same directory (vertical T profile)
+    ./build/wind_solver inputs.i
+
+**Expected Results:**
+
+* Directional shear (Ekman veer) visible in horizontal velocity field
+* Enhanced wind acceleration over hill crest
+* Stability effects modifying vertical mixing
+* Smoother velocity gradients from WENO-5 derivatives
+
+**Exhaustive Input File Reference for Mass Consistent Solver**
+
+Below is a comprehensive input file containing all possible mass-consistent solver parameters with detailed comments:
+
+.. code-block:: ini
+
+    # ================================================================================
+    # COMPLETE MASS-CONSISTENT AMR WIND SOLVER INPUT FILE
+    # ================================================================================
+    # This file documents ALL parameters for configuring the mass-consistent solver.
+    # Only parameters with non-default values need to be specified in practice.
+    # ================================================================================
+
+    # --- TERRAIN & DOMAIN SETUP ---
+    terrain_file = terrain.csv                # Terrain point-cloud or "synthetic"
+    
+    # Synthetic terrain generation (if terrain_file = synthetic)
+    synthetic_type = multi_gaussian_hill      # gaussian_hill, multi_gaussian_hill
+    synthetic_xmin = 0.0
+    synthetic_xmax = 1000.0
+    synthetic_ymin = 0.0
+    synthetic_ymax = 1000.0
+    synthetic_nx = 21
+    synthetic_ny = 21
+    synthetic_peak = 200.0                    # Single hill peak [m] (gaussian_hill only)
+    synthetic_sigma = 150.0                   # Gaussian width [m]
+    synthetic_center_x = 500.0                # Hill center X (gaussian_hill only)
+    synthetic_center_y = 500.0                # Hill center Y (gaussian_hill only)
+    synthetic_peaks = 200.0 150.0             # Multiple peaks [m] (multi_gaussian_hill)
+    synthetic_sigmas = 150.0 120.0            # Multiple widths [m]
+    synthetic_centers_x = 300.0 700.0         # Multiple centers X [m]
+    synthetic_centers_y = 400.0 600.0         # Multiple centers Y [m]
+
+    # --- WIND INITIALIZATION ---
+    init_mode = loglaw                        # Log-law profile initialization
+    U_ref = 10.0                              # Reference x-wind [m/s]
+    V_ref = 0.0                               # Reference y-wind [m/s]
+    z_ref = 10.0                              # Reference height [m AGL]
+    z0 = 0.1                                  # Aerodynamic roughness [m]
+    
+    # Ekman spiral veer (Coriolis effect)
+    enable_ekman_veer = false
+    latitude = 45.0                           # Latitude [degrees N]
+    ekman_veer_total = 30.0                   # Total veer [degrees]
+    ekman_veer_height = 300.0                 # Veer transition height [m]
+
+    # --- GRID & DOMAIN GEOMETRY ---
+    dx = 30.0                                 # Grid spacing x [m]
+    dy = 30.0                                 # Grid spacing y [m]
+    dz = 15.0                                 # Grid spacing z [m]
+    domain_height = 300.0                     # Domain top above terrain [m]
+    
+    # Optional: Direct cell count specification (overrides spacing)
+    # ncells_x = 64
+    # ncells_y = 64
+    # ncells_z = 32
+
+    # --- MASS CONSISTENCY (Poisson Equation) ---
+    alpha_h = 1.0                             # Horizontal penalty coefficient
+    alpha_v = 1.0                             # Vertical penalty coefficient
+    
+    # Height-dependent anisotropy
+    use_height_dependent_alpha_v = false
+    alpha_v_surface = 1.5                     # Surface value
+    alpha_v_top = 0.5                         # Top value
+    
+    # Cell-local anisotropy based on local terrain slope
+    enable_cell_local_anisotropy = false
+    anisotropy_source = all                   # all, terrain, buildings
+
+    # --- ATMOSPHERIC PHYSICS ---
+    # Stability and stratification
+    enable_stability_correction = false
+    stability_length = -100.0                 # Monin-Obukhov length [m]
+    
+    # Buoyancy stratification
+    enable_buoyancy_stratification = false
+    temperature_file = temperature.csv
+    temperature_reference = 288.0             # Reference T [K]
+    buoyancy_coefficient = 1.0
+    buoyancy_method = velocity                # velocity, rhs
+    enable_diurnal_temperature = false
+    
+    # Thermal effects and circulation
+    enable_thermal_circulation = false
+    enable_slope_flows = false
+    enable_katabatic_flow = false             # Downslope flows
+    enable_valley_channeling = false          # Valley wind channeling
+    enable_gap_flow = false                   # Gap wind acceleration
+
+    # Capping inversion lid
+    enable_capping_lid = false
+    capping_lid_height = 1000.0               # Inversion height [m]
+    capping_lid_strength = 0.01               # Strength parameter
+
+    # --- NUMERICAL METHODS ---
+    deriv_method = central                    # central, weno3, weno5
+    tol_rel = 1.e-8                           # MLMG relative tolerance
+    tol_abs = 1.e-12                          # MLMG absolute tolerance
+    mlmg_verbose = 1                          # Verbosity: 0-4
+    mlmg_max_iter = 200
+    mlmg_bottom_solver = bicgstab             # bicgstab, cg, ilu
+    max_grid_size = 32                        # Max AMReX box size
+
+    # --- TEMPORAL SETTINGS ---
+    enable_time_varying = false
+    time_series_file = time_series.csv        # Transient forcing
+
+    # --- I/O & DIAGNOSTICS ---
+    plot_file = plt_wind                      # Output plotfile prefix
+    extract_agl = 20.0                        # Extraction height [m AGL]
+    extract_file = wind_extract.csv           # CSV output file
+    diagnostic_output_interval = 1            # Output frequency
+
+Building Wake Physics Modeling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Tutorial 2.1: Simple Building Wake (Single Building)**
+
+This tutorial introduces basic building wake modeling using the Röckle (1990) parameterization with a single rectangular building.
+
+**Key Concepts:**
+
+* Building file format (CSV with position, dimensions)
+* Wake deficit zones (cavity, far-wake)
+* Building wake enhancement options
+* Wind field modification in urban areas
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === TERRAIN & DOMAIN ===
+    terrain_file = synthetic
+    synthetic_type = gaussian_hill
+    synthetic_peak = 100.0
+    synthetic_sigma = 200.0
+    synthetic_center_x = 500.0
+    synthetic_center_y = 500.0
+    
+    # === WIND INITIALIZATION ===
+    init_mode = loglaw
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.2                               # Urban roughness
+    
+    # === GRID & DOMAIN ===
+    dx = 20.0
+    dy = 20.0
+    dz = 10.0
+    domain_height = 250.0
+    
+    # === MASS CONSISTENCY ===
+    alpha_h = 1.0
+    alpha_v = 1.0
+    
+    # === BUILDING WAKE MODELING (Basic) ===
+    enable_wake = true                     # Enable building wake effects
+    building_file = buildings.csv           # CSV: xmin,xmax,ymin,ymax,zmin,zmax [m]
+    wake_model_type = rockle                # Röckle (1990) model
+    
+    # Use default enhancements (recommended for most applications)
+    enable_oblique_scaling = true           # Adjust wake extent for non-perpendicular wind
+    enable_tall_building_correction = true  # Correct for tall buildings
+    enable_upwind_recirculation = true      # Model reverse flow upstream
+    enable_corner_acceleration = true       # Velocity amplification at edges
+    enable_extended_farwake = true          # Extend far-wake to 15H
+    enable_horseshoe_vortex = true          # Secondary circulation at base
+    
+    # === OUTPUT ===
+    plot_file = plt_building_wake_simple
+    extract_agl = 20.0
+    extract_file = wind_building_simple.csv
+
+**Building CSV Format:**
+
+.. code-block:: text
+
+    xmin,xmax,ymin,ymax,zmin,zmax
+    400.0,500.0,450.0,550.0,0.0,30.0
+
+Each row defines one building: X, Y, Z bounds [m] (zmin is typically ground, zmax is roof height).
+
+**Expected Results:**
+
+* Cavity zone (0-1.5H downstream): ~30-50% velocity deficit
+* Far-wake zone (1.5H-15H): Gradually recovering velocity
+* Upwind recirculation zone (~0.5H upstream): Weak reverse flow
+* Flow acceleration at building corners (~10-20% enhancement)
+
+**Tutorial 2.2: Urban Building Array with Advanced Wake Physics**
+
+This tutorial models multiple buildings in a street canyon configuration with advanced wake physics enhancements enabled selectively.
+
+**Key Concepts:**
+
+* Multiple building interactions (wake merging)
+* Street canyon effects (Yoshie two-layer model)
+* Wake superposition methods (quadratic, cubic)
+* Advanced physics: Gaussian profiles, variance correction, log-law reference
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === COMPLEX TERRAIN & DOMAIN ===
+    terrain_file = terrain.csv             # Real DEM or generated terrain
+    
+    # === WIND INITIALIZATION (Oblique Flow) ===
+    init_mode = loglaw
+    U_ref = 12.0
+    V_ref = -4.0                           # 30° oblique approach
+    z_ref = 10.0
+    z0 = 0.3                               # Dense urban environment
+    
+    # === GRID & DOMAIN ===
+    dx = 15.0
+    dy = 15.0
+    dz = 8.0
+    domain_height = 300.0
+    
+    # === ANISOTROPY FOR URBAN FLOWS ===
+    alpha_h = 1.2                          # Slightly higher horizontal coupling
+    alpha_v = 0.8                          # Lower vertical coupling
+    use_height_dependent_alpha_v = true
+    alpha_v_surface = 1.5
+    alpha_v_top = 0.5
+    
+    # === MULTIPLE BUILDINGS & ARRAYS ===
+    enable_wake = true
+    building_file = urban_blocks.csv       # Many buildings (100s)
+    wake_model_type = rockle
+    
+    # Street canyon effects (Yoshie two-layer model)
+    enable_yoshie_two_layer = true         # Two-layer recirculation in canyons
+    
+    # Advanced wake physics for detailed accuracy
+    enable_oblique_scaling = true          # Critical for non-perpendicular flows
+    enable_tall_building_correction = true # Many tall buildings
+    enable_gaussian_profile = true         # Smooth lateral deficit (not rectangular)
+    enable_upwind_recirculation = true
+    enable_reference_correction = true     # Use log-law velocity at height
+    enable_corner_acceleration = true
+    enable_variance_correction = true      # Modify turbulence intensity
+    enable_horseshoe_vortex = true
+    enable_extended_farwake = true
+    
+    # Wake superposition (combining multiple deficits)
+    turbine_wake_superposition = quadratic # quadratic or cubic
+    
+    # === OPTIONAL: STREET CANYON MODELING ===
+    enable_street_canyon = true
+    landuse_file = landuse.csv             # Urban classification
+    
+    # === OUTPUT ===
+    plot_file = plt_urban_array_advanced
+    extract_agl = 15.0
+    extract_file = wind_urban_array.csv
+
+**Expected Results:**
+
+* Asymmetric flow patterns in street canyons (Yoshie two-layer response)
+* Gaussian profiles providing smooth transitions between buildings
+* Stronger upwind effects due to reference correction
+* Variance correction affecting turbulence intensity estimates
+
+**Exhaustive Input File for Building Wake Modeling**
+
+.. code-block:: ini
+
+    # ================================================================================
+    # BUILDING WAKE PHYSICS CONFIGURATION REFERENCE
+    # ================================================================================
+    
+    # === BASIC BUILDING SETUP ===
+    enable_wake = false                    # Enable building wake effects
+    building_file = buildings.csv          # CSV file: xmin,xmax,ymin,ymax,zmin,zmax [m]
+    wake_model_type = rockle               # rockle (default) or huber_snyder
+    
+    # === BUILDING WAKE ENHANCEMENTS (9 Total) ===
+    # Each can be independently enabled/disabled
+    
+    # 1. Far-wake extension to 15H (vs. standard 3-5H)
+    enable_extended_farwake = true         # Default: true
+    
+    # 2. Oblique angle cavity scaling
+    enable_oblique_scaling = true          # Default: true
+    
+    # 3. Tall-building aspect-ratio correction
+    enable_tall_building_correction = true # Default: true
+    
+    # 4. Gaussian lateral wake profile
+    enable_gaussian_profile = false        # Default: false (uses rectangular)
+    
+    # 5. Upwind recirculation zone
+    enable_upwind_recirculation = true     # Default: true
+    
+    # 6. Log-law reference velocity correction
+    enable_reference_correction = false    # Default: false
+    
+    # 7. Corner and side acceleration
+    enable_corner_acceleration = true      # Default: true
+    
+    # 8. Height-dependent velocity variance
+    enable_variance_correction = false     # Default: false
+    
+    # 9. Horseshoe vortex modeling
+    enable_horseshoe_vortex = true         # Default: true
+    
+    # === ADVANCED URBAN PHYSICS ===
+    enable_yoshie_two_layer = true         # Yoshie two-layer canyon model
+    enable_rodi_entrainment = false        # Rodi entrainment model
+    enable_lopes_comfort = false           # Lopes comfort index
+    enable_oikonomou_aspect = false        # Oikonomou aspect ratio effects
+    enable_britter_hanna_urban = false     # Britter-Hanna urban model
+    
+    # === WAKE SUPERPOSITION (Multiple Buildings) ===
+    turbine_wake_superposition = quadratic # quadratic, cubic, or linear
+    
+    # === STREET CANYON SPECIFIC ===
+    enable_street_canyon = false           # Street canyon detection and modeling
+    landuse_file = ""                      # Urban/rural classification
+    
+    # === BUILDING POROSITY & PERMEABILITY ===
+    enable_building_porosity = false       # Allow flow through buildings
+    building_porosity_file = ""            # Porosity coefficients per building
+
+Turbine Wake Physics Modeling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Tutorial 3.1: Single Wind Turbine Wake**
+
+This tutorial demonstrates basic wind turbine wake modeling using analytical wake models with a single turbine.
+
+**Key Concepts:**
+
+* Turbine file format (CSV with position, rotor diameter, hub height, power curve)
+* Wake deficit models (Jensen, Bastankhah, TurbOPark)
+* Power output calculation
+* Wake ground interaction effects
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === TERRAIN & DOMAIN ===
+    terrain_file = synthetic
+    synthetic_type = gaussian_hill
+    synthetic_peak = 80.0
+    synthetic_sigma = 250.0
+    
+    # === WIND INITIALIZATION ===
+    init_mode = loglaw
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.05
+    
+    # === GRID & DOMAIN ===
+    dx = 25.0
+    dy = 25.0
+    dz = 15.0
+    domain_height = 400.0                  # Tall for wind turbines (3-4× hub height)
+    
+    # === MASS CONSISTENCY ===
+    alpha_h = 1.0
+    alpha_v = 1.0
+    
+    # === TURBINE WAKE MODELING ===
+    enable_turbine_wake = true             # Enable turbine wake effects
+    turbine_file = turbines.csv            # CSV: x,y,z,D,H,power_curve.csv
+    turbine_wake_model_type = jensen       # jensen, bastankhah, turbopark
+    
+    # Wake deficit superposition (how wakes combine)
+    turbine_wake_superposition = quadratic # quadratic, cubic, or linear
+    
+    # Ground interaction: mirror turbine technique
+    enable_wake_ground_interaction = true
+    
+    # Advanced wake deflection for yawed turbines
+    enable_jimenez_deflection = false      # Jimenez yaw deflection model
+    enable_bastankhah_deflection = false   # Bastankhah yaw deflection model
+    
+    # === OUTPUT ===
+    plot_file = plt_turbine_wake_single
+    extract_agl = 100.0                    # Extract at hub height
+    extract_file = wind_turbine_single.csv
+
+**Turbine CSV Format:**
+
+.. code-block:: text
+
+    x,y,z,D,H,power_curve_file
+    500.0,500.0,0.0,120.0,100.0,power_curve.csv
+
+Where:
+- (x, y, z): Turbine location [m], z typically 0 (ground)
+- D: Rotor diameter [m]
+- H: Hub height above ground [m]
+- power_curve_file: CSV with (U_wind, P_output) pairs
+
+**Expected Results:**
+
+* Velocity deficit cone extending 10-15 rotor diameters downstream
+* Gaussian profile of deficit in lateral direction
+* Power output varies with upstream wind speed (from power curve)
+* Ground-mirrored wake effect (weaker reflection in lower half-space)
+
+**Tutorial 3.2: Wind Farm with Multiple Turbines and Yaw Control**
+
+This tutorial models a multi-turbine wind farm with optimized yaw angles for wake steering and includes advanced deflection models.
+
+**Key Concepts:**
+
+* Multiple turbine interactions (wake superposition)
+* Yaw control and wake deflection (Jimenez, Bastankhah models)
+* Wake-added turbulence (increased mixing downwind)
+* Farm-scale power optimization
+* Stability effects on wake recovery
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === REAL TERRAIN ===
+    terrain_file = terrain.csv             # Actual DEM/point cloud
+    
+    # === WIND INITIALIZATION ===
+    init_mode = loglaw
+    U_ref = 11.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    
+    # === GRID (Finer for farm layout) ===
+    dx = 20.0
+    dy = 20.0
+    dz = 10.0
+    domain_height = 500.0
+    
+    # === ANISOTROPY FOR WIND FARM ===
+    alpha_h = 0.9                          # Slightly reduced for farm effects
+    alpha_v = 1.0
+    use_height_dependent_alpha_v = true
+    alpha_v_surface = 1.2
+    alpha_v_top = 0.6
+    
+    # === MULTIPLE TURBINES WITH OPTIMIZATION ===
+    enable_turbine_wake = true
+    turbine_file = farm_layout.csv         # Many turbines (>10)
+    turbine_wake_model_type = bastankhah   # Advanced model
+    turbine_wake_superposition = cubic     # More accurate for overlapping wakes
+    
+    # === WAKE DEFLECTION (Yaw Steering) ===
+    # Advanced models for optimizing power output via yaw angles
+    enable_jimenez_deflection = true       # Jimenez (2010) deflection model
+    enable_bastankhah_deflection = true    # Bastankhah (2016) counter-rotating vortex
+    
+    # === WAKE-ADDED TURBULENCE ===
+    # Turbulence intensity increases in wakes, affecting wake recovery
+    wake_added_turbulence_model = default  # Applies turbulence increase downwind
+    
+    # === GROUND INTERACTION ===
+    enable_wake_ground_interaction = true
+    
+    # === ATMOSPHERIC STABILITY ===
+    enable_stability_correction = true
+    stability_length = 300.0               # Neutral (large L value)
+    # Neutral conditions → faster wake recovery than stable
+    # Unstable conditions (negative L) → slower wake recovery
+    
+    # === ADVANCED: BUOYANCY (Temperature Effects) ===
+    enable_buoyancy_stratification = true
+    temperature_file = temperature_profile.csv
+    buoyancy_coefficient = 1.0
+    
+    # === OUTPUT WITH DETAILED DIAGNOSTICS ===
+    plot_file = plt_farm_optimized
+    extract_agl = 100.0
+    extract_file = wind_farm_power.csv
+    turbine_power_output_file = farm_power_output.csv
+    turbine_energy_production_file = farm_annual_energy.csv
+
+**Farm CSV Format:**
+
+.. code-block:: text
+
+    x,y,z,D,H,power_curve_file,yaw_angle
+    0.0,0.0,0.0,120.0,100.0,power_5mw.csv,0.0
+    500.0,0.0,0.0,120.0,100.0,power_5mw.csv,25.0
+    1000.0,0.0,0.0,120.0,100.0,power_5mw.csv,0.0
+
+Where yaw_angle is positive for clockwise rotation (when viewed from above).
+
+**Expected Results:**
+
+* Front-row turbines produce nominal power
+* Wake deficits from upstream turbines reduce power of downwind turbines
+* Yaw steering deflects wakes laterally, reducing downwind losses
+* Wake recovery faster in stable conditions, slower in unstable
+* Cubic superposition captures non-linear wake merging better than quadratic
+
+**Important Note: Capability Conflicts**
+
+.. note::
+
+    **Do not combine building and turbine wakes in the same simulation** at this time. The solver includes validation that will issue a warning if both ``enable_wake=true`` and ``enable_turbine_wake=true``. These systems use different methodologies and mixing them may produce unphysical results. Choose one or the other for your application.
+
+**Exhaustive Turbine Wake Configuration Reference**
+
+.. code-block:: ini
+
+    # ================================================================================
+    # TURBINE WAKE PHYSICS CONFIGURATION REFERENCE
+    # ================================================================================
+    
+    # === BASIC TURBINE SETUP ===
+    enable_turbine_wake = false            # Enable turbine wake modeling
+    turbine_file = turbines.csv            # CSV: x,y,z,D,H,power_curve.csv[,yaw]
+    
+    # === WAKE DEFICIT MODELS ===
+    turbine_wake_model_type = jensen       # jensen, bastankhah, turbopark
+    
+    # Jensen (Park) Model: D_wake(x) = D + 2*k_w*x
+    # - Simple, fast, good for small farms
+    # - k_w ≈ 0.04-0.05
+    
+    # Bastankhah Model: Gaussian deficit with counter-rotating vortex pair
+    # - More physics-based, better far-wake recovery
+    # - Better for medium/large farms
+    
+    # TurbOPark Model: Dynamic wake expansion from local turbulence intensity
+    # - Most advanced, best for complex physics
+    # - Computationally intensive
+    
+    # === SUPERPOSITION METHOD ===
+    turbine_wake_superposition = quadratic # quadratic, cubic, linear
+    
+    # quadratic: sqrt(D1^2 + D2^2 + ...) - default, conservative
+    # cubic: (D1^3 + D2^3 + ...)^(1/3) - more realistic overlaps
+    # linear: D1 + D2 + ... - least physical
+    
+    # === WAKE DEFLECTION (YAW STEERING) ===
+    enable_jimenez_deflection = false      # Jimenez et al. (2010) model
+    enable_bastankhah_deflection = false   # Bastankhah et al. (2016) model
+    # Note: Bastankhah deflection only works with Bastankhah wake model
+    
+    # === WAKE-ADDED TURBULENCE ===
+    wake_added_turbulence_model = none     # none, default, or custom
+    # Increases turbulence intensity in wakes, affecting wake recovery
+    
+    # === GROUND INTERACTION ===
+    enable_wake_ground_interaction = true  # Mirror turbine technique
+    # F_damp factor applied for surface shear layer
+    
+    # === DIAGNOSTICS & OUTPUT ===
+    turbine_power_output_file = ""         # Per-turbine power output
+    turbine_energy_production_file = ""    # Time-integrated energy
+
+Other Useful Walk-through Tutorials
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Tutorial 4.1: Forest Canopy Drag and Wind Reduction**
+
+This tutorial demonstrates modeling wind attenuation through forest canopies using porous media drag parameterization.
+
+**Key Concepts:**
+
+* Canopy height and frontal area index (FAI)
+* Plan area index (PAI) - fraction of ground covered
+* Exponential velocity attenuation with height
+* Drag coefficient calibration for different forest types
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === BASIC SETUP ===
+    terrain_file = synthetic
+    init_mode = loglaw
+    U_ref = 12.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    
+    dx = 30.0
+    dy = 30.0
+    dz = 5.0                               # Finer vertical grid in canopy
+    domain_height = 200.0
+    
+    alpha_h = 1.0
+    alpha_v = 1.0
+    
+    # === FOREST CANOPY MODELING ===
+    enable_canopy = true
+    canopy_height = 25.0                   # Canopy top elevation [m]
+    frontal_area_index = 0.3               # FAI - typical 0.2-0.5 for forests
+    plan_area_index = 0.4                  # PAI - fraction of horizontal projection
+    canopy_drag_coeff = 0.15               # Drag coefficient in canopy
+    
+    # Vertical structure of canopy
+    use_exponential_profile = true
+    canopy_attenuation = 2.5               # Decay rate: U(z) = U_top * exp(-attenuation*(h-z)/h)
+    
+    # === OUTPUT ===
+    plot_file = plt_forest_canopy
+    extract_agl = 5.0
+    extract_file = wind_in_canopy.csv
+
+**Expected Results:**
+
+* Significant wind reduction within canopy (50-80% at base)
+* Exponential recovery above canopy top
+* Increased effective surface roughness perceived aloft
+* Turbulence intensity increase within canopy
+
+**Tutorial 4.2: Atmospheric Stability and Non-Neutral Boundary Layers**
+
+This tutorial demonstrates the effects of atmospheric stratification (stable vs. unstable) on wind profiles and flow patterns.
+
+**Key Concepts:**
+
+* Monin-Obukhov stability length (L)
+* Stable (L > 0): strong stratification, weak mixing
+* Unstable (L < 0): convective overturning, strong mixing
+* Temperature-wind coupling via buoyancy
+* Stability effects on terrain-flow interactions
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === BASE CONFIGURATION ===
+    terrain_file = synthetic
+    synthetic_type = gaussian_hill
+    synthetic_peak = 150.0
+    
+    init_mode = loglaw
+    U_ref = 8.0                            # Lower wind speed in stable conditions
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    
+    dx = 40.0
+    dy = 40.0
+    dz = 15.0
+    domain_height = 400.0
+    
+    # === STABILITY CONFIGURATION ===
+    enable_stability_correction = true
+    stability_length = 100.0               # Positive = Stable (strong strat)
+    # Examples:
+    # stability_length = 500.0     → Very stable (nocturnal)
+    # stability_length = 100.0     → Moderately stable
+    # stability_length = -100.0    → Unstable (daytime convection)
+    # stability_length = -500.0    → Very unstable (strong heating)
+    
+    # === BUOYANCY & TEMPERATURE EFFECTS ===
+    enable_buoyancy_stratification = true
+    temperature_file = temperature.csv     # Vertical temperature profile
+    temperature_reference = 288.0          # Reference temperature [K]
+    buoyancy_coefficient = 1.0             # Coupling strength
+    buoyancy_method = velocity             # velocity or rhs
+    
+    # === OUTPUT ===
+    plot_file = plt_stability_effects
+    extract_agl = 30.0
+    extract_file = wind_stability.csv
+
+**Expected Results:**
+
+* Stable conditions: Stronger wind shear, weaker terrain acceleration
+* Unstable conditions: Reduced shear, stronger thermal mixing
+* Buoyancy effects visible in vertical velocity (w-component)
+* Stability length directly affects velocity profile shape
+
+**Tutorial 4.3: Data Assimilation and Observation Coupling**
+
+This advanced tutorial demonstrates assimilating observational data (sounding profiles, point measurements) into the wind field to improve accuracy.
+
+**Key Concepts:**
+
+* Sounding data (vertical wind/temperature profiles)
+* Observation nudging/relaxation
+* Blending model predictions with observations
+* Kalman-filter style corrections
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === BASE CONFIGURATION ===
+    terrain_file = terrain.csv
+    init_mode = loglaw
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    
+    dx = 30.0
+    dy = 30.0
+    dz = 10.0
+    domain_height = 300.0
+    
+    # === DATA ASSIMILATION ===
+    enable_data_assimilation = true
+    sounding_file = sounding_profile.txt   # Vertical wind profile (Z, U, V, T)
+    observation_file = point_obs.csv       # Point measurements (X, Y, Z, U, V, W)
+    
+    # Assimilation parameters
+    data_assimilation_method = optimal_interpolation  # oi or ensemble_kalman
+    observation_error_variance = 0.5       # Measurement uncertainty [m/s]^2
+    background_error_variance = 1.0        # Model uncertainty [m/s]^2
+    assimilation_time_window = 3600.0      # Analysis window [s]
+    
+    # === OUTPUT ===
+    plot_file = plt_assimilated_wind
+    extract_agl = 20.0
+    extract_file = wind_assimilated.csv
+
+**Expected Results:**
+
+* Wind field adjusted toward observations
+* Improved accuracy in vicinity of observation points
+* Smooth transition to model predictions away from obs
+* Better representation of local phenomena not in coarse model
+
+**Tutorial 4.4: Time-Varying Forcing and Transient Simulations**
+
+This tutorial demonstrates running the solver with time-varying boundary conditions such as changing reference wind or rotating direction.
+
+**Key Concepts:**
+
+* Time series of reference wind speed/direction
+* Diurnal cycles (day/night temperature variations)
+* Transient response of wind field
+* Output at multiple time steps
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === BASE CONFIGURATION ===
+    terrain_file = synthetic
+    synthetic_type = gaussian_hill
+    
+    init_mode = loglaw
+    z_ref = 10.0
+    z0 = 0.1
+    
+    dx = 30.0
+    dy = 30.0
+    dz = 15.0
+    domain_height = 300.0
+    
+    # === TIME-VARYING FORCING ===
+    enable_time_varying = true
+    time_series_file = hourly_wind.csv     # Format: Time[s], U_ref, V_ref, T_ref
+    
+    # Example time_series_file content:
+    #   0.0,10.0,0.0,288.0
+    #   3600.0,11.5,1.0,289.0
+    #   7200.0,13.0,2.5,290.5
+    #   ...
+    
+    # === TEMPORAL INTEGRATION ===
+    dt = 60.0                              # Time step [s]
+    num_timesteps = 96                     # 96 steps × 60s = 5760s ~ 1.6 hours
+    diagnostic_output_interval = 10        # Save every 10 timesteps
+    
+    # === DIURNAL TEMPERATURE CYCLE ===
+    enable_diurnal_temperature = true
+    diurnal_amplitude = 8.0                # +/- temperature variation [K]
+    diurnal_phase = 14.0                   # Peak heating at 2 PM [hours]
+    
+    # === OUTPUT (Multiple Times) ===
+    plot_file = plt_time_varying
+    extract_agl = 20.0
+    extract_file = wind_time_series.csv
+
+**Expected Results:**
+
+* Multiple output files (plt_time_varying00000, plt_time_varying00001, etc.)
+* Wind field gradually adjusts as forcing changes
+* Diurnal cycle visible in temperature and buoyancy effects
+* CSV extraction at multiple times for time-series analysis
+
+**Tutorial 4.5: Synthetic Turbulence and OpenFAST Export**
+
+This tutorial demonstrates generating synthetic turbulence fluctuations and exporting in OpenFAST-compatible binary format.
+
+**Key Concepts:**
+
+* Von Kármán and Kaimal turbulence spectra
+* Spatial coherence models
+* Mann box approach for structured turbulence
+* BTS (binary turbulence simulation) format for wind turbine tools
+
+**Annotated Input File:**
+
+.. code-block:: ini
+
+    # === BASE WIND FIELD ===
+    terrain_file = synthetic
+    init_mode = loglaw
+    U_ref = 10.0
+    V_ref = 0.0
+    z_ref = 10.0
+    z0 = 0.1
+    
+    dx = 25.0
+    dy = 25.0
+    dz = 15.0
+    domain_height = 300.0
+    
+    # === SYNTHETIC TURBULENCE GENERATION ===
+    enable_synthetic_turbulence = true
+    turbulence_spectrum_model = VonKarman  # VonKarman or Kaimal
+    turbulence_intensity_model = PowerLaw  # PowerLaw (IEC std)
+    turbulence_coherence_model = Gaussian  # Spatial coherence
+    
+    # Turbulence parameters
+    turbulence_intensity_ref = 0.12        # 12% at reference height
+    turbulence_length_scale_u = 300.0      # Integral length scale [m]
+    turbulence_length_scale_v = 200.0
+    turbulence_length_scale_w = 100.0
+    turbulence_random_seed = 12345         # For reproducibility
+    
+    # === EXPORT FOR OPENFAST ===
+    turbulence_export_format = bts         # bts (binary turbulence sim)
+    turbulence_output_file = wind_field.bts
+    turbulence_gridpoints_time = 100       # Number of time steps
+    turbulence_gridpoints_y = 10           # Lateral grid points
+    turbulence_gridpoints_z = 10           # Vertical grid points
+    
+    # === OUTPUT ===
+    plot_file = plt_turbulence
+
+**Expected Results:**
+
+* AMReX plotfile with smooth mean wind field
+* BTS file with spatially-correlated turbulence fluctuations
+* BTS file importable by OpenFAST/TurbSim tools
+* Turbulence intensity matches specified profile
 
 Performance Tuning
 ------------------

@@ -71,6 +71,13 @@ private:
         const std::vector<amrex::Real>& b_ymin, const std::vector<amrex::Real>& b_ymax,
         const std::vector<amrex::Real>& b_zmin, const std::vector<amrex::Real>& b_zmax,
         const std::vector<amrex::Real>& b_rotation);
+    
+    /**
+     * @brief Validate configuration for conflicting or incompatible capabilities.
+     *        Issues warnings or errors if incompatible features are enabled together.
+     * @throws std::runtime_error if critical conflicts are found
+     */
+    void validate_configuration();
 
     // Timing
     amrex::Real t_total = 0.0;
@@ -321,6 +328,7 @@ private:
     // Time-varying
     bool enable_time_varying = false;
     std::string time_series_file = "time_series.csv";
+    bool enable_data_assimilation = false;
 
     // Building porosity
     bool enable_building_porosity = false;
@@ -574,6 +582,7 @@ private:
     amrex::Real dx = 0.0, dy = 0.0, dz = 0.0;
 
     // Buildings
+    std::string building_file = "";
     std::vector<amrex::Real> building_xmin, building_xmax;
     std::vector<amrex::Real> building_ymin, building_ymax;
     std::vector<amrex::Real> building_zmin, building_zmax;
