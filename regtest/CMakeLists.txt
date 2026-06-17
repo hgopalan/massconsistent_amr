@@ -462,6 +462,26 @@ add_regression_test(puff_chemistry_no2_decay dispersion/puff_chemistry_no2_decay
 add_regression_test(puff_chemistry_so2_oxidation dispersion/puff_chemistry_so2_oxidation)
 
 # ---------------------------------------------------------------------------
+# puff_chemistry_nh3_land/ - NH₃ oxidation over land
+# =========================================================================
+# Tests ammonia oxidation with 9-day half-life over land
+# Validates first-order decay: C(t) = C₀ × exp(-t/τ)
+# Expected: ~50% decay at 4.5 days (0.5 half-lives)
+# Physical scenario: Agricultural/industrial ammonia emission
+# ---------------------------------------------------------------------------
+add_regression_test(puff_chemistry_nh3_land dispersion/puff_chemistry_nh3_land)
+
+# ---------------------------------------------------------------------------
+# puff_chemistry_nh3_water/ - NH₃ gas-liquid exchange over water
+# =========================================================================
+# Tests ammonia absorption at air-water interface (high solubility)
+# Validates two-film theory with temperature-dependent Henry's law
+# Expected: ~50-80% removal in 6 hours due to fast dissolution
+# Physical scenario: Ship bunkering or coastal ammonia facility
+# ---------------------------------------------------------------------------
+add_regression_test(puff_chemistry_nh3_water dispersion/puff_chemistry_nh3_water)
+
+# ---------------------------------------------------------------------------
 add_python_regression_test(realistic_farm_case dispersion/realistic_farm_case test_realistic_farm_case.py)
 
 # ---------------------------------------------------------------------------

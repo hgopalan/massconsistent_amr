@@ -1,8 +1,8 @@
 // ============================================================================
 // puff_models.H
-// Gaussian puff dispersion model for passive plume modeling
+// Gaussian puff dispersion model for passive and reactive plume modeling
 //
-// This header provides functions for computing passive plume dispersion using
+// This header provides functions for computing plume dispersion using
 // a Gaussian puff approach. Puffs are discrete Gaussian-shaped concentration
 // clouds that are emitted from a source, drift with the wind, and grow over time.
 //
@@ -17,6 +17,17 @@
 // - Terrain awareness: ground reflection and image source method
 // - Building awareness: collision detection and wake-enhanced diffusivity
 // - Canopy integration: enhanced diffusivity and velocity reduction
+// - Reactive chemistry: First-order decay (NO₂, SO₂, HCl, NH₃)
+// - Ammonia-specific: Gas-liquid exchange over water with Henry's law
+// - Dense gas (SLAB): Hazardous material releases with gravity effects
+//
+// Chemistry Support:
+// - Passive species: NO₂, SO₂, HCl with product formation
+// - Ammonia (NH₃): 
+//   * Over land: Slow oxidation (5-10 day half-life)
+//   * Over water: Fast dissolution via air-water exchange (minutes to hours)
+//   * Temperature-dependent Henry's law (K_H ~ 50 M/atm, ~2400 K sensitivity)
+//   * Salinity correction for seawater (Setschenow effect)
 //
 // References:
 // - Hanna, S.R., et al. (1982). Handbook on atmospheric diffusion. 
@@ -24,6 +35,10 @@
 // - Pasquill, F., & Gifford, F.A. (1961). The estimation of the dispersion 
 //   of wind-borne material from industrial sources. Meteorological Magazine.
 // - Röckle, R. (1990). Building wake parameterization
+// - Sutton, M.A., et al. (2013). Ammonia in the environment: From ancient times 
+//   to the present. Current Opinion in Environmental Sustainability.
+// - Jähne, B., et al. (1987). Measurement of the diffusion coefficients of 
+//   sparingly soluble gases in water. Journal of Geophysical Research.
 // ============================================================================
 
 #ifndef PUFF_MODELS_H
