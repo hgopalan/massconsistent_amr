@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-PHASE 4+ PRIORITY 4: TERRAIN-DEPENDENT STABILITY TESTS
+Terrain-Dependent Stability Validation Tests
 
 This test suite validates the terrain-dependent stability adjustment implementation
-for the IEC 61400 turbulence model. Priority 4 extends Priority 1-3 with terrain
+for the IEC 61400 turbulence model. Tests include terrain
 effects on atmospheric stability calculations.
 
 Key Features Tested:
@@ -435,7 +435,7 @@ def test_integration_with_coherence():
 def main():
     """Run all tests."""
     print("="*70)
-    print("PHASE 4+ PRIORITY 4: TERRAIN-DEPENDENT STABILITY TESTS")
+    print("Terrain-Dependent Stability Validation Tests")
     print("="*70)
     
     test_upwind_slope_effect()

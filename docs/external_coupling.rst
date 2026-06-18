@@ -27,7 +27,7 @@ The corresponding demonstration and tests are in: ``tests_and_examples/wind_farm
 1. ``turbine_io.py`` — Turbine layout I/O
 2. ``wind_resource_stats.py`` — Wind statistics computation
 3. ``pyoptimization_export.py`` — PyOptimization export
-4. ``test_phase1_features.py`` — Comprehensive unit tests (18 test cases)
+4. ``test_wind_farm_tools.py`` — Comprehensive unit tests (18 test cases)
 
 **Example Usage**
 
@@ -45,7 +45,7 @@ Run unit tests:
 .. code-block:: bash
 
     cd src/python
-    python3 test_phase1_features.py -v
+    python3 test_wind_farm_tools.py -v
 
 **CSV Turbine Definition Format**
 

@@ -77,8 +77,8 @@ Exports wind farm simulation results in formats compatible with Floris-PyOptimiz
 
 ### Run demonstration:
 ```bash
-cd tests_and_examples/phase1_features
-python3 test_phase1_wind_farm.py
+cd tests_and_examples/wind_farm_tools
+python3 test_wind_farm.py
 ```
 
 This will:
@@ -90,7 +90,7 @@ This will:
 ### Run unit tests:
 ```bash
 cd src/python
-python3 test_phase1_features.py -v
+python3 test_wind_farm_tools.py -v
 ```
 
 This executes comprehensive unit tests for all three features.
