@@ -325,6 +325,7 @@ jobs:
         shell: bash
         run: |
           source /opt/intel/oneapi/setvars.sh
+          export SYCL_DEVICE_FILTER=sycl:cpu
           ctest --test-dir build -L regtest --output-on-failure
 
   # ── Windows + CUDA build ──────────────────────────────────────────────────
