@@ -21,9 +21,9 @@
 // References:
 // - Durai, V. R., & Bhradwaj, R. (2009). Improved wind power forecasting
 //   using an ensemble method. Journal of Applied Meteorology, 48, 1373.
-// - Wilczak, J. M., et al. (2015). The Wind Forecast Improvement Project
-//   Phase 2: A collaborative approach to improve short-term wind power
-//   forecasting. Bulletin of the American Meteorological Society.
+// - Wilczak, J. M., et al. (2015). Wind Forecast Improvement Project
+//   collaborative methods for improving short-term wind power forecasting.
+//   Bulletin of the American Meteorological Society.
 // ============================================================================
 
 #ifndef DIRECTIONAL_BIAS_CORRECTION_H

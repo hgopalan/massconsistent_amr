@@ -51,7 +51,7 @@ struct WindSolverState {
     std::unique_ptr<amrex::MultiFab> alpha_h_field; // Cell-local horizontal anisotropy field
     std::unique_ptr<amrex::MultiFab> alpha_v_field; // Cell-local vertical anisotropy field
     
-    // Phase 1 diagnostic fields (flux diagnostics)
+    // Diagnostic flux fields
     std::unique_ptr<amrex::MultiFab> u_star;   // Friction velocity [m/s]
     std::unique_ptr<amrex::MultiFab> tau_flux; // Momentum flux [Pa]
     std::unique_ptr<amrex::MultiFab> cd;       // Drag coefficient [dimensionless]
@@ -144,23 +144,23 @@ struct WindSolverState {
     bool enable_terrain_following;     // Enable terrain-following coordinates
     amrex::Real terrain_decay_height;  // Decay height scale for terrain-following transition [m]
     
-    // Phase 1 Feature Parameters: Elevation scaling
+    // Elevation scaling parameters
     bool enable_elevation_scaling;     // Enable elevation-dependent wind speed scaling
     amrex::Real elevation_scaling_factor;  // Wind speed change with elevation [1/m]
     amrex::Real elevation_height_scale;    // Characteristic height scale [m]
     
-    // Phase 1 Feature Parameters: Land-use classification
+    // Land-use classification parameters
     bool enable_landuse_roughness;     // Enable land-use z0 classification
     std::string landuse_file;          // Path to land-use map file
     
-    // Phase 1 Feature Parameters: Flux diagnostics
+    // Flux diagnostics parameters
     bool enable_flux_diagnostics;      // Compute SHF, LHF, τ, Cd fields
     bool flux_compute_sensible_heat;   // Compute sensible heat flux
     bool flux_compute_latent_heat;     // Compute latent heat flux
     amrex::Real flux_theta_star;       // Temperature scale for SHF [K]
     amrex::Real flux_q_star;           // Moisture scale for LHF [kg/kg]
     
-    // Phase 1 Feature Parameters: Directional bias correction
+    // Directional bias correction parameters
     bool enable_directional_bias;      // Enable directional bias correction
     amrex::Real bias_direction_offset; // Constant directional bias [degrees]
     amrex::Real bias_speed_factor;     // Constant speed bias factor [dimensionless]
@@ -207,14 +207,14 @@ struct WindSolverState {
     amrex::Real gaussian_ka;
     bool enable_stability_correction;
     amrex::Real stability_length;
-    // Phase 2 Analytical Wake Extensions
+    // Extended analytical wake parameters
     amrex::Real turbopark_c1;
     amrex::Real ambient_ti;
     bool enable_jimenez_deflection;
     bool enable_bastankhah_deflection;
     amrex::Real jimenez_kd;
     std::string wake_added_turbulence_model;
-    // Phase 3 Advanced Wake Models
+    // Advanced wake model parameters
     bool enable_wake_ground_interaction;
     amrex::Real wake_ground_damping_scale;
     amrex::Real surface_sensible_heat_flux;

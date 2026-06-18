@@ -1,10 +1,10 @@
 // ============================================================================
 // mann_box_temporal_synthesis.H
 // 
-// PHASE 4: Temporal & Stability Physics - Part 1: Temporal Synthesis
+// Temporal & Stability Physics: Temporal Synthesis
 // 
 // Implements time-lag correlation structures and Taylor frozen turbulence
-// hypothesis for Mann Box spectral tensor model. Extends Phase 3 spatial
+// hypothesis for Mann Box spectral tensor model. Extends spatial
 // correlations to full space-time correlations R_ij(r, τ).
 //
 // Key Features:

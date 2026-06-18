@@ -1,17 +1,17 @@
 // ============================================================================
 // random_field_synthesis.H
-// FFT-based synthetic turbulence random field generation (Phase 2)
+// FFT-based synthetic turbulence random field generation
 //
 // This header provides functionality to generate spatially-correlated
 // turbulent velocity fluctuations from spectral parameters computed by
-// Phase 1 (synthetic_turbulence.H). The approach uses:
+// the turbulence models in synthetic_turbulence.H. The approach uses:
 //
 //   1. Spectral Amplitude Conversion
 //      - Converts spectral density S(f) to amplitude A(f) = sqrt(2*S(f)*Δf)
 //      - Ensures energy conservation: ∫S(f)df ≈ σ²_target
 //
 //   2. Coherence Matrix Construction
-//      - Builds spatial correlation matrix from Phase 1 coherence functions
+//      - Builds spatial correlation matrix from turbulence coherence functions
 //      - Applies Cholesky decomposition: C = L·L^T
 //      - Handles anisotropy via component-specific length scales
 //
@@ -29,7 +29,7 @@
 //   - Spectral synthesis via Discrete Fourier Transform
 //   - Spatial correlation via Gaussian/Exponential coherence decay
 //   - Temporal correlation extension (optional, for time-series)
-//   - Multi-component anisotropy (u:v:w ratios from Phase 1)
+//   - Multi-component anisotropy (u:v:w ratios from the turbulence model)
 //
 // References:
 //   - Timm et al. (2011): Spectral synthesis of turbulent fields
@@ -37,9 +37,9 @@
 //   - Lund et al. (1998): Generation of turbulence for LES
 //   - IEC 61400-1 (2019): Wind turbine design and coherence models
 //
-// Integration with Phase 1:
+// Integration with synthetic_turbulence.H:
 //   This module receives:
-//     - TurbulenceGenerator (Phase 1 spectral models)
+//     - TurbulenceGenerator spectral models
 //     - Frequency array and spectral densities
 //     - Grid point locations and separations
 //
@@ -164,7 +164,7 @@ struct SpectralAmplitude {
     amrex::Real energy_w;                // total w energy [m²/s²]
 };
 
-/// Build amplitude spectra from Phase 1 spectral densities
+/// Build amplitude spectra from spectral densities
 /// Converts S(f) [m²/s²/Hz] → A(f) [m/s]
 /// Formula: A(f) = sqrt(2 * S(f) * Δf) for energy conservation
 class SpectralAmplitudeEngine {
@@ -186,8 +186,8 @@ public:
         }
     }
     
-    /// Build amplitude spectrum from Phase 1 generator and height
-    /// \param gen Phase 1 TurbulenceGenerator with spectral models
+    /// Build amplitude spectrum from the turbulence generator and height
+    /// \param gen TurbulenceGenerator with spectral models
     /// \param z_agl Height above ground [m]
     /// \param u_mean Mean wind speed [m/s]
     /// \returns SpectralAmplitude structure with computed amplitudes
@@ -211,7 +211,7 @@ public:
         for (int i = 0; i < NUM_FREQ_BINS; ++i) {
             amrex::Real freq = frequencies_[i];
             
-            // Get spectral densities from Phase 1
+            // Get spectral densities from the turbulence generator
             amrex::Real S_u = gen.ComputeSpectrumU(freq, z_agl, u_mean);
             amrex::Real S_v = gen.ComputeSpectrumV(freq, z_agl, u_mean);
             amrex::Real S_w = gen.ComputeSpectrumW(freq, z_agl, u_mean);
@@ -272,7 +272,7 @@ class CoherenceMatrixEngine {
 public:
     /// Compute pairwise coherence matrix for spatial correlations
     /// \param points Vector of spatial positions [z_agl values, meters]
-    /// \param gen Phase 1 generator for coherence models
+    /// \param gen Turbulence generator for coherence models
     /// \param use_vertical Whether to use vertical or lateral coherence
     /// \returns Vector of correlation coefficients (row-major, symmetric)
     std::vector<amrex::Real> BuildCoherenceMatrix(
@@ -405,7 +405,7 @@ public:
     /// \param nx, ny, nz Grid dimensions
     /// \param dx, dy, dz Grid spacing [m]
     /// \param coherence_vertical Use vertical vs lateral coherence
-    /// \param gen Phase 1 generator for coherence functions
+    /// \param gen Turbulence generator for coherence functions
     /// \returns Vector of fields [u', v', w'] (flattened)
     struct FieldOutput {
         std::vector<amrex::Real> u_prime;  // u-component fluctuations
@@ -494,7 +494,7 @@ private:
 // High-Level API Functions
 // ============================================================================
 
-/// Convenience function: Generate complete random field from Phase 1 generator
+/// Convenience function: Generate complete random field from turbulence generator
 inline RandomFieldGenerator::FieldOutput GenerateRandomFluctuations(
     const SyntheticTurbulence::TurbulenceGenerator& gen,
     int nx, int ny, int nz,

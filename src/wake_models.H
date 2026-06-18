@@ -788,9 +788,9 @@ void compute_polygon_effective_dimensions(
 //
 // References:
 //    Yoshie et al. (2007). "Cooperative project on CFD prediction of
-//    pedestrian wind environment in the Tokyo Bay area: Phase 1 results
-//    of mean wind and turbulent quantities." Journal of Wind Engineering
-//    and Industrial Aerodynamics, 95(1), 1-21.
+//    pedestrian wind environment in the Tokyo Bay area: mean wind and
+//    turbulent quantities." Journal of Wind Engineering and Industrial
+//    Aerodynamics, 95(1), 1-21.
 //
 // Inputs:
 //    deficit_magnitude - Deficit value at cavity edge (magnitude)
@@ -986,7 +986,7 @@ amrex::Real compute_rodi_entrainment_deficit(
 //   Height: Hr = 0.67 * H
 //   Width:  Wr = W
 //   Velocity deficit: u = -c2 * U_H (recirculation, c2 ≈ 0.3)
-//   Vertical component: w = rooftop vortex circulation (Phase 3 enhancement)
+//   Vertical component: w = rooftop vortex circulation
 //
 // Far-wake zone (displacement zone):
 //   Starts at: x = xb + Lr
@@ -1915,7 +1915,7 @@ void apply_single_building_wake(
 // ============================================================================
 // Compute building dimensions from bounds
 //
-// Phase 3 Enhancement: Now supports arbitrary building orientations.
+// Supports arbitrary building orientations.
 // For accurate wake modeling with arbitrary wind directions, the building
 // dimensions are rotated to align with the wind direction.
 //
@@ -2090,7 +2090,7 @@ amrex::Real compute_wake_blending_weight(
 // This method is more physically realistic than linear superposition for
 // overlapping wakes as it accounts for turbulent mixing.
 //
-// Phase 3 Enhancement: Now supports arbitrary building orientations.
+// Supports arbitrary building orientations.
 //
 // Reference:
 // - Lopes da Costa, J., Castro, F.A., Palma, J.M.L.M., Stuart, P. (2006).
@@ -2149,7 +2149,7 @@ void apply_wake_superposition(
             bldg_ymin[b], bldg_ymax[b],
             bldg_zmin[b], bldg_zmax[b]);
         
-        // Phase 3: Add building rotation angle
+        // Apply building rotation angle
         bldg.rotation = bldg_rotation[b];
         bldg.shape = static_cast<BuildingShape>(bldg_shape[b]);
         bldg.pitch_or_radius = bldg_pitch_or_radius[b];
@@ -2196,7 +2196,7 @@ void apply_wake_superposition(
 // Models flow in street canyons (parallel rows of buildings) using the
 // Oke (1988) street canyon classification and flow regimes.
 //
-// Phase 3 Enhancement: Now supports orientation-aware vortex modeling.
+// Supports orientation-aware vortex modeling.
 //
 // Flow regimes based on height-to-width ratio (H/W):
 //   - Isolated roughness flow: H/W < 0.3 (weak interactions)
@@ -2247,7 +2247,7 @@ void apply_street_canyon_effect(
         u *= canyon_reduction_factor;
         v *= canyon_reduction_factor;
         
-        // Phase 3 Enhancement: Orientation-aware vortex strength
+        // Orientation-aware vortex strength
         // Vortex strength is enhanced based on flow characteristics
         // Normalized height in canyon (0 = ground, 1 = top)
         const amrex::Real z_ratio = z / building_height;

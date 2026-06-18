@@ -1,7 +1,7 @@
 // ============================================================================
 // mann_box_stability_adaptation.H
 // 
-// PHASE 4: Temporal & Stability Physics - Part 2: Stability Adaptation
+// Temporal & Stability Physics: Stability Adaptation
 // 
 // Implements atmospheric stability classification and stability-dependent
 // modifications to the Mann Box spectral tensor. Adapts turbulence parameters
