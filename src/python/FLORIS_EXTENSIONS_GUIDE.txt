@@ -1,0 +1,273 @@
+================================================================================
+FLORIS EXTENSIONS - QUICK START GUIDE
+================================================================================
+
+WHAT'S NEW?
+===========
+
+Five professional-grade FLORIS integration utilities for wind farm simulation:
+
+1. FLORISConfigExporter
+   Generate native FLORIS configuration files (.json) from wind farm layouts
+   
+2. EnhancedCSVExporter
+   Export wind data with comprehensive meteorological metadata
+   
+3. PowerCurveGenerator
+   Generate turbine power and thrust coefficient curves from simulations
+   
+4. WindRoseFormatter
+   Create wind resource frequency distributions for FLORIS analysis
+   
+5. YawOptimizationFormatter
+   Format yaw control optimization results for FLORIS implementation
+
+
+HOW TO USE
+==========
+
+Basic Example:
+--------------
+from floris_extensions import FLORISConfigExporter, EnhancedCSVExporter
+
+# Export farm configuration
+config = FLORISConfigExporter.export_farm_config(
+    turbine_locations=[(300, 300), (800, 300), (1300, 300)],
+    hub_heights=[90, 90, 120],
+    rotor_diameters=[178, 178, 240],
+    wind_speed=10.0,
+    wind_direction=270.0,
+    output_file="farm_config.json"
+)
+
+# Export wind data with metadata
+EnhancedCSVExporter.export_with_metadata(
+    turbine_locations=turbine_locs,
+    wind_data=wind_at_turbines,
+    hub_heights=[90, 90, 120],
+    turbulence_intensities=[0.05, 0.06, 0.04],
+    wind_shear_exponents=[0.2, 0.21, 0.19],
+    output_file="wind_data.csv"
+)
+
+
+INTEGRATION WITH MASSCONSISTENT_AMR
+====================================
+
+Complete Workflow:
+------------------
+
+1. Solve wind field:
+   from wind_solver import WindSolver
+   wind = WindSolver("inputs.i")
+   wind.solve()
+
+2. Extract wind at turbines:
+   from floris_coupling import FLORISWindMap
+   wind_map = FLORISWindMap(wind)
+   turbine_locs = [(300, 300), (800, 300), (1300, 300)]
+   winds = wind_map.get_wind_at_turbines(turbine_locs, hub_height=90.0)
+
+3. Export for FLORIS:
+   from floris_extensions import (
+       FLORISConfigExporter, 
+       EnhancedCSVExporter,
+       PowerCurveGenerator,
+       WindRoseFormatter
+   )
+   
+   # Config export
+   FLORISConfigExporter.export_farm_config(
+       turbine_locations=turbine_locs,
+       hub_heights=[90, 90, 90],
+       rotor_diameters=[100, 100, 100],
+       output_file="farm.json"
+   )
+   
+   # Enhanced wind data
+   EnhancedCSVExporter.export_with_metadata(
+       turbine_locations=turbine_locs,
+       wind_data=winds,
+       hub_heights=[90, 90, 90],
+       output_file="wind_data.csv"
+   )
+
+4. Load in FLORIS for simulation and optimization
+
+
+AVAILABLE FUNCTIONS
+===================
+
+FLORISConfigExporter.export_farm_config()
+   Parameters:
+   - turbine_locations: List of (x, y) tuples
+   - turbine_types: Optional list of turbine type names
+   - hub_heights: List of hub heights (AGL) in meters
+   - rotor_diameters: List of rotor diameters in meters
+   - yaw_angles: Optional list of yaw angles in degrees
+   - wind_speed: Wind speed in m/s
+   - wind_direction: Wind direction in degrees
+   - turbulence_intensity: Turbulence intensity (0-1)
+   - air_density: Air density in kg/m³
+   - output_file: Output JSON filename
+   
+   Returns: dict (configuration data)
+
+EnhancedCSVExporter.export_with_metadata()
+   Parameters:
+   - turbine_locations: List of (x, y) tuples
+   - wind_data: List of wind dicts at each location
+   - hub_heights: List of hub heights
+   - turbulence_intensities: List of TI values (optional)
+   - wind_shear_exponents: List of shear exponents (optional)
+   - air_densities: List of air densities (optional)
+   - power_outputs: List of power outputs (optional)
+   - yaw_angles: List of yaw angles (optional)
+   - output_file: Output CSV filename
+   
+   Returns: None (writes to file)
+
+PowerCurveGenerator.generate_from_turbine_data()
+   Parameters:
+   - turbine_id: Turbine identifier
+   - wind_speeds: List of wind speeds (m/s)
+   - power_outputs: List of power values (W)
+   - thrust_coefficients: List of Ct values
+   - output_file: Optional output JSON filename
+   
+   Returns: dict (power curve data)
+
+WindRoseFormatter.create_from_simulation()
+   Parameters:
+   - wind_speeds: List of wind speeds (m/s)
+   - wind_directions: List of wind directions (degrees)
+   - frequencies: Optional frequency weights
+   - speed_bins: Optional wind speed bin edges
+   - direction_bins: Optional direction bin edges
+   - output_file: Output JSON filename
+   
+   Returns: dict (wind rose data)
+
+WindRoseFormatter.export_frequency_table()
+   Parameters:
+   - wind_rose_data: Wind rose dict from create_from_simulation()
+   - output_file: Output CSV filename
+   
+   Returns: None (writes to file)
+
+YawOptimizationFormatter.export_yaw_results()
+   Parameters:
+   - yaw_angles: List of yaw angles in degrees
+   - turbine_ids: Optional list of turbine IDs
+   - wind_speed: Wind speed for optimization (m/s)
+   - wind_direction: Wind direction for optimization (degrees)
+   - improvement_pct: Optional power improvement percentage
+   - output_file: Output JSON filename
+   
+   Returns: dict (optimization results)
+
+YawOptimizationFormatter.export_yaw_control_config()
+   Parameters:
+   - yaw_angles: List of yaw angles in degrees
+   - turbine_locations: List of (x, y) tuples
+   - hub_heights: List of hub heights
+   - rotor_diameters: List of rotor diameters
+   - wind_speed: Wind speed in m/s
+   - wind_direction: Wind direction in degrees
+   - output_file: Output JSON filename
+   
+   Returns: dict (farm config with yaw control)
+
+quick_floris_export()
+   Convenience function to export config and CSV in one call
+   Parameters: turbine_locations, wind_data, hub_heights, output_prefix
+   Returns: dict mapping export type to filename
+
+
+OUTPUT FILE FORMATS
+===================
+
+FLORIS Native Configuration (JSON)
+  - Complete farm layout and properties
+  - Wind conditions and turbulence
+  - Control settings (yaw angles, wake models)
+  - Ready for direct FLORIS loading
+
+Enhanced Wind Data (CSV)
+  - Turbine locations and elevation
+  - 3D wind components
+  - Meteorological properties (TI, shear, density)
+  - Turbine performance data
+  - Yaw control angles
+
+Power Curves (JSON)
+  - Wind speed bins
+  - Power output at each speed
+  - Thrust coefficients at each speed
+  - Generator efficiency
+
+Wind Rose (JSON/CSV)
+  - 2D histogram of wind speed vs. direction
+  - Frequency matrix for each bin
+  - Wind statistics (mean, std dev)
+
+Yaw Optimization (JSON)
+  - Optimized yaw angles per turbine
+  - Wind conditions for optimization
+  - Power improvement estimate
+  - Complete farm configuration with yaw applied
+
+
+REQUIREMENTS
+============
+
+- Python 3.6+
+- Standard library modules: json, csv, typing, pathlib
+- Optional: numpy (for histogram binning in wind rose)
+
+
+FILES INCLUDED
+==============
+
+1. floris_extensions.py
+   Main module with 5 export utility classes
+
+2. example_floris_extensions.py
+   Working examples demonstrating all features
+
+3. FLORIS_EXTENSIONS.md
+   Complete API documentation
+
+4. FLORIS_EXPORT_SUMMARY.txt
+   Implementation details and checklist
+
+5. FLORIS_EXTENSIONS_GUIDE.txt
+   This file
+
+
+SUPPORT & DOCUMENTATION
+=======================
+
+For detailed documentation, see: FLORIS_EXTENSIONS.md
+For examples, run: python3 example_floris_extensions.py
+For API details, check docstrings in floris_extensions.py
+
+
+RELATED MODULES
+===============
+
+- floris_coupling.py: Basic FLORIS wind map export
+- pywake_coupling.py: PyWake wind farm integration
+- aep_calculator.py: Annual energy production calculations
+- wind_solver.py: Core wind field solving
+- turbine_io.py: Turbine layout I/O utilities
+
+
+CHANGELOG
+=========
+
+v1.0 (2026-06-18)
+- Initial release with 5 FLORIS integration features
+- Professional naming and clean code
+- Complete documentation and examples
+
