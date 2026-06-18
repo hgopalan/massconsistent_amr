@@ -193,6 +193,17 @@ struct WindSolverState {
     std::string sounding_vertical_interp;
     bool sounding_wind_in_knots;
 
+    // Single Column Model (SCM) parameters
+    amrex::Real scm_wind_speed;           // Wind speed at reference height [m/s]
+    amrex::Real scm_wind_direction;       // Wind direction [degrees, 0=N, 90=E, etc.]
+    amrex::Real scm_ref_height;           // Height where wind speed is specified [m AGL]
+    amrex::Real scm_ref_temperature;      // Reference temperature at surface [K]
+    amrex::Real scm_lapse_rate;           // Temperature lapse rate [K/m]
+    amrex::Real scm_domain_height;        // Domain height for SCM [m]
+    amrex::Real scm_dz;                   // Uniform vertical spacing for SCM [m]
+    amrex::Real scm_ug;                   // Computed geostrophic wind x-component [m/s] (output from recursion)
+    amrex::Real scm_vg;                   // Computed geostrophic wind y-component [m/s] (output from recursion)
+
     // Marine Boundary Layer mixing height
     bool enable_marine_bl;
     amrex::Real marine_sst;

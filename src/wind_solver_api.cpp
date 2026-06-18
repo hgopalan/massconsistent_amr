@@ -6,6 +6,7 @@
 #include "terrain_following_coords.H"
 #include "cell_local_anisotropy.H"
 #include "solver_math_constants.H"
+#include "scm_models.H"
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
@@ -587,7 +588,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.init_mode = "loglaw";
     pp.query("init_mode", state.init_mode);
-    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral" && state.init_mode != "sounding") {
+    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral" && state.init_mode != "sounding" && state.init_mode != "scm") {
         throw std::runtime_error("invalid init_mode: " + state.init_mode);
     }
 
@@ -630,6 +631,24 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("sounding_vertical_interp", state.sounding_vertical_interp);
     state.sounding_wind_in_knots = true;
     pp.query("sounding_wind_in_knots", state.sounding_wind_in_knots);
+
+    // Single Column Model (SCM) parameters
+    state.scm_wind_speed = 10.0;
+    state.scm_wind_direction = 270.0;  // West
+    state.scm_ref_height = 10.0;
+    state.scm_ref_temperature = 288.15;
+    state.scm_lapse_rate = 0.0065;
+    state.scm_domain_height = 4000.0;
+    state.scm_dz = 4.0;
+    state.scm_ug = 0.0;
+    state.scm_vg = 0.0;
+    pp.query("scm_wind_speed", state.scm_wind_speed);
+    pp.query("scm_wind_direction", state.scm_wind_direction);
+    pp.query("scm_ref_height", state.scm_ref_height);
+    pp.query("scm_ref_temperature", state.scm_ref_temperature);
+    pp.query("scm_lapse_rate", state.scm_lapse_rate);
+    pp.query("scm_domain_height", state.scm_domain_height);
+    pp.query("scm_dz", state.scm_dz);
 
     // Marine Boundary Layer parameters
     state.enable_marine_bl = false;
@@ -1057,6 +1076,66 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     }
 }
 
+// Helper function to find geostrophic wind (Ug, Vg) that produces desired wind speed at reference height
+// Uses 1D time-dependent SCM iteratively
+std::pair<Real, Real> find_geostrophic_wind_scm(Real target_wind_speed,
+                                                 Real wind_direction,
+                                                 Real ref_height,
+                                                 Real latitude,
+                                                 Real z0,
+                                                 Real domain_height,
+                                                 Real dz,
+                                                 Real t_ref,
+                                                 Real lapse_rate,
+                                                 Real tolerance = 0.05,
+                                                 int max_iterations = 20)
+{
+    // Convert wind direction to components for initial guess
+    Real pi_val = MathConstants::pi;
+    Real angle_rad = wind_direction * pi_val / 180.0;
+    Real ug_init = target_wind_speed * std::sin(angle_rad);
+    Real vg_init = target_wind_speed * std::cos(angle_rad);
+    
+    Real ug = ug_init;
+    Real vg = vg_init;
+    
+    amrex::Print() << "SCM: Searching for geostrophic wind..." << std::endl;
+    amrex::Print() << "  Target wind speed: " << target_wind_speed << " m/s at height " << ref_height << " m" << std::endl;
+    
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        // Run 1D SCM with current geostrophic wind
+        SCMModels::SCMState1D state;
+        SCMModels::initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude);
+        state.dt = 0.8 * dz / std::sqrt(std::max(ug * ug + vg * vg, 0.01));
+        
+        amrex::Real current_speed = SCMModels::run_1d_scm(state, ref_height);
+        amrex::Real error = std::abs(current_speed - target_wind_speed);
+        
+        amrex::Print() << "  Iteration " << iter << ": Ug=" << ug << ", Vg=" << vg 
+                       << ", speed=" << current_speed << ", error=" << error << std::endl;
+        
+        if (error < tolerance) {
+            amrex::Print() << "SCM: Converged! Found Ug=" << ug << ", Vg=" << vg << std::endl;
+            return std::make_pair(ug, vg);
+        }
+        
+        // Adjust geostrophic wind iteratively
+        if (current_speed > 1.0e-10) {
+            amrex::Real scale = target_wind_speed / current_speed;
+            amrex::Real scale_increment = 0.5 * (scale - 1.0);  // Damped update
+            ug = ug * (1.0 + scale_increment);
+            vg = vg * (1.0 + scale_increment);
+        } else {
+            // If current speed is zero, scale up the initial guess
+            ug = ug_init * (1.0 + iter);
+            vg = vg_init * (1.0 + iter);
+        }
+    }
+    
+    amrex::Print() << "SCM: Warning - convergence not achieved. Using Ug=" << ug << ", Vg=" << vg << std::endl;
+    return std::make_pair(ug, vg);
+}
+
 void initialize_wind_field(WindSolverState& state)
 {
     const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
@@ -1414,6 +1493,98 @@ void initialize_wind_field(WindSolverState& state)
                     vel(i, j, k, 2) = Real(0.0);
                 }
             });
+        }
+    } else if (state.init_mode == "scm") {
+        // Single Column Model initialization
+        // 1. Find geostrophic wind that produces desired wind speed at reference height
+        const Real lat = state.latitude;
+        const Real z0 = state.z0;
+        const Real domain_height = state.scm_domain_height;
+        const Real dz_scm = state.scm_dz;
+        const Real target_speed = state.scm_wind_speed;
+        const Real wind_dir = state.scm_wind_direction;
+        const Real ref_height = state.scm_ref_height;
+        const Real t_ref = state.scm_ref_temperature;
+        const Real lapse_rate = state.scm_lapse_rate;
+        
+        // Run 1D SCM to find geostrophic wind
+        auto [ug_result, vg_result] = find_geostrophic_wind_scm(
+            target_speed, wind_dir, ref_height, lat, z0, domain_height, dz_scm, t_ref, lapse_rate);
+        
+        state.scm_ug = ug_result;
+        state.scm_vg = vg_result;
+        
+        // 2. Run final SCM to get converged 1D profile
+        SCMModels::SCMState1D scm_state;
+        SCMModels::initialize_1d_state(scm_state, ug_result, vg_result, t_ref, lapse_rate, z0, domain_height, dz_scm, lat);
+        scm_state.dt = 0.8 * dz_scm / std::sqrt(std::max(ug_result * ug_result + vg_result * vg_result, 0.01));
+        SCMModels::run_1d_scm(scm_state, ref_height);
+         
+        // Extract raw pointers from vectors for device code
+        const Real* z_ptr = scm_state.z.data();
+        const Real* ux_ptr = scm_state.ux.data();
+        const Real* uy_ptr = scm_state.uy.data();
+        const Real* temp_ptr = scm_state.temperature.data();
+        int nz_scm = scm_state.z.size();
+         
+        // 3. Initialize 3D velocity field from 1D profile using terrain-aligned mapping
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                 
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    // Interpolate from 1D profile
+                    // Find closest index in 1D grid
+                    int idx = 0;
+                    Real min_dist = std::abs(z_ptr[0] - z_agl);
+                    for (int kk = 1; kk < nz_scm; ++kk) {
+                        Real dist = std::abs(z_ptr[kk] - z_agl);
+                        if (dist < min_dist) {
+                            min_dist = dist;
+                            idx = kk;
+                        }
+                    }
+                     
+                    vel(i, j, k, 0) = ux_ptr[idx];
+                    vel(i, j, k, 1) = uy_ptr[idx];
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+         
+        // 4. Initialize temperature field with 1D profile if enabled
+        if (state.enable_3d_scalars && state.temp_3d) {
+            for (MFIter mfi(*state.temp_3d); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto temp = state.temp_3d->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                    const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                     
+                    if (z_agl <= Real(0.0)) {
+                        temp(i, j, k) = t_ref;
+                    } else {
+                        // Interpolate from 1D profile
+                        int idx = 0;
+                        Real min_dist = std::abs(z_ptr[0] - z_agl);
+                        for (int kk = 1; kk < nz_scm; ++kk) {
+                            Real dist = std::abs(z_ptr[kk] - z_agl);
+                            if (dist < min_dist) {
+                                min_dist = dist;
+                                idx = kk;
+                            }
+                        }
+                        temp(i, j, k) = temp_ptr[idx];
+                    }
+                });
+            }
         }
     } else {
         std::vector<Real> x_vel, y_vel, z_vel, ux_vel, uy_vel;
