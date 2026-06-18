@@ -6700,7 +6700,8 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
                 [x_lo = this->x_lo, y_lo = this->y_lo, zs_min = this->zs_min,
                  dx = this->dx, dy = this->dy, dz = this->dz,
                  temperature_reference = this->temperature_reference,
-                 temp_arr, params] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
+                 z_center = params.z_center,
+                 temp_arr] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
                 amrex::Real x = x_lo + (amrex::Real(i) + 0.5) * dx;
                 amrex::Real y = y_lo + (amrex::Real(j) + 0.5) * dy;
                 amrex::Real z = zs_min + (amrex::Real(k) + 0.5) * dz;
@@ -6710,7 +6711,7 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
                 dT = std::max(dT, amrex::Real(0.0));  // Only positive anomalies
                 
                 if (dT > 0.1) {  // Threshold for plume detection
-                    amrex::Real plume_height = z - params.z_center;
+                    amrex::Real plume_height = z - z_center;
                     return ReduceTuple{dT, plume_height, dT, amrex::Real(1.0)};
                 } else {
                     return ReduceTuple{amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0)};
