@@ -75,13 +75,59 @@ The solver supports the following eight core scenarios:
 
 [Full documentation](https://hgopalan.github.io/massconsistent_amr/)
 
+## Environment Setup
+
+The project includes conda environment files for easy dependency management:
+
+* **`environment.yml`** — Minimal environment for Python tools and utilities
+* **`environment-dev.yml`** — Development environment with C++ build tools (recommended for building)
+* **`environment-full.yml`** — Complete environment with all optional packages (FLORIS, PyWake, etc.)
+
+### Create Python Environment
+
+```bash
+# Minimal (Python tools only)
+conda env create -f environment.yml
+conda activate massconsistent_amr
+
+# Development (with C++ compilers)
+conda env create -f environment-dev.yml
+conda activate massconsistent_amr-dev
+
+# Full suite (all optional packages included)
+conda env create -f environment-full.yml
+conda activate massconsistent_amr-full
+```
+
+See [INSTALL.md](INSTALL.md) for detailed setup instructions, troubleshooting, and platform-specific guidance.
+
 ## Quick Start
+
+### Python Tools Only (No Compilation)
 
 ```bash
 git clone --recurse-submodules https://github.com/hgopalan/massconsistent_amr.git
 cd massconsistent_amr
+conda env create -f environment.yml
+conda activate massconsistent_amr
+# Now use Python tools
+```
+
+### Build from Source (Requires C++ Tools)
+
+```bash
+git clone --recurse-submodules https://github.com/hgopalan/massconsistent_amr.git
+cd massconsistent_amr
+
+# Create development environment
+conda env create -f environment-dev.yml
+conda activate massconsistent_amr-dev
+
+# Build the solver
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMASSCONSISTENT_USE_VENDORED_AMREX=ON
 cmake --build build --parallel
+
+# Run regression test
 ./build/wind_solver regtest/gaussian_hill/inputs.i
 ```
 
@@ -95,6 +141,23 @@ Customize the build by passing variables to CMake:
 * `-DMASSCONSISTENT_USE_VENDORED_AMREX=[ON|OFF]` — Use vendored or external AMReX (default: `ON`). For external, set `-DAMReX_DIR=/path/to/amrex`.
 
 Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON`
+
+### Python-Only Installation (Without Compilation)
+
+For users who want to use Python tools without building the C++ solver:
+
+```bash
+# Using pip (requires manual CMake installation)
+pip install -r requirements.txt
+
+# For optional packages (FLORIS, PyWake, etc.)
+pip install -r requirements-optional.txt
+
+# Or use conda
+conda env create -f environment.yml
+```
+
+See [INSTALL.md](INSTALL.md) for detailed instructions on all installation methods.
 
 ## Features
 

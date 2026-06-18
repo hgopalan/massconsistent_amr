@@ -1,0 +1,111 @@
+# Conda environment file for massconsistent_amr with ALL optional packages
+#
+# Complete environment including wind farm simulation tools (FLORIS, PyWake),
+# geochemical coupling (PHREEQC), and development tools.
+#
+# Usage:
+#   conda env create -f environment-full.yml
+#   conda activate massconsistent_amr-full
+#
+# This is a superset of both environment.yml and environment-dev.yml
+
+name: massconsistent_amr-full
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python version (minimum 3.9, recommended 3.10+)
+  - python>=3.9
+
+  # ============================================================================
+  # CORE DEPENDENCIES: Scientific Computing & Data Handling
+  # ============================================================================
+  - numpy>=1.20        # Numerical computing
+  - scipy>=1.7         # Scientific computing (optimization, interpolation)
+  - matplotlib>=3.5    # Visualization and plotting
+  - netcdf4>=1.5.7     # NetCDF data format support (ERA5, WRF, GFS)
+  - requests>=2.25     # HTTP client for web requests
+  - pyyaml>=5.4        # YAML configuration file parsing
+
+  # ============================================================================
+  # OPTIONAL: Wind Farm Simulation Tools
+  # ============================================================================
+  # These packages are available in conda-forge and enable advanced
+  # wind farm analysis and power calculation features
+
+  # ============================================================================
+  # OPTIONAL: C++ Build Tools (for development/compilation)
+  # ============================================================================
+  - cmake>=3.20        # Build system
+  - ninja              # Faster build backend
+  - cxx-compiler       # C++ compiler (auto-selects gcc/clang/msvc)
+  - c-compiler         # C compiler
+  - fortran-compiler   # Fortran compiler
+
+  # ============================================================================
+  # OPTIONAL: GPU Support (uncomment for GPU-accelerated builds)
+  # ============================================================================
+  # CUDA Support:
+  # - cuda-runtime=12.6
+  # - cuda-cudart=12.6
+  #
+  # ROCm/HIP Support:
+  # - rocm-core=6.2
+  # - rocm-hip=6.2
+  #
+  # Intel oneAPI/SYCL Support:
+  # - intel-oneapi-compiler-dpcpp-cpp
+  # - intel-oneapi-mkl
+
+  # ============================================================================
+  # OPTIONAL: MPI for Distributed Computing
+  # ============================================================================
+  # Uncomment one of the following for multi-node parallelism:
+  # - openmpi        # OpenMPI (recommended, works on Linux/macOS/Windows)
+  # - mpich          # MPICH (alternative MPI implementation)
+
+  # ============================================================================
+  # DOCUMENTATION & TESTING
+  # ============================================================================
+  - sphinx>=5.0        # Documentation generator
+  - sphinx_rtd_theme>=1.0    # ReadTheDocs theme
+  - pytest>=7.0        # Unit testing framework
+  - pytest-cov         # Test coverage reporting
+
+  # ============================================================================
+  # DEVELOPMENT UTILITIES
+  # ============================================================================
+  - git>=2.30          # Version control
+  - gdb                # GNU Debugger (Linux/macOS)
+  - lldb               # LLVM Debugger (macOS/Linux)
+
+pip:
+  # ============================================================================
+  # PIP: Optional Wind Farm & Energy Analysis Tools
+  # ============================================================================
+  # These tools require pip installation but have fallback implementations
+  # in the main code if not available
+  
+  - floris>=3.0        # NREL FLORIS wind farm simulator
+  - py-wake>=2.1       # DTU PyWake wind farm wake model
+  
+  # ============================================================================
+  # PIP: Geochemical Coupling (optional)
+  # ============================================================================
+  # Note: PHREEQC is typically run as a standalone executable.
+  # For Python bindings (if available), uncomment:
+  # - phreeqc>=3.7.0  # Only if available in PyPI; most users run standalone
+
+  # ============================================================================
+  # PIP: Additional Visualization & Data Tools (optional)
+  # ============================================================================
+  - pandas>=1.3        # Data analysis and manipulation
+  - seaborn>=0.11      # Statistical data visualization
+  - scikit-learn>=1.0  # Machine learning utilities
+  - xarray>=0.20       # NetCDF/xarray data structures
+  - dask>=2022.0       # Parallel/distributed computing for large datasets
+
+variables:
+  MASSCONSISTENT_PYTHON_AVAILABLE: "true"
+  MASSCONSISTENT_OPTIONAL_PACKAGES: "floris,pywake,phreeqc,pandas,seaborn,scikit-learn"

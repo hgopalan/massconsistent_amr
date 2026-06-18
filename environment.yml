@@ -1,0 +1,47 @@
+# Conda environment file for massconsistent_amr Python tools
+# 
+# Base environment with minimal Python dependencies for running
+# the massconsistent_amr Python utilities and external coupling tools.
+# 
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate massconsistent_amr
+#
+# For development/building with C++ support, use:
+#   conda env create -f environment-dev.yml
+#
+# For all optional packages (FLORIS, PyWake, PHREEQC), use:
+#   conda env create -f environment-full.yml
+
+name: massconsistent_amr
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python version (minimum 3.9, recommended 3.10+)
+  - python>=3.9
+
+  # Core scientific computing and data handling
+  - numpy>=1.20        # Numerical computing
+  - scipy>=1.7         # Scientific computing (optimization, interpolation)
+  - matplotlib>=3.5    # Visualization and plotting
+  - netcdf4>=1.5.7     # NetCDF data format support (ERA5, WRF, GFS)
+
+  # Utilities
+  - requests>=2.25     # HTTP client for web requests
+  - pyyaml>=5.4        # YAML configuration file parsing
+
+  # Optional dependencies managed via pip below
+  # (Uncomment in environment-full.yml)
+
+pip:
+  # Optional: Wind farm simulation packages
+  # These are available via pip and have optional fallback implementations
+  # Uncomment to install (or use environment-full.yml):
+  # - floris>=3.0
+  # - py-wake>=2.1
+  # - phreeqc>=3.0      # If available; otherwise use standalone PHREEQC
+
+variables:
+  MASSCONSISTENT_PYTHON_AVAILABLE: "true"
