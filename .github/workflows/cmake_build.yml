@@ -127,7 +127,7 @@ jobs:
           if (!(Test-Path "build/${{ matrix.build_type }}/wind_solver.exe" -PathType Leaf)) { exit 1 }
 
       - name: Run regression tests
-        run: ctest --test-dir build --config ${{ matrix.build_type }} -L regtest --output-on-failure
+        run: ctest --test-dir build -C ${{ matrix.build_type }} -L regtest --output-on-failure
 
   # ── CUDA build on Linux (Ubuntu) ─────────────────────────────────────────
   build_cuda:
@@ -402,4 +402,4 @@ jobs:
           if (!(Test-Path "build/Release/wind_solver.exe" -PathType Leaf)) { exit 1 }
 
       - name: Run regression tests
-        run: ctest --test-dir build --config Release -L regtest --output-on-failure
+        run: ctest --test-dir build -C Release -L regtest --output-on-failure
