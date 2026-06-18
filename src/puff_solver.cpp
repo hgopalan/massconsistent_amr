@@ -1892,7 +1892,9 @@ int main(int argc, char* argv[])
             std::vector<Real> concentration(nx * ny * nz, 0.0);
             std::vector<std::vector<Real>> species_concentration;
             if (enable_chemistry) {
-                species_concentration.resize(LpdParticle::NUM_SPECIES, std::vector<Real>(nx * ny * nz, 0.0));
+                // Use Puff::NUM_SPECIES since we need to handle both LPDM and Gaussian puff modes
+                // Puff::NUM_SPECIES = 7 (includes SO2, Sulfate, NOx, HNO3, Nitrate, NO, SO4)
+                species_concentration.resize(Puff::NUM_SPECIES, std::vector<Real>(nx * ny * nz, 0.0));
             }
             if (enable_lpdm) {
                 for (const auto& p : particles) {
