@@ -2,8 +2,6 @@
 
 **massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM) with simple reactive chemistry. It also integrates with external tools via Python, supporting wind farm utilities (FLORIS, PyWake), wildfire modeling, and geochemical reactive transport (PHREEQC).
 
-> This repository was developed with LLM assistance. Scientific references and citations should be checked carefully, as hallucinations or citation errors may be present.
-
 ## Scenario Gallery
 
 The solver supports the following eight core scenarios:

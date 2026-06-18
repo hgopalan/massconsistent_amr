@@ -39,7 +39,7 @@ OpenFAST/TurbSim Format:
 References:
     - NREL TurbSim User's Guide (v1.06.00+)
     - OpenFAST documentation
-    - massconsistent_amr Phase 3 BTS export (C++ implementation)
+    - massconsistent_amr BTS export (C++ implementation)
 """
 
 import argparse

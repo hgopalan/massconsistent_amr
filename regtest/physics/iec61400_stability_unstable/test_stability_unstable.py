@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 3+ Regression Test: Non-Neutral Stability Corrections - Unstable Conditions
+Non-Neutral Stability Corrections - Unstable Conditions Regression Test
 
 Tests Monin-Obukhov similarity theory with unstable atmospheric conditions
 (e.g., daytime with strong solar heating, surface convection).
@@ -260,7 +260,7 @@ class TestStabilityUnstable:
     def run_all_tests(self):
         """Run all unstable conditions tests"""
         print("\n" + "="*70)
-        print("Phase 3+ Regression Tests: UNSTABLE ATMOSPHERIC CONDITIONS")
+        print("Unstable Atmospheric Conditions Regression Tests")
         print("="*70)
         
         tests = [

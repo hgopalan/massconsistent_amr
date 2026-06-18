@@ -273,7 +273,7 @@ def test_anisotropy_ratio():
 def main():
     """Run all tests"""
     print("=" * 60)
-    print("Phase 3 Validation Test Suite")
+    print("Temporal Synthesis Validation Test Suite")
     print("Testing: Temporal Synthesis + BTS Export + Validation")
     print("=" * 60)
     
