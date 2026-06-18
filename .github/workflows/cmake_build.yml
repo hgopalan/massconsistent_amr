@@ -139,6 +139,10 @@ jobs:
         run: ctest --test-dir build -C ${{ matrix.build_type }} -L regtest --output-on-failure
 
   # ── CUDA build on Linux (Ubuntu) ─────────────────────────────────────────
+  # NOTE: Disabled regression tests because GitHub Actions ubuntu-22.04 runners
+  # do not have CUDA-capable GPU hardware. Tests fail with "no CUDA-capable device
+  # is detected". CUDA builds are verified to compile correctly, but GPU-dependent
+  # runtime tests require actual CUDA hardware to run.
   build_cuda:
     name: Build CUDA (ubuntu-22.04, Release)
     runs-on: ubuntu-22.04
@@ -188,9 +192,6 @@ jobs:
 
       - name: Verify executable exists
         run: test -f build/wind_solver
-
-      - name: Run regression tests
-        run: ctest --test-dir build -L regtest --output-on-failure
 
   # ── Linux HIP build (AMD ROCm 6.2.4, Ubuntu 22.04) ──────────────────────
   # NOTE: Disabled because GitHub Actions ubuntu-22.04 runners do not have
