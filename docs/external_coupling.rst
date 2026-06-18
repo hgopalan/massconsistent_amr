@@ -3,7 +3,183 @@
 External Coupling
 =================
 
-This section describes the interfaces, python couplings, and mathematical frameworks for coupling the Mass-Consistent AMR Wind Solver with external physics solvers.
+This section describes the interfaces, python couplings, and mathematical frameworks for coupling the Mass-Consistent AMR Wind Solver with external physics solvers and optimization tools.
+
+Wind Farm Interoperability (Phase 1)
+------------------------------------
+
+**Overview**
+
+Phase 1 features provide file format compatibility and data exchange with Floris and PyOptimization wind farm optimization tools. Three key utilities enable standardized workflows:
+
+1. **CSV Turbine Definition Format** — Read/write turbine layouts as comma-separated values
+2. **Wind Resource Summary Statistics** — Compute statistics (mean, std, Weibull parameters) from wind fields
+3. **PyOptimization Result Export** — Export farm simulation results in Floris-compatible JSON and CSV formats
+
+**Location**
+
+Phase 1 implementations are located in: ``src/python/``
+
+The corresponding demonstration and tests are in: ``tests_and_examples/phase1_features/``
+
+**Modules**
+
+1. ``turbine_io.py`` — Turbine layout I/O (Feature 1)
+2. ``wind_resource_stats.py`` — Wind statistics computation (Feature 2)
+3. ``pyoptimization_export.py`` — PyOptimization export (Feature 3)
+4. ``test_phase1_features.py`` — Comprehensive unit tests (18 test cases)
+
+**Example Usage**
+
+See ``tests_and_examples/phase1_features/test_phase1_wind_farm.py`` for a complete demonstration of all three Phase 1 features.
+
+Run demonstration:
+
+.. code-block:: bash
+
+    cd tests_and_examples/phase1_features
+    python3 test_phase1_wind_farm.py
+
+Run unit tests:
+
+.. code-block:: bash
+
+    cd src/python
+    python3 test_phase1_features.py -v
+
+**Feature 1: CSV Turbine Definition Format**
+
+The ``TurbineLayout`` class provides read/write capabilities for turbine layouts.
+
+CSV Format:
+
+.. code-block:: text
+
+    turbine_id, x_m, y_m, z_agl_m, turbine_type, hub_height, rotor_diameter, power_curve_file
+    0, 100.0, 200.0, 0.0, DTU10MW, 90.0, 178.0, power_curves/dtu10mw.json
+    1, 500.0, 200.0, 50.0, NREL15MW, 120.0, 240.0, power_curves/nrel15mw.json
+
+Python interface:
+
+.. code-block:: python
+
+    from turbine_io import TurbineLayout
+    
+    # Load layout from CSV
+    layout = TurbineLayout.read_csv("turbines.csv")
+    
+    # Validate spacing (minimum 400m between turbines)
+    is_valid, errors = layout.validate_spacing(min_spacing=400.0)
+    
+    # Export to CSV
+    TurbineLayout.write_csv(layout, "output_turbines.csv")
+
+**Feature 2: Wind Resource Summary Statistics**
+
+The ``WindResourceStats`` class computes statistical summaries of wind fields.
+
+Computed metrics:
+
+- Mean wind speed and direction
+- Standard deviation (speed and direction)
+- Wind speed range (min/max)
+- Weibull distribution parameters (shape k, scale c)
+- Turbulence intensity indicators
+- Wind rose statistics
+
+Python interface:
+
+.. code-block:: python
+
+    from wind_resource_stats import WindResourceStats
+    import numpy as np
+    
+    # Compute statistics from 2D wind field at hub height
+    u_field = wind_solver.get_velocity_at_agl(90.0)['u']
+    v_field = wind_solver.get_velocity_at_agl(90.0)['v']
+    
+    stats = WindResourceStats.compute_from_wind_field(
+        u_field, v_field, height_agl=90.0
+    )
+    
+    # Access computed values
+    print(f"Mean speed: {stats.mean_speed:.2f} m/s")
+    print(f"Weibull k: {stats.weibull_k:.2f}")
+    
+    # Export to JSON
+    stats.to_json("wind_stats.json")
+    
+    # Display summary
+    print(stats.summary_string())
+
+**Feature 3: PyOptimization Result Export**
+
+The ``PyOptimizationExporter`` class exports farm results in Floris-compatible formats.
+
+Supported output formats:
+
+- JSON (PyOptimization-compatible schema)
+- CSV (per-turbine results)
+- CSV (farm-level summary)
+
+JSON output structure:
+
+.. code-block:: json
+
+    {
+      "metadata": {
+        "farm_name": "Example_Farm",
+        "version": "1.0"
+      },
+      "farm_summary": {
+        "num_turbines": 4,
+        "total_power_kw": 16200.0,
+        "annual_energy_gwh": 141.9
+      },
+      "wind_resource": {
+        "mean_speed_ms": 10.25,
+        "mean_direction_deg": 270.0,
+        "turbulence_intensity": 0.08
+      },
+      "turbines": [
+        {
+          "id": 0,
+          "location": {"x_m": 100.0, "y_m": 200.0},
+          "power": {"output_kw": 4000.0, "thrust_coefficient": 0.82},
+          ...
+        }
+      ]
+    }
+
+Python interface:
+
+.. code-block:: python
+
+    from pyoptimization_export import PyOptimizationExporter
+    
+    # Create exporter
+    exporter = PyOptimizationExporter("My_Wind_Farm")
+    
+    # Add per-turbine results
+    exporter.add_turbine_result(
+        turbine_id=0, x=100.0, y=200.0,
+        power_kw=4000.0, wind_speed_ms=10.0, wind_direction_deg=270.0,
+        thrust_coefficient=0.82, hub_height=90.0, rotor_diameter=100.0
+    )
+    
+    # Set farm-level aggregates
+    exporter.set_farm_power(total_power_kw=16200.0, annual_energy_gwh=141.9)
+    
+    # Set wind resource statistics
+    exporter.set_wind_resource(
+        mean_speed_ms=10.25, mean_direction_deg=270.0,
+        turbulence_intensity=0.08
+    )
+    
+    # Export to formats
+    exporter.export_json("results.json")
+    exporter.export_turbine_csv("turbine_results.csv")
+    exporter.export_summary_csv("farm_summary.csv")
 
 PHREEQC Coupling
 ----------------

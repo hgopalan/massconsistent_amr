@@ -1,0 +1,5 @@
+turbine_id,x_m,y_m,z_agl_m,turbine_type,hub_height,rotor_diameter,power_curve_file
+0,300.00,300.00,0.00,DTU10MW,90.0,178.0,power_curves/dtu10mw.json
+1,800.00,300.00,0.00,DTU10MW,90.0,178.0,power_curves/dtu10mw.json
+2,1300.00,300.00,0.00,NREL15MW,120.0,240.0,power_curves/nrel15mw.json
+3,500.00,700.00,50.00,DTU10MW,90.0,178.0,

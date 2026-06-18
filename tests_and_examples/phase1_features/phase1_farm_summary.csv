@@ -1,0 +1,11 @@
+Farm Summary,Example_Wind_Farm
+
+Metric,Value,Unit
+Number of Turbines,4,
+Total Power Output,16200.00,kW
+Annual Energy Production,141.91,GWh
+Mean Turbine Power,4050.00,kW
+
+Wind Resource,Value,Unit
+Mean Wind Speed,10.25,m/s
+Mean Wind Direction,78.6,deg
