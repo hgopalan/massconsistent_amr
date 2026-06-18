@@ -194,9 +194,10 @@ jobs:
         run: test -f build/wind_solver
 
   # ── Linux HIP build (AMD ROCm 6.2.4, Ubuntu 22.04) ──────────────────────
-  # NOTE: Disabled because GitHub Actions ubuntu-22.04 runners do not have
-  # ROCm-capable GPU hardware. Tests fail with "no ROCm-capable device is detected".
-  # HIP builds should be tested on runners with actual AMD GPU hardware.
+  # NOTE: Disabled regression tests because GitHub Actions ubuntu-22.04 runners
+  # do not have ROCm-capable GPU hardware. Tests fail with "no ROCm-capable device
+  # is detected". HIP builds are verified to compile correctly, but GPU-dependent
+  # runtime tests require actual AMD GPU hardware to run.
   build_hip:
     name: Build HIP (ubuntu-22.04, Release)
     runs-on: ubuntu-22.04
