@@ -6,6 +6,7 @@
 // - NO₂ (nitrogen dioxide): photochemical decay to NO
 // - SO₂ (sulfur dioxide): oxidation to SO₄²⁻
 // - HCl (hydrogen chloride): hydrolysis to Cl⁻
+// - NH₃ (ammonia): oxidation to NO₂/NO₃⁻ or absorption over water
 // - Custom species with user-specified half-lives
 //
 // Mechanism: First-order exponential decay
@@ -15,12 +16,14 @@
 // - Stoichiometric product formation (mass conservation)
 // - Optional seasonal adjustment (winter/summer variation)
 // - Optional temperature correction (Q10 model)
+// - Gas-liquid exchange parameterization for ammonia over water
 // - GPU-compatible inline functions
 //
 // References:
 // - EPA AERMOD TOXICS Module
 // - Finlayson-Pitts & Pitts (2000). Atmospheric Chemistry
 // - Atkinson et al. (2004). Evaluated kinetic data
+// - Sutton et al. (2013). Ammonia in the environment: From ancient times to the present
 // ============================================================================
 
 #ifndef REACTIVE_CHEMISTRY_SIMPLE_H
@@ -40,6 +43,8 @@ enum class SpeciesType : int {
     NO = 3,             // Nitric oxide (product of NO₂ decay)
     SO4 = 4,            // Sulfate ion (product of SO₂ oxidation)
     CL_MINUS = 5,       // Chloride ion (product of HCl)
+    NH3 = 7,            // Ammonia (lighter-than-air, oxidizes in atmosphere)
+    NH4_PLUS = 8,       // Ammonium ion (product of NH₃ oxidation or aqueous absorption)
     CUSTOM = 6          // User-defined species
 };
 
@@ -145,9 +150,90 @@ amrex::Real compute_seasonal_factor(
     } else if (species == SpeciesType::HCL) {
         // HCl hydrolysis relatively constant
         factor = 1.0;
+    } else if (species == SpeciesType::NH3) {
+        // NH₃ oxidation faster in summer (more photochemistry, higher temp)
+        if (month >= 6 && month <= 8) {        // Summer
+            factor = 1.5;
+        } else if (month >= 12 || month <= 2) { // Winter
+            factor = 0.5;
+        } else {                                 // Spring/Fall
+            factor = 1.0;
+        }
     }
-    
+     
     return factor;
+}
+
+// ============================================================================
+// Ammonia gas-liquid exchange coefficient over water
+//
+// Computes the effective removal velocity for ammonia dissolution in water
+// using a simplified Whitman two-film theory approach.
+//
+// Physical basis:
+// - Ammonia has very high solubility in water (Henry's constant ~50 M/atm at 25°C)
+// - Gas-side diffusivity controlled by wind speed
+// - Liquid-side diffusivity controlled by wind-induced convection
+// - Temperature affects both Henry's constant and diffusivities
+//
+// Inputs:
+//   wind_speed        - Wind speed at 10 m [m/s]
+//   water_temperature - Water surface temperature [K]
+//   salinity          - Water salinity [PSU] (0 = fresh, 35 = seawater)
+//
+// Returns:
+//   Removal velocity [m/s] (equivalent to effective deposition velocity)
+//
+// References:
+// - Jähne et al. (1987). Measurement of the diffusion coefficients of sparingly
+//   soluble gases in water. Journal of Geophysical Research
+// - Deacon (1977). Gas transfer to and across the air-water interface
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real compute_ammonia_water_exchange(
+   amrex::Real wind_speed,
+   amrex::Real water_temperature,
+   amrex::Real salinity = amrex::Real(0.0))
+{
+   // Henry's law constant at 25°C (298.15 K) [M/atm]
+   const amrex::Real K_H_ref = 50.0;
+    
+   // Temperature dependence of Henry's constant [K]
+   // d(ln K_H)/d(1/T) ≈ 2400 K for ammonia
+   const amrex::Real d_ln_K = 2400.0;
+   const amrex::Real T_ref = 298.15;
+    
+   // Compute temperature-dependent Henry's constant
+   amrex::Real K_H = K_H_ref * std::exp(d_ln_K * (amrex::Real(1.0)/water_temperature - 
+                                                    amrex::Real(1.0)/T_ref));
+    
+   // Salinity correction (Setschenow equation, ~-2.5% per PSU)
+   // Only apply if salinity > 0 (seawater case)
+   if (salinity > amrex::Real(0.1)) {
+       K_H *= (amrex::Real(1.0) - amrex::Real(0.025) * salinity);
+   }
+    
+   // Air-side mass transfer coefficient [m/s]
+   // Based on Jähne relationship: k_a ≈ (0.31 m/s) × (U_10/13)^2 × (Sc_a/Sc_w)^(-1/2)
+   // Simplified: k_a ≈ 0.0005 × U_10 [m/s]
+   amrex::Real U_10 = std::max(wind_speed, amrex::Real(0.1));
+   amrex::Real k_a = amrex::Real(0.0005) * U_10;
+    
+   // Water-side mass transfer coefficient [m/s]
+   // Based on Deacon's relation: k_w ≈ 0.0005 × sqrt(U_10) [m/s]
+   // This is wind-dependent but slower than air-side
+   amrex::Real k_w = amrex::Real(0.0005) * std::sqrt(U_10);
+    
+   // Overall two-film resistance:
+   // 1/K_overall = 1/(k_a × K_H) + 1/k_w
+   amrex::Real resistance_air = amrex::Real(1.0) / (k_a * K_H);
+   amrex::Real resistance_water = amrex::Real(1.0) / k_w;
+   amrex::Real resistance_total = resistance_air + resistance_water;
+    
+   // Overall mass transfer coefficient [m/s]
+   amrex::Real K_overall = amrex::Real(1.0) / amrex::max(resistance_total, amrex::Real(1.0e-10));
+    
+   return K_overall;
 }
 
 // ============================================================================
@@ -220,6 +306,98 @@ void update_chemistry_decay(
         // But mass-wise: MW_Cl / MW_HCl = 35.5 / 36.5 ≈ 0.97
         C_CL = compute_product_concentration(C_HCL_init, C_HCL, C_CL, 0.97);
     }
+}
+
+// ============================================================================
+// Ammonia-specific chemistry and removal (for over-land and over-water)
+//
+// Simplified model for ammonia:
+// 1. Over land: First-order oxidation to NOₓ/NO₃⁻ (slow, days to weeks)
+// 2. Over water: Fast dissolution via gas-liquid exchange (minutes)
+//
+// Inputs:
+//   C_NH3          - Ammonia concentration [ppb or μg/m³] (in/out)
+//   C_NH4          - Ammonium concentration [ppb or μg/m³] (out)
+//   dt             - Time step [s]
+//   half_life_NH3  - Oxidation half-life over land [hours] (typical: 5-10 days)
+//   enable_water_exchange - Enable water exchange (true over water/wet surfaces)
+//   wind_speed     - Wind speed [m/s]
+//   water_temp     - Water temperature [K] (only used if over_water=true)
+//   salinity       - Water salinity [PSU] (only used if over_water=true)
+//   enable_seasonal_adjust - Enable seasonal oxidation adjustment
+//   enable_temp_adjust - Enable temperature-dependent oxidation
+//   T_ambient      - Ambient temperature [K]
+//   month          - Month for seasonal adjustment (1-12)
+//   T_ref          - Reference temperature [K]
+//   Q10            - Q10 temperature sensitivity
+//
+// References:
+// - Gall et al. (2002). Ammonia oxidation rates in California
+// - Asman (1998). Ammonia emission reduction by the large combustion plants
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void update_ammonia_chemistry(
+   amrex::Real& C_NH3,                // Ammonia concentration (in/out)
+   amrex::Real& C_NH4,                // Ammonium concentration (out)
+   amrex::Real dt,                    // Time step [s]
+   amrex::Real half_life_NH3 = 216.0, // Default: 9 days = 216 hours (over land)
+   bool enable_water_exchange = false, // Use water exchange instead of oxidation
+   amrex::Real wind_speed = 5.0,      // Wind speed [m/s]
+   amrex::Real water_temp = 288.15,   // Water temperature [K]
+   amrex::Real salinity = 0.0,        // Water salinity [PSU]
+   bool enable_seasonal_adjust = false,
+   bool enable_temp_adjust = false,
+   amrex::Real T_ambient = 298.15,
+   int month = 6,
+   amrex::Real T_ref = 298.15,
+   amrex::Real Q10 = 2.0)
+{
+   if (C_NH3 <= amrex::Real(1.0e-10) || dt <= amrex::Real(0.0)) {
+       return;  // No ammonia to process
+   }
+    
+   amrex::Real C_NH3_init = C_NH3;
+    
+   if (enable_water_exchange) {
+       // Over water: Use gas-liquid exchange as effective removal
+       amrex::Real k_exchange = compute_ammonia_water_exchange(wind_speed, water_temp, salinity);
+        
+       // Convert to effective removal rate [1/s]
+       // Flux = k_exchange * C => effective decay constant
+       // For now, treat as simple deposition: m_removed = k_exchange * area * C * dt
+       // Simplified: removal fraction = 1 - exp(-k_exchange * dt)
+       amrex::Real removal_fraction = amrex::Real(1.0) - std::exp(-k_exchange * dt);
+       C_NH3 *= (amrex::Real(1.0) - removal_fraction);
+        
+       // Absorbed ammonia becomes ammonium (NH₃ + H₂O → NH₄⁺ + OH⁻)
+       // Stoichiometry: MW_NH4 / MW_NH3 = 18 / 17 ≈ 1.06
+       amrex::Real C_NH3_removed = C_NH3_init - C_NH3;
+       C_NH4 += C_NH3_removed * amrex::Real(1.06);
+        
+   } else {
+       // Over land: First-order oxidation (slow process)
+       amrex::Real lambda_NH3 = compute_decay_constant(half_life_NH3);
+        
+       // Apply seasonal adjustments (if enabled)
+       if (enable_seasonal_adjust) {
+           lambda_NH3 *= compute_seasonal_factor(month, SpeciesType::NH3);
+       }
+        
+       // Apply temperature adjustments (if enabled)
+       if (enable_temp_adjust) {
+           lambda_NH3 *= compute_temperature_correction(T_ambient, T_ref, Q10);
+       }
+        
+       // Apply decay (oxidation)
+       C_NH3 = apply_exponential_decay(C_NH3_init, lambda_NH3, dt);
+        
+       // Oxidation product: NH₃ → NOₓ/NO₃⁻
+       // Simplified stoichiometry: 1 mole NH₃ → ~1 mole NO₃⁻
+       // Mass ratio: MW_NO3 / MW_NH3 = 62 / 17 ≈ 3.65 (but this is incomplete oxidation)
+       // More realistically: NH₃ → 0.5 NO₂ + products, use simplified ratio
+       amrex::Real C_NH3_oxidized = C_NH3_init - C_NH3;
+       C_NH4 += C_NH3_oxidized * amrex::Real(0.5);  // Simplified product formation
+   }
 }
 
 #endif // REACTIVE_CHEMISTRY_SIMPLE_H

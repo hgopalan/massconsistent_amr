@@ -690,7 +690,32 @@ int main(int argc, char* argv[])
         pp.query("lateral_spreading_coeff", lateral_spreading_coeff);
         pp.query("entrainment_coefficient", entrainment_coefficient);
         pp.query("froude_threshold_transition", froude_threshold_transition);
-        
+         
+        // ===================================================================
+        // Ammonia (NH₃) Chemistry Parameters
+        // ===================================================================
+        bool enable_ammonia_chemistry = false;
+        Real ammonia_half_life_land = 216.0;   // Default: 9 days [hours]
+        bool ammonia_enable_water_exchange = true;  // Fast dissolution over water
+        Real ammonia_water_temperature = 288.15;    // Water temperature [K]
+        Real ammonia_water_salinity = 0.0;          // Water salinity [PSU]
+        bool ammonia_enable_seasonal_adjust = false;
+        bool ammonia_enable_temp_adjust = false;
+        int chemistry_month = 6;                    // Default: June (mid-year seasonal reference)
+        Real chemistry_temp_ref = 298.15;           // Reference temperature [K] = 25°C (standard reference)
+        Real chemistry_Q10 = 2.0;                   // Temperature sensitivity factor (typical for biological processes)
+          
+        pp.query("enable_ammonia_chemistry", enable_ammonia_chemistry);
+        pp.query("ammonia_half_life_land", ammonia_half_life_land);
+        pp.query("ammonia_enable_water_exchange", ammonia_enable_water_exchange);
+        pp.query("ammonia_water_temperature", ammonia_water_temperature);
+        pp.query("ammonia_water_salinity", ammonia_water_salinity);
+        pp.query("ammonia_enable_seasonal_adjust", ammonia_enable_seasonal_adjust);
+        pp.query("ammonia_enable_temp_adjust", ammonia_enable_temp_adjust);
+        pp.query("chemistry_month", chemistry_month);
+        pp.query("chemistry_temp_ref", chemistry_temp_ref);
+        pp.query("chemistry_Q10", chemistry_Q10);
+         
         // Read receptors file
         struct Receptor {
             Real x, y, z;
@@ -1832,6 +1857,24 @@ int main(int argc, char* argv[])
                     puff.species_mass[0] = puff.mass;
                 }
                     
+                // Apply ammonia chemistry (oxidation over land or exchange over water)
+                if (enable_ammonia_chemistry) {
+                    apply_ammonia_chemistry_to_puff(
+                        puff,
+                        dt_puff,
+                        wind_speed,
+                        ammonia_enable_water_exchange,
+                        ammonia_water_temperature,
+                        ammonia_water_salinity,
+                        ammonia_half_life_land,
+                        ammonia_enable_seasonal_adjust,
+                        ammonia_enable_temp_adjust,
+                        ambient_temp,
+                        chemistry_month,
+                        chemistry_temp_ref,
+                        chemistry_Q10);
+                }
+                
                 // Update age
                 update_puff_age(puff, dt_puff);
                     
@@ -1849,7 +1892,9 @@ int main(int argc, char* argv[])
             std::vector<Real> concentration(nx * ny * nz, 0.0);
             std::vector<std::vector<Real>> species_concentration;
             if (enable_chemistry) {
-                species_concentration.resize(LpdParticle::NUM_SPECIES, std::vector<Real>(nx * ny * nz, 0.0));
+                // Use Puff::NUM_SPECIES since we need to handle both LPDM and Gaussian puff modes
+                // Puff::NUM_SPECIES = 7 (includes SO2, Sulfate, NOx, HNO3, Nitrate, NO, SO4)
+                species_concentration.resize(Puff::NUM_SPECIES, std::vector<Real>(nx * ny * nz, 0.0));
             }
             if (enable_lpdm) {
                 for (const auto& p : particles) {
