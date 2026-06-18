@@ -141,6 +141,15 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Hybrid Ensemble Kalman Filter (EnKF):** Optional feature for rapid wind field correction using sparse observations from weather stations, LiDAR, and UAVs. Features covariance localization, mass conservation projection, and GPU-ready architecture. Disabled by default; enable via ParmParse configuration.
 - See [Data Assimilation Documentation](https://hgopalan.github.io/massconsistent_amr/data_assimilation_usage.html) for usage and [Development Status](https://hgopalan.github.io/massconsistent_amr/data_assimilation_development.html) for technical details.
 
+### 8. Data Center Siting Tool
+- **Multi-Criteria Optimization:** Evaluates candidate data center locations based on climate characterization, cooling efficiency, infrastructure resilience, and environmental impact.
+- **Climate Characterization:** Provides detailed wind, temperature, humidity, and evaporation profiles for each site.
+- **Cooling Efficiency Scoring:** Quantifies free cooling opportunity windows, ambient temperature extremes, and humidity control requirements.
+- **Resilience Assessment:** Evaluates wind extremes (10/50/100-year return periods), flood risk, and terrain slope effects.
+- **Environmental Impact:** Quantifies heat island effect, water availability, air quality impacts, and thermal discharge compliance.
+- **Multi-Priority Profiles:** Supports BALANCED, COOLING_EFFICIENCY, RESILIENCE, ENVIRONMENTAL, and COST_OPTIMIZED weighting schemes.
+- **Reporting & Visualization:** Generates JSON/CSV reports and Pareto frontier trade-off plots.
+
 ## Test Cases
 
 Test cases are located in `test/` and documented in `test/README.md`.
