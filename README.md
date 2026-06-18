@@ -235,6 +235,14 @@ See [INSTALL.md](INSTALL.md) for detailed instructions on all installation metho
 - **Numerical Derivatives:** High-order derivative operators (central, WENO-3, WENO-5) for accurate gradient computation.
 - **Numerical Optimization:** Iterative refinement of wind field parameters for improved fit to observations.
 
+### 12. Single Column Model (SCM) Wind Profile Initialization
+- **Wind Speed Specification:** Direct initialization from a specified wind speed at a reference height (e.g., meteorological mast) without log-law assumptions.
+- **Geostrophic Wind Recursion:** Iteratively computes geostrophic wind components required to produce target wind speed at reference height through time-dependent 1D simulation.
+- **Physics-Based Profile Evolution:** Solves coupled momentum, temperature, and turbulent kinetic energy equations with Coriolis forcing, turbulent diffusion, and stratification effects.
+- **Terrain-Aligned Initialization:** Maps converged 1D profiles to 3D domain with proper terrain alignment. See [SCM Initialization Documentation](docs/scm_initialization.rst) for detailed methodology.
+- **Temperature Profile Generation:** Initializes temperature field using user-defined reference temperature and lapse rate, enabling proper atmospheric stratification.
+- **1D Solver Efficiency:** Completes pre-processing in seconds to minutes before 3D solve, with no additional cost to main solver.
+
 ### 13. Agricultural Drone Operations
 - **Flight Path Modeling:** Parses and interpolates 3D flight trajectories from CSV telemetry data for agricultural drone operations.
 - **Rotor Downwash Velocity:** Models 3D analytical rotor downwash velocity fields with jet expansion and forward flight deflection effects.
