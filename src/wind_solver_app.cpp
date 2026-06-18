@@ -1050,6 +1050,120 @@ void WindSolverApp::parse_inputs() {
         amrex::Print() << "  export_format: " << turbulence_export_format << "\n"
                        << "  output_file: " << turbulence_output_file << "\n";
     }
+    
+    // Data center heat source parameters (supports multiple facilities)
+    pp.query("datacenter.enabled", datacenter_enabled);
+    
+    if (datacenter_enabled) {
+        // Parse multi-facility parameters using arrays
+        int num_heat_releases = pp.countval("datacenter.heat_release");
+        
+        if (num_heat_releases > 0) {
+            // Multi-center mode: parse arrays
+            datacenter_heat_release.resize(num_heat_releases);
+            datacenter_x.resize(num_heat_releases);
+            datacenter_y.resize(num_heat_releases);
+            datacenter_z.resize(num_heat_releases);
+            datacenter_area.resize(num_heat_releases);
+            datacenter_sigma_x.resize(num_heat_releases);
+            datacenter_sigma_y.resize(num_heat_releases);
+            datacenter_sigma_z.resize(num_heat_releases);
+            datacenter_names.resize(num_heat_releases);
+            
+            pp.getarr("datacenter.heat_release", datacenter_heat_release, 0, num_heat_releases);
+            pp.getarr("datacenter.x", datacenter_x, 0, num_heat_releases);
+            pp.getarr("datacenter.y", datacenter_y, 0, num_heat_releases);
+            pp.getarr("datacenter.z", datacenter_z, 0, num_heat_releases);
+            pp.getarr("datacenter.area", datacenter_area, 0, num_heat_releases);
+            pp.getarr("datacenter.sigma_x", datacenter_sigma_x, 0, num_heat_releases);
+            pp.getarr("datacenter.sigma_y", datacenter_sigma_y, 0, num_heat_releases);
+            pp.getarr("datacenter.sigma_z", datacenter_sigma_z, 0, num_heat_releases);
+            
+            // Try to parse facility names (optional)
+            int num_names = pp.countval("datacenter.names");
+            if (num_names == num_heat_releases) {
+                pp.getarr("datacenter.names", datacenter_names, 0, num_heat_releases);
+            } else {
+                // Auto-generate names
+                for (int i = 0; i < num_heat_releases; ++i) {
+                    datacenter_names[i] = "DataCenter_" + std::to_string(i);
+                }
+            }
+        } else {
+            // Single-center legacy mode: parse scalars
+            pp.query("datacenter.heat_release", datacenter_heat_release_single);
+            pp.query("datacenter.x", datacenter_x_single);
+            pp.query("datacenter.y", datacenter_y_single);
+            pp.query("datacenter.z", datacenter_z_single);
+            pp.query("datacenter.area", datacenter_area_single);
+            pp.query("datacenter.sigma_x", datacenter_sigma_x_single);
+            pp.query("datacenter.sigma_y", datacenter_sigma_y_single);
+            pp.query("datacenter.sigma_z", datacenter_sigma_z_single);
+            
+            // Convert single-center to vector form
+            datacenter_heat_release.resize(1);
+            datacenter_x.resize(1);
+            datacenter_y.resize(1);
+            datacenter_z.resize(1);
+            datacenter_area.resize(1);
+            datacenter_sigma_x.resize(1);
+            datacenter_sigma_y.resize(1);
+            datacenter_sigma_z.resize(1);
+            datacenter_names.resize(1);
+            
+            datacenter_heat_release[0] = datacenter_heat_release_single;
+            datacenter_x[0] = datacenter_x_single;
+            datacenter_y[0] = datacenter_y_single;
+            datacenter_z[0] = datacenter_z_single;
+            datacenter_area[0] = datacenter_area_single;
+            datacenter_sigma_x[0] = datacenter_sigma_x_single;
+            datacenter_sigma_y[0] = datacenter_sigma_y_single;
+            datacenter_sigma_z[0] = datacenter_sigma_z_single;
+            datacenter_names[0] = "DataCenter";
+        }
+        
+        // Initialize DataCenterHeatSourceParams structures
+        datacenter_params.clear();
+        for (size_t i = 0; i < datacenter_heat_release.size(); ++i) {
+            DataCenterHeatSourceParams params;
+            params.enabled = true;
+            params.x_center = datacenter_x[i];
+            params.y_center = datacenter_y[i];
+            params.z_center = datacenter_z[i];
+            params.heat_release_rate = datacenter_heat_release[i];
+            params.source_area = datacenter_area[i];
+            params.sigma_x = datacenter_sigma_x[i];
+            params.sigma_y = datacenter_sigma_y[i];
+            params.sigma_z = datacenter_sigma_z[i];
+            params.name = datacenter_names[i];
+            
+            // Set reference conditions (from buoyancy params if available)
+            params.reference_temperature = temperature_reference;
+            params.rho_ref = 1.225;  // Sea level reference
+            params.cp = 1005.0;
+            
+            datacenter_params.push_back(params);
+        }
+        
+        // Print data center configuration
+        if (!datacenter_params.empty()) {
+            amrex::Print() << "wind_solver: ========================================\n"
+                           << "wind_solver: Data Center Heat Source Configuration\n"
+                           << "wind_solver: ========================================\n";
+            amrex::Print() << "wind_solver: Number of facilities: " << datacenter_params.size() << "\n";
+            for (size_t i = 0; i < datacenter_params.size(); ++i) {
+                const auto& p = datacenter_params[i];
+                amrex::Print() << "wind_solver: Facility " << i << " (" << p.name << ")\n"
+                               << "wind_solver:   Heat release: " << p.heat_release_rate / 1.0e6 << " MW\n"
+                               << "wind_solver:   Location: (" << p.x_center << ", " << p.y_center 
+                               << ", " << p.z_center << ") m\n"
+                               << "wind_solver:   Footprint area: " << p.source_area << " m²\n"
+                               << "wind_solver:   Gaussian spreads: σx=" << p.sigma_x 
+                               << ", σy=" << p.sigma_y << ", σz=" << p.sigma_z << " m\n";
+            }
+            amrex::Print() << "wind_solver: ========================================\n\n";
+        }
+    }
 
     amrex::Print() << "wind_solver: input parsing time = " 
                    << (amrex::second() - t_phase) << " s\n";

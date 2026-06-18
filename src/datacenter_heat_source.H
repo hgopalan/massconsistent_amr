@@ -2,14 +2,16 @@
 // datacenter_heat_source.H
 // Data center heat source modeling for atmospheric effect studies
 //
-// This module provides utilities for representing a data center facility
-// as a distributed heat source and computing its atmospheric signature.
+// This module provides utilities for representing one or more data center
+// facilities as distributed heat sources and computing their atmospheric
+// signatures. Supports both single and multiple data center scenarios.
 //
 // Physical basis:
 // - Data center waste heat modeled as distributed thermal source
 // - Plume rise computed using Briggs (1975) parameterization
 // - Heat dispersion tracked via 3D scalar transport equation
 // - Temperature anomaly (ΔT) relative to ambient profiles
+// - Multiple sources superpose linearly in the temperature field
 //
 // References:
 // - Briggs, G.A. (1975). Plume rise predictions. In Lectures on air pollution
@@ -26,7 +28,7 @@
 #include <cmath>
 
 // ============================================================================
-// Data center heat source parameters structure
+// Data center heat source parameters structure (single facility)
 // ============================================================================
 struct DataCenterHeatSourceParams {
     // Enable/disable
@@ -51,6 +53,9 @@ struct DataCenterHeatSourceParams {
     amrex::Real reference_temperature = 300.0;  // T_ref for buoyancy [K]
     amrex::Real cp = 1005.0;                     // Specific heat at constant pressure [J/(kg·K)]
     amrex::Real rho_ref = 1.225;                 // Reference air density [kg/m³]
+    
+    // Facility identifier
+    std::string name = "DataCenter";
 };
 
 // ============================================================================
@@ -221,36 +226,75 @@ amrex::Real compute_temperature_excess(
 }
 
 // ============================================================================
-// Compute heat source strength for temperature equation source term
+// Compute combined heat source from multiple data centers
 //
-// Returns the strength of the heat source term to be added to the temperature
-// evolution equation. This is the volume-distributed heat release rate that
-// drives the temperature field.
+// For scenarios with multiple data center facilities, compute the sum of
+// Gaussian contributions from all enabled sources.
 //
 // Inputs:
-//   Q_total     - Total heat release rate [W]
-//   Gaussian    - Normalized Gaussian distribution value (0-1)
+//   x, y, z             - Query coordinates [m]
+//   params              - Vector of heat source parameter structures
+//
+// Returns:
+//   Combined normalized Gaussian value (sum of all contributions)
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real heat_source_gaussian_multiple(
+    amrex::Real x,
+    amrex::Real y,
+    amrex::Real z,
+    const DataCenterHeatSourceParams* params,
+    int num_sources)
+{
+    amrex::Real total_source = amrex::Real(0.0);
+    
+    for (int i = 0; i < num_sources; ++i) {
+        if (params[i].enabled) {
+            total_source += heat_source_gaussian(x, y, z, params[i]);
+        }
+    }
+    
+    return total_source;
+}
+
+// ============================================================================
+// Compute heat source strength for multiple facilities
+//
+// Returns the combined strength of heat source terms from all enabled
+// data center facilities.
+//
+// Inputs:
+//   params      - Vector of heat source parameter structures
+//   num_sources - Number of data centers in params array
+//   gaussian_weight - Normalized Gaussian value (0-1) for position
 //   volume_cell - Cell volume [m³]
 //
 // Returns:
-//   Source strength [K/s] for temperature equation
+//   Combined source strength [K/s] for temperature equation
 // ============================================================================
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
-amrex::Real heat_source_strength(
-    amrex::Real Q_total,
-    amrex::Real gaussian_weight,
-    amrex::Real volume_cell,
-    amrex::Real rho_air,
-    amrex::Real cp)
+amrex::Real heat_source_strength_multiple(
+    const DataCenterHeatSourceParams* params,
+    int num_sources,
+    amrex::Real x,
+    amrex::Real y,
+    amrex::Real z,
+    amrex::Real volume_cell)
 {
-    // Guard against invalid inputs
-    if (Q_total <= amrex::Real(0.0) || volume_cell <= amrex::Real(0.0) || 
-        rho_air <= amrex::Real(0.0) || cp <= amrex::Real(0.0)) {
-        return amrex::Real(0.0);
+    amrex::Real total_source = amrex::Real(0.0);
+    
+    for (int i = 0; i < num_sources; ++i) {
+        if (params[i].enabled) {
+            amrex::Real gauss_i = heat_source_gaussian(x, y, z, params[i]);
+            amrex::Real source_i = heat_source_strength(
+                params[i].heat_release_rate,
+                gauss_i,
+                volume_cell,
+                params[i].rho_ref,
+                params[i].cp);
+            total_source += source_i;
+        }
     }
     
-    // Distributed source: dT/dt = (Q * gaussian_weight) / (rho * cp * V_cell)
-    return (Q_total * gaussian_weight) / (rho_air * cp * volume_cell);
+    return total_source;
 }
-
-#endif // DATACENTER_HEAT_SOURCE_H

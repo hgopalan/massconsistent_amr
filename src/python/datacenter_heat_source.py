@@ -113,7 +113,8 @@ class DataCenterPlume:
     Analyzer for data center thermal plume characteristics.
     
     Handles loading solver output, extracting temperature fields, computing
-    plume metrics, and generating diagnostic visualizations.
+    plume metrics, and generating diagnostic visualizations. Supports analysis
+    of single or multiple thermal plumes.
     """
     
     def __init__(self, 
@@ -131,7 +132,7 @@ class DataCenterPlume:
         self.temp = temperature_field
         self.coords = coordinates or {}
         self.T_ref = ambient_temp
-        self.metrics = None
+        self.metrics = {}  # Dict of plume metrics indexed by facility name
         
     @staticmethod
     def from_amrex_plotfile(plotfile_path: str) -> "DataCenterPlume":
@@ -198,7 +199,7 @@ class DataCenterPlume:
                              facility: DataCenterFacility,
                              threshold_dT: float = 0.5) -> PlumeMetrics:
         """
-        Compute plume extent and characteristics.
+        Compute plume extent and characteristics for a single facility.
         
         Parameters:
             facility: Data center facility specification
@@ -217,7 +218,9 @@ class DataCenterPlume:
         
         if not np.any(plume_mask):
             # No plume detected
-            return PlumeMetrics()
+            metrics = PlumeMetrics()
+            self.metrics[facility.name] = metrics
+            return metrics
         
         # Get coordinates
         x = self.coords.get('x')
@@ -252,7 +255,7 @@ class DataCenterPlume:
         plume_x, plume_y = np.where(np.any(plume_mask, axis=-1))
         if len(plume_x) > 0:
             distances = np.sqrt((x[plume_x] - facility.x)**2 + 
-                              (y[plume_y] - facility.y)**2)
+                             (y[plume_y] - facility.y)**2)
             metrics.plume_extent_horizontal = float(np.max(distances))
             
             # Distance to max temperature
@@ -266,8 +269,27 @@ class DataCenterPlume:
         # Integrated heat area
         metrics.integrated_heat_area = float(np.sum(dT[plume_mask]))
         
-        self.metrics = metrics
+        # Store metrics indexed by facility name
+        self.metrics[facility.name] = metrics
         return metrics
+    
+    def compute_plume_metrics_multiple(self,
+                                      facilities: List[DataCenterFacility],
+                                      threshold_dT: float = 0.5) -> Dict[str, PlumeMetrics]:
+        """
+        Compute plume metrics for multiple facilities simultaneously.
+        
+        Parameters:
+            facilities: List of DataCenterFacility specifications
+            threshold_dT: Temperature excess threshold for plume definition [K]
+            
+        Returns:
+            Dict mapping facility names to PlumeMetrics objects
+        """
+        all_metrics = {}
+        for facility in facilities:
+            all_metrics[facility.name] = self.compute_plume_metrics(facility, threshold_dT)
+        return all_metrics
     
     def extract_downwind_profile(self,
                                 facility: DataCenterFacility,
