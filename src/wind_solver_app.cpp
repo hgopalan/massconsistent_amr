@@ -3808,7 +3808,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         
         // Find geostrophic wind using 1D SCM
         auto [ug, vg] = SCMModels::find_geostrophic_wind_1d_scm(
-            scm_wind_speed, scm_wind_direction, scm_ref_height, latitude, z0,
+            scm_wind_speed, scm_wind_direction, scm_ref_height, domain_latitude, z0,
             scm_domain_height, scm_dz, scm_ref_temperature, scm_lapse_rate);
         
         scm_ug = ug;
@@ -3819,7 +3819,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         // Run final 1D SCM to get converged profile
         SCMModels::SCMState1D scm_state;
         SCMModels::initialize_1d_state(scm_state, ug, vg, scm_ref_temperature, 
-                                       scm_lapse_rate, z0, scm_domain_height, scm_dz, latitude);
+                                       scm_lapse_rate, z0, scm_domain_height, scm_dz, domain_latitude);
         scm_state.dt = 0.8 * scm_dz / std::sqrt(std::max(ug * ug + vg * vg, 0.01));
         SCMModels::run_1d_scm(scm_state, scm_ref_height);
         
