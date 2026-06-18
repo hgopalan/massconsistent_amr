@@ -118,9 +118,9 @@ void WindSolverApp::parse_inputs() {
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
         init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield" &&
-        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral" && init_mode != "sounding") {
+        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral" && init_mode != "sounding" && init_mode != "scm") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', 'ekman_spiral', or 'sounding')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', 'ekman_spiral', 'sounding', or 'scm')");
     }
 
     pp.query("U_ref", U_ref);
