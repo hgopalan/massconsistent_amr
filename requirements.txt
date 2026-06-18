@@ -1,0 +1,42 @@
+# Requirements for massconsistent_amr Python tools via pip
+# 
+# Base installation (equivalent to environment.yml):
+#   pip install -r requirements.txt
+#
+# Development with build tools:
+#   pip install -r requirements.txt
+#   conda install -c conda-forge cmake ninja cxx-compiler
+#
+# All optional packages:
+#   pip install -r requirements.txt -r requirements-optional.txt
+
+# ============================================================================
+# CORE DEPENDENCIES
+# ============================================================================
+# Scientific computing and numerical analysis
+numpy>=1.20
+scipy>=1.7.0
+matplotlib>=3.5.0
+
+# Data format handling
+netcdf4>=1.5.7
+h5py>=3.0          # For HDF5 file support
+
+# Utilities
+requests>=2.25
+pyyaml>=5.4
+
+# ============================================================================
+# OPTIONAL: Testing and Development
+# ============================================================================
+# Uncomment for development/testing environments
+# pytest>=7.0
+# pytest-cov>=3.0
+# pytest-xdist>=2.5
+
+# ============================================================================
+# OPTIONAL: Documentation
+# ============================================================================
+# Uncomment to build documentation
+# sphinx>=5.0
+# sphinx_rtd_theme>=1.0

@@ -1,0 +1,66 @@
+# Conda environment file for massconsistent_amr development
+#
+# Includes C++ build tools, compilers, and all Python dependencies
+# for development, testing, and building the full application.
+#
+# Usage:
+#   conda env create -f environment-dev.yml
+#   conda activate massconsistent_amr-dev
+#
+# Then build with CMake:
+#   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMASSCONSISTENT_BUILD_PYTHON_BINDINGS=ON
+#   cmake --build build --parallel
+
+name: massconsistent_amr-dev
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python version (minimum 3.9, recommended 3.10+)
+  - python>=3.9
+
+  # Core scientific computing and data handling
+  - numpy>=1.20
+  - scipy>=1.7
+  - matplotlib>=3.5
+  - netcdf4>=1.5.7
+  - requests>=2.25
+  - pyyaml>=5.4
+
+  # C++ Build Tools and Compilers
+  - cmake>=3.20          # Build system
+  - ninja                # Optional: faster build backend
+  - cxx-compiler         # C++ compiler (auto-selects gcc/clang/msvc)
+  - c-compiler           # C compiler
+  - fortran-compiler     # Fortran compiler (for some dependencies)
+
+  # Optional GPU support (uncomment as needed)
+  # For CUDA:
+  # - cuda-runtime::cuda-runtime=12.6
+  # - cuda-cudart=12.6
+  # For HIP/ROCm:
+  # - rocm-core::rocm-core=6.2
+
+  # MPI support (optional)
+  # - openmpi                 # for Linux/macOS
+  # - mpich                   # alternative MPI implementation
+  # - msmpi                   # for Windows (use Microsoft MPI)
+
+  # Testing and quality assurance
+  - pytest>=7.0          # Unit testing framework
+  - pytest-cov           # Coverage reporting
+
+  # Documentation building
+  - sphinx>=5.0          # Documentation generator
+  - sphinx_rtd_theme>=1.0    # ReadTheDocs theme
+
+  # Development utilities
+  - git>=2.30            # Version control
+  - gdb                  # Debugger (Linux/macOS)
+  - lldb                 # Debugger (macOS/Linux, LLVM-based)
+
+pip:
+  # Optional wind farm and geochemical packages
+  # - floris>=3.0
+  # - py-wake>=2.1
