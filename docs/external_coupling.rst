@@ -636,3 +636,219 @@ References
 - Atkinson, R., Baulch, D. L., Cox, R. A., et al. (2004). Evaluated kinetic and photochemical data for atmospheric chemistry. Atmos. Chem. Phys., 4, 1461-1738.
 
 
+
+.. _data_center_siting:
+
+Data Center Siting Tool
+=======================
+
+Overview
+~~~~~~~~
+
+The **Data Center Siting Tool** provides multi-criteria optimization for evaluating candidate locations for data center deployment. It leverages the mass-consistent wind solver's capabilities to characterize local climate conditions, assess cooling efficiency, evaluate infrastructure resilience, and quantify environmental impacts.
+
+Key Capabilities:
+
+- **Climate Characterization**: Comprehensive wind speed, temperature, humidity, and evaporation profiling
+- **Cooling Efficiency**: Free cooling opportunity windows, ambient temperature extremes, humidity control needs
+- **Infrastructure Resilience**: Extreme wind speeds (10/50/100-year return periods), flood risk assessment, terrain slope effects
+- **Environmental Impact**: Heat island effect quantification, water availability, air quality impacts, thermal discharge compliance
+- **Multi-Priority Optimization**: BALANCED, COOLING_EFFICIENCY, RESILIENCE, ENVIRONMENTAL, or COST_OPTIMIZED weighting schemes
+- **Reporting & Visualization**: JSON/CSV reports, Pareto frontier trade-off plots
+
+Usage
+~~~~~
+
+Basic workflow:
+
+.. code-block:: python
+
+    from datacenter_siting import SitingAnalyzer, CandidateSite, SitingPriority
+    from datacenter_siting import ClimateProfile
+    
+    # Define candidate sites
+    sites = [
+        CandidateSite("site_a", x=100000, y=200000, label="Mountain Valley DC",
+                     water_availability=0.8),
+        CandidateSite("site_b", x=150000, y=250000, label="Coastal Plain DC",
+                     water_availability=0.6),
+    ]
+    
+    # Create analyzer with cooling efficiency priority
+    analyzer = SitingAnalyzer(sites, priority=SitingPriority.COOLING_EFFICIENCY)
+    
+    # Populate with climate profiles from simulations
+    # (in practice, run_simulations() would populate these)
+    for site in sites:
+        profile = ClimateProfile(
+            site_id=site.site_id,
+            wind_mean=7.5,
+            wind_extreme_50yr=32.0,
+            temp_mean=12.0,
+            humidity_mean=50.0,
+            free_cooling_hours=6500.0,
+            evaporation_rate=1200.0,
+            heat_island_elevation=1.5,
+            flood_risk_score=0.2,
+            terrain_slope_mean=8.0,
+            air_quality_index=0.3,
+        )
+        analyzer.climate_profiles[site.site_id] = profile
+    
+    # Evaluate sites
+    evaluations = analyzer.evaluate_all_sites()
+    
+    # Generate reports
+    analyzer.generate_report("siting_report.json", "siting_scores.csv")
+    analyzer.plot_results("scores.png", "pareto_frontier.png")
+
+Scoring Methodology
+~~~~~~~~~~~~~~~~~~~
+
+The tool computes normalized scores [0, 1] where 1 is best:
+
+**Cooling Efficiency** (temperature, humidity, free cooling hours):
+- Optimal mean temperature: 12°C
+- Lower humidity preferred (higher comfort, less corrosion)
+- More free cooling hours → better operational cost
+
+**Wind Resilience** (extreme wind speeds, gustiness):
+- Extreme wind speed of 50 m/s = worst case (score → 0)
+- Lower wind variability preferred
+- Critical for structural safety and equipment durability
+
+**Flood Safety** (flood risk, terrain slope):
+- Flood risk score 1.0 = worst case (high inundation probability)
+- Steep slopes (>45°) problematic for construction/drainage
+- River proximity increases flooding risk
+
+**Environmental Impact** (heat island, air quality, evaporation):
+- Heat island elevation >5°C = poor (limits external cooling effectiveness)
+- Baseline air quality (0 = pristine, 1 = polluted)
+- Higher evaporation potential helps cooling efficiency
+
+**Overall Score**:
+Weighted composite of the four criteria, with weights determined by priority profile.
+
+Priority Profiles
+~~~~~~~~~~~~~~~~~
+
+1. **BALANCED** (Default)
+   - Equal weighting: 25% each criterion
+   - Suitable for general-purpose siting analysis
+
+2. **COOLING_EFFICIENCY**
+   - 50% cooling, 20% resilience, 15% flood, 15% environmental
+   - Optimizes operational cost and equipment lifespan
+   - Prioritizes low ambient temperature and high free cooling hours
+
+3. **RESILIENCE**
+   - 50% resilience, 20% cooling, 20% flood, 10% environmental
+   - Prioritizes extreme wind hardening and flood safety
+   - Suitable for regions with severe weather
+
+4. **ENVIRONMENTAL**
+   - 50% environmental, 40% cooling, 15% resilience, 15% flood
+   - Minimizes heat island, water use, and carbon footprint
+   - Aligns with ESG/sustainability goals
+
+5. **COST_OPTIMIZED**
+   - 40% cooling, 40% resilience, 10% flood, 10% environmental
+   - Balances operating costs (cooling) and capital costs (resilience/construction)
+
+Example: Comparing Priority Profiles
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    from datacenter_siting import SitingPriority
+    
+    for priority in [
+        SitingPriority.BALANCED,
+        SitingPriority.COOLING_EFFICIENCY,
+        SitingPriority.RESILIENCE,
+    ]:
+        analyzer = SitingAnalyzer(sites, priority=priority)
+        # ... populate profiles ...
+        evaluations = analyzer.evaluate_all_sites()
+        
+        print(f"\nPriority: {priority.value}")
+        print(f"Best site: {evaluations[0]['label']}")
+        print(f"Score: {evaluations[0]['scores']['overall_score']:.3f}")
+
+Output Files
+~~~~~~~~~~~~
+
+**JSON Report** (``siting_report.json``):
+- Complete evaluation results with metadata
+- Climate profiles for each site
+- Scores, rankings, and recommendations
+- Summary statistics
+
+**CSV Scores** (``siting_scores.csv``):
+- Tabular format with one row per site
+- Ranking, site ID, label
+- Individual criterion scores
+- Key climate metrics
+
+**Plots** (``scores.png``, ``pareto_frontier.png``):
+- Multi-criteria bar plot: cooling, resilience, flood, environmental
+- Pareto frontier: wind resilience vs. cooling efficiency trade-offs
+- Overall score as bubble size/color
+
+Regression Tests
+~~~~~~~~~~~~~~~~
+
+The tool includes comprehensive unit tests in ``regtest/diagnostics/datacenter_siting/``:
+
+.. code-block:: bash
+
+   cd build
+   python3 ../regtest/diagnostics/datacenter_siting/test_datacenter_siting.py
+
+Tests cover:
+
+- SitingAnalyzer initialization and configuration
+- Weight computation for different priority profiles
+- Score computation for ideal/poor climate profiles
+- Site evaluation, ranking, and comparisons
+- JSON and CSV report generation
+- Integration workflows
+
+Run example analysis:
+
+.. code-block:: bash
+
+   cd ../src/python
+   python3 example_datacenter_siting.py
+
+This generates example reports and plots demonstrating multi-priority siting analysis.
+
+Limitations and Future Work
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Current Limitations:**
+
+- Simplified climate profile extraction (no actual solver execution in basic mode)
+- Scoring based on empirical thresholds (not site-specific physics-based modeling)
+- No capital cost integration (land, construction, power infrastructure)
+- No renewable energy integration potential
+- No dynamic thermal coupling (heat island feedback over multiple years)
+
+**Future Enhancements:**
+
+- Direct integration with wind solver for automatic climate profile generation
+- Capital cost modeling (CAPEX for cooling, resilience, land)
+- Renewable energy potential assessment (on-site wind/solar)
+- Long-term climate change impact projections
+- Sensitivity analysis (tornado, hurricane, extreme weather scenarios)
+- Multi-objective optimization (Pareto surface generation)
+- Real-time update with seasonal meteorological data
+
+References
+~~~~~~~~~~
+
+- ISO 14644-1: Classification of air cleanliness by particle concentration
+- ASHRAE 90.1: Energy Standard for Buildings
+- IEEE 738: Standard for Calculation of Bare-Overhead-Conductor Temperature and Ampacity Under Steady-State Conditions
+- Briggs, G. A. (1973). Diffusion Estimation for Small Emissions. ATDL Contribution File No. 79.

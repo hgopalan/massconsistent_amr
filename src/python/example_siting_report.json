@@ -1,0 +1,170 @@
+{
+  "siting_analysis": {
+    "priority": "balanced",
+    "weights": {
+      "cooling_efficiency": 0.25,
+      "wind_resilience": 0.25,
+      "flood_safety": 0.25,
+      "environmental_impact": 0.25
+    },
+    "sites": [
+      {
+        "site_id": "site_mountain",
+        "label": "Mountain Valley DC",
+        "x": 100000.0,
+        "y": 200000.0,
+        "scores": {
+          "site_id": "site_mountain",
+          "cooling_efficiency": 0.7795753424657534,
+          "wind_resilience": 0.3693333333333333,
+          "flood_safety": 0.815,
+          "environmental_impact": 0.7500000000000001,
+          "overall_score": 0.6784771689497717,
+          "rank": 1
+        },
+        "climate": {
+          "site_id": "site_mountain",
+          "wind_mean": 7.5,
+          "wind_p95": 14.2,
+          "wind_extreme_10yr": 25.0,
+          "wind_extreme_50yr": 32.0,
+          "wind_extreme_100yr": 36.0,
+          "wind_max_gust": 18.5,
+          "wind_variability": 0.35,
+          "temp_mean": 10.0,
+          "temp_min": -5.0,
+          "temp_max": 28.0,
+          "temp_std": 8.0,
+          "temp_above_30C": 0.0,
+          "humidity_mean": 45.0,
+          "humidity_max": 85.0,
+          "free_cooling_hours": 7200.0,
+          "evaporation_rate": 1000.0,
+          "heat_island_elevation": 0.5,
+          "flood_risk_score": 0.15,
+          "terrain_slope_mean": 12.0,
+          "air_quality_index": 0.2
+        }
+      },
+      {
+        "site_id": "site_high_elev",
+        "label": "High Elevation DC",
+        "x": 120000.0,
+        "y": 180000.0,
+        "scores": {
+          "site_id": "site_high_elev",
+          "cooling_efficiency": 0.7831232876712328,
+          "wind_resilience": 0.2626666666666667,
+          "flood_safety": 0.845,
+          "environmental_impact": 0.774,
+          "overall_score": 0.6661974885844748,
+          "rank": 2
+        },
+        "climate": {
+          "site_id": "site_high_elev",
+          "wind_mean": 9.2,
+          "wind_p95": 17.5,
+          "wind_extreme_10yr": 30.0,
+          "wind_extreme_50yr": 37.0,
+          "wind_extreme_100yr": 41.0,
+          "wind_max_gust": 22.0,
+          "wind_variability": 0.42,
+          "temp_mean": 8.0,
+          "temp_min": -10.0,
+          "temp_max": 25.0,
+          "temp_std": 9.0,
+          "temp_above_30C": 0.0,
+          "humidity_mean": 40.0,
+          "humidity_max": 80.0,
+          "free_cooling_hours": 7800.0,
+          "evaporation_rate": 900.0,
+          "heat_island_elevation": 0.2,
+          "flood_risk_score": 0.05,
+          "terrain_slope_mean": 18.0,
+          "air_quality_index": 0.15
+        }
+      },
+      {
+        "site_id": "site_river",
+        "label": "River Basin DC",
+        "x": 110000.0,
+        "y": 210000.0,
+        "scores": {
+          "site_id": "site_river",
+          "cooling_efficiency": 0.7528767123287672,
+          "wind_resilience": 0.45066666666666666,
+          "flood_safety": 0.645,
+          "environmental_impact": 0.756,
+          "overall_score": 0.6511358447488584,
+          "rank": 3
+        },
+        "climate": {
+          "site_id": "site_river",
+          "wind_mean": 6.5,
+          "wind_p95": 12.5,
+          "wind_extreme_10yr": 22.0,
+          "wind_extreme_50yr": 28.0,
+          "wind_extreme_100yr": 32.0,
+          "wind_max_gust": 16.0,
+          "wind_variability": 0.32,
+          "temp_mean": 12.0,
+          "temp_min": -2.0,
+          "temp_max": 30.0,
+          "temp_std": 8.2,
+          "temp_above_30C": 5.0,
+          "humidity_mean": 60.0,
+          "humidity_max": 92.0,
+          "free_cooling_hours": 6800.0,
+          "evaporation_rate": 1300.0,
+          "heat_island_elevation": 0.8,
+          "flood_risk_score": 0.45,
+          "terrain_slope_mean": 6.0,
+          "air_quality_index": 0.25
+        }
+      },
+      {
+        "site_id": "site_coastal",
+        "label": "Coastal Plain DC",
+        "x": 150000.0,
+        "y": 250000.0,
+        "scores": {
+          "site_id": "site_coastal",
+          "cooling_efficiency": 0.6453561643835617,
+          "wind_resilience": 0.30000000000000004,
+          "flood_safety": 0.7349999999999999,
+          "environmental_impact": 0.724,
+          "overall_score": 0.6010890410958905,
+          "rank": 4
+        },
+        "climate": {
+          "site_id": "site_coastal",
+          "wind_mean": 8.5,
+          "wind_p95": 16.0,
+          "wind_extreme_10yr": 28.0,
+          "wind_extreme_50yr": 35.0,
+          "wind_extreme_100yr": 39.0,
+          "wind_max_gust": 21.0,
+          "wind_variability": 0.4,
+          "temp_mean": 15.0,
+          "temp_min": 5.0,
+          "temp_max": 32.0,
+          "temp_std": 7.5,
+          "temp_above_30C": 25.0,
+          "humidity_mean": 65.0,
+          "humidity_max": 95.0,
+          "free_cooling_hours": 5500.0,
+          "evaporation_rate": 1500.0,
+          "heat_island_elevation": 1.2,
+          "flood_risk_score": 0.35,
+          "terrain_slope_mean": 3.0,
+          "air_quality_index": 0.35
+        }
+      }
+    ],
+    "summary": {
+      "total_sites": 4,
+      "best_site": "Mountain Valley DC",
+      "best_score": 0.6784771689497717
+    }
+  }
+}

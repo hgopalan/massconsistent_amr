@@ -1,0 +1,5 @@
+rank,site_id,label,cooling_efficiency,wind_resilience,flood_safety,environmental_impact,overall_score,temp_mean,wind_extreme_50yr,free_cooling_hours,flood_risk
+1,site_mountain,Mountain Valley DC,0.780,0.369,0.815,0.750,0.678,10.0,32.0,7200,0.15
+2,site_high_elev,High Elevation DC,0.783,0.263,0.845,0.774,0.666,8.0,37.0,7800,0.05
+3,site_river,River Basin DC,0.753,0.451,0.645,0.756,0.651,12.0,28.0,6800,0.45
+4,site_coastal,Coastal Plain DC,0.645,0.300,0.735,0.724,0.601,15.0,35.0,5500,0.35

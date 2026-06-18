@@ -2,59 +2,59 @@
 
 **massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM) with simple reactive chemistry. It also integrates with external tools via Python, supporting wind farm utilities (FLORIS, PyWake), wildfire modeling, and geochemical reactive transport (PHREEQC).
 
-> ⚠️ This repository was developed with LLM assistance. Scientific references and citations should be checked carefully, as hallucinations or citation errors may be present.
+> This repository was developed with LLM assistance. Scientific references and citations should be checked carefully, as hallucinations or citation errors may be present.
 
 ## Scenario Gallery
 
-The solver supports diverse engineering, physical, and environmental wind-modeling scenarios. Below is a gallery of the eight core scenarios:
+The solver supports the following eight core scenarios:
 
 <table width="100%">
   <tr>
     <td width="50%" valign="top">
       <h4>1. Complex Terrain-Following Coordinate Flow</h4>
-      <p>Horizontal wind speed distribution above complex terrain at 50 m above ground level, demonstrating terrain-following coordinate transformation and flow interactions without turbine obstruction.</p>
+      <p>Horizontal wind speed distribution above complex terrain at 50 m above ground level with terrain-following coordinate transformation.</p>
       <img src="docs/terrain_following_complex_flow.png" alt="Complex Terrain-Following Flow" width="100%"/>
     </td>
     <td width="50%" valign="top">
       <h4>2. Gorge Bridge Crossing Wind Loading</h4>
-      <p>Bridges crossing deep gorges experience extreme funneling speedup, vertical wind shear, and vortex-induced cable resonance.</p>
+      <p>Bridges crossing deep gorges experience funneling speedup, vertical wind shear, and vortex-induced cable resonance.</p>
       <img src="docs/gorge_bridge_crossing.png" alt="Gorge Bridge Crossing" width="100%"/>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h4>3. Urban Street Canyon & Building Wakes</h4>
-      <p>Wind speed distribution at 15 m above ground level in an urban layout with complex building geometries including box, L-shaped, T-shaped, U-shaped, and polygonal buildings, showing the building mask and demonstrating wake effects and drag parameterizations.</p>
+      <h4>3. Urban Street Canyon and Building Wakes</h4>
+      <p>Wind speed distribution at 15 m above ground level in urban layouts with complex building geometries (box, L-shaped, T-shaped, U-shaped, polygonal) showing wake effects and drag parameterizations.</p>
       <img src="docs/urban_street_canyon.png" alt="Urban Street Canyon" width="100%"/>
     </td>
     <td width="50%" valign="top">
-      <h4>4. Transmission Tower & Line Wind Loading</h4>
-      <p>Structural wind loading, catenary line tension, and sway displacement calculated dynamically across complex ridges. In the right panel of the loading visualization (plasma colormap), brighter colors (yellow/orange) indicate high-speed gap-flow winds causing elevated wind-drag mechanical loading and higher catenary line tension, while darker colors (purple/blue) represent lower wind speed and safer, lower line tension regions.</p>
+      <h4>4. Transmission Tower and Line Wind Loading</h4>
+      <p>Structural wind loading, catenary line tension, and sway displacement across complex ridges. Brighter colors indicate high-speed gap-flow winds with elevated wind-drag loading, while darker colors represent lower wind speed regions.</p>
       <img src="docs/transmission_line_loading.png" alt="Transmission Line Loading" width="100%"/>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <h4>5. Yawed Wind Turbine Wake Deflection</h4>
-      <p>Analytical wake deficit showing lateral center-line deflection under yawed operation (Bastankhah model) to optimize array performance, with turbine rotor orientation indicators.</p>
+      <p>Analytical wake deficit showing lateral center-line deflection under yawed operation using Bastankhah model with turbine rotor orientation.</p>
       <img src="docs/turbine_wake_deflection.png" alt="Turbine Wake Deflection" width="100%"/>
     </td>
     <td width="50%" valign="top">
-      <h4>6. Geochemical Hotspot & O₂ Delivery Detection</h4>
-      <p>Valley AMD (Acid Mine Drainage) discharge point risk-classification based on wind-speed-dependent Sherwood mass transfer correlations.</p>
+      <h4>6. Geochemical Hotspot and O₂ Delivery Detection</h4>
+      <p>Valley AMD discharge point risk assessment based on wind-speed-dependent Sherwood mass transfer correlations.</p>
       <img src="docs/valley_amd_hotspots.png" alt="Valley AMD Hotspots" width="100%"/>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h4>7. Agricultural Drone Spray Drift & Deposition</h4>
-      <p>Modeling drone pesticide application, spray drift, dynamic canopy deposition, and rotor downwash velocity mapping over complex terrain.</p>
+      <h4>7. Agricultural Drone Spray Drift and Deposition</h4>
+      <p>Drone pesticide application modeling with spray drift, dynamic canopy deposition, and rotor downwash velocity mapping over complex terrain.</p>
       <img src="docs/drone_deposition_plot.png" alt="Agricultural Drone Spray Drift" width="100%"/>
     </td>
     <td width="50%" valign="top">
-      <h4>8. 3D Puff & Particle Dispersion Modeling</h4>
-      <p>Continuous and puff source release tracking over complex terrain, incorporating Pasquill-Gifford atmospheric stability classes, wet/dry deposition, and boundary-layer reflection.</p>
-      <img src="docs/puff_deposition_plot.png" alt="Atmospheric Puff & Particle Dispersion" width="100%"/>
+      <h4>8. 3D Puff and Particle Dispersion Modeling</h4>
+      <p>Continuous and puff source release tracking over complex terrain with Pasquill-Gifford atmospheric stability classes, wet/dry deposition, and boundary-layer reflection.</p>
+      <img src="docs/puff_deposition_plot.png" alt="Atmospheric Puff and Particle Dispersion" width="100%"/>
     </td>
   </tr>
 </table>
@@ -73,7 +73,7 @@ The solver supports diverse engineering, physical, and environmental wind-modeli
 
 ⚠️ **Note:** Windows CUDA build is non-blocking (experimental); failures do not affect overall CI status.
 
-📖 **[Full documentation](https://hgopalan.github.io/massconsistent_amr/)**
+[Full documentation](https://hgopalan.github.io/massconsistent_amr/)
 
 ## Quick Start
 
@@ -98,17 +98,17 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 
 ## Features
 
-### 1. Mass-Consistent Solver & Wake Modeling
+### 1. Mass-Consistent Solver and Wake Modeling
 - **Mass-Consistent Wind Field:** Enforces $\nabla \cdot \mathbf{u} = 0$ over complex terrain using a variational Lagrange multiplier approach.
 - **Spatially-Varying Anisotropy:** Adapts adjustment coefficients ($\alpha_h / \alpha_v$) cell-locally based on slope, Richardson number, and Froude number.
 - **Topographic Barrier Shielding:** Penalizes interpolation weights across high mountain ridges to prevent unphysical station influence in adjacent valleys.
 - **Physical Parameterizations:** Integrates stable/unstable Monin-Obukhov profiles, orographic speed-up, katabatic/anabatic slope flows, sea breeze, and valley channeling.
-- **Meteorological Ingestion:** Supports 3D NetCDF NWP inputs (e.g., WRF, GFS) with anisotropic Inverse Distance Weighting to preserve vertical profiles.
-- **MacDonald Canopy Drag:** Models vegetative canopy drag, with exponential wind decay within canopy height ($h_c$) and displacement height corrections.
-- **Building Wake Models:** Incorporates Röckle, Huber-Snyder, and AERMOD PRIME building downwash parameterizations with support for rectangular, cylindrical, and pitched-roof geometries. Advanced polygon support enables modeling of complex urban shapes (L/T/U-shaped buildings) and internal courtyards via composite geometry definitions. Enhanced wake models include: far-wake extension to 15H, oblique angle cavity scaling, tall-building corrections, Gaussian lateral profiles, upwind recirculation zones, corner acceleration effects, horseshoe vortex modeling, two-layer height-dependent deficit decay (Yoshie et al., 2007), entrainment-based far-wake recovery (Rodi et al., 2003), pedestrian wind comfort assessment (Lopes et al., 2006), aspect-ratio dependent cavity correction (Oikonomou et al., 2011), and urban canyon attenuation (Britter and Hanna, 2003) (see [Building Wake Enhancements](docs/mathematical_models.rst#advanced-building-wake-model-enhancements) for details).
-- **AMReX Embedded Boundary (EB) Support:** Alternative geometry representation utilizing AMReX EB2 to represent arbitrary 3D shapes (such as boxes, cylinders, spheres, and STL geometries), marking solid cells via fluid volume fraction.
-- **Analytical Turbine Wakes:** Supports Jensen, Bastankhah Gaussian, TurbOPark, and Gauss-Curl Hybrid wake models, including wake centerline deflection, yaw, and AEP calculation.
-- **Wake Superposition & Added Turbulence:** Computes overlapping deficits (quadratic/linear/geometric) and wake-added turbulence (Crespo-Hernández, Frandsen) with convective buoyant wake destruction.
+- **Meteorological Ingestion:** Supports 3D NetCDF NWP inputs (WRF, GFS) with anisotropic Inverse Distance Weighting to preserve vertical profiles.
+- **MacDonald Canopy Drag:** Models vegetative canopy drag with exponential wind decay within canopy height ($h_c$) and displacement height corrections.
+- **Building Wake Models:** Incorporates Röckle, Huber-Snyder, and AERMOD PRIME building downwash parameterizations with support for rectangular, cylindrical, and pitched-roof geometries. Polygon support enables modeling of complex urban shapes (L/T/U-shaped buildings) and internal courtyards. Wake models include: far-wake extension to 15H, oblique angle cavity scaling, tall-building corrections, Gaussian lateral profiles, upwind recirculation zones, corner acceleration effects, horseshoe vortex modeling, two-layer height-dependent deficit decay, entrainment-based far-wake recovery, pedestrian wind comfort assessment, aspect-ratio dependent cavity correction, and urban canyon attenuation (see [Building Wake Enhancements](docs/mathematical_models.rst#advanced-building-wake-model-enhancements) for details).
+- **AMReX Embedded Boundary (EB) Support:** Represents arbitrary 3D shapes (boxes, cylinders, spheres, STL geometries) using AMReX EB2 with fluid volume fraction marking.
+- **Analytical Turbine Wakes:** Supports Jensen, Bastankhah Gaussian, TurbOPark, and Gauss-Curl Hybrid wake models with wake centerline deflection, yaw, and AEP calculation.
+- **Wake Superposition and Added Turbulence:** Computes overlapping deficits (quadratic/linear/geometric) and wake-added turbulence (Crespo-Hernández, Frandsen) with convective buoyant wake destruction.
 
 ### 2. 3D Scalar Transport and Mixing
 - **3D Advection-Diffusion:** Solves transport of temperature and moisture using conservative upwind advection and mixing-length eddy diffusivity.
@@ -118,10 +118,10 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 
 ### 3. Dispersion Model
 - **Gaussian Puff Dispersion:** Tracks 3D Gaussian puffs with Pasquill-Gifford stability, Briggs plume rise, gravitational settling, dry deposition, and precipitation scavenging.
-- **Lagrangian Particle LPDM:** Simulates stochastic particle trajectories with Wiener processes, including a vertical drift correction to prevent spurious accumulation in inhomogeneous diffusivity fields.
-- **Dense Gas Dispersion (SLAB/UGC):** Models hazardous material releases with density-ratio tracking, Froude number regime detection, gravity-driven spreading, and SLAB layer height decay for applications including CO₂, HF, Cl₂, and NH₃ emissions.
-- **Simple Reactive Chemistry:** First-order exponential decay of NO₂, SO₂, HCl, and NH₃ with stoichiometric product formation (AERMOD TOXICS level). Supports optional seasonal and temperature corrections.
-- **Ammonia Gas-Liquid Exchange:** Specialized model for ammonia over water with temperature-dependent Henry's law constant, two-film theory mass transfer, and salinity corrections. Applicable to bunkering operations and coastal facilities.
+- **Lagrangian Particle LPDM:** Simulates stochastic particle trajectories with Wiener processes and vertical drift correction to prevent spurious accumulation.
+- **Dense Gas Dispersion (SLAB/UGC):** Models hazardous material releases with density-ratio tracking, Froude number regime detection, gravity-driven spreading, and SLAB layer height decay (CO₂, HF, Cl₂, NH₃ emissions).
+- **Simple Reactive Chemistry:** First-order exponential decay of NO₂, SO₂, HCl, and NH₃ with stoichiometric product formation (AERMOD TOXICS level). Supports seasonal and temperature corrections.
+- **Ammonia Gas-Liquid Exchange:** Specialized model for ammonia over water with temperature-dependent Henry's law constant, two-film theory mass transfer, and salinity corrections.
 
 ### 4. Synthetic Fluctuations (Turbulence)
 - **Terrain-Aware Masking:** Confines synthetic turbulent fluctuations to fluid regions and blends smoothly near terrain boundaries.
@@ -141,13 +141,22 @@ Example: `cmake -S . -B build -DMASSCONSISTENT_GPU_BACKEND=CUDA -DMASSCONSISTENT
 - **Hybrid Ensemble Kalman Filter (EnKF):** Optional feature for rapid wind field correction using sparse observations from weather stations, LiDAR, and UAVs. Features covariance localization, mass conservation projection, and GPU-ready architecture. Disabled by default; enable via ParmParse configuration.
 - See [Data Assimilation Documentation](https://hgopalan.github.io/massconsistent_amr/data_assimilation_usage.html) for usage and [Development Status](https://hgopalan.github.io/massconsistent_amr/data_assimilation_development.html) for technical details.
 
+### 8. Data Center Siting Tool
+- **Multi-Criteria Optimization:** Evaluates candidate data center locations based on climate characterization, cooling efficiency, infrastructure resilience, and environmental impact.
+- **Climate Characterization:** Provides wind, temperature, humidity, and evaporation profiles for each site.
+- **Cooling Efficiency Scoring:** Quantifies free cooling opportunity windows, ambient temperature extremes, and humidity control requirements.
+- **Resilience Assessment:** Evaluates wind extremes (10/50/100-year return periods), flood risk, and terrain slope effects.
+- **Environmental Impact:** Quantifies heat island effect, water availability, air quality impacts, and thermal discharge compliance.
+- **Multi-Priority Profiles:** Supports BALANCED, COOLING_EFFICIENCY, RESILIENCE, ENVIRONMENTAL, and COST_OPTIMIZED weighting schemes.
+- **Reporting and Visualization:** Generates JSON/CSV reports and Pareto frontier trade-off plots.
+
 ## Test Cases
 
 Test cases are located in `test/` and documented in `test/README.md`.
 
 ## Regression Tests
 
-Over 80+ automated regression tests are located in `regtest/` covering the core solver, wake models, turbulence, dispersion (including reactive chemistry), and wildfire coupling.
+Over 80 automated regression tests are located in `regtest/` covering the core solver, wake models, turbulence, dispersion, and wildfire coupling.
 
 Run them with CTest from your build directory:
 ```bash
@@ -156,7 +165,7 @@ ctest -L regtest
 
 ## Agricultural Drone Operations
 
-The solver provides a dedicated Python module (`agricultural_drone`) for simulating agricultural drone operations. This module supports parsing and interpolating 3D flight trajectories from CSV telemetry, modeling 3D analytical rotor downwash velocity fields (including jet expansion and forward flight deflection), and simulating spray drift and canopy deposition using either Lagrangian Particle Dispersion Models (LPDM) or Gaussian Puff dispersion.
+The solver provides a Python module (`agricultural_drone`) for simulating agricultural drone operations. This module parses and interpolates 3D flight trajectories from CSV telemetry, models 3D analytical rotor downwash velocity fields (jet expansion and forward flight deflection), and simulates spray drift and canopy deposition using Lagrangian Particle Dispersion Models (LPDM) or Gaussian Puff dispersion.
 
 For guides and API documentation, see the [External Coupling Documentation](docs/external_coupling.rst).
 
