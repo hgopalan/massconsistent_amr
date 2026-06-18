@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-test_phase1_wind_farm.py - Phase 1 Features Demonstration
+test_phase1_wind_farm.py - Wind farm tools demonstration
 
-This example demonstrates the three Phase 1 features:
+This example demonstrates three wind farm utilities:
 1. CSV Turbine Definition Format (read/write layouts)
 2. Wind Resource Summary Statistics (compute wind statistics)
-3. Output Formatting for PyOptimization (export results)
+3. PyOptimization Output Formatting (export results)
 
 Run from tests_and_examples directory:
     python3 phase1_features/test_phase1_wind_farm.py
@@ -25,15 +25,15 @@ from pyoptimization_export import PyOptimizationExporter
 
 
 def main():
-    """Run Phase 1 features demonstration."""
+    """Run the wind farm tools demonstration."""
     print("\n" + "=" * 80)
-    print("Phase 1 Features Demonstration")
+    print("Wind Farm Tools Demonstration")
     print("=" * 80)
     
     # =========================================================================
-    # FEATURE 1: CSV Turbine Definition Format
+    # CSV Turbine Definition Format
     # =========================================================================
-    print("\n[Feature 1] CSV Turbine Definition Format")
+    print("\nCSV Turbine Definition Format")
     print("-" * 80)
     
     # Create a turbine layout programmatically
@@ -105,9 +105,9 @@ def main():
             print(f"  - {error}")
     
     # =========================================================================
-    # FEATURE 2: Wind Resource Summary Statistics
+    # Wind Resource Summary Statistics
     # =========================================================================
-    print("\n[Feature 2] Wind Resource Summary Statistics")
+    print("\nWind Resource Summary Statistics")
     print("-" * 80)
     
     # Create synthetic wind field at hub height (90m AGL)
@@ -141,9 +141,9 @@ def main():
     print(f"✓ Exported wind statistics to {stats_json}")
     
     # =========================================================================
-    # FEATURE 3: Output Formatting for PyOptimization
+    # PyOptimization Output Formatting
     # =========================================================================
-    print("\n[Feature 3] Output Formatting for PyOptimization")
+    print("\nPyOptimization Output Formatting")
     print("-" * 80)
     
     # Create exporter
@@ -229,7 +229,7 @@ def main():
     # Cleanup
     # =========================================================================
     print("\n" + "=" * 80)
-    print("Phase 1 Demonstration Complete")
+    print("Demonstration Complete")
     print("=" * 80)
     print("\nGenerated files:")
     print(f"  - {csv_file}")
@@ -237,7 +237,7 @@ def main():
     print(f"  - {json_file}")
     print(f"  - {csv_turbine_file}")
     print(f"  - {csv_summary_file}")
-    print("\n✓ All Phase 1 features demonstrated successfully!")
+    print("\n✓ All wind farm utilities demonstrated successfully!")
 
 
 if __name__ == '__main__':

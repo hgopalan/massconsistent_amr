@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mann Box Spectral Tensor Tests (Phase 2)
+Mann Box Spectral Tensor Tests
 
 This test suite validates the Mann Box anisotropic spectral tensor model
 implementation for complex terrain wind simulation.
@@ -553,7 +553,7 @@ def print_summary():
 def main():
     """Run all Mann Box tests."""
     print("\n" + "█"*70)
-    print("MANN BOX SPECTRAL TENSOR VALIDATION SUITE (Phase 2)")
+    print("MANN BOX SPECTRAL TENSOR VALIDATION SUITE")
     print("█"*70)
     print("\nTesting anisotropic spectral tensor model for complex terrain")
     print("Reference: Mann, J. (1994) JFM 273, 141-168")

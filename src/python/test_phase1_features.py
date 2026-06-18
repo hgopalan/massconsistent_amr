@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-test_phase1_features.py - Unit tests for Phase 1 features
+test_phase1_features.py - Unit tests for wind farm tools and utilities
 
 Tests for:
-- Feature 1: CSV Turbine Definition Format
-- Feature 2: Wind Resource Summary Statistics
-- Feature 3: Output Formatting for PyOptimization
+- CSV Turbine Definition Format
+- Wind Resource Summary Statistics
+- PyOptimization Output Formatting
 """
 
 import os

@@ -292,16 +292,16 @@ def test_backward_compatibility():
     print("="*70)
     
     try:
-        # Verify that Phase 1 tests still pass
-        print("  Checking Phase 1 compatibility...")
+        # Verify that baseline solver checks still pass
+        print("  Checking baseline compatibility...")
         
         # The Mann Box additions should be opt-in
-        # All Phase 1 functionality should still work
+        # All existing solver functionality should still work
         
         print("  ✓ Mann Box is opt-in (requires spectrum_model = MannBox)")
         print("  ✓ Default behavior unchanged (uses VonKarman if not specified)")
-        print("  ✓ All Phase 1 coherence models compatible with Mann Box")
-        print("  ✓ All Phase 1 intensity models compatible with Mann Box")
+        print("  ✓ All existing coherence models compatible with Mann Box")
+        print("  ✓ All existing intensity models compatible with Mann Box")
         print("  ✓ Terrain masking compatible with Mann Box")
         
         print("  ✓ Backward compatibility maintained")
@@ -354,7 +354,7 @@ def main():
     print("\n" + "█"*70)
     print("MANN BOX ANISOTROPIC SPECTRAL TENSOR - INTEGRATION TEST")
     print("█"*70)
-    print("\nPhase 2 Mann Box Integration with Mass-Consistent Wind Solver")
+    print("\nMann Box Integration with Mass-Consistent Wind Solver")
     print("Reference: Mann, J. (1994) JFM 273, 141-168")
     
     # Change to test directory

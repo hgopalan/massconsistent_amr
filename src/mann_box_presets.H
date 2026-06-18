@@ -2,7 +2,7 @@
 #define MANN_BOX_PRESETS_H_
 
 /**
- * Mann Box Phase 6: Built-in Presets for Common Scenarios
+ * Mann Box Built-in Presets for Common Scenarios
  *
  * This header provides pre-tuned parameter sets for common atmospheric
  * scenarios. Each preset contains validated literature-based parameters

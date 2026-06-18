@@ -1,8 +1,8 @@
 // ============================================================================
 // temporal_synthesis.H
-// Time-series turbulence synthesis with temporal coherence (Phase 3)
+// Time-series turbulence synthesis with temporal coherence
 //
-// This header provides functionality to extend Phase 2 spatial random fields
+// This header provides functionality to extend spatial random fields
 // to time-series by adding temporal correlations. The approach integrates:
 //
 //   1. Temporal Coherence Functions
@@ -12,11 +12,11 @@
 //
 //   2. Integral Timescale Computation
 //      - From wind speed and height: T_int = L_u / U_mean
-//      - L_u: integral length scale (from Phase 1)
+//      - L_u: integral length scale
 //      - U_mean: mean wind speed
 //
 //   3. Time-Series Generation
-//      - Takes Phase 2 spatial snapshots u'(x,y,z)
+//      - Takes spatial snapshots u'(x,y,z)
 //      - Generates temporally-correlated sequence u'(t,x,y,z)
 //      - Preserves energy and coherence across time steps
 //
@@ -35,17 +35,17 @@
 //   - Veers et al. (1988): Time-step requirements for wind turbine simulation
 //   - Huang & Chin (1993): Temporal correlation of turbulent fluctuations
 //
-// Integration with Phase 1 & 2:
+// Integration with Spatial & Spectral Components:
 //   Input:
-//     - Phase 2 spatial snapshots: u'(x,y,z), v'(x,y,z), w'(x,y,z)
-//     - Phase 1 TurbulenceGenerator (for length scales)
+//     - Spatial snapshots: u'(x,y,z), v'(x,y,z), w'(x,y,z)
+//     - Turbulence generator (for length scales)
 //     - Mean wind speed U_mean
 //     - Grid spacing dx, dy, dz
 //
 //   Output:
 //     - Time-series: u'(t,x,y,z), v'(t,x,y,z), w'(t,x,y,z)
 //     - Temporal metadata: dt, nt, integral_timescale
-//     - Ready for Phase 3 export to OpenFAST
+//     - Ready for export to OpenFAST and other tools
 //
 // ============================================================================
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Mann Box Phase 7: Validation Diagnostics & Export Utilities Tests
+Mann Box Validation Diagnostics & Export Utilities Tests
 
-This test suite validates Phase 7 enhancements including:
+This test suite validates diagnostics and export capabilities including:
 1. Spectral power density export and validation
 2. Coherence function analysis
 3. Turbulence statistics extraction
@@ -379,10 +379,10 @@ def test_validation_report():
         # Write report
         with open(filename, 'w') as f:
             f.write("=" * 80 + "\n")
-            f.write("MANN BOX PHASE 7 VALIDATION REPORT\n")
+            f.write("MANN BOX VALIDATION REPORT\n")
             f.write("=" * 80 + "\n\n")
             f.write("Status: PASSED\n")
-            f.write("Generated: Phase 7 Validation Diagnostics\n\n")
+            f.write("Generated: Validation diagnostics\n\n")
             f.write("Validation Checklist:\n")
             f.write("  [✓] Spectral power density validation\n")
             f.write("  [✓] Energy conservation check\n")
@@ -402,15 +402,15 @@ def test_validation_report():
         return passed_exists and passed_content
 
 # ============================================================================
-# Test 11: Phase 3-7 Integration
+# Test 11: End-to-End Integration
 # ============================================================================
 
 def test_phase_integration():
-    """Test integration with Phase 3-6 components."""
-    print("\n=== Test 11: Phase 3-7 Integration ===")
+    """Test integration with spectral, stability, terrain, and advanced-feature components."""
+    print("\n=== Test 11: End-to-End Integration ===")
     
     # Verify diagnostics work with typical spectral tensor output
-    # (From Phase 3)
+    # (From spectral tensor computations)
     
     # Simulated spectral tensor eigenvalues (from Mann model)
     lambda_u = 1.44  # u component variance
@@ -422,13 +422,13 @@ def test_phase_integration():
     ratio_w = lambda_w / lambda_u
     
     passed_ratios = 0.5 < ratio_v < 0.8 and 0.3 < ratio_w < 0.5
-    report_test("Phase 3 spectral tensor anisotropy preserved", passed_ratios,
+    report_test("Spectral tensor anisotropy preserved", passed_ratios,
                 f"λ_v/λ_u = {ratio_v:.3f}, λ_w/λ_u = {ratio_w:.3f}")
     
     # Verify energy conservation through phases
     total_energy = lambda_u + lambda_v + lambda_w
     passed_energy = total_energy > 0.0
-    report_test("Cross-phase energy conservation", passed_energy,
+    report_test("Cross-component energy conservation", passed_energy,
                 f"Total energy: {total_energy:.4f} m²/s²")
     
     return passed_ratios and passed_energy
@@ -472,9 +472,9 @@ def test_literature_validation():
 # ============================================================================
 
 def main():
-    """Run all Phase 7 validation tests."""
+    """Run all validation diagnostics and export tests."""
     print("\n" + "=" * 80)
-    print("MANN BOX PHASE 7: VALIDATION DIAGNOSTICS & EXPORT TESTS")
+    print("MANN BOX VALIDATION DIAGNOSTICS & EXPORT TESTS")
     print("=" * 80)
     
     # Run all tests
@@ -506,7 +506,7 @@ def main():
         return 1
     else:
         print("\n✓ ALL TESTS PASSED!\n")
-        print("Phase 7 Key Achievements:")
+        print("Validation highlights:")
         print("  ✓ Spectral power density diagnostics")
         print("  ✓ Coherence function analysis")
         print("  ✓ Turbulence statistics extraction")

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Mann Box Phase 5: Terrain Adaptation & Flow Regime Tests
+Mann Box Terrain Adaptation & Flow Regime Tests
 
-This test suite validates Phase 5 enhancements including:
+This test suite validates terrain adaptation and flow regime capabilities including:
 1. Flow regime classification (acceleration, separation, stagnation, channeling)
 2. Slope-aware tensor rotation
 3. Multi-scale terrain adaptation
 4. Boundary layer height classification
-5. Complete integration with Phase 3-4 spectral tensor and stability
+5. Complete integration with spectral tensor and stability physics
 
 References:
   - Jackson & Hunt (1975). Turbulent wind flow over a low hill.
@@ -436,8 +436,8 @@ def test_ridge_valley_cases():
 
 
 def test_phase5_integration():
-    """Test integration of all Phase 5 components."""
-    print("\n  Test 8: Phase 5 Integration")
+    """Test integration of terrain adaptation and flow regime components."""
+    print("\n  Test 8: Terrain Adaptation Integration")
     
     passed_count = 0
     
@@ -505,9 +505,9 @@ def test_phase5_integration():
 # ============================================================================
 
 def main():
-    """Run all Phase 5 tests."""
+    """Run all terrain adaptation and flow regime tests."""
     print("\n" + "="*75)
-    print("MANN BOX PHASE 5: TERRAIN ADAPTATION & FLOW REGIMES - TEST SUITE")
+    print("MANN BOX TERRAIN ADAPTATION & FLOW REGIMES - TEST SUITE")
     print("="*75)
     
     # Run all test groups

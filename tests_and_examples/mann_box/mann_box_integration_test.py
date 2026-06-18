@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Mann Box Phase 3-4 Integration Test Suite
+Mann Box Spectral-Temporal Integration Test Suite
 
-This comprehensive test suite validates the integration of Phase 3 and Phase 4:
-1. Phase 3: Spectral Tensor Completeness
-2. Phase 4: Temporal & Stability Physics
+This comprehensive test suite validates the integration of spectral tensor and temporal physics capabilities:
+1. Spectral Tensor Completeness
+2. Temporal & Stability Physics
 
 The integration test verifies:
-1. Cross-phase data flow correctness
+1. Cross-module data flow correctness
 2. Spectral tensor → temporal synthesis pipeline
 3. Temporal synthesis → validation consistency
-4. Backward compatibility with Phase 2
+4. Backward compatibility with the baseline formulation
 5. Regression baseline validation
 6. Complete workflow validation
 
@@ -55,12 +55,12 @@ def report_test(name: str, passed: bool, message: str = ""):
     return passed
 
 # ============================================================================
-# Integration Test 1: Phase 3 Test Verification
+# Integration Test 1: Spectral Tensor Verification
 # ============================================================================
 
 def test_phase3_spectral_tensor_computation():
-    """Verify Phase 3 spectral tensor computation."""
-    print_section("Integration Test 1: Phase 3 Spectral Tensor Computation")
+    """Verify spectral tensor computation."""
+    print_section("Integration Test 1: Spectral Tensor Computation")
     
     # Parameters for Mann Box spectral tensor
     k_u = 0.5      # wavenumber (m^-1)
@@ -123,12 +123,12 @@ def test_phase3_spectral_tensor_computation():
     return PASSED_TESTS
 
 # ============================================================================
-# Integration Test 2: Phase 4 Temporal Correlation
+# Integration Test 2: Temporal Correlation
 # ============================================================================
 
 def test_phase4_temporal_synthesis():
-    """Verify Phase 4 temporal synthesis integration."""
-    print_section("Integration Test 2: Phase 4 Temporal Synthesis")
+    """Verify temporal synthesis integration."""
+    print_section("Integration Test 2: Temporal Synthesis")
     
     # Parameters
     T_int = 30.0   # integral timescale (s)
@@ -248,14 +248,14 @@ def test_stability_classification():
     return PASSED_TESTS
 
 # ============================================================================
-# Integration Test 4: Phase 3→4 Data Flow
+# Integration Test 4: Spectral-to-Temporal Data Flow
 # ============================================================================
 
 def test_phase3_to_phase4_dataflow():
-    """Verify spectral tensor flows correctly into Phase 4."""
-    print_section("Integration Test 4: Phase 3→Phase 4 Data Flow")
+    """Verify spectral tensor flows correctly into temporal synthesis."""
+    print_section("Integration Test 4: Spectral-to-Temporal Data Flow")
     
-    # Simulate spectral tensor output from Phase 3
+    # Simulate spectral tensor output from the spectral tensor computations
     spectral_tensor = {
         'S_uu': 1.0,      # Velocity variances (m^2/s^2)
         'S_vv': 0.8,
@@ -317,7 +317,7 @@ def test_phase3_to_phase4_dataflow():
     )
     
     # Test 4.4: Synthesis parameters are consistent
-    # Phase 4 should consume spectrum and produce time series
+    # Temporal synthesis should consume the spectrum and produce time series
     time_steps = 600  # typical BTS file
     dt = 0.1
     total_time = time_steps * dt
@@ -422,27 +422,27 @@ def test_continuity_and_physics():
 # ============================================================================
 
 def test_backward_compatibility():
-    """Verify backward compatibility with Phase 2."""
-    print_section("Integration Test 6: Backward Compatibility with Phase 2")
+    """Verify backward compatibility with the baseline formulation."""
+    print_section("Integration Test 6: Backward Compatibility with Baseline Formulation")
     
-    # Test 6.1: Phase 2 basic spectrum still works
-    # Mann Box Phase 2 parameters
+    # Test 6.1: Baseline spectrum still works
+    # Baseline Mann Box parameters
     u_star = 1.0
     z = 10.0
     z0 = 0.1
     
-    # log-law wind profile (Phase 2 basic)
+    # Baseline log-law wind profile
     kappa = 0.41
     U_z = (u_star / kappa) * math.log(z / z0)
     
     passed = U_z > 0 and U_z < 50  # reasonable range
     report_test(
-        "Phase 2 log-law profile still works",
+        "Baseline log-law profile still works",
         passed,
         f"U({z}m) = {U_z:.2f} m/s"
     )
     
-    # Test 6.2: Phase 2 spectrum formula
+    # Test 6.2: Baseline spectrum formula
     # k = wavenumber, L = length scale
     k = 0.1
     L = 300.0
@@ -454,12 +454,12 @@ def test_backward_compatibility():
     
     passed = S_k > 0
     report_test(
-        "Phase 2 Von Kármán spectrum formula",
+        "Baseline Von Kármán spectrum formula",
         passed,
         f"S(k={k}) = {S_k:.6f}"
     )
     
-    # Test 6.3: Phase 2 anisotropy defaults
+    # Test 6.3: Baseline anisotropy defaults
     # Default anisotropy: v = 0.8*u, w = 0.5*u (unchanged)
     v_ratio_default = 0.8
     w_ratio_default = 0.5
@@ -471,7 +471,7 @@ def test_backward_compatibility():
     passed = (abs(v_rms_expected - 0.8) < 0.01 and 
              abs(w_rms_expected - 0.5) < 0.01)
     report_test(
-        "Phase 2 default anisotropy ratios unchanged",
+        "Baseline anisotropy ratios unchanged",
         passed,
         f"v/u={v_ratio_default}, w/u={w_ratio_default}"
     )
@@ -560,13 +560,13 @@ def test_realworld_scenario():
 # ============================================================================
 
 def test_run_phase3_suite():
-    """Run actual Phase 3 test suite."""
-    print_section("Integration Test 8: Running Phase 3 Test Suite")
+    """Run the spectral tensor test suite."""
+    print_section("Integration Test 8: Running Spectral Tensor Test Suite")
     
     phase3_test_path = Path(__file__).parent / "mann_box_phase3_test.py"
     
     if not phase3_test_path.exists():
-        print(f"    ⚠ Phase 3 test not found at {phase3_test_path}")
+        print(f"    ⚠ Spectral tensor test suite not found at {phase3_test_path}")
         return False
     
     try:
@@ -581,7 +581,7 @@ def test_run_phase3_suite():
         phase3_passed = result.returncode == 0 and "ALL TESTS PASSED" in result.stdout
         
         report_test(
-            "Phase 3 test suite execution",
+            "Spectral tensor test suite execution",
             phase3_passed,
             f"Return code: {result.returncode}"
         )
@@ -589,20 +589,20 @@ def test_run_phase3_suite():
         return phase3_passed
     except Exception as e:
         report_test(
-            "Phase 3 test suite execution",
+            "Spectral tensor test suite execution",
             False,
             f"Error: {str(e)}"
         )
         return False
 
 def test_run_phase4_suite():
-    """Run actual Phase 4 test suite."""
-    print_section("Integration Test 9: Running Phase 4 Test Suite")
+    """Run the temporal and stability test suite."""
+    print_section("Integration Test 9: Running Temporal and Stability Test Suite")
     
     phase4_test_path = Path(__file__).parent / "mann_box_phase4_test.py"
     
     if not phase4_test_path.exists():
-        print(f"    ⚠ Phase 4 test not found at {phase4_test_path}")
+        print(f"    ⚠ Temporal and stability test suite not found at {phase4_test_path}")
         return False
     
     try:
@@ -617,7 +617,7 @@ def test_run_phase4_suite():
         phase4_passed = result.returncode == 0 and "ALL TESTS PASSED" in result.stdout
         
         report_test(
-            "Phase 4 test suite execution",
+            "Temporal and stability test suite execution",
             phase4_passed,
             f"Return code: {result.returncode}"
         )
@@ -625,7 +625,7 @@ def test_run_phase4_suite():
         return phase4_passed
     except Exception as e:
         report_test(
-            "Phase 4 test suite execution",
+            "Temporal and stability test suite execution",
             False,
             f"Error: {str(e)}"
         )
@@ -638,9 +638,9 @@ def test_run_phase4_suite():
 def main():
     """Run all integration tests."""
     print("\n" + "="*70)
-    print("MANN BOX PHASE 3-4 INTEGRATION TEST SUITE")
+    print("MANN BOX SPECTRAL-TEMPORAL INTEGRATION TEST SUITE")
     print("="*70)
-    print("Integration tests verify cross-phase data flow, consistency,")
+    print("Integration tests verify cross-module data flow, consistency,")
     print("backward compatibility, and complete workflow validation.")
     
     # Run all integration tests
@@ -667,7 +667,7 @@ def main():
     # Status
     if FAILED_TESTS == 0:
         print("✓ ALL INTEGRATION TESTS PASSED")
-        print("  Phase 3-4 integration validated successfully")
+        print("  Spectral-temporal integration validated successfully")
         return 0
     else:
         print(f"✗ {FAILED_TESTS} TEST(S) FAILED")

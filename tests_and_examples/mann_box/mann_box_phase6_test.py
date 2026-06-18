@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Mann Box Phase 6: Advanced Features & Integration Tests
+Mann Box Advanced Features & Integration Tests
 
-This test suite validates Phase 6 enhancements including:
+This test suite validates advanced capabilities including:
 1. Directional anisotropy & wind veer
 2. Surface roughness & canopy effects
 3. Built-in presets for common scenarios
 4. Parameter sensitivity analysis
-5. Complete integration with Phase 3-5
+5. Complete integration with spectral tensor, stability, and terrain adaptation logic
 
 Success criteria:
 - Presets match literature values (±5%)
@@ -289,14 +289,14 @@ def test_sensitivity_analysis():
     return test_results['passed']
 
 # ============================================================================
-# Test 6: Cross-Phase Integration
+# Test 6: Cross-Module Integration
 # ============================================================================
 
 def test_cross_phase_integration():
-    """Test Phase 6 integration with Phases 3-5."""
-    print("\n=== Test 6: Cross-Phase Integration ===")
+    """Test advanced feature integration with supporting turbulence components."""
+    print("\n=== Test 6: Cross-Module Integration ===")
     
-    # Simulated Phase 3-5 output
+    # Simulated upstream turbulence component output
     spectral_tensor = {
         'S_uu': 1.0,
         'S_vv': 0.64,  # (0.8)^2
@@ -306,7 +306,7 @@ def test_cross_phase_integration():
         'L_w': 120.0,
     }
     
-    # Apply Phase 6 modifications
+    # Apply advanced feature modifications
     z0 = 0.5  # Forest
     
     # Roughness scaling factor
@@ -404,9 +404,9 @@ def test_literature_validation():
 # ============================================================================
 
 def main():
-    """Run all Phase 6 tests."""
+    """Run all advanced feature integration tests."""
     print("\n" + "="*70)
-    print("MANN BOX PHASE 6: ADVANCED FEATURES & INTEGRATION TESTS")
+    print("MANN BOX ADVANCED FEATURES & INTEGRATION TESTS")
     print("="*70)
     
     # Run all tests
@@ -432,7 +432,7 @@ def main():
     # Return success/failure
     if test_results['failed'] == 0:
         print("✓ ALL TESTS PASSED")
-        print("Phase 6 implementation complete and validated!")
+        print("Advanced feature implementation complete and validated!")
         return 0
     else:
         print(f"✗ {test_results['failed']} TEST(S) FAILED")

@@ -215,7 +215,7 @@ class NormalTurbulenceModel(IEC61400Model):
     - Mean wind speed profile
     - Turbulence intensity profile
     - Turbulent fluctuations (von Kármán spectrum)
-    - Non-neutral stability corrections (Phase 3+)
+    - Non-neutral stability corrections (advanced enhancement)
     
     Stability Corrections:
     - Monin-Obukhov similarity theory for non-neutral conditions
@@ -961,7 +961,7 @@ class NormalTurbulenceModel(IEC61400Model):
         
         This method implements the complete log-law wind profile with stability
         corrections using the Monin-Obukhov similarity theory. This represents
-        Phase 4+ enhancement (full profile correction, not just TI).
+        Advanced enhancement for full profile correction, not just turbulence intensity.
         
         Wind profile formula:
             U(z) = (u*/κ) * [ln(z/z0) - ψ_m(z/L) + ψ_m(z0/L)]
@@ -1149,7 +1149,7 @@ class NormalTurbulenceModel(IEC61400Model):
         
         This method computes the coherence correlation functions between velocity
         components at different heights, enabling more realistic turbulence synthesis
-        with proper cross-component correlations (Phase 4+ Priority 2).
+        with proper cross-component correlations for improved turbulence synthesis.
         
         Coherence formula (general form):
             Coh_uv(Δz, f) = exp(-k * |Δz| * f / U_mean)  or similar
