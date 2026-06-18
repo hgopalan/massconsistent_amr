@@ -18,7 +18,14 @@ from pathlib import Path
 MAX_BUILD_SEARCH_DEPTH = 5
 
 def find_wind_solver_exe(repo_dir):
-    """Find wind_solver executable in common build locations."""
+    """Find wind_solver executable in common build locations.
+    
+    Args:
+        repo_dir: Repository root directory to search for build subdirectory
+    
+    Returns:
+        Path to the wind_solver executable, or None if not found
+    """
     build_dir = os.path.join(repo_dir, "build")
     
     # List of possible executable locations (in order of preference)

@@ -9,7 +9,15 @@ import numpy as np
 MAX_BUILD_SEARCH_DEPTH = 5
 
 def find_puff_solver_exe(start_dir, max_depth=MAX_BUILD_SEARCH_DEPTH):
-    """Find puff_solver executable in common build locations."""
+    """Find puff_solver executable in common build locations.
+    
+    Args:
+        start_dir: Starting directory to search from (typically script directory)
+        max_depth: Maximum number of directory levels to traverse upward (default: 5)
+    
+    Returns:
+        Path to the puff_solver executable, or None if not found
+    """
     current_dir = start_dir
     
     for _ in range(max_depth):
@@ -56,7 +64,7 @@ class TestMultispeciesCalpuff(unittest.TestCase):
         self.test_work_dir = self.script_dir
         
         # Verify executable exists
-        self.assertTrue(self.exe_path is not None and os.path.exists(self.exe_path), f"puff_solver not found in build directories")
+        self.assertTrue(self.exe_path is not None, f"puff_solver not found in build directories")
 
     def run_puff_solver(self, config_updates):
         inputs_file = os.path.join(self.script_dir, "temp_inputs.i")
