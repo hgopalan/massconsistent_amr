@@ -1519,7 +1519,14 @@ void initialize_wind_field(WindSolverState& state)
         SCMModels::initialize_1d_state(scm_state, ug_result, vg_result, t_ref, lapse_rate, z0, domain_height, dz_scm, lat);
         scm_state.dt = 0.8 * dz_scm / std::sqrt(std::max(ug_result * ug_result + vg_result * vg_result, 0.01));
         SCMModels::run_1d_scm(scm_state, ref_height);
-        
+         
+        // Extract raw pointers from vectors for device code
+        const Real* z_ptr = scm_state.z.data();
+        const Real* ux_ptr = scm_state.ux.data();
+        const Real* uy_ptr = scm_state.uy.data();
+        const Real* temp_ptr = scm_state.temperature.data();
+        int nz_scm = scm_state.z.size();
+         
         // 3. Initialize 3D velocity field from 1D profile using terrain-aligned mapping
         for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -1527,7 +1534,7 @@ void initialize_wind_field(WindSolverState& state)
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 const Real z_phys = z_lo + (k + Real(0.5)) * dz;
                 const Real z_agl = z_phys - terrain_ptr[j * nx + i];
-                
+                 
                 if (z_agl <= Real(0.0)) {
                     vel(i, j, k, 0) = Real(0.0);
                     vel(i, j, k, 1) = Real(0.0);
@@ -1536,22 +1543,22 @@ void initialize_wind_field(WindSolverState& state)
                     // Interpolate from 1D profile
                     // Find closest index in 1D grid
                     int idx = 0;
-                    Real min_dist = std::abs(scm_state.z[0] - z_agl);
-                    for (int kk = 1; kk < (int)scm_state.z.size(); ++kk) {
-                        Real dist = std::abs(scm_state.z[kk] - z_agl);
+                    Real min_dist = std::abs(z_ptr[0] - z_agl);
+                    for (int kk = 1; kk < nz_scm; ++kk) {
+                        Real dist = std::abs(z_ptr[kk] - z_agl);
                         if (dist < min_dist) {
                             min_dist = dist;
                             idx = kk;
                         }
                     }
-                    
-                    vel(i, j, k, 0) = scm_state.ux[idx];
-                    vel(i, j, k, 1) = scm_state.uy[idx];
+                     
+                    vel(i, j, k, 0) = ux_ptr[idx];
+                    vel(i, j, k, 1) = uy_ptr[idx];
                     vel(i, j, k, 2) = Real(0.0);
                 }
             });
         }
-        
+         
         // 4. Initialize temperature field with 1D profile if enabled
         if (state.enable_3d_scalars && state.temp_3d) {
             for (MFIter mfi(*state.temp_3d); mfi.isValid(); ++mfi) {
@@ -1560,21 +1567,21 @@ void initialize_wind_field(WindSolverState& state)
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     const Real z_phys = z_lo + (k + Real(0.5)) * dz;
                     const Real z_agl = z_phys - terrain_ptr[j * nx + i];
-                    
+                     
                     if (z_agl <= Real(0.0)) {
                         temp(i, j, k) = t_ref;
                     } else {
                         // Interpolate from 1D profile
                         int idx = 0;
-                        Real min_dist = std::abs(scm_state.z[0] - z_agl);
-                        for (int kk = 1; kk < (int)scm_state.z.size(); ++kk) {
-                            Real dist = std::abs(scm_state.z[kk] - z_agl);
+                        Real min_dist = std::abs(z_ptr[0] - z_agl);
+                        for (int kk = 1; kk < nz_scm; ++kk) {
+                            Real dist = std::abs(z_ptr[kk] - z_agl);
                             if (dist < min_dist) {
                                 min_dist = dist;
                                 idx = kk;
                             }
                         }
-                        temp(i, j, k) = scm_state.temperature[idx];
+                        temp(i, j, k) = temp_ptr[idx];
                     }
                 });
             }
