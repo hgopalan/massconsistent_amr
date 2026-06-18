@@ -34,16 +34,15 @@ class TestMultispeciesCalpuff(unittest.TestCase):
         # Set up paths
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.exe_path = find_puff_solver_exe(self.script_dir)
-        self.repo_dir = self.script_dir
         
-        # If not found, derive repo_dir from the script directory
-        if self.exe_path is None:
-            temp_dir = self.script_dir
-            for _ in range(5):
-                if os.path.exists(os.path.join(temp_dir, "build")):
-                    self.repo_dir = temp_dir
-                    break
-                temp_dir = os.path.dirname(temp_dir)
+        # Determine repo_dir by walking up from script_dir until we find 'build' directory
+        self.repo_dir = self.script_dir
+        temp_dir = self.script_dir
+        for _ in range(5):
+            if os.path.exists(os.path.join(temp_dir, "build")):
+                self.repo_dir = temp_dir
+                break
+            temp_dir = os.path.dirname(temp_dir)
             
         self.inputs_base = os.path.join(self.script_dir, "inputs.i")
         self.receptors_file = os.path.join(self.script_dir, "receptors.csv")
