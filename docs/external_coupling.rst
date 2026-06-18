@@ -5,12 +5,12 @@ External Coupling
 
 This section describes the interfaces, python couplings, and mathematical frameworks for coupling the Mass-Consistent AMR Wind Solver with external physics solvers and optimization tools.
 
-Wind Farm Interoperability (Phase 1)
-------------------------------------
+Wind Farm Interoperability
+--------------------------
 
 **Overview**
 
-Phase 1 features provide file format compatibility and data exchange with Floris and PyOptimization wind farm optimization tools. Three key utilities enable standardized workflows:
+These utilities provide file format compatibility and data exchange with Floris and PyOptimization wind farm optimization tools. Three key modules enable standardized workflows:
 
 1. **CSV Turbine Definition Format** — Read/write turbine layouts as comma-separated values
 2. **Wind Resource Summary Statistics** — Compute statistics (mean, std, Weibull parameters) from wind fields
@@ -18,27 +18,27 @@ Phase 1 features provide file format compatibility and data exchange with Floris
 
 **Location**
 
-Phase 1 implementations are located in: ``src/python/``
+These modules are located in: ``src/python/``
 
-The corresponding demonstration and tests are in: ``tests_and_examples/phase1_features/``
+The corresponding demonstration and tests are in: ``tests_and_examples/wind_farm_tools/``
 
 **Modules**
 
-1. ``turbine_io.py`` — Turbine layout I/O (Feature 1)
-2. ``wind_resource_stats.py`` — Wind statistics computation (Feature 2)
-3. ``pyoptimization_export.py`` — PyOptimization export (Feature 3)
+1. ``turbine_io.py`` — Turbine layout I/O
+2. ``wind_resource_stats.py`` — Wind statistics computation
+3. ``pyoptimization_export.py`` — PyOptimization export
 4. ``test_phase1_features.py`` — Comprehensive unit tests (18 test cases)
 
 **Example Usage**
 
-See ``tests_and_examples/phase1_features/test_phase1_wind_farm.py`` for a complete demonstration of all three Phase 1 features.
+See ``tests_and_examples/wind_farm_tools/test_wind_farm.py`` for a complete demonstration of all utilities.
 
 Run demonstration:
 
 .. code-block:: bash
 
-    cd tests_and_examples/phase1_features
-    python3 test_phase1_wind_farm.py
+    cd tests_and_examples/wind_farm_tools
+    python3 test_wind_farm.py
 
 Run unit tests:
 
@@ -47,7 +47,7 @@ Run unit tests:
     cd src/python
     python3 test_phase1_features.py -v
 
-**Feature 1: CSV Turbine Definition Format**
+**CSV Turbine Definition Format**
 
 The ``TurbineLayout`` class provides read/write capabilities for turbine layouts.
 
@@ -74,7 +74,7 @@ Python interface:
     # Export to CSV
     TurbineLayout.write_csv(layout, "output_turbines.csv")
 
-**Feature 2: Wind Resource Summary Statistics**
+**Wind Resource Summary Statistics**
 
 The ``WindResourceStats`` class computes statistical summaries of wind fields.
 
@@ -112,7 +112,7 @@ Python interface:
     # Display summary
     print(stats.summary_string())
 
-**Feature 3: PyOptimization Result Export**
+**PyOptimization Result Export**
 
 The ``PyOptimizationExporter`` class exports farm results in Floris-compatible formats.
 
@@ -567,8 +567,8 @@ Python API Usage
    wind.finalize()
 
 
-Phase 4: Canopy Interaction & Leaf/Ground Deposition Mapping
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Canopy Interaction & Leaf/Ground Deposition Mapping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To model dynamic pesticide deposition and capture by plant foliage and soil, the module supports specialized crop canopy interactions:
 

@@ -4,9 +4,9 @@
 
 This directory contains comprehensive regression tests for 9 building wake physics enhancements implemented in massconsistent_amr. These tests verify both the mathematical correctness of individual physics components and the integration of features into the full solver.
 
-## Physics Features Tested
+## Physics Enhancements Tested
 
-### Phase 1: Quick Wins (5-10 lines each)
+### Foundational Enhancements (5-10 lines each)
 
 1. **Extended Far-Wake to 15H** (`enable_extended_farwake`)
    - Extends wake influence zone from 3-5H to 15H
@@ -23,7 +23,7 @@ This directory contains comprehensive regression tests for 9 building wake physi
    - Aspect-ratio dependent cavity length adjustment
    - Improves predictions for buildings with unusual height-to-width ratios
 
-### Phase 2: Core Features (30-100 lines each)
+### Core Physics Enhancements (30-100 lines each)
 
 4. **Gaussian Lateral Wake Profile** (`enable_gaussian_profile`)
    - Replaces linear lateral deficit profile with Gaussian
@@ -43,7 +43,7 @@ This directory contains comprehensive regression tests for 9 building wake physi
    - Provides consistent boundary condition matching log-law wind profile
    - Status: ✅ **Newly Integrated**
 
-### Phase 3: Polish
+### Advanced Enhancements
 
 7. **Corner/Side Acceleration** (`enable_corner_acceleration`)
    - Velocity amplification at building corners

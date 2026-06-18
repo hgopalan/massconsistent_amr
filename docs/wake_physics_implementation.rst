@@ -11,8 +11,8 @@ The mass-consistent wind solver includes nine advanced building wake physics enh
 Physics Features
 ----------------
 
-Feature 1: Extended Far-Wake to 15H
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Extended Far-Wake to 15H
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Extends far-wake influence from 3–5 building heights to 15 building heights downstream through linear decay of velocity deficit.
 
@@ -21,8 +21,8 @@ Extends far-wake influence from 3–5 building heights to 15 building heights do
 - **Configuration Parameter**: ``enable_extended_farwake`` (default: true)
 - **Physical Basis**: Improves prediction accuracy for wind field recovery at extended distances
 
-Feature 2: Oblique Angle Cavity Scaling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Oblique Angle Cavity Scaling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Scales cavity length based on wind approach angle, reducing cavity extent for non-perpendicular flows.
 
@@ -31,7 +31,7 @@ Scales cavity length based on wind approach angle, reducing cavity extent for no
 - **Configuration Parameter**: ``enable_oblique_scaling`` (default: true)
 - **Physical Basis**: Accounts for reduced wake extent when wind approaches at angles to building face
 
-Feature 3: Tall-Building Aspect-Ratio Correction
+Tall-Building Aspect-Ratio Correction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Applies aspect-ratio dependent correction for non-cubic buildings.
@@ -41,7 +41,7 @@ Applies aspect-ratio dependent correction for non-cubic buildings.
 - **Configuration Parameter**: ``enable_tall_building_correction`` (default: true)
 - **Physical Basis**: Corrects cavity length based on building width-to-height ratio
 
-Feature 4: Gaussian Lateral Wake Profile
+Gaussian Lateral Wake Profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Provides optional smooth Gaussian-profile deficit distribution instead of linear profiles.
@@ -51,7 +51,7 @@ Provides optional smooth Gaussian-profile deficit distribution instead of linear
 - **Configuration Parameter**: ``enable_gaussian_profile`` (default: false)
 - **Physical Basis**: Represents smooth lateral deficit distribution observed in wind tunnel studies
 
-Feature 5: Upwind Recirculation Zone
+Upwind Recirculation Zone
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Models reverse flow upstream of building caused by flow stagnation.
@@ -63,7 +63,7 @@ Models reverse flow upstream of building caused by flow stagnation.
 - **Configuration Parameter**: ``enable_upwind_recirculation`` (default: true)
 - **Physical Basis**: Accounts for flow reversal caused by building bluff body effect
 
-Feature 6: Log-Law Reference Velocity Correction
+Log-Law Reference Velocity Correction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Extracts reference velocity from log-law profile to ensure consistent boundary conditions.
@@ -73,7 +73,7 @@ Extracts reference velocity from log-law profile to ensure consistent boundary c
 - **Configuration Parameter**: ``enable_reference_correction`` (default: false)
 - **Physical Basis**: Provides height-dependent velocity profile matching atmospheric boundary layer
 
-Feature 7: Corner and Side Acceleration
+Corner and Side Acceleration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Adds velocity amplification at building edges due to flow acceleration around corners.
@@ -83,7 +83,7 @@ Adds velocity amplification at building edges due to flow acceleration around co
 - **Configuration Parameter**: ``enable_corner_acceleration`` (default: true)
 - **Physical Basis**: Represents flow acceleration observed in wind tunnel studies around building edges
 
-Feature 8: Height-Dependent Velocity Variance Correction
+Height-Dependent Velocity Variance Correction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Modifies velocity variance profile for turbulence intensity based on height.
@@ -92,7 +92,7 @@ Modifies velocity variance profile for turbulence intensity based on height.
 - **Configuration Parameter**: ``enable_variance_correction`` (default: false)
 - **Physical Basis**: Adjusts turbulence properties in wake to reflect height-dependent effects
 
-Feature 9: Horseshoe Vortex Modeling
+Horseshoe Vortex Modeling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Computes velocity perturbations from circulation at building-ground junction.

@@ -1,13 +1,13 @@
-Phase 1: File Format Compatibility Features
-============================================
+Wind Farm Tools — File Format Compatibility & Data Exchange
+==============================================================
 
-This directory contains demonstrations and tests for Phase 1 features that enable
+This directory contains demonstrations and tests for wind farm compatibility utilities that enable
 file format compatibility and data exchange with Floris and other wind farm
 optimization tools.
 
-## Features Demonstrated
+## Utilities Demonstrated
 
-### 1. CSV Turbine Definition Format
+### CSV Turbine Definition Format
 Provides read/write capabilities for turbine layouts in standardized CSV format.
 
 **Files:**
@@ -26,7 +26,7 @@ turbine_id, x_m, y_m, z_agl_m, turbine_type, hub_height, rotor_diameter, power_c
 1, 500.0, 200.0, 50.0, NREL15MW, 120.0, 240.0, power_curves/nrel15mw.json
 ```
 
-### 2. Wind Resource Summary Statistics
+### Wind Resource Summary Statistics
 Computes statistical summaries of wind fields for resource assessment.
 
 **Files:**
@@ -45,7 +45,7 @@ Computes statistical summaries of wind fields for resource assessment.
 - Weibull shape (k) and scale (c) parameters
 - Spatial distribution characteristics
 
-### 3. Output Formatting for PyOptimization
+### PyOptimization Result Export
 Exports wind farm simulation results in formats compatible with Floris-PyOptimization.
 
 **Files:**
@@ -98,15 +98,15 @@ This executes comprehensive unit tests for all three features.
 ## Generated Files
 
 Running the example produces:
-- `phase1_turbines.csv` - Turbine layout
-- `phase1_wind_stats.json` - Wind statistics
-- `phase1_results.json` - PyOptimization results (JSON)
-- `phase1_turbine_results.csv` - Per-turbine results (CSV)
-- `phase1_farm_summary.csv` - Farm-level summary (CSV)
+- `wind_farm_turbines.csv` - Turbine layout
+- `wind_farm_stats.json` - Wind statistics
+- `wind_farm_results.json` - PyOptimization results (JSON)
+- `wind_farm_turbine_results.csv` - Per-turbine results (CSV)
+- `wind_farm_farm_summary.csv` - Farm-level summary (CSV)
 
 ## Usage in Custom Scripts
 
-### Feature 1: CSV Turbine Layout
+### CSV Turbine Layout
 
 ```python
 from turbine_io import TurbineLayout
@@ -126,7 +126,7 @@ layout = TurbineLayout.read_csv("turbines.csv")
 is_valid, errors = layout.validate_spacing(min_spacing=400.0)
 ```
 
-### Feature 2: Wind Statistics
+### Wind Statistics
 
 ```python
 from wind_resource_stats import WindResourceStats
@@ -145,7 +145,7 @@ print(f"Weibull k: {stats.weibull_k:.2f}")
 stats.to_json("wind_stats.json")
 ```
 
-### Feature 3: PyOptimization Export
+### PyOptimization Export
 
 ```python
 from pyoptimization_export import PyOptimizationExporter
@@ -169,16 +169,16 @@ exporter.export_turbine_csv("turbines.csv")
 
 ## Integration Notes
 
-These Phase 1 features enable:
+These utilities enable:
 - **Data interoperability** with Floris and PyOptimization
 - **Standardized input formats** for turbine layouts
 - **Wind resource assessment** from simulation results
 - **Result archival** in portable formats (CSV, JSON)
 
-Future phases will build on these foundations with:
-- Phase 2: Farm analytics and visualization
-- Phase 3: Optimization frameworks
-- Phase 4: Advanced control strategies and UQ
+Future enhancements will include:
+- Farm analytics and visualization tools
+- Advanced optimization frameworks
+- Control strategies and uncertainty quantification
 
 ## Dependencies
 
