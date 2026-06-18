@@ -1055,6 +1055,10 @@ void WindSolverApp::parse_inputs() {
     pp.query("datacenter.enabled", datacenter_enabled);
     
     if (datacenter_enabled) {
+        // Ensure temperature transport is enabled for heat source to work
+        if (!enable_temperature_transport) {
+            amrex::Abort("datacenter heat source requires enable_temperature_transport = true");
+        }
         // Parse multi-facility parameters using arrays
         int num_heat_releases = pp.countval("datacenter.heat_release");
         
@@ -6461,20 +6465,34 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
 
 void WindSolverApp::solve_transport_equations(int time_step, amrex::Real dt_transport) {
     // Solve scalar transport equations for temperature and moisture
-    // ∂ϕ/∂t + u·∇ϕ = ∇·(K_eff ∇ϕ)
-    // where K_eff = K_mol + K_eddy
+    // ∂ϕ/∂t + u·∇ϕ = ∇·(K_eff ∇ϕ) + S
+    // where K_eff = K_mol + K_eddy and S is any source term
     
     amrex::Print() << "wind_solver: solving scalar transport equations with dt = " << dt_transport << " s\n";
     
     if (enable_temperature_transport && temp_3d_ptr) {
-       solve_scalar_transport(*temp_3d_ptr, *temp_3d_old_ptr, *vel_c_ptr, 
+       // Apply datacenter heat source term if enabled
+       if (datacenter_enabled && !datacenter_params.empty()) {
+           // Create temporary source term field
+           amrex::MultiFab temp_source(temp_3d_ptr->boxArray(), temp_3d_ptr->DistributionMap(), 1, 0);
+           temp_source.setVal(0.0);
+            
+           // Compute and apply datacenter heat source
+           apply_datacenter_heat_source(temp_source, dt_transport);
+            
+           // Add source term to temperature equation
+           amrex::MultiFab::Add(*temp_3d_ptr, temp_source, 0, 0, 1, 0);
+       }
+        
+       // Solve advection-diffusion for temperature
+      solve_scalar_transport(*temp_3d_ptr, *temp_3d_old_ptr, *vel_c_ptr, 
                              temperature_diffusivity, dt_transport, "temperature");
       amrex::MultiFab::Copy(*temp_3d_old_ptr, *temp_3d_ptr, 0, 0, 1, temp_3d_old_ptr->nGrow());
     }
     
     if (enable_moisture_transport && moisture_3d_ptr) {
       solve_scalar_transport(*moisture_3d_ptr, *moisture_3d_old_ptr, *vel_c_ptr,
-                            moisture_diffusivity, dt_transport, "moisture");
+                           moisture_diffusivity, dt_transport, "moisture");
       amrex::MultiFab::Copy(*moisture_3d_old_ptr, *moisture_3d_ptr, 0, 0, 1, moisture_3d_old_ptr->nGrow());
     }
 }

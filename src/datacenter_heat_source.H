@@ -227,6 +227,45 @@ amrex::Real compute_temperature_excess(
 }
 
 // ============================================================================
+// Compute heat source strength for a single data center facility
+//
+// Computes the temperature rate of change due to heat source at a given location.
+// The source strength is proportional to the Gaussian distribution weight.
+//
+// Inputs:
+//   heat_release_rate - Total heat output [W]
+//   gaussian_weight   - Normalized Gaussian distribution weight (0-1)
+//   volume_cell      - Grid cell volume [m³]
+//   rho_air          - Air density [kg/m³]
+//   cp               - Specific heat capacity [J/(kg·K)]
+//
+// Returns:
+//   Source strength [K/s] for temperature equation
+// ============================================================================
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+amrex::Real heat_source_strength(
+    amrex::Real heat_release_rate,
+    amrex::Real gaussian_weight,
+    amrex::Real volume_cell,
+    amrex::Real rho_air,
+    amrex::Real cp)
+{
+    // Guard against invalid inputs
+    if (heat_release_rate <= amrex::Real(0.0) || gaussian_weight < amrex::Real(0.0) ||
+        volume_cell <= amrex::Real(0.0) || rho_air <= amrex::Real(0.0) || 
+        cp <= amrex::Real(0.0)) {
+        return amrex::Real(0.0);
+    }
+    
+    // Source strength: dT/dt = (Q * gaussian_weight) / (rho * cp * V_cell)
+    // The gaussian_weight distributes the total heat over space
+    // Total integrated heat must satisfy: ∫∫∫ Q*gaussian * (rho*cp) dV = heat_release_rate
+    amrex::Real source = (heat_release_rate * gaussian_weight) / (rho_air * cp * volume_cell);
+    
+    return source;
+}
+
+// ============================================================================
 // Compute combined heat source from multiple data centers
 //
 // For scenarios with multiple data center facilities, compute the sum of
