@@ -6696,7 +6696,7 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
             
             using ReduceTuple = typename decltype(reduce_data)::Type;
             
-            reduce_ops.eval(box, reduce_data, [this, temp_arr, &params] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
+            reduce_ops.eval(box, reduce_data, [this, temp_arr, params] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
                 amrex::Real x = this->x_lo + (amrex::Real(i) + 0.5) * this->dx;
                 amrex::Real y = this->y_lo + (amrex::Real(j) + 0.5) * this->dy;
                 amrex::Real z = this->zs_min + (amrex::Real(k) + 0.5) * this->dz;
