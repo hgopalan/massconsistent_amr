@@ -345,6 +345,8 @@ jobs:
     runs-on: windows-2022
     if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
     continue-on-error: true
+    env:
+      PYTHONIOENCODING: utf-8
 
     steps:
       - name: Checkout repository (with submodules)
