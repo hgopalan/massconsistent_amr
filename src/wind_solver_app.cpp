@@ -6696,7 +6696,7 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
             
             using ReduceTuple = typename decltype(reduce_data)::Type;
             
-            amrex::ParallelFor(box, [this, temp_arr, &params] AMREX_GPU_DEVICE (int i, int j, int k, ReduceTuple& tuple) noexcept {
+            reduce_ops.eval(box, reduce_data, [this, temp_arr, &params] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
                 amrex::Real x = this->x_lo + (amrex::Real(i) + 0.5) * this->dx;
                 amrex::Real y = this->y_lo + (amrex::Real(j) + 0.5) * this->dy;
                 amrex::Real z = this->zs_min + (amrex::Real(k) + 0.5) * this->dz;
@@ -6707,14 +6707,13 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
                 
                 if (dT > 0.1) {  // Threshold for plume detection
                     amrex::Real plume_height = z - params.z_center;
-                    
-                    auto& vals = tuple;
-                    vals += amrex::ReduceOps<amrex::ReduceOpMax, amrex::ReduceOpMax, amrex::ReduceOpSum, amrex::ReduceOpSum>::Type{
-                        dT, plume_height, dT, amrex::Real(1.0)};
+                    return ReduceTuple{dT, plume_height, dT, amrex::Real(1.0)};
+                } else {
+                    return ReduceTuple{amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0)};
                 }
-            }, reduce_data);
+            });
             
-            auto hv = reduce_data.value();
+            auto hv = reduce_data.value(reduce_ops);
             T_max = std::max(T_max, amrex::get<0>(hv));
             plume_height_max = std::max(plume_height_max, amrex::get<1>(hv));
             sum_dT += amrex::get<2>(hv);
