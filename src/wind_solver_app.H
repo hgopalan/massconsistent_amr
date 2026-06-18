@@ -14,6 +14,7 @@
 #include "bridge_models.H"
 #include "structure_models.H"
 #include "thermodynamic_lid_models.H"
+#include "datacenter_heat_source.H"
 
 namespace amrex {
     class EBFArrayBoxFactory;
@@ -64,6 +65,12 @@ public:
     void compute_eddy_diffusivity_mixing_length(
         amrex::MultiFab& kappa_eddy);
     amrex::Real compute_adaptive_dt_transport();
+    
+    // Data center heat source methods
+    void apply_datacenter_heat_source(
+        amrex::MultiFab& temp_source,
+        amrex::Real dt);
+    void compute_datacenter_plume_diagnostics();
 
 private:
     std::vector<StreetCanyon> detect_street_canyons(
@@ -552,6 +559,17 @@ private:
     int multi_step_corrector_steps = 1;          // Number of corrector iterations for temperature-dependent mass-consistent solve
     std::string scalar_coupling_mode = "segregated"; // Mode for scalar transport: "segregated" or "coupled"
     
+    // Data center heat source parameters
+    bool datacenter_enabled = false;             // Enable data center heat source modeling
+    amrex::Real datacenter_heat_release = 0.0;  // Heat release rate [W]
+    amrex::Real datacenter_x = 0.0;             // X-coordinate of facility center [m]
+    amrex::Real datacenter_y = 0.0;             // Y-coordinate of facility center [m]
+    amrex::Real datacenter_z = 10.0;            // Z-coordinate/height of facility [m]
+    amrex::Real datacenter_area = 1000.0;       // Facility footprint area [m²]
+    amrex::Real datacenter_sigma_x = 50.0;      // Gaussian spread in X [m]
+    amrex::Real datacenter_sigma_y = 50.0;      // Gaussian spread in Y [m]
+    amrex::Real datacenter_sigma_z = 5.0;       // Gaussian spread in Z [m]
+    
     // Mixing length model parameters for eddy diffusivity
     bool enable_mixing_length_turbulence = true; // Use mixing length model for eddy diffusivity
     amrex::Real mixing_length_coefficient = 0.1; // Proportionality constant for mixing length: l = coeff * Δz
@@ -574,6 +592,9 @@ private:
     TurbulenceParams turb_params;
     std::string turbulence_export_format = "bts";
     std::string turbulence_output_file = "turbulence.bts";
+    
+    // Data center heat source structure
+    DataCenterHeatSourceParams datacenter_params;
 
     // --- COMPUTED & STATE VARIABLES ---
     std::vector<amrex::Real> x_terr, y_terr, z_terr;
