@@ -6696,13 +6696,17 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
             
             using ReduceTuple = typename decltype(reduce_data)::Type;
             
-            reduce_ops.eval(box, reduce_data, [this, temp_arr, params] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
-                amrex::Real x = this->x_lo + (amrex::Real(i) + 0.5) * this->dx;
-                amrex::Real y = this->y_lo + (amrex::Real(j) + 0.5) * this->dy;
-                amrex::Real z = this->zs_min + (amrex::Real(k) + 0.5) * this->dz;
+            reduce_ops.eval(box, reduce_data, 
+                [x_lo = this->x_lo, y_lo = this->y_lo, zs_min = this->zs_min,
+                 dx = this->dx, dy = this->dy, dz = this->dz,
+                 temperature_reference = this->temperature_reference,
+                 temp_arr, params] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
+                amrex::Real x = x_lo + (amrex::Real(i) + 0.5) * dx;
+                amrex::Real y = y_lo + (amrex::Real(j) + 0.5) * dy;
+                amrex::Real z = zs_min + (amrex::Real(k) + 0.5) * dz;
                 
                 // Temperature anomaly (assume reference at first cell)
-                amrex::Real dT = temp_arr(i, j, k) - this->temperature_reference;
+                amrex::Real dT = temp_arr(i, j, k) - temperature_reference;
                 dT = std::max(dT, amrex::Real(0.0));  // Only positive anomalies
                 
                 if (dT > 0.1) {  // Threshold for plume detection
