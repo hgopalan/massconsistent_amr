@@ -6587,3 +6587,134 @@ void WindSolverApp::solve_scalar_transport(
     amrex::MultiFab::Copy(scalar_new, scalar_old, 0, 0, 1, 0);  // Copy ghost cells
     scalar_new.FillBoundary(geom_ptr->periodicity());
 }
+
+void WindSolverApp::apply_datacenter_heat_source(
+    amrex::MultiFab& temp_source,
+    amrex::Real dt)
+{
+    /**
+     * @brief Apply heat source term to temperature equation.
+     *
+     * For multiple data centers, compute the combined heat source strength
+     * from all enabled facilities and add to temperature source term.
+     *
+     * The heat source is distributed using Gaussian profiles:
+     *   Q(x,y,z) = Q_total * exp(-[(x-x_c)²/σ_x² + (y-y_c)²/σ_y² + (z-z_c)²/σ_z²]/2)
+     *
+     * Source term dT/dt [K/s] is computed from: dT/dt = Q / (ρ * cp * V_cell)
+     */
+    
+    if (!datacenter_enabled || datacenter_params.empty()) {
+        return;
+    }
+    
+    amrex::Print() << "wind_solver: applying datacenter heat sources\n";
+    
+    // Prepare params array for GPU
+    std::vector<DataCenterHeatSourceParams> params_vec = datacenter_params;
+    DataCenterHeatSourceParams* params_ptr = params_vec.data();
+    int num_sources = static_cast<int>(params_vec.size());
+    
+    // Apply heat source to each cell
+    for (amrex::MFIter mfi(temp_source); mfi.isValid(); ++mfi) {
+        const auto& box = mfi.validbox();
+        auto src_arr = temp_source.array(mfi);
+        
+        amrex::ParallelFor(box, [this, src_arr, params_ptr, num_sources, dt] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Get cell center coordinates
+            amrex::Real x = this->x_lo + (amrex::Real(i) + 0.5) * this->dx;
+            amrex::Real y = this->y_lo + (amrex::Real(j) + 0.5) * this->dy;
+            amrex::Real z = this->zs_min + (amrex::Real(k) + 0.5) * this->dz;
+            
+            // Cell volume
+            amrex::Real volume_cell = this->dx * this->dy * this->dz;
+            
+            // Compute combined heat source from all facilities
+            amrex::Real source_strength = heat_source_strength_multiple(
+                params_ptr, num_sources, x, y, z, volume_cell);
+            
+            // Add to source term (heat_source_strength returns dT/dt)
+            src_arr(i, j, k) += source_strength * dt;
+        });
+    }
+}
+
+void WindSolverApp::compute_datacenter_plume_diagnostics()
+{
+    /**
+     * @brief Extract plume metrics from current temperature field.
+     *
+     * Computes diagnostics for each data center facility:
+     *   - Maximum temperature excess above ambient
+     *   - Plume rise height
+     *   - Horizontal extent
+     *   - Mean temperature in plume region
+     */
+    
+    if (!datacenter_enabled || !temp_3d_ptr || datacenter_params.empty()) {
+        return;
+    }
+    
+    amrex::Print() << "wind_solver: computing datacenter plume diagnostics\n";
+    
+    // For each facility, compute diagnostics
+    for (size_t idc = 0; idc < datacenter_params.size(); ++idc) {
+        const auto& params = datacenter_params[idc];
+        
+        // Create temporary field for temperature anomaly
+        amrex::Real T_max = 0.0;
+        amrex::Real plume_height_max = 0.0;
+        int num_plume_cells = 0;
+        amrex::Real sum_dT = 0.0;
+        
+        // Scan over all cells to compute diagnostics
+        for (amrex::MFIter mfi(*temp_3d_ptr); mfi.isValid(); ++mfi) {
+            const auto& box = mfi.validbox();
+            const auto& temp_arr = temp_3d_ptr->array(mfi);
+            
+            amrex::ReduceOps<amrex::ReduceOpMax, amrex::ReduceOpMax, amrex::ReduceOpSum, amrex::ReduceOpSum> 
+                reduce_ops;
+            amrex::ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real> reduce_data(reduce_ops);
+            
+            using ReduceTuple = typename decltype(reduce_data)::Type;
+            
+            amrex::ParallelFor(box, [this, temp_arr, &params] AMREX_GPU_DEVICE (int i, int j, int k, ReduceTuple& tuple) noexcept {
+                amrex::Real x = this->x_lo + (amrex::Real(i) + 0.5) * this->dx;
+                amrex::Real y = this->y_lo + (amrex::Real(j) + 0.5) * this->dy;
+                amrex::Real z = this->zs_min + (amrex::Real(k) + 0.5) * this->dz;
+                
+                // Temperature anomaly (assume reference at first cell)
+                amrex::Real dT = temp_arr(i, j, k) - this->T_ref;
+                dT = std::max(dT, amrex::Real(0.0));  // Only positive anomalies
+                
+                if (dT > 0.1) {  // Threshold for plume detection
+                    amrex::Real plume_height = z - params.z_center;
+                    
+                    auto& vals = tuple;
+                    vals += amrex::ReduceOps<amrex::ReduceOpMax, amrex::ReduceOpMax, amrex::ReduceOpSum, amrex::ReduceOpSum>::Type{
+                        dT, plume_height, dT, amrex::Real(1.0)};
+                }
+            }, reduce_data);
+            
+            auto hv = reduce_data.value();
+            T_max = std::max(T_max, amrex::get<0>(hv));
+            plume_height_max = std::max(plume_height_max, amrex::get<1>(hv));
+            sum_dT += amrex::get<2>(hv);
+            num_plume_cells += static_cast<int>(amrex::get<3>(hv));
+        }
+        
+        // Reduce across all processors
+        amrex::ParallelDescriptor::ReduceRealMax(T_max);
+        amrex::ParallelDescriptor::ReduceRealMax(plume_height_max);
+        amrex::ParallelDescriptor::ReduceRealSum(sum_dT);
+        amrex::ParallelDescriptor::ReduceIntSum(num_plume_cells);
+        
+        // Print diagnostics
+        amrex::Real mean_dT = (num_plume_cells > 0) ? sum_dT / static_cast<amrex::Real>(num_plume_cells) : 0.0;
+        amrex::Print() << "wind_solver: Facility '" << params.name << "'\n"
+                       << "  Max temperature excess: " << T_max << " K\n"
+                       << "  Plume rise height: " << plume_height_max << " m\n"
+                       << "  Mean temperature in plume: " << mean_dT << " K\n"
+                       << "  Plume extent (cells): " << num_plume_cells << "\n";
+    }
+}
