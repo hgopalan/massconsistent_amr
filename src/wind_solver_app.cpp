@@ -6702,7 +6702,7 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
                 amrex::Real z = this->zs_min + (amrex::Real(k) + 0.5) * this->dz;
                 
                 // Temperature anomaly (assume reference at first cell)
-                amrex::Real dT = temp_arr(i, j, k) - this->T_ref;
+                amrex::Real dT = temp_arr(i, j, k) - this->temperature_reference;
                 dT = std::max(dT, amrex::Real(0.0));  // Only positive anomalies
                 
                 if (dT > 0.1) {  // Threshold for plume detection
