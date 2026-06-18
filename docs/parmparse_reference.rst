@@ -869,6 +869,65 @@ Miscellaneous Parameters
 - ``apply_topographic_blocking`` (Bool): Blocking from steep slopes
 - ``apply_terrain_following_grid`` (Bool): Terrain-following grid coordinates
 
+Atmospheric Processes and Meteorological Effects
+-------------------------------------------------
+
+Advanced atmospheric modeling features for capturing realistic flow physics in complex terrain.
+
+**Coriolis Effects**
+
+- ``domain_lat_deg`` (Real): Geographic latitude in degrees (north positive) (default: 0.0)
+- ``domain_lon_deg`` (Real): Geographic longitude in degrees (east positive) (default: 0.0)
+
+When latitude is specified (non-zero), Coriolis parameter is automatically computed and applied to the wind field.
+
+**Directional Bias Correction**
+
+- ``enable_directional_bias_correction`` (Bool): Enable systematic wind direction/speed bias correction (default: false)
+- ``bias_correction_file`` (String): Path to bias correction table (CSV format)
+
+Bias correction table format: ``wind_direction, speed_factor, direction_offset``
+
+**Thermal Circulation**
+
+- ``enable_thermal_circulation`` (Bool): Enable slope and valley flows from thermal heating (default: false)
+- ``surface_sensible_heat_flux`` (Real): Sensible heat flux from surface [W/m²] (default: 0.0)
+- ``enable_diurnal_roughness`` (Bool): Time-varying roughness due to heating (default: false)
+- ``roughness_diurnal_file`` (String): Hourly roughness length variations (CSV: hour, z0_value)
+
+**Terrain Blocking and Flow Deflection**
+
+- ``enable_terrain_blocking`` (Bool): Parameterize flow blockage by mountain barriers (default: false)
+- ``froude_critical`` (Real): Critical Froude number for flow regime detection (typically 1.0)
+- ``blockage_max_fraction`` (Real): Maximum blockage fraction in subcritical regimes (typical: 0.8)
+
+**Roughness Transitions**
+
+- ``enable_roughness_transitions`` (Bool): Smooth interpolation across land-use changes (default: true)
+- ``roughness_transition_scale`` (Real): Smoothing length scale [m] for roughness transitions (default: 100.0)
+
+**Valley and Gap Flow Channeling**
+
+- ``enable_valley_channeling`` (Bool): Enhance horizontal wind in valleys (default: false)
+- ``channeling_enhancement_factor`` (Real): Multiplier for valley wind speed amplification (typical: 1.2–1.5)
+- ``gap_flow_detection`` (Bool): Automatically detect and enhance gap flows (default: false)
+
+**Surface Layer Transitions**
+
+- ``enable_surface_layer_transition`` (Bool): Smooth blending between log-law and mixed-layer profiles (default: true)
+- ``transition_height`` (Real): Height above ground for profile blending [m] (default: 100.0)
+
+**Porosity and Drag Models**
+
+- ``enable_porosity_model`` (Bool): Treat vegetation/buildings as porous media (default: false)
+- ``leaf_area_index`` (Real): LAI for canopy drag parameterization (typical: 1.0–8.0 for forests)
+- ``canopy_height`` (Real): Vegetation/canopy height [m] (default: 0.0)
+
+**Morphometric Analysis**
+
+- ``compute_terrain_curvature`` (Bool): Calculate terrain curvature metrics for parameterization (default: false)
+- ``morphometric_adaptation`` (Bool): Adapt local parameters based on morphometry (default: false)
+
 Data Assimilation (Ensemble Kalman Filter)
 --------------------------------------------
 
@@ -934,6 +993,59 @@ Enable with custom ensemble and observations::
 **References**
 
 See :ref:`mathematical_models` section "Data Assimilation" for mathematical formulation.
+
+Infrastructure and Structural Assessment
+-----------------------------------------
+
+Specialized modules for evaluating infrastructure vulnerability to wind loading.
+
+**Transmission Line Assessment**
+
+- ``enable_transmission_line`` (Bool): Compute transmission line dynamic response (default: false)
+- ``transmission_line_file`` (String): Tower locations and line specifications (CSV format)
+- ``conductor_diameter`` (Real): Conductor diameter [m] (typical: 0.02–0.04)
+- ``conductor_weight`` (Real): Conductor weight per unit length [kg/m] (typical: 0.5–2.0)
+- ``span_length`` (Real): Distance between towers [m]
+- ``initial_tension`` (Real): Initial conductor tension [N]
+
+**Bridge Assessment**
+
+- ``enable_bridge_assessment`` (Bool): Compute bridge wind loading and pedestrian comfort (default: false)
+- ``bridge_width`` (Real): Bridge deck width [m]
+- ``bridge_length`` (Real): Span length [m]
+- ``bridge_height`` (Real): Height above reference [m]
+
+**Pedestrian Wind Comfort**
+
+- ``enable_pedestrian_comfort`` (Bool): Evaluate ISO 23601 wind comfort (default: false)
+- ``comfort_output_height`` (Real): Evaluation height for pedestrian comfort [m] (typical: 1.8)
+
+Advanced Data Processing and Validation
+----------------------------------------
+
+Tools for validating wind field solutions and computing diagnostics.
+
+**Continuity and Flux Checking**
+
+- ``enable_continuity_check`` (Bool): Verify mass conservation post-solve (default: true)
+- ``divergence_tolerance`` (Real): Maximum acceptable divergence magnitude (default: 1.0e-12)
+- ``output_divergence_field`` (Bool): Write divergence field to output (default: false)
+
+- ``enable_flux_diagnostics`` (Bool): Compute mass, heat, and momentum fluxes (default: false)
+- ``flux_output_plane`` (String): Plane for flux computation ("xy", "xz", "yz") (default: "xy")
+- ``flux_plane_height`` (Real): Height/location of flux plane [m]
+
+**Numerical Methods**
+
+- ``deriv_method`` (String): Spatial derivative scheme: "central", "weno3", or "weno5" (default: "central")
+- ``enable_high_order_derivatives`` (Bool): Use WENO-5 for all derivatives (default: false)
+
+**Numerical Optimization**
+
+- ``enable_parameter_optimization`` (Bool): Iteratively refine friction velocity and roughness (default: false)
+- ``optimization_max_iterations`` (Integer): Maximum optimization iterations (default: 50)
+- ``optimization_tolerance`` (Real): Convergence tolerance for parameter fit (default: 1.0e-4)
+- ``observation_data_file`` (String): Sparse observations for parameter fitting
 
 Example Input File
 -------------------

@@ -969,3 +969,297 @@ All EnKF options are optional and disabled by default for backward compatibility
 - Zhang, Y., Bocchini, P., & Solari, G. (2019). "Ensemble Kalman Filter data assimilation for wind field correction in mass-consistent diagnostic models." *Journal of Wind Engineering*, 145, 104-115.
 
 - Hunt, B. R., Kostelich, E. J., & Szunyogh, I. (2007). "Efficient data assimilation for spatiotemporal chaos: A local ensemble transform Kalman filter." *Physica D: Nonlinear Phenomena*, 230(1-2), 112-126.
+
+Atmospheric Processes and Meteorological Effects
+-------------------------------------------------
+
+Coriolis Parameter Scaling
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The solver accounts for Earth's rotation through latitude-dependent Coriolis force modeling. The Coriolis parameter is computed as:
+
+.. math::
+
+   f = 2 \Omega \sin(\phi)
+
+where :math:`\Omega = 7.27 \times 10^{-5}` rad/s is Earth's angular velocity and :math:`\phi` is the latitude in radians. This effect is significant in large domains (>10 km) and properly deflects wind flows based on geographic location:
+
+- **Northern Hemisphere:** :math:`f > 0`, deflects moving air to the right.
+- **Southern Hemisphere:** :math:`f < 0`, deflects moving air to the left.
+- **Equator:** :math:`f = 0`, no Coriolis deflection.
+
+Directional Bias Correction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Numerical weather prediction models such as WRF and GFS often exhibit systematic biases in wind direction and speed. These biases can be direction-dependent, terrain-dependent, or season-dependent. Three bias types are supported:
+
+1. **Directional Bias:** Systematic deviation from observed wind direction (e.g., model consistently 30° too far north).
+
+2. **Speed Bias:** Wind speed errors correlated with wind direction (e.g., overestimation from northeast, underestimation from southwest).
+
+3. **Channeling Bias:** Terrain-induced bias in valleys and gorges where the model systematically misrepresents channel flow magnitude.
+
+Correction is applied as:
+
+.. math::
+
+   U_{\text{corrected}} = U_{\text{input}} \times f_{\text{speed}}(\text{direction})
+
+   \text{direction}_{\text{corrected}} = \text{direction}_{\text{input}} + \Delta\text{direction}(\text{direction})
+
+where :math:`f_{\text{speed}}` is a direction-dependent speed scaling factor and :math:`\Delta\text{direction}` is a directional offset.
+
+Ageostrophic Wind Adjustment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ageostrophic (non-geostrophic) flow is the actual wind that deviates from theoretical geostrophic balance. This occurs due to:
+
+- Pressure-gradient forces in the vertical.
+- Surface friction and drag effects.
+- Terrain-induced accelerations.
+- Buoyancy and thermal effects.
+
+The solver includes models to capture ageostrophic effects when the initial wind field is initialized in near-geostrophic balance, allowing proper adjustment to local terrain and friction conditions.
+
+Thermal Circulation
+~~~~~~~~~~~~~~~~~~~~
+
+Diurnal solar heating drives thermal circulation patterns on multiple scales:
+
+**Slope Flows:**
+
+- **Upslope (Anabatic) Flow:** Daytime heating of slopes drives upslope wind during stable conditions.
+- **Downslope (Katabatic) Flow:** Nighttime cooling of slopes drives downslope wind in stable stratification.
+
+**Sea Breeze:**
+
+Differential heating between land and water surfaces creates pressure gradients that drive thermally-driven coastal flows.
+
+**Valley Circulation:**
+
+- **Valley Wind:** Daytime heating of valley floors drives up-valley wind aligned with topography.
+- **Mountain Wind:** Nighttime cooling drives down-valley flow.
+
+Buoyancy-Driven Flow Adjustments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Under stable atmospheric stratification, buoyant forces suppress vertical motion and promote horizontal flow. Flow response to topography is characterized by the Froude number:
+
+.. math::
+
+   Fr = \frac{U}{N \cdot h}
+
+where :math:`U` is wind speed, :math:`N` is the Brunt-Väisälä frequency, and :math:`h` is terrain height. Flow regimes are:
+
+- **Fr >> 1 (Supercritical):** Flow crosses terrain; minimal deflection.
+- **Fr ≈ 1 (Resonant):** Strong coupling between flow and topography; complex flow patterns.
+- **Fr << 1 (Subcritical):** Flow blocked by terrain; strong horizontal deflection.
+
+The vertical anisotropy coefficient :math:`\alpha_v` is modified based on Richardson number to account for these regimes:
+
+.. math::
+
+   \alpha_v = \alpha_{v,\text{base}} \times f_{\text{Ri}} \times f_{\text{Fr}}
+
+Surface Layer Transition
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The lower atmosphere exhibits different vertical structure at different heights:
+
+- **Surface Layer (0–100 m AGL):** Log-law profile dominated by surface friction.
+- **Mixed Layer (100–1500 m AGL):** Well-mixed by convection or shear-driven turbulence.
+- **Residual Layer (above PBL top):** Decaying turbulence from daytime mixing.
+
+The solver provides smooth blending between these regions through continuous interpolation to prevent discontinuities in the wind profile.
+
+Diurnal Roughness Variations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Aerodynamic roughness length :math:`z_0` varies diurnally due to:
+
+- **Daytime:** Surface heating increases turbulent mixing, effectively reducing roughness.
+- **Nighttime:** Strong stratification and laminar flow can increase effective roughness.
+- **Vegetation:** Wet canopy after precipitation has higher drag than dry vegetation.
+
+Time-dependent :math:`z_0` specification enables these effects to be represented through hourly or sub-daily variations.
+
+Terrain Blocking and Flow Deflection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Flow encountering mountain barriers experiences blockage and horizontal deflection depending on the Froude number regime and terrain geometry. Blocking models are:
+
+1. **Froude Number Based:** Blockage fraction increases as Fr decreases (more stable, more blocking).
+2. **Steepness Based:** Steeper terrain produces stronger blockage.
+3. **Aspect Ratio Dependent:** Valley width and depth affect channel flow characteristics.
+
+Blocking is parameterized through modified anisotropy coefficients that reduce vertical adjustment capacity in blocked regimes.
+
+Roughness Transitions
+~~~~~~~~~~~~~~~~~~~~~
+
+Land-use categories change across space, creating transitions in aerodynamic roughness. Smooth interpolation between adjacent cells prevents numerical issues:
+
+.. math::
+
+   z_0(i,j) = \sqrt[4]{z_{0,1} \cdot z_{0,2} \cdot z_{0,3} \cdot z_{0,4}}
+
+where :math:`z_{0,n}` are the roughness lengths of neighboring grid cells using geometric mean to maintain sensitivity to low values.
+
+Roughness Blocking Method
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sub-grid scale roughness elements (trees, buildings, small hills) smaller than the grid resolution are represented through an explicit blocking approach. Rather than parameterizing roughness through logarithmic-profile modifications, drag forces are represented directly in the momentum equations:
+
+.. math::
+
+   \mathbf{F}_{\text{drag}} = -\frac{1}{2} C_d A_f \rho |\mathbf{u}| \mathbf{u}
+
+where :math:`A_f` is the frontal area per unit volume of roughness element.
+
+Porosity Models
+~~~~~~~~~~~~~~~
+
+Porous media flow treatment represents vegetated and built environments as continua with reduced flow capacity. Bulk properties include:
+
+- **Leaf Area Index (LAI):** Characterizes vegetation density.
+- **Canopy Height:** Vertically-varying drag profile.
+- **Void Fraction:** Volume available for fluid flow (1 - solid fraction).
+
+These parameters modulate the volumetric drag forces in the momentum balance.
+
+Valley Channeling
+~~~~~~~~~~~~~~~~~
+
+Topographic funneling accelerates winds in valleys and reduces wind speed over ridges. The physical mechanism involves:
+
+- **Pressure Gradient:** Wind accelerates down pressure gradients along valleys.
+- **Inertial Effects:** Flow in narrow channels concentrates kinetic energy.
+- **Anisotropic Adjustment:** Horizontal adjustment is enhanced along valley axes.
+
+The solver enhances horizontal anisotropy (:math:`\alpha_h`) in valley regions:
+
+.. math::
+
+   \alpha_h^{\text{valley}} = \alpha_h \times \left(1 + \beta_{\text{ch}} \times \text{channeling\_factor}\right)
+
+Gap Flow
+~~~~~~~~
+
+Flow acceleration through mountain passes and gorges (gap flow) occurs when:
+
+- **Pressure-Driven:** Pressure differences across the pass drive strong winds.
+- **Inertial Funneling:** Flow concentrates into narrow passages.
+- **Downstream Diffusion:** Wind widens and slows downstream of the pass.
+
+The vena contracta effect represents how the effective flow area through a gap is smaller than the geometric area due to flow separation and edge effects.
+
+Morphometric Analysis
+~~~~~~~~~~~~~~~~~~~~~
+
+Terrain curvature and slope aspect are used to adapt parameterizations locally. Computed quantities include:
+
+- **Plan Curvature:** Convergence/divergence along valley and ridge axes.
+- **Profile Curvature:** Steepness variation along slope gradient direction.
+- **Aspect:** Cardinal direction of maximum slope.
+- **Topographic Position Index (TPI):** Elevation relative to neighborhood average.
+
+These metrics identify valleys, ridges, summits, and plains, enabling localized parameterization adjustments.
+
+Infrastructure and Structural Assessment
+-----------------------------------------
+
+Transmission Wire Dynamics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Transmission lines experience complex dynamics under wind loading. The catenary sag of a transmission conductor is governed by:
+
+.. math::
+
+   T = \frac{W \cdot L^2}{8 \cdot D}
+
+where :math:`T` is horizontal tension, :math:`W` is weight per unit length, :math:`L` is span length, and :math:`D` is sag.
+
+**Galloping Oscillations:**
+
+Galloping is an oscillatory instability in bluff objects (cylinders, angular shapes) at high Reynolds numbers. The solver tracks:
+
+- Oscillation frequency.
+- Amplitude of lateral displacement.
+- Aerodynamic damping ratio.
+
+**Wake-Induced Oscillations:**
+
+When one conductor passes through another conductor's wake, vortex-shedding-induced oscillations (flutter) can occur at specific wind speeds.
+
+Structure Resonance and Dynamic Response
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Structures subjected to wind loading experience:
+
+- **Dynamic Amplification Factors:** Frequency-dependent amplification of peak response relative to static load.
+- **Gust Response Factors:** Rapid velocity fluctuations (gusts) produce response magnified by structural frequency and damping ratio.
+- **Structural Fragility Curves:** Probability of failure as a function of wind speed or wind-induced stress.
+
+Pedestrian Wind Comfort
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Urban wind environments are evaluated for pedestrian comfort using ISO standard ISO 23601. Wind speed thresholds for different activities are:
+
+- **Sitting Comfortably:** < 2 m/s
+- **Walking:** 2–5 m/s
+- **Standing:** 5–10 m/s
+- **Dangerous:** > 10 m/s
+
+The solver computes mean wind speed and gust frequency at pedestrian height to assess comfort levels.
+
+Advanced Data Processing and Validation
+---------------------------------------
+
+Continuity Validation
+~~~~~~~~~~~~~~~~~~~~~
+
+The mass-consistent solver ensures :math:`\nabla \cdot \mathbf{u} = 0` through the Poisson equation solve. Post-solve diagnostics verify:
+
+1. **Discrete Divergence:** Cell-by-cell divergence :math:`\nabla \cdot \mathbf{u}` (should be numerically zero).
+2. **Mass Flux Balance:** Net mass flux in/out of arbitrary volumes (should sum to zero).
+3. **Boundary Conditions:** Flux balance at domain boundaries.
+
+These checks ensure the corrected wind field truly satisfies mass conservation to machine precision.
+
+Flux Diagnostics
+~~~~~~~~~~~~~~~~
+
+The solver computes and outputs several flux quantities for validation and analysis:
+
+- **Mass Flux:** :math:`\dot{m} = \rho \mathbf{u} \cdot \mathbf{A}` — Mass transport across surfaces.
+- **Sensible Heat Flux:** :math:`H = \rho c_p \mathbf{u} \cdot \nabla T` — Heat transport by wind.
+- **Momentum Flux:** :math:`\boldsymbol{\tau} = \rho \mathbf{u} \otimes \mathbf{u}` — Momentum transport (Reynolds stress).
+
+These are useful for validating energy and momentum budgets in the domain and understanding the physical realism of the simulated flow.
+
+Numerical Derivative Methods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The solver supports multiple spatial discretization schemes for computing derivatives:
+
+1. **Central Difference:** 2nd-order accurate, non-dissipative.
+   
+   .. math::
+      
+      \frac{\partial f}{\partial x} \bigg|_i = \frac{f_{i+1} - f_{i-1}}{2\Delta x} + O(\Delta x^2)
+
+2. **WENO-3:** 3rd-order accurate weighted essentially non-oscillatory scheme.
+
+3. **WENO-5:** 5th-order accurate WENO scheme with enhanced stencil.
+
+Higher-order schemes reduce numerical dispersion and better preserve sharp gradients in fields such as wind speed and stability.
+
+Numerical Optimization
+~~~~~~~~~~~~~~~~~~~~~~
+
+Iterative refinement of wind field parameters (friction velocity, roughness, direction) improves fit to sparse observations without re-solving the full mass-consistent problem. This approach is useful for:
+
+- Rapid data assimilation cycles
+- Bias correction without expensive re-analysis
+- Parameter sensitivity studies
+- Real-time operational forecasting
