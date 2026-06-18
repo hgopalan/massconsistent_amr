@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ============================================================================
 # test_field_output.py
-# Regression test for unified field output (Phase 5, Feature 1)
+# Regression test for unified field output
 #
 # Verifies that:
 #   1. All 21 diagnostic fields are present in output plotfile

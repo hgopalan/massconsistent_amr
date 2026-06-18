@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mann Box Phase 6: Parameter Sensitivity Analysis Tool"""
+"""Mann Box Parameter Sensitivity Analysis Tool"""
 
 import sys
 import json

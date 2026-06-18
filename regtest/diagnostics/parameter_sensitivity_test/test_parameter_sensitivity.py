@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ============================================================================
 # test_parameter_sensitivity.py
-# Regression test for parameter sensitivity sweep tool (Phase 5, Feature 2)
+# Regression test for parameter sensitivity sweep tool
 #
 # Verifies that:
 #   1. Single parameter sweep completes without error

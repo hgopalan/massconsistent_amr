@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 4+ Priority 1: Full Monin-Obukhov Wind Profile Tests
+Monin-Obukhov Wind Profile Tests
 
 This test suite validates the full wind profile computation with stability
 corrections using the Monin-Obukhov similarity theory.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 3+ Regression Test: Non-Neutral Stability Corrections - Neutral Conditions
+Non-Neutral Stability Corrections - Neutral Conditions Regression Test
 
 Tests that neutral conditions (very large |L|) show no significant modifications
 compared to the standard IEC 61400-1 model.
@@ -151,7 +151,7 @@ class TestStabilityNeutral:
     def run_all_tests(self):
         """Run all neutral conditions tests"""
         print("\n" + "="*70)
-        print("Phase 3+ Regression Tests: NEUTRAL ATMOSPHERIC CONDITIONS")
+        print("Neutral Atmospheric Conditions Regression Tests")
         print("="*70)
         
         tests = [

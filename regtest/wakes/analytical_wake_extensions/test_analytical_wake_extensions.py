@@ -28,7 +28,7 @@ except ImportError as e:
 
 def write_test_inputs(filename, model_type, superposition="quadratic", turb_model="none", yaw1=0.0, yaw2=0.0, surface_sensible_heat_flux=0.0, buoyant_wake_destruction_coeff=0.005):
     with open(filename, "w") as f:
-        f.write(f"""# Standalone phase 2 test case
+        f.write(f"""# Analytical wake extensions test case
 terrain_file = terrain.csv
 enable_turbine_wake = true
 turbine_file = turbines_test.csv
@@ -174,7 +174,7 @@ if __name__ == "__main__":
         test_wake_added_turbulence()
         test_buoyant_wake_destruction()
         print("\n==================================================")
-        print("ALL STANDALONE PHASE 2 ANALYTICAL WAKE & TURBULENCE EXTENSIONS TESTS PASSED!")
+        print("ALL ANALYTICAL WAKE & TURBULENCE EXTENSIONS TESTS PASSED!")
         print("==================================================")
     except Exception as e:
         print(f"\nTESTS FAILED: {e}")

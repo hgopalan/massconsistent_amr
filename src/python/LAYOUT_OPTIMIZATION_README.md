@@ -249,7 +249,7 @@ Memory footprint:
 | **Complex Sites** | Not suitable | Native support |
 | **Optimization Speed** | Fast (ms/eval) | Fast (cached) |
 | **Accuracy on terrain** | ±15-20% AEP error | ±2-5% error |
-| **Implementation** | Mature | New (Phase 1-2) |
+| **Implementation** | Mature | Current Implementation |
 | **Customization** | Limited | Full source code |
 
 **When to use massconsistent_amr optimization:**
@@ -267,7 +267,7 @@ Memory footprint:
 
 ## Advanced Features (Planned)
 
-### Phase 3+: Control Optimization
+### Control Optimization
 ```python
 # Yaw angle optimization (not yet implemented)
 result = optimizer.optimize(

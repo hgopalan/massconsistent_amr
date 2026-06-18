@@ -75,7 +75,7 @@ def write_turbines_staggered(filename):
 
 def write_test_inputs(filename, terrain_file, model_type, superposition="quadratic", yaw0=0.0, yaw1=0.0, ground_int="true", damping_scale=0.25):
     with open(filename, "w") as f:
-        f.write(f"""# Phase 3 test case
+        f.write(f"""# Advanced wake models test case
 terrain_file = {terrain_file}
 enable_turbine_wake = true
 turbine_file = turbines_test.csv
@@ -218,7 +218,7 @@ if __name__ == "__main__":
         test_wake_ground_interaction()
         test_staggered_sloped_terrain()
         print("\n==================================================")
-        print("ALL PHASE 3 ADVANCED WAKE MODELS TESTS PASSED!")
+        print("ALL ADVANCED WAKE MODELS TESTS PASSED!")
         print("==================================================")
     finally:
         os.chdir("..")
