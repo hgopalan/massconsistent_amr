@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-test_phase2_analytical_wake_extensions.py
+test_analytical_wake_extensions.py
 
-Regression/standalone verification tests for Phase 2 Analytical Wake & Turbulence Extensions:
+Regression/standalone verification tests for Analytical Wake & Turbulence Extensions:
 1. TurbOPark wake deficit model (decay rate and deficits check).
 2. Jimenez wake deflection model (centerline deflection offsets as a function of yaw).
 3. Wake-added turbulence models: Crespo-Hernández and Frandsen (STF).

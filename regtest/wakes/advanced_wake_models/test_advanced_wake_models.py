@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-test_phase3_advanced_wake_models.py
+test_advanced_wake_models.py
 
-Regression/standalone verification tests for Phase 3 Advanced Wake Models & Secondary Effects:
+Regression/standalone verification tests for Advanced Wake Models & Secondary Effects:
 1. Gauss-Curl Hybrid (GCH) wake model (secondary steering of downstream non-yawed turbine by upstream yawed turbine).
 2. Wake-ground interaction (mirroring and shear-damping).
 3. Staggered array on sloped terrain.

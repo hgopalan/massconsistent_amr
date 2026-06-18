@@ -15,7 +15,7 @@ Tests cover:
 7. Physical consistency checks
 
 Usage:
-    python3 test_phase4_wind_profile.py
+    python3 test_wind_profile.py
 
 Returns:
     0 on success (all tests pass)

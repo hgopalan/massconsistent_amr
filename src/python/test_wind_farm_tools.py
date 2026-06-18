@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_phase1_features.py - Unit tests for wind farm tools and utilities
+test_wind_farm_tools.py - Unit tests for wind farm tools and utilities
 
 Tests for:
 - CSV Turbine Definition Format

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-PHASE 4+ PRIORITY 3: HEIGHT-DEPENDENT CORRELATION LENGTHS TESTS
+Height-Dependent Correlation Lengths Validation Tests
 
 This test suite validates the height-dependent correlation length implementation
-for the IEC 61400 turbulence model. Priority 3 extends Priority 1-2 with physically
+for the IEC 61400 turbulence model. Tests include physically
 accurate height-dependent scaling of turbulence correlation lengths.
 
 Key Features Tested:
@@ -557,7 +557,7 @@ def test_multi_height_spectrum_matrix():
 def main():
     """Run all tests."""
     print("="*70)
-    print("PHASE 4+ PRIORITY 3: HEIGHT-DEPENDENT CORRELATION LENGTHS TESTS")
+    print("Height-Dependent Correlation Lengths Validation Tests")
     print("="*70)
     
     test_neutral_height_scaling()

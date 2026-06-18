@@ -563,7 +563,7 @@ def test_run_phase3_suite():
     """Run the spectral tensor test suite."""
     print_section("Integration Test 8: Running Spectral Tensor Test Suite")
     
-    phase3_test_path = Path(__file__).parent / "mann_box_phase3_test.py"
+    phase3_test_path = Path(__file__).parent / "mann_box_spectral_tensor_test.py"
     
     if not phase3_test_path.exists():
         print(f"    ⚠ Spectral tensor test suite not found at {phase3_test_path}")
@@ -599,7 +599,7 @@ def test_run_phase4_suite():
     """Run the temporal and stability test suite."""
     print_section("Integration Test 9: Running Temporal and Stability Test Suite")
     
-    phase4_test_path = Path(__file__).parent / "mann_box_phase4_test.py"
+    phase4_test_path = Path(__file__).parent / "mann_box_temporal_stability_test.py"
     
     if not phase4_test_path.exists():
         print(f"    ⚠ Temporal and stability test suite not found at {phase4_test_path}")

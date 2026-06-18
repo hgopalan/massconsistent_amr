@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_phase1_wind_farm.py - Wind farm tools demonstration
+test_wind_farm.py - Wind farm tools demonstration
 
 This example demonstrates three wind farm utilities:
 1. CSV Turbine Definition Format (read/write layouts)
@@ -8,7 +8,7 @@ This example demonstrates three wind farm utilities:
 3. PyOptimization Output Formatting (export results)
 
 Run from tests_and_examples directory:
-    python3 phase1_features/test_phase1_wind_farm.py
+    python3 wind_farm_tools/test_wind_farm.py
 """
 
 import sys
@@ -87,7 +87,7 @@ def main():
     print(f"✓ Created layout with {len(layout)} turbines")
     
     # Write to CSV
-    csv_file = "phase1_turbines.csv"
+    csv_file = "turbines.csv"
     TurbineLayout.write_csv(layout, csv_file)
     print(f"✓ Wrote turbine layout to {csv_file}")
     
@@ -136,7 +136,7 @@ def main():
     print(stats.summary_string())
     
     # Export statistics to JSON
-    stats_json = "phase1_wind_stats.json"
+    stats_json = "wind_stats.json"
     stats.to_json(stats_json)
     print(f"✓ Exported wind statistics to {stats_json}")
     
@@ -201,15 +201,15 @@ def main():
     )
     
     # Export results
-    json_file = "phase1_results.json"
+    json_file = "results.json"
     exporter.export_json(json_file, pretty=True)
     print(f"✓ Exported results to {json_file}")
     
-    csv_turbine_file = "phase1_turbine_results.csv"
+    csv_turbine_file = "turbine_results.csv"
     exporter.export_turbine_csv(csv_turbine_file)
     print(f"✓ Exported turbine-level results to {csv_turbine_file}")
     
-    csv_summary_file = "phase1_farm_summary.csv"
+    csv_summary_file = "farm_summary.csv"
     exporter.export_summary_csv(csv_summary_file)
     print(f"✓ Exported farm summary to {csv_summary_file}")
     

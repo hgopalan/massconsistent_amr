@@ -592,7 +592,7 @@ def test_reproducibility():
 def main():
     """Run all tests"""
     print("\n" + "="*70)
-    print("PHASE 4: COMPREHENSIVE VALIDATION TEST SUITE")
+    print("Comprehensive Validation Test Suite")
     print("="*70)
     
     # Run all tests

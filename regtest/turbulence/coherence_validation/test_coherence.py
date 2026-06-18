@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 4+ Priority 2: Directional Coherence Correlations Tests
+Directional Coherence Correlations Validation Tests
 
 This test suite validates the directional coherence matrix computation
 for u-v-w velocity component cross-correlations.
@@ -18,7 +18,7 @@ Tests cover:
 10. Physical reasonableness
 
 Usage:
-    python3 test_phase4_coherence.py
+    python3 test_coherence.py
 
 Returns:
     0 on success (all tests pass)
@@ -344,7 +344,7 @@ def test_positive_semidefinite():
 def main():
     """Run all tests"""
     print("\n" + "="*70)
-    print("PHASE 4+ PRIORITY 2: DIRECTIONAL COHERENCE CORRELATIONS TESTS")
+    print("Directional Coherence Correlations Validation Tests")
     print("="*70)
     
     # Run all tests

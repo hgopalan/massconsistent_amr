@@ -430,10 +430,10 @@ class OpenFASTValidator:
 
 def test_phase4_validation():
     """
-    Run Phase 4 validation tests.
+    Run comprehensive validation tests.
     """
     print("\n" + "="*70)
-    print("Phase 4: Comprehensive Validation & Testing")
+    print("Comprehensive Validation & Testing")
     print("="*70)
     
     results = {}
@@ -516,7 +516,7 @@ def test_phase4_validation():
     
     # Summary
     print("\n" + "="*70)
-    print("Phase 4 Validation Summary")
+    print("Validation Summary")
     print("="*70)
     
     passed = sum(1 for v in results.values() if v is True)
