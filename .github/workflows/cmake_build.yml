@@ -103,6 +103,10 @@ jobs:
         run: |
           vcpkg install nlohmann-json:x64-windows
 
+      - name: Install Python dependencies (Windows)
+        run: |
+          pip install 'numpy>=1.24,<2.0' netCDF4
+
       - name: Configure (3D, CPU-only)
         run: |
           cmake -S . -B build `
@@ -121,6 +125,9 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path "build/${{ matrix.build_type }}/wind_solver.exe" -PathType Leaf)) { exit 1 }
+
+      - name: Run regression tests
+        run: ctest --test-dir build --config ${{ matrix.build_type }} -L regtest --output-on-failure
 
   # ── CUDA build on Linux (Ubuntu) ─────────────────────────────────────────
   build_cuda:
@@ -151,6 +158,9 @@ jobs:
             ninja-build \
             nlohmann-json3-dev
 
+      - name: Install Python dependencies
+        run: pip3 install 'numpy>=1.24,<2.0' netCDF4
+
       - name: Configure (3D, CUDA)
         shell: bash
         run: |
@@ -166,6 +176,12 @@ jobs:
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Verify executable exists
+        run: test -f build/wind_solver
+
+      - name: Run regression tests
+        run: ctest --test-dir build -L regtest --output-on-failure
 
   # ── Linux HIP build (AMD ROCm 6.2.4, Ubuntu 22.04) ──────────────────────
   build_hip:
@@ -206,6 +222,9 @@ jobs:
           echo 'export PATH=/opt/rocm/llvm/bin:/opt/rocm/bin:$PATH' \
             | sudo tee /etc/profile.d/rocm.sh
 
+      - name: Install Python dependencies
+        run: pip3 install 'numpy>=1.24,<2.0' netCDF4
+
       - name: Configure (3D, HIP, gfx90a)
         shell: bash
         run: |
@@ -227,6 +246,15 @@ jobs:
         run: |
           source /etc/profile.d/rocm.sh
           cmake --build build --parallel
+
+      - name: Verify executable exists
+        run: test -f build/wind_solver
+
+      - name: Run regression tests
+        shell: bash
+        run: |
+          source /etc/profile.d/rocm.sh
+          ctest --test-dir build -L regtest --output-on-failure
 
   # ── Linux SYCL build (Intel oneAPI DPC++, Ubuntu 22.04) ──────────────────
   build_sycl:
@@ -263,6 +291,9 @@ jobs:
             intel-oneapi-compiler-dpcpp-cpp \
             intel-oneapi-mkl-devel
 
+      - name: Install Python dependencies
+        run: pip3 install 'numpy>=1.24,<2.0' netCDF4
+
       - name: Configure (3D, SYCL)
         shell: bash
         run: |
@@ -284,6 +315,15 @@ jobs:
           source /opt/intel/oneapi/setvars.sh
           cmake --build build --parallel
 
+      - name: Verify executable exists
+        run: test -f build/wind_solver
+
+      - name: Run regression tests
+        shell: bash
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          ctest --test-dir build -L regtest --output-on-failure
+
   # ── Windows + CUDA build ──────────────────────────────────────────────────
   build_windows_cuda:
     name: Build Windows CUDA (windows-2022, Release)
@@ -301,6 +341,10 @@ jobs:
       - name: Install build dependencies (Windows)
         run: |
           vcpkg install nlohmann-json:x64-windows
+
+      - name: Install Python dependencies (Windows)
+        run: |
+          pip install 'numpy>=1.24,<2.0' netCDF4
 
       - name: Install CUDA toolkit
         uses: Jimver/cuda-toolkit@v0.2.35
@@ -351,3 +395,11 @@ jobs:
         run: |
           cmake --build build --config Release -j 4
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          if (!(Test-Path "build/Release/wind_solver.exe" -PathType Leaf)) { exit 1 }
+
+      - name: Run regression tests
+        run: ctest --test-dir build --config Release -L regtest --output-on-failure
