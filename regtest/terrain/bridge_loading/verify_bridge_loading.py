@@ -45,7 +45,7 @@ def run_verification():
     # Run the simulation
     cmd = [str(exe_path), str(inputs_file)]
     print(f"Executing: {' '.join(cmd)}")
-    res = subprocess.run(cmd, cwd=test_dir, capture_output=True, text=True)
+    res = subprocess.run(cmd, cwd=test_dir, capture_output=True, text=True, encoding='utf-8', errors='replace')
     print("STDOUT:")
     print(res.stdout)
     print("STDERR:")
