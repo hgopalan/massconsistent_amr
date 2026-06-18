@@ -26,6 +26,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include <cmath>
+#include <string>
 
 // ============================================================================
 // Data center heat source parameters structure (single facility)

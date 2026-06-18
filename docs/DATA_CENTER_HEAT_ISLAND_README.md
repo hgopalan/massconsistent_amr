@@ -1,8 +1,8 @@
-# Data Center Heat Island Effects - Phase 1 Documentation
+# Data Center Heat Island Effects - Documentation
 
 ## Overview
 
-This module provides functionality to model data centers as heat sources and study their atmospheric effects using the mass-consistent wind solver. Phase 1 focuses on basic heat source modeling and plume dispersion analysis.
+This module provides functionality to model data centers as heat sources and study their atmospheric effects using the mass-consistent wind solver. The framework covers basic heat source modeling, plume dispersion analysis, and supports multiple simultaneous facilities.
 
 ## Physical Model
 
@@ -111,7 +111,7 @@ scalar_cfl = 0.8
 | Heat Release | 10-100 MW | ~10 kW per rack; 1000-10000 racks typical |
 | Footprint | 5,000-100,000 m² | Small hyperscale centers; larger regional centers |
 | Effective Radius | √(Area/π) | ~40-180 m for typical centers |
-| Height | 10-30 m | Ground-level discharge; elevated sources in Phase 2 |
+| Height | 10-30 m | Ground-level discharge; elevated sources for future enhancement |
 
 ### Example Configurations
 
@@ -252,24 +252,21 @@ Verify solution properties:
 
 ## Limitations and Future Work
 
-### Phase 1 Limitations
+### Current Limitations
 
 1. **Point source approximation**: Facility modeled at single height; no multi-level discharge
 2. **Steady-state analysis**: Time-dependent operational loads not yet supported
-3. **No recirculation**: Plume doesn't re-enter intake (studied in Phase 2)
+3. **No recirculation**: Plume doesn't re-enter intake
 4. **Surface-level release**: Elevated cooling towers not yet modeled
 5. **No detailed facility geometry**: Complex building arrangements approximated as Gaussian
 
-### Phase 2 Enhancements
+### Planned Enhancements
 
 - Air-cooled vs. water-cooled facility distinction
 - Elevated cooling tower stacks with buoyant discharge
 - Time-varying operational cycles (peak vs. idle loads)
 - Facility intake recirculation modeling
 - Real-time PUE sensitivity analysis
-
-### Phase 3+ Features
-
 - Multi-facility cluster interactions
 - Regional cumulative heat island effect
 - Integration with air quality modeling

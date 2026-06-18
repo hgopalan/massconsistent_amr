@@ -384,5 +384,5 @@ For questions or issues with multi-facility modeling:
 
 1. Review example files in `examples/example_multi_datacenter.py`
 2. Check test cases in `regtest/datacenter/`
-3. Consult Phase 1 documentation: `docs/DATA_CENTER_HEAT_ISLAND_README.md`
+4. Consult the documentation: `docs/DATA_CENTER_HEAT_ISLAND_README.md`
 4. Run diagnostics with verbose output: `mlmg_verbose = 2`
