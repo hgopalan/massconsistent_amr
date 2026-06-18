@@ -5,37 +5,45 @@ import subprocess
 import unittest
 import numpy as np
 
+def find_puff_solver_exe(start_dir, max_depth=5):
+    """Find puff_solver executable in common build locations."""
+    current_dir = start_dir
+    
+    for _ in range(max_depth):
+        build_dir = os.path.join(current_dir, "build")
+        
+        # List of possible executable locations (in order of preference)
+        exe_candidates = [
+            os.path.join(build_dir, "Debug", "puff_solver.exe"),    # Windows Debug multi-config
+            os.path.join(build_dir, "Release", "puff_solver.exe"),  # Windows Release multi-config
+            os.path.join(build_dir, "puff_solver"),                  # Unix/Linux
+            os.path.join(build_dir, "puff_solver.exe"),              # Windows single-config or root level
+        ]
+        
+        # Find the first existing executable
+        for exe_candidate in exe_candidates:
+            if os.path.exists(exe_candidate):
+                return exe_candidate
+        
+        current_dir = os.path.dirname(current_dir)
+    
+    return None
+
 class TestMultispeciesCalpuff(unittest.TestCase):
     def setUp(self):
         # Set up paths
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.exe_path = find_puff_solver_exe(self.script_dir)
         self.repo_dir = self.script_dir
-        for _ in range(5):
-            # Try different possible locations for the executable
-            build_dir = os.path.join(self.repo_dir, "build")
-            
-            # Check for platform-specific executable in config subdirectories (Windows multi-config)
-            for config in ["Debug", "Release"]:
-                exe_candidate = os.path.join(build_dir, config, "puff_solver.exe")
-                if os.path.exists(exe_candidate):
-                    self.exe_path = exe_candidate
+        
+        # If not found, derive repo_dir from the script directory
+        if self.exe_path is None:
+            temp_dir = self.script_dir
+            for _ in range(5):
+                if os.path.exists(os.path.join(temp_dir, "build")):
+                    self.repo_dir = temp_dir
                     break
-            else:
-                # Check for Unix-style executable in build root
-                exe_candidate = os.path.join(build_dir, "puff_solver")
-                if os.path.exists(exe_candidate):
-                    self.exe_path = exe_candidate
-                else:
-                    # Try .exe on Windows in build root
-                    exe_candidate = os.path.join(build_dir, "puff_solver.exe")
-                    if os.path.exists(exe_candidate):
-                        self.exe_path = exe_candidate
-                    else:
-                        self.exe_path = None
-            
-            if self.exe_path is not None:
-                break
-            self.repo_dir = os.path.dirname(self.repo_dir)
+                temp_dir = os.path.dirname(temp_dir)
             
         self.inputs_base = os.path.join(self.script_dir, "inputs.i")
         self.receptors_file = os.path.join(self.script_dir, "receptors.csv")
