@@ -14,6 +14,9 @@ import numpy as np
 import netCDF4 as nc
 from pathlib import Path
 
+# Maximum directory depth to search for build directory
+MAX_BUILD_SEARCH_DEPTH = 5
+
 def find_wind_solver_exe(repo_dir):
     """Find wind_solver executable in common build locations."""
     build_dir = os.path.join(repo_dir, "build")

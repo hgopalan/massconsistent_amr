@@ -5,7 +5,10 @@ import subprocess
 import unittest
 import numpy as np
 
-def find_puff_solver_exe(start_dir, max_depth=5):
+# Maximum directory depth to search for build directory
+MAX_BUILD_SEARCH_DEPTH = 5
+
+def find_puff_solver_exe(start_dir, max_depth=MAX_BUILD_SEARCH_DEPTH):
     """Find puff_solver executable in common build locations."""
     current_dir = start_dir
     
@@ -36,13 +39,17 @@ class TestMultispeciesCalpuff(unittest.TestCase):
         self.exe_path = find_puff_solver_exe(self.script_dir)
         
         # Determine repo_dir by walking up from script_dir until we find 'build' directory
-        self.repo_dir = self.script_dir
+        self.repo_dir = None
         temp_dir = self.script_dir
-        for _ in range(5):
+        for _ in range(MAX_BUILD_SEARCH_DEPTH):
             if os.path.exists(os.path.join(temp_dir, "build")):
                 self.repo_dir = temp_dir
                 break
             temp_dir = os.path.dirname(temp_dir)
+        
+        # Fallback to script_dir if build dir not found
+        if self.repo_dir is None:
+            self.repo_dir = self.script_dir
             
         self.inputs_base = os.path.join(self.script_dir, "inputs.i")
         self.receptors_file = os.path.join(self.script_dir, "receptors.csv")
