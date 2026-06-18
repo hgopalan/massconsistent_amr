@@ -11,16 +11,33 @@ def run_verification():
     
     print(f"Running verify_obrien.py in {test_dir}")
     
-    # Locate the executable
+    # Locate the executable (handles both Unix and Windows)
     exe_path = None
-    for path in ["../../wind_solver", "../wind_solver", "./wind_solver", "../../build/wind_solver", "../../../build/wind_solver"]:
-        full_path = test_dir / path
-        if full_path.exists():
-            exe_path = full_path
+    exe_names = ["wind_solver", "wind_solver.exe"]
+    for exe_name in exe_names:
+        for path in [f"../../{exe_name}", f"../{exe_name}", f"./{exe_name}", f"../../build/{exe_name}", f"../../../build/{exe_name}"]:
+            full_path = test_dir / path
+            if full_path.exists():
+                exe_path = full_path
+                break
+        if exe_path:
             break
             
     if not exe_path:
-        exe_path = "wind_solver"
+        # Try the build directory with config subdirectory (Windows)
+        for config in ["Debug", "Release"]:
+            for exe_name in exe_names:
+                for path in [f"../../build/{config}/{exe_name}", f"../../../build/{config}/{exe_name}"]:
+                    full_path = test_dir / path
+                    if full_path.exists():
+                        exe_path = full_path
+                        break
+            if exe_path:
+                break
+    
+    if not exe_path:
+        # Fallback: try to find it in PATH or use the name directly
+        exe_path = "wind_solver.exe" if sys.platform == "win32" else "wind_solver"
         
     print(f"Using executable: {exe_path}")
     
