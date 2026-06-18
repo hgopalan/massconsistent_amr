@@ -14,25 +14,34 @@ def run_solver(extra_args=[]):
     if repo_root is None:
         repo_root = Path(__file__).parent.parent.parent.parent
 
-    exe = repo_root / "build" / "wind_solver"
-    if not exe.exists():
-        exe = repo_root / "build" / "Release" / "wind_solver"
-    if not exe.exists():
-        exe = repo_root / "build" / "Debug" / "wind_solver"
-    if not exe.exists():
+    exe = None
+    # Try to find wind_solver or wind_solver.exe in various locations
+    exe_names = ["wind_solver", "wind_solver.exe"]
+    for exe_name in exe_names:
+        for path in [repo_root / "build" / exe_name,
+                     repo_root / "build" / "Release" / exe_name,
+                     repo_root / "build" / "Debug" / exe_name]:
+            if path.exists():
+                exe = path
+                break
+        if exe:
+            break
+    
+    if not exe:
         # Fallback to searching
-        matches = list(repo_root.glob("**/wind_solver"))
-        if not matches:
-            matches = list(repo_root.glob("**/wind_solver.exe"))
-        if matches:
-            exe = matches[0]
-        else:
-            raise FileNotFoundError("Could not find wind_solver executable")
+        for exe_name in exe_names:
+            matches = list(repo_root.glob(f"**/{exe_name}"))
+            if matches:
+                exe = matches[0]
+                break
+    
+    if not exe:
+        raise FileNotFoundError("Could not find wind_solver executable")
             
     inputs = Path(__file__).parent / "inputs.i"
     cmd = [str(exe), str(inputs)] + extra_args
     print(f"Running command: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True, cwd=str(Path(__file__).parent))
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', check=True, cwd=str(Path(__file__).parent))
     return result.stdout
 
 def test_carson():

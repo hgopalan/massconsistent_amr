@@ -14,6 +14,35 @@ import numpy as np
 import netCDF4 as nc
 from pathlib import Path
 
+# Maximum directory depth to search for build directory
+MAX_BUILD_SEARCH_DEPTH = 5
+
+def find_wind_solver_exe(repo_dir):
+    """Find wind_solver executable in common build locations.
+    
+    Args:
+        repo_dir: Repository root directory to search for build subdirectory
+    
+    Returns:
+        Path to the wind_solver executable, or None if not found
+    """
+    build_dir = os.path.join(repo_dir, "build")
+    
+    # List of possible executable locations (in order of preference)
+    exe_candidates = [
+        os.path.join(build_dir, "Debug", "wind_solver.exe"),    # Windows Debug multi-config
+        os.path.join(build_dir, "Release", "wind_solver.exe"),  # Windows Release multi-config
+        os.path.join(build_dir, "wind_solver"),                  # Unix/Linux
+        os.path.join(build_dir, "wind_solver.exe"),              # Windows single-config or root level
+    ]
+    
+    # Find the first existing executable
+    for exe_candidate in exe_candidates:
+        if os.path.exists(exe_candidate):
+            return exe_candidate
+    
+    return None
+
 def generate_synthetic_datasets():
     """Generate synthetic NetCDF files for testing."""
     print("Generating synthetic NetCDF datasets...")
@@ -195,10 +224,13 @@ def main():
     generate_synthetic_datasets()
     
     # Find solver executable
-    solver_exe = os.environ.get("MASSCONSISTENT_EXE", os.path.join(repo_dir, "build", "wind_solver"))
-    if not os.path.exists(solver_exe):
-        # check parent/build
-        solver_exe = os.path.join(repo_dir, "build", "wind_solver")
+    solver_exe = os.environ.get("MASSCONSISTENT_EXE", None)
+    if solver_exe is None or not os.path.exists(solver_exe):
+        solver_exe = find_wind_solver_exe(repo_dir)
+    
+    if solver_exe is None:
+        print(f"ERROR: Could not find wind_solver executable in {repo_dir}/build")
+        sys.exit(1)
         
     print(f"Solver executable: {solver_exe}")
     

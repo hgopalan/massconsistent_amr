@@ -99,7 +99,7 @@ def test_single_parameter_sweep(inputs_file, terrain_dir):
         os.chdir(terrain_dir)
         
         try:
-            result = subprocess.run(cmd, timeout=600, capture_output=True, text=True)
+            result = subprocess.run(cmd, timeout=600, capture_output=True, text=True, encoding='utf-8', errors='replace')
         finally:
             os.chdir(original_cwd)
         

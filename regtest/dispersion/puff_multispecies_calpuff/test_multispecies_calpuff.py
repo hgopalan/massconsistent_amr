@@ -5,23 +5,66 @@ import subprocess
 import unittest
 import numpy as np
 
+# Maximum directory depth to search for build directory
+MAX_BUILD_SEARCH_DEPTH = 5
+
+def find_puff_solver_exe(start_dir, max_depth=MAX_BUILD_SEARCH_DEPTH):
+    """Find puff_solver executable in common build locations.
+    
+    Args:
+        start_dir: Starting directory to search from (typically script directory)
+        max_depth: Maximum number of directory levels to traverse upward (default: 5)
+    
+    Returns:
+        Path to the puff_solver executable, or None if not found
+    """
+    current_dir = start_dir
+    
+    for _ in range(max_depth):
+        build_dir = os.path.join(current_dir, "build")
+        
+        # List of possible executable locations (in order of preference)
+        exe_candidates = [
+            os.path.join(build_dir, "Debug", "puff_solver.exe"),    # Windows Debug multi-config
+            os.path.join(build_dir, "Release", "puff_solver.exe"),  # Windows Release multi-config
+            os.path.join(build_dir, "puff_solver"),                  # Unix/Linux
+            os.path.join(build_dir, "puff_solver.exe"),              # Windows single-config or root level
+        ]
+        
+        # Find the first existing executable
+        for exe_candidate in exe_candidates:
+            if os.path.exists(exe_candidate):
+                return exe_candidate
+        
+        current_dir = os.path.dirname(current_dir)
+    
+    return None
+
 class TestMultispeciesCalpuff(unittest.TestCase):
     def setUp(self):
         # Set up paths
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.repo_dir = self.script_dir
-        for _ in range(5):
-            if os.path.exists(os.path.join(self.repo_dir, "build", "puff_solver")):
+        self.exe_path = find_puff_solver_exe(self.script_dir)
+        
+        # Determine repo_dir by walking up from script_dir until we find 'build' directory
+        self.repo_dir = None
+        temp_dir = self.script_dir
+        for _ in range(MAX_BUILD_SEARCH_DEPTH):
+            if os.path.exists(os.path.join(temp_dir, "build")):
+                self.repo_dir = temp_dir
                 break
-            self.repo_dir = os.path.dirname(self.repo_dir)
+            temp_dir = os.path.dirname(temp_dir)
+        
+        # Fallback to script_dir if build dir not found
+        if self.repo_dir is None:
+            self.repo_dir = self.script_dir
             
-        self.exe_path = os.path.join(self.repo_dir, "build", "puff_solver")
         self.inputs_base = os.path.join(self.script_dir, "inputs.i")
         self.receptors_file = os.path.join(self.script_dir, "receptors.csv")
         self.test_work_dir = self.script_dir
         
         # Verify executable exists
-        self.assertTrue(os.path.exists(self.exe_path), f"puff_solver not found at {self.exe_path}")
+        self.assertTrue(self.exe_path is not None, f"puff_solver not found in build directories")
 
     def run_puff_solver(self, config_updates):
         inputs_file = os.path.join(self.script_dir, "temp_inputs.i")
