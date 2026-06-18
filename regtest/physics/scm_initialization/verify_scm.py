@@ -35,12 +35,15 @@ def verify_scm_initialization(input_file, work_dir):
     print("=" * 70)
     
     # Check if output files exist
-    plot_file = os.path.join(work_dir, "plt_scm")
+    # Look for plot files matching the pattern "plt_scm*"
+    import glob
+    plot_files = glob.glob(os.path.join(work_dir, "plt_scm*"))
     
-    if not os.path.exists(plot_file):
-        print(f"✗ FAIL: Plot file not found: {plot_file}")
+    if not plot_files:
+        print(f"✗ FAIL: No plot files found matching pattern 'plt_scm*' in {work_dir}")
         return False
     
+    plot_file = plot_files[0]  # Use the first matching file
     print(f"✓ PASS: Plot file exists: {plot_file}")
     
     # Look for any AMReX plot file subdirectories

@@ -30,6 +30,7 @@
 #include "temporal_synthesis.H"
 #include "turbsim_bts_export.H"
 #include "turbulence_validation.H"
+#include "scm_models.H"
 
 #include "wind_io_helpers.H"
 #include "wind_interpolation.H"
@@ -118,15 +119,24 @@ void WindSolverApp::parse_inputs() {
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" && 
         init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield" &&
-        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral" && init_mode != "sounding") {
+        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral" && init_mode != "sounding" && init_mode != "scm") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', 'ekman_spiral', or 'sounding')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', 'ekman_spiral', 'sounding', or 'scm')");
     }
 
     pp.query("U_ref", U_ref);
     pp.query("V_ref", V_ref);
     pp.query("z_ref", z_ref);
     pp.query("z0",    z0);
+
+    // Single Column Model (SCM) parameters
+    pp.query("scm_wind_speed", scm_wind_speed);
+    pp.query("scm_wind_direction", scm_wind_direction);
+    pp.query("scm_ref_height", scm_ref_height);
+    pp.query("scm_ref_temperature", scm_ref_temperature);
+    pp.query("scm_lapse_rate", scm_lapse_rate);
+    pp.query("scm_domain_height", scm_domain_height);
+    pp.query("scm_dz", scm_dz);
 
     // Canopy model parameters
     pp.query("enable_canopy", enable_canopy);
@@ -3785,6 +3795,83 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     vel(i, j, k, 0) = d_vel_u_ptr[idx];
                     vel(i, j, k, 1) = d_vel_v_ptr[idx];
                     vel(i, j, k, 2) = d_vel_w_ptr[idx];
+                }
+            });
+        }
+    } else if (init_mode == "scm") {
+        // Single Column Model (SCM) initialization
+        // Find geostrophic wind that produces desired wind speed at reference height
+        // Then initialize 3D field from 1D profile
+        
+        amrex::Print() << "wind_solver: SCM initialization - finding geostrophic wind...\n";
+        amrex::Print() << "  target wind speed = " << scm_wind_speed << " m/s at height " << scm_ref_height << " m\n";
+        
+        // Find geostrophic wind using 1D SCM
+        auto [ug, vg] = SCMModels::find_geostrophic_wind_1d_scm(
+            scm_wind_speed, scm_wind_direction, scm_ref_height, domain_latitude, z0,
+            scm_domain_height, scm_dz, scm_ref_temperature, scm_lapse_rate);
+        
+        scm_ug = ug;
+        scm_vg = vg;
+        
+        amrex::Print() << "wind_solver: SCM found geostrophic wind: ug = " << ug << " m/s, vg = " << vg << " m/s\n";
+        
+        // Run final 1D SCM to get converged profile
+        SCMModels::SCMState1D scm_state;
+        SCMModels::initialize_1d_state(scm_state, ug, vg, scm_ref_temperature, 
+                                       scm_lapse_rate, z0, scm_domain_height, scm_dz, domain_latitude);
+        scm_state.dt = 0.8 * scm_dz / std::sqrt(std::max(ug * ug + vg * vg, 0.01));
+        SCMModels::run_1d_scm(scm_state, scm_ref_height);
+        
+        amrex::Print() << "wind_solver: SCM converged, interpolating to 3D grid...\n";
+        
+        // Initialize 3D velocity field from 1D SCM profile
+        std::vector<Real> scm_z_h, scm_u_h, scm_v_h;
+        for (int i = 0; i < (int)scm_state.z.size(); ++i) {
+            scm_z_h.push_back(scm_state.z[i]);
+            scm_u_h.push_back(scm_state.ux[i]);
+            scm_v_h.push_back(scm_state.uy[i]);
+        }
+        
+        amrex::Gpu::DeviceVector<Real> d_scm_z(scm_z_h.size());
+        amrex::Gpu::DeviceVector<Real> d_scm_u(scm_u_h.size());
+        amrex::Gpu::DeviceVector<Real> d_scm_v(scm_v_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, scm_z_h.begin(), scm_z_h.end(), d_scm_z.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, scm_u_h.begin(), scm_u_h.end(), d_scm_u.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, scm_v_h.begin(), scm_v_h.end(), d_scm_v.begin());
+        
+        const Real* d_scm_z_ptr = d_scm_z.data();
+        const Real* d_scm_u_ptr = d_scm_u.data();
+        const Real* d_scm_v_ptr = d_scm_v.data();
+        const int scm_nz = scm_state.nz;
+        
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+            
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+                
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    // Find nearest SCM grid point
+                    int idx = 0;
+                    Real min_dist = std::abs(d_scm_z_ptr[0] - z_agl);
+                    for (int kk = 1; kk < scm_nz; ++kk) {
+                        Real dist = std::abs(d_scm_z_ptr[kk] - z_agl);
+                        if (dist < min_dist) {
+                            min_dist = dist;
+                            idx = kk;
+                        }
+                    }
+                    
+                    vel(i, j, k, 0) = d_scm_u_ptr[idx];
+                    vel(i, j, k, 1) = d_scm_v_ptr[idx];
+                    vel(i, j, k, 2) = Real(0.0);
                 }
             });
         }
