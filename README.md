@@ -194,11 +194,19 @@ See [INSTALL.md](INSTALL.md) for detailed instructions on all installation metho
 - **Transmission Line Assessment (IEEE 738):** Solves conductor heat balance to calculate dynamic line ratings, sag, and wind drag across complex terrain.
 - **Structure Loading:** Evaluates static base shear, dynamic amplification (gust response), lateral bending deflection, and structural fragility curves.
 
-### 6. External Coupling & APIs
-- **Wildfire Levelset:** One-way coupling with fire front propagation using sensible heat flux feedback.
-- **FLORIS & PyWake integration:** Exports resolved wind fields and data formats to FLORIS, PyWake, and WAsP.
+### 6. Wind Farm Optimization & Turbine Wake Modeling
+- **Wind Farm Integration:** Exports resolved wind fields and wake-adjusted velocity distributions to external wind farm optimization tools.
+- **FLORIS Integration:** Full compatibility with NREL's FLORIS wind farm optimization framework for wake steering, yaw control, and power maximization.
+- **PyWake Integration:** Supports PyWake for advanced farm-level wake analysis and optimization workflows.
+- **WAsP Export:** Exports wind resource data in WAsP-compatible formats for wind resource assessment.
+- **Turbine Wake Optimization:** Leverages analytical turbine wake models (Jensen, Bastankhah, TurbOPark) for layout optimization and wake steering calculations.
 
-### 9. Atmospheric Processes & Meteorological Effects
+### 7. Wildfire Levelset Coupling
+- **Fire Front Propagation:** One-way coupling with fire propagation models using sensible heat flux feedback to enable wind-fire interactions.
+- **Heat-Driven Flow:** Models buoyancy-driven flows induced by wildfire heat release and their impact on wind field modification.
+- **Integration:** Seamless coupling with wildfire_levelset repository for comprehensive wildfire-wind modeling scenarios.
+
+### 8. Atmospheric Processes & Meteorological Effects
 - **Coriolis Parameter Scaling:** Latitude-dependent Coriolis force modeling to account for Earth's rotation effects on flow deflection.
 - **Directional Bias Correction:** Systematic correction of wind direction and speed biases from NWP model inputs, including terrain-induced channeling bias.
 - **Ageostrophic Wind Adjustment:** Non-geostrophic force effects including pressure-gradient and surface-friction driven flow adjustments.
@@ -207,7 +215,7 @@ See [INSTALL.md](INSTALL.md) for detailed instructions on all installation metho
 - **Surface Layer Transition:** Smooth blending between log-law profiles at low heights and mixed-layer profiles at boundary-layer top.
 - **Diurnal Roughness Variations:** Time-varying aerodynamic roughness length to capture diurnal surface heating effects on roughness.
 
-### 10. Advanced Terrain & Blocking Effects
+### 9. Advanced Terrain & Blocking Effects
 - **Terrain Blocking Models:** Flow blockage and deflection around mountain barriers based on Froude number and terrain steepness.
 - **Roughness Transitions:** Spatial transitions between different land-use categories with smooth interpolation to prevent discontinuities.
 - **Roughness Blocking Method:** Representation of sub-grid scale roughness features through explicit blocking approach.
@@ -216,16 +224,23 @@ See [INSTALL.md](INSTALL.md) for detailed instructions on all installation metho
 - **Gap Flow Models:** Acceleration through mountain passes and gorges with pressure-driven channeling.
 - **Morphometric Analysis:** Terrain curvature, slope aspect, and landform classification for parameterization adaptation.
 
-### 11. Infrastructure & Structural Assessment (Enhanced)
+### 10. Infrastructure & Structural Assessment (Enhanced)
 - **Transmission Wire Dynamics:** Conductor sag, tension, and galloping/wake-induced oscillations under wind loading.
 - **Structure Resonance:** Dynamic amplification factors, gust response factors, and structural fragility curve evaluation.
 - **Pedestrian Wind Comfort:** ISO standard (ISO 23601) wind comfort assessment in urban environments.
 
-### 12. Advanced Data Processing & Validation
+### 11. Advanced Data Processing & Validation
 - **Continuity Validation:** Field-level divergence checking and diagnostics to ensure mass conservation.
 - **Flux Diagnostics:** Mass flux, sensible heat flux, and momentum flux calculations across domain sections.
 - **Numerical Derivatives:** High-order derivative operators (central, WENO-3, WENO-5) for accurate gradient computation.
 - **Numerical Optimization:** Iterative refinement of wind field parameters for improved fit to observations.
+
+### 13. Agricultural Drone Operations
+- **Flight Path Modeling:** Parses and interpolates 3D flight trajectories from CSV telemetry data for agricultural drone operations.
+- **Rotor Downwash Velocity:** Models 3D analytical rotor downwash velocity fields with jet expansion and forward flight deflection effects.
+- **Spray Drift Simulation:** Simulates spray drift and canopy deposition using Lagrangian Particle Dispersion Models (LPDM) or Gaussian Puff dispersion.
+- **Field Application:** Enables precise pesticide and nutrient application modeling over complex terrain with wind speed-dependent drift prediction.
+
 
 ## Test Cases
 
@@ -240,15 +255,9 @@ Run them with CTest from your build directory:
 ctest -L regtest
 ```
 
-## Agricultural Drone Operations
-
-The solver provides a Python module (`agricultural_drone`) for simulating agricultural drone operations. This module parses and interpolates 3D flight trajectories from CSV telemetry, models 3D analytical rotor downwash velocity fields (jet expansion and forward flight deflection), and simulates spray drift and canopy deposition using Lagrangian Particle Dispersion Models (LPDM) or Gaussian Puff dispersion.
-
-For guides and API documentation, see the [External Coupling Documentation](docs/external_coupling.rst).
-
 ## External Coupling
 
-The solver integrates with external models for geochemical and fire modeling. For guides, API references, and examples, see the [External Coupling Documentation](docs/external_coupling.rst) and the [wildfire_levelset](https://github.com/hgopalan/wildfire_levelset) repository.
+The solver integrates with external models for wind farm optimization, geochemical analysis, and fire modeling. For guides, API references, and examples, see the [External Coupling Documentation](docs/external_coupling.rst) and the [wildfire_levelset](https://github.com/hgopalan/wildfire_levelset) repository.
 
 ## License
 

@@ -339,6 +339,9 @@ jobs:
           ctest --test-dir build -L regtest --output-on-failure
 
   # ── Windows + CUDA build ──────────────────────────────────────────────────
+  # NOTE: Disabled regression tests because Windows GitHub Actions runners
+  # do not have CUDA-capable GPU hardware. CUDA builds are verified to compile
+  # correctly, but GPU-dependent runtime tests require actual CUDA hardware to run.
   build_windows_cuda:
     name: Build Windows CUDA (windows-2022, Release)
     runs-on: windows-2022
@@ -416,6 +419,3 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path "build/wind_solver.exe" -PathType Leaf)) { exit 1 }
-
-      - name: Run regression tests
-        run: ctest --test-dir build -C Release -L regtest --output-on-failure
