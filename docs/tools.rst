@@ -93,13 +93,50 @@ Provides full ingestion of North American Mesoscale (NAM) meteorological dataset
 
 Climate Projection Downscaler (``download_climate_projection.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Queries and downloads future climate projection models (CMIP6, downscaled projections) for target locations.
-  * Formats the projected future wind climatology into joint speed-direction distributions (wind roses) to feed directly into the **AEP Calculator**.
-  * Outputs wind flow configuration profile files (e.g., ``future_scenarios.ini``) to analyze extreme or representative wind flows under projected future climate regimes.
+Queries and downloads future climate projection models (CMIP6, downscaled projections) for target locations. This tool enables climate-change impact analysis by projecting wind resource and extreme wind distributions into the future.
+
+* **Features**:
+  * Retrieves CMIP6 climate model ensemble projections for target latitude/longitude.
+  * Downscales coarse-resolution climate projections (typically 10-50 km) to local site coordinates using elevation and terrain corrections.
+  * Computes 50-year and 100-year return period wind speeds under projected future climate regimes.
+  * Formats projected wind climatology into joint speed-direction distributions (wind roses) for direct input to the **AEP Calculator** or other wind resource tools.
+  * Outputs wind flow configuration profile files (e.g., ``future_scenarios.ini``) to analyze extreme or representative wind flows.
+
+* **Usage**:
+
+  .. code-block:: bash
+
+     python3 tools/download_climate_projection.py \
+       --lat 40.0 --lon -105.0 \
+       --model CMIP6 \
+       --scenario SSP2-4.5 \
+       --years 2050 2100 \
+       --output climate_projections.csv
+
+* **Key Capabilities**:
+  * Multiple CMIP6 scenarios (SSP1-1.9, SSP1-2.6, SSP2-4.5, SSP3-7.0, SSP5-8.5) for varying climate futures.
+  * Ensemble statistics (mean, percentiles) across multiple climate models.
+  * Wind speed and direction uncertainty quantification.
+  * Compatibility with FLORIS, PyWake, and WAsP wind farm tools.
 
 FARSITE Weather Parser (``farsite_weather_reader.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Reads diurnal, multi-station weather schedules from FARSITE format files, formatting them for coupled wind-fire time-loop simulation steering.
+Reads diurnal, multi-station weather schedules from FARSITE format files and formats them for coupled wind-fire time-loop simulation steering. This is essential for wildfire simulation integration.
+
+* **Features**:
+  * Parses FARSITE hourly weather files (temperature, humidity, wind speed/direction, precipitation).
+  * Performs spatial interpolation to solver grid coordinates.
+  * Handles time interpolation between discrete FARSITE records.
+  * Outputs solver-ready NetCDF or CSV profiles for fireflux coupling.
+
+* **Usage**:
+
+  .. code-block:: bash
+
+     python3 tools/farsite_weather_reader.py \
+       --farsite-weather fire_domain.wnd \
+       --solver-grid domain.csv \
+       --output weather_profiles.nc
 
 Post-Processing & Export Utilities
 ----------------------------------

@@ -1,6 +1,6 @@
 # massconsistent_amr
 
-**massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM) with simple reactive chemistry. It also integrates with external tools via Python, supporting wind farm utilities (FLORIS, PyWake), wildfire modeling, and geochemical reactive transport (PHREEQC).
+**massconsistent_amr** is a high-performance, GPU-accelerated (CUDA/HIP/SYCL), and MPI-parallel C++ 3-D mass-consistent wind diagnostic solver built on the AMReX framework. It features advanced terrain-following adjustment with spatially-varying anisotropy, building/canopy drag, analytical turbine wake modeling, directional bias correction, Coriolis parameter scaling, and advanced atmospheric dispersion (Lagrangian Puff and LPDM) with simple reactive chemistry. It also integrates with external tools via Python, supporting wind farm utilities (FLORIS, PyWake), wildfire modeling, and geochemical reactive transport (PHREEQC).
 
 ## Scenario Gallery
 
@@ -198,18 +198,34 @@ See [INSTALL.md](INSTALL.md) for detailed instructions on all installation metho
 - **Wildfire Levelset:** One-way coupling with fire front propagation using sensible heat flux feedback.
 - **FLORIS & PyWake integration:** Exports resolved wind fields and data formats to FLORIS, PyWake, and WAsP.
 
-### 7. Data Assimilation
-- **Hybrid Ensemble Kalman Filter (EnKF):** Optional feature for rapid wind field correction using sparse observations from weather stations, LiDAR, and UAVs. Features covariance localization, mass conservation projection, and GPU-ready architecture. Disabled by default; enable via ParmParse configuration.
-- See [Data Assimilation Documentation](https://hgopalan.github.io/massconsistent_amr/data_assimilation_usage.html) for usage and [Development Status](https://hgopalan.github.io/massconsistent_amr/data_assimilation_development.html) for technical details.
+### 9. Atmospheric Processes & Meteorological Effects
+- **Coriolis Parameter Scaling:** Latitude-dependent Coriolis force modeling to account for Earth's rotation effects on flow deflection.
+- **Directional Bias Correction:** Systematic correction of wind direction and speed biases from NWP model inputs, including terrain-induced channeling bias.
+- **Ageostrophic Wind Adjustment:** Non-geostrophic force effects including pressure-gradient and surface-friction driven flow adjustments.
+- **Thermal Circulation:** Diurnal heating-driven slope flows, sea breeze, and valley circulation modeling.
+- **Buoyancy-Driven Flows:** Vertical motion suppression and horizontal deflection under stable stratification with Froude number regime detection.
+- **Surface Layer Transition:** Smooth blending between log-law profiles at low heights and mixed-layer profiles at boundary-layer top.
+- **Diurnal Roughness Variations:** Time-varying aerodynamic roughness length to capture diurnal surface heating effects on roughness.
 
-### 8. Data Center Siting Tool
-- **Multi-Criteria Optimization:** Evaluates candidate data center locations based on climate characterization, cooling efficiency, infrastructure resilience, and environmental impact.
-- **Climate Characterization:** Provides wind, temperature, humidity, and evaporation profiles for each site.
-- **Cooling Efficiency Scoring:** Quantifies free cooling opportunity windows, ambient temperature extremes, and humidity control requirements.
-- **Resilience Assessment:** Evaluates wind extremes (10/50/100-year return periods), flood risk, and terrain slope effects.
-- **Environmental Impact:** Quantifies heat island effect, water availability, air quality impacts, and thermal discharge compliance.
-- **Multi-Priority Profiles:** Supports BALANCED, COOLING_EFFICIENCY, RESILIENCE, ENVIRONMENTAL, and COST_OPTIMIZED weighting schemes.
-- **Reporting and Visualization:** Generates JSON/CSV reports and Pareto frontier trade-off plots.
+### 10. Advanced Terrain & Blocking Effects
+- **Terrain Blocking Models:** Flow blockage and deflection around mountain barriers based on Froude number and terrain steepness.
+- **Roughness Transitions:** Spatial transitions between different land-use categories with smooth interpolation to prevent discontinuities.
+- **Roughness Blocking Method:** Representation of sub-grid scale roughness features through explicit blocking approach.
+- **Porosity Models:** Porous media flow treatment for vegetated and built environments.
+- **Valley Channeling:** Enhanced wind speed in valleys due to topographic funneling with anisotropic adjustment.
+- **Gap Flow Models:** Acceleration through mountain passes and gorges with pressure-driven channeling.
+- **Morphometric Analysis:** Terrain curvature, slope aspect, and landform classification for parameterization adaptation.
+
+### 11. Infrastructure & Structural Assessment (Enhanced)
+- **Transmission Wire Dynamics:** Conductor sag, tension, and galloping/wake-induced oscillations under wind loading.
+- **Structure Resonance:** Dynamic amplification factors, gust response factors, and structural fragility curve evaluation.
+- **Pedestrian Wind Comfort:** ISO standard (ISO 23601) wind comfort assessment in urban environments.
+
+### 12. Advanced Data Processing & Validation
+- **Continuity Validation:** Field-level divergence checking and diagnostics to ensure mass conservation.
+- **Flux Diagnostics:** Mass flux, sensible heat flux, and momentum flux calculations across domain sections.
+- **Numerical Derivatives:** High-order derivative operators (central, WENO-3, WENO-5) for accurate gradient computation.
+- **Numerical Optimization:** Iterative refinement of wind field parameters for improved fit to observations.
 
 ## Test Cases
 
