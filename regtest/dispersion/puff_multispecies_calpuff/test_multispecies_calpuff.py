@@ -11,17 +11,38 @@ class TestMultispeciesCalpuff(unittest.TestCase):
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.repo_dir = self.script_dir
         for _ in range(5):
-            if os.path.exists(os.path.join(self.repo_dir, "build", "puff_solver")):
+            # Try different possible locations for the executable
+            build_dir = os.path.join(self.repo_dir, "build")
+            
+            # Check for platform-specific executable in config subdirectories (Windows multi-config)
+            for config in ["Debug", "Release"]:
+                exe_candidate = os.path.join(build_dir, config, "puff_solver.exe")
+                if os.path.exists(exe_candidate):
+                    self.exe_path = exe_candidate
+                    break
+            else:
+                # Check for Unix-style executable in build root
+                exe_candidate = os.path.join(build_dir, "puff_solver")
+                if os.path.exists(exe_candidate):
+                    self.exe_path = exe_candidate
+                else:
+                    # Try .exe on Windows in build root
+                    exe_candidate = os.path.join(build_dir, "puff_solver.exe")
+                    if os.path.exists(exe_candidate):
+                        self.exe_path = exe_candidate
+                    else:
+                        self.exe_path = None
+            
+            if self.exe_path is not None:
                 break
             self.repo_dir = os.path.dirname(self.repo_dir)
             
-        self.exe_path = os.path.join(self.repo_dir, "build", "puff_solver")
         self.inputs_base = os.path.join(self.script_dir, "inputs.i")
         self.receptors_file = os.path.join(self.script_dir, "receptors.csv")
         self.test_work_dir = self.script_dir
         
         # Verify executable exists
-        self.assertTrue(os.path.exists(self.exe_path), f"puff_solver not found at {self.exe_path}")
+        self.assertTrue(self.exe_path is not None and os.path.exists(self.exe_path), f"puff_solver not found in build directories")
 
     def run_puff_solver(self, config_updates):
         inputs_file = os.path.join(self.script_dir, "temp_inputs.i")

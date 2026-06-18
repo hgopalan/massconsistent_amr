@@ -195,10 +195,34 @@ def main():
     generate_synthetic_datasets()
     
     # Find solver executable
-    solver_exe = os.environ.get("MASSCONSISTENT_EXE", os.path.join(repo_dir, "build", "wind_solver"))
-    if not os.path.exists(solver_exe):
-        # check parent/build
-        solver_exe = os.path.join(repo_dir, "build", "wind_solver")
+    solver_exe = os.environ.get("MASSCONSISTENT_EXE", None)
+    if solver_exe is None or not os.path.exists(solver_exe):
+        # Try to find it in common locations
+        build_dir = os.path.join(repo_dir, "build")
+        solver_exe = None
+        
+        # Check for Windows multi-config build (build/Debug/wind_solver.exe or build/Release/wind_solver.exe)
+        for config in ["Debug", "Release"]:
+            exe_candidate = os.path.join(build_dir, config, "wind_solver.exe")
+            if os.path.exists(exe_candidate):
+                solver_exe = exe_candidate
+                break
+        
+        # Check for Unix-style build (build/wind_solver)
+        if solver_exe is None:
+            exe_candidate = os.path.join(build_dir, "wind_solver")
+            if os.path.exists(exe_candidate):
+                solver_exe = exe_candidate
+        
+        # Check for Windows build in root (build/wind_solver.exe)
+        if solver_exe is None:
+            exe_candidate = os.path.join(build_dir, "wind_solver.exe")
+            if os.path.exists(exe_candidate):
+                solver_exe = exe_candidate
+    
+    if solver_exe is None:
+        print(f"ERROR: Could not find wind_solver executable in {repo_dir}/build")
+        sys.exit(1)
         
     print(f"Solver executable: {solver_exe}")
     
