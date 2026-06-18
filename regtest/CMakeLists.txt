@@ -239,6 +239,12 @@ add_regression_test(scalar_transport_coupled physics/scalar_transport_coupled)
 add_regression_test(combined_thermal_terrain physics/combined_thermal_terrain)
 
 # ---------------------------------------------------------------------------
+# scm_initialization/ – Single Column Model (SCM) wind profile initialization
+# ---------------------------------------------------------------------------
+add_regression_test(scm_initialization physics/scm_initialization)
+add_python_regression_test(scm_initialization_python physics/scm_initialization verify_scm.py)
+
+# ---------------------------------------------------------------------------
 # Canopy model tests
 # ---------------------------------------------------------------------------
 
@@ -751,6 +757,7 @@ message(STATUS "  physics/buoyancy_rhs/          : Buoyancy RHS method (source t
 message(STATUS "  physics/terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
 message(STATUS "  physics/scalar_transport/      : 3D scalar transport with mixing length turbulence model")
 message(STATUS "  physics/combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
+message(STATUS "  physics/scm_initialization/    : Single Column Model (SCM) wind profile initialization")
 message(STATUS "  physics/canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
 message(STATUS "  physics/canopy_spatially_varying/: Spatially-varying canopy height and frontal area index")
 message(STATUS "  physics/canopy_exponential/    : Exponential canopy profile model")

@@ -1,7 +1,5 @@
-# Example inputs file for Single Column Model (SCM) initialization
-# This example demonstrates how to initialize a wind field using the SCM mode
-# The SCM performs a time-dependent 1D simulation to find the geostrophic wind
-# required to produce a specified wind speed at a reference height
+# Regression test for Single Column Model (SCM) wind profile initialization
+# This test validates the SCM's ability to find geostrophic wind from a specified wind speed at a reference height
 
 # ============================================================================
 # GEOMETRY
@@ -56,13 +54,3 @@ mlmg.tol_abs = 1.0e-8
 # ============================================================================
 plot_file = plt_scm
 extract_agl = 10.0              # Extract wind at 10m AGL
-
-# ============================================================================
-# NOTES
-# ============================================================================
-# 1. The SCM will iteratively find geostrophic wind (Ug, Vg) that produces
-#    the specified wind speed at the reference height
-# 2. Temperature is initialized with the lapse rate from the reference temperature
-# 3. A uniform dz = 4m is used for the 1D SCM simulation
-# 4. The domain height of 4 km provides sufficient vertical extent
-# 5. After convergence, the 1D profile is mapped to 3D terrain-aligned coordinates

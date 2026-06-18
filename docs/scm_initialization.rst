@@ -287,7 +287,7 @@ Performance Considerations
 Example Configuration
 ---------------------
 
-See ``example_scm_inputs.i`` in the repository root for a complete example configuration.
+See the ``regtest/physics/scm_initialization/inputs.i`` file in the repository for a complete example configuration.
 
 References
 ----------
