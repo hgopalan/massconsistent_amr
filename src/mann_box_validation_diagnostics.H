@@ -1,6 +1,6 @@
 // ============================================================================
 // mann_box_validation_diagnostics.H
-// Phase 7: Validation Diagnostics & Export Utilities
+// Validation Diagnostics & Export Utilities
 //
 // Provides comprehensive diagnostic capabilities for Mann Box turbulence model:
 // 1. Spectral power density export

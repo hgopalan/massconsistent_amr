@@ -6,7 +6,7 @@
 // data meets physics requirements and format specifications. Includes:
 //
 //   1. Energy Spectra Validation
-//      - Verifies spectral content against Phase 1 targets
+//      - Verifies spectral content against the configured target spectra
 //      - Parseval's theorem check: ∫S(f)df ≈ σ²_target (±5% tolerance)
 //
 //   2. Temporal Coherence Validation
@@ -51,7 +51,7 @@
 #include <iomanip>
 
 // ============================================================================
-// Namespace: Phase3Validation
+// Namespace: turbulence validation utilities
 // ============================================================================
 
 namespace Phase3Validation {
@@ -499,7 +499,7 @@ public:
         std::ostringstream oss;
         
         oss << "=" << std::string(70, '=') << "=\n";
-        oss << "PHASE 3 VALIDATION REPORT\n";
+        oss << "TURBULENCE VALIDATION REPORT\n";
         oss << "=" << std::string(70, '=') << "=\n\n";
         
         oss << "Summary:\n";

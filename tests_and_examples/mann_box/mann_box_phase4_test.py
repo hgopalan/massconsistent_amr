@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Mann Box Phase 4: Temporal & Stability Physics Tests
+Mann Box Temporal & Stability Physics Tests
 
-This test suite validates Phase 4 enhancements including:
+This test suite validates temporal and stability physics capabilities including:
 1. Time-lag correlation functions (Eulerian and Lagrangian)
 2. Taylor frozen turbulence approximation
 3. Richardson number classification
@@ -10,7 +10,7 @@ This test suite validates Phase 4 enhancements including:
 5. Stability-dependent tensor modifications
 6. Convective scaling
 7. Vertical coherence effects
-8. Complete integration with Phase 3 spectral tensor
+8. Complete integration with spectral tensor computation
 
 References:
   - Mann, J. (1994). The spatial structure of neutral atmospheric surface-layer
@@ -530,8 +530,8 @@ def test_vertical_coherence():
 # ============================================================================
 
 def test_phase4_integration():
-    """Test integration of all Phase 4 components."""
-    print("\n  Test 8: Phase 4 Integration")
+    """Test integration of temporal and stability physics components."""
+    print("\n  Test 8: Temporal and Stability Integration")
     
     passed = True
     
@@ -596,9 +596,9 @@ def test_phase4_integration():
 
 
 def main():
-    """Run all Phase 4 tests."""
+    """Run all temporal and stability physics tests."""
     print("\n" + "="*70)
-    print("MANN BOX PHASE 4: TEMPORAL & STABILITY PHYSICS TESTS")
+    print("MANN BOX TEMPORAL & STABILITY PHYSICS TESTS")
     print("="*70)
     
     # Run all test groups
@@ -621,7 +621,7 @@ def main():
     
     if test_results['failed'] == 0:
         print("\n✓ ALL TESTS PASSED!")
-        print("\nPhase 4 Key Achievements:")
+        print("\nKey capabilities validated:")
         print("  ✓ Temporal correlations (Eulerian & Lagrangian)")
         print("  ✓ Richardson number classification")
         print("  ✓ Obukhov length computation")

@@ -473,9 +473,9 @@ def test_physical_bounds_enforcement():
         return False
 
 def main():
-    """Run all Phase 1 tests."""
+    """Run all turbulence enhancement tests."""
     print("\n" + "="*70)
-    print("PHASE 1 TURBULENCE ENHANCEMENTS TEST SUITE")
+    print("TURBULENCE ENHANCEMENTS TEST SUITE")
     print("="*70)
     print("Testing: IEC 61400-1, Smooth Profiles, Additional Coherence Models")
     

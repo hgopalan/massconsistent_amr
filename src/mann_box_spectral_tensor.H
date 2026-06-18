@@ -1,7 +1,7 @@
 // ============================================================================
 // mann_box_spectral_tensor.H
 // 
-// PHASE 3: Spectral Tensor Completeness Enhancement
+// Spectral Tensor Completeness Enhancement
 // 
 // Full implementation of the Mann Box anisotropic spectral tensor model with:
 // - Complete 9-component spectral tensor (S_ij with i,j = u,v,w)
@@ -22,7 +22,7 @@
 //   Mann, J. (1994). The spatial structure of neutral atmospheric surface-layer
 //   turbulence. Journal of Fluid Mechanics, 273, 141-168.
 //
-// Phase 3 New Features:
+// Core Capabilities:
 //   1. Off-diagonal components (S_uv, S_uw, S_vw)
 //   2. Eigenvalue decomposition verification
 //   3. Physical realizability enforcement
@@ -88,7 +88,7 @@ namespace MannBoxSpectralTensor {
 // PART 1: Spectral Tensor Construction
 // ============================================================================
 
-// Compute Mann Box diagonal spectral component (from Phase 2)
+// Compute Mann Box diagonal spectral component
 // S_ii(k) = (8√(3/(11π)) * σ_i² * L_i) / (k * (1 + (k*L_i/C)²)^(5/6))
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_mann_box_spectrum_diagonal(

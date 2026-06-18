@@ -1,7 +1,7 @@
 // ============================================================================
 // mann_box_flow_regime_detector.H
 // 
-// PHASE 5: Terrain Adaptation & Flow Regimes - Part 1: Flow Regime Detection
+// Terrain Adaptation & Flow Regimes: Flow Regime Detection
 // 
 // Implements automated detection of wind flow regimes over complex terrain,
 // including acceleration zones, flow separation, stagnation points, and
@@ -43,12 +43,12 @@
 //   Stull, R. B. (1988). An Introduction to Boundary Layer Meteorology.
 //   Kluwer Academic Publishers.
 //
-// Phase 5 Features:
+// Core Features:
 //   1. Flow regime detection from velocity field
 //   2. Automatic parameter adjustment per regime
 //   3. Boundary layer height classification
 //   4. Height-dependent tensor modifications
-//   5. Integration with Phase 3 spectral tensor
+//   5. Integration with the spectral tensor model
 // ============================================================================
 
 #ifndef MANN_BOX_FLOW_REGIME_DETECTOR_H

@@ -2,7 +2,7 @@
 #define MANN_BOX_DIRECTIONAL_ROTATION_H_
 
 /**
- * Mann Box Phase 6: Directional Anisotropy & Wind Veer
+ * Mann Box Directional Anisotropy & Wind Veer
  *
  * This header implements directional rotation and wind veering for the Mann Box
  * spectral tensor model. Key features:

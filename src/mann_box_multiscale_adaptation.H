@@ -1,7 +1,7 @@
 // ============================================================================
 // mann_box_multiscale_adaptation.H
 // 
-// PHASE 5: Terrain Adaptation & Flow Regimes - Part 3: Multi-Scale Terrain Cascade
+// Terrain Adaptation & Flow Regimes: Multi-Scale Terrain Cascade
 // 
 // Implements multi-scale terrain analysis and hierarchical anisotropy modifications.
 // Combines effects of large-scale, medium-scale, and small-scale terrain features
@@ -43,11 +43,11 @@
 //   Dyrbye, C., & Hansen, S. O. (1997). Wind loads on structures.
 //   John Wiley & Sons.
 //
-// Phase 5 Features:
+// Core Features:
 //   1. Multi-scale terrain feature classification
 //   2. Hierarchical tensor modifications
 //   3. Height-dependent cascade weighting
-//   4. Integration with Phase 3 spectral tensor and Phase 5 slope adaptation
+//   4. Integration with the spectral tensor model and slope-aware adaptation
 // ============================================================================
 
 #ifndef MANN_BOX_MULTISCALE_ADAPTATION_H

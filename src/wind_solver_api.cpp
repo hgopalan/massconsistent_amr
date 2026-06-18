@@ -965,7 +965,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.alpha_h_field = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 1);
     state.alpha_v_field = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 1);
     
-    // Phase 1: Initialize diagnostic flux fields
+    // Initialize diagnostic flux fields
     state.u_star = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);
     state.tau_flux = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);
     state.cd = std::make_unique<MultiFab>(*state.ba, *state.dm, 1, 0);

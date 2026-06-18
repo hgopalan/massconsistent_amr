@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Mann Box Phase 3: Spectral Tensor Completeness Tests
+Mann Box Spectral Tensor Completeness Tests
 
-This test suite validates Phase 3 enhancements including:
+This test suite validates spectral tensor capabilities including:
 1. Full 9-component spectral tensor computation
 2. Off-diagonal components and cross-spectra
 3. Cauchy-Schwarz inequality verification
@@ -449,9 +449,9 @@ def test_condition_number():
 
 
 def main():
-    """Run all Phase 3 tests."""
+    """Run all spectral tensor completeness tests."""
     print("\n" + "="*70)
-    print("MANN BOX PHASE 3: SPECTRAL TENSOR COMPLETENESS TESTS")
+    print("MANN BOX SPECTRAL TENSOR COMPLETENESS TESTS")
     print("="*70)
     
     # Run all tests

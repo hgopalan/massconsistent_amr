@@ -57,7 +57,7 @@ def test_gaussian_hill_with_mann_box():
         return 1
     
     print("\n" + "-"*70)
-    print("Phase 1: Wind Solver Initialization")
+    print("Wind Solver Initialization")
     print("-"*70)
     
     try:
@@ -84,7 +84,7 @@ def test_gaussian_hill_with_mann_box():
         return 1
     
     print("\n" + "-"*70)
-    print("Phase 2: Solve Mass-Consistent Wind Field")
+    print("Mass-Consistent Wind Field Solution")
     print("-"*70)
     
     try:
@@ -107,7 +107,7 @@ def test_gaussian_hill_with_mann_box():
         return 1
     
     print("\n" + "-"*70)
-    print("Phase 3: Mann Box Spectrum Generation")
+    print("Mann Box Spectrum Generation")
     print("-"*70)
     
     try:
@@ -147,7 +147,7 @@ def test_gaussian_hill_with_mann_box():
         failed += 1
     
     print("\n" + "-"*70)
-    print("Phase 4: Spectrum Realizability Validation")
+    print("Spectrum Realizability Validation")
     print("-"*70)
     
     try:
@@ -181,7 +181,7 @@ def test_gaussian_hill_with_mann_box():
         failed += 1
     
     print("\n" + "-"*70)
-    print("Phase 5: Spectrum Parameter Summary")
+    print("Spectrum Parameter Summary")
     print("-"*70)
     
     try:
@@ -205,7 +205,7 @@ def test_gaussian_hill_with_mann_box():
         failed += 1
     
     print("\n" + "-"*70)
-    print("Phase 6: Multiple Preset Validation")
+    print("Multiple Preset Validation")
     print("-"*70)
     
     try:

@@ -1,7 +1,7 @@
 // ============================================================================
 // mann_box_terrain_tensor_rotation.H
 // 
-// PHASE 5: Terrain Adaptation & Flow Regimes - Part 2: Slope-Aware Tensor Rotation
+// Terrain Adaptation & Flow Regimes: Slope-Aware Tensor Rotation
 // 
 // Implements slope-aware modifications to the Mann Box spectral tensor,
 // rotating the anisotropy tensor to align with local terrain slope and
@@ -47,12 +47,12 @@
 //   Belcher, S. E., & Hunt, J. C. (1998). Turbulent shear flow over slowly
 //   varying hills and valleys. Journal of Fluid Mechanics, 359, 329-374.
 //
-// Phase 5 Features:
+// Core Features:
 //   1. Terrain slope-aligned coordinate transformation
 //   2. Along-slope and cross-slope variance adjustment
 //   3. Steep slope support (>30°)
 //   4. Slope-dependent length scale modification
-//   5. Integration with Phase 3 spectral tensor
+//   5. Integration with the spectral tensor model
 // ============================================================================
 
 #ifndef MANN_BOX_TERRAIN_TENSOR_ROTATION_H

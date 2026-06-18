@@ -1,0 +1,97 @@
+{
+  "metadata": {
+    "farm_name": "Example_Wind_Farm",
+    "version": "1.0"
+  },
+  "farm_summary": {
+    "num_turbines": 4,
+    "total_power_kw": 16200.0,
+    "annual_energy_gwh": 141.912
+  },
+  "turbines": [
+    {
+      "id": 0,
+      "location": {
+        "x_m": 300.0,
+        "y_m": 300.0
+      },
+      "turbine_type": "DTU10MW",
+      "rotor_diameter_m": 178.0,
+      "hub_height_agl_m": 90.0,
+      "wind_conditions": {
+        "speed_ms": 9.146820341534214,
+        "direction_deg": 73.84896360077948
+      },
+      "power": {
+        "output_kw": 3500.0,
+        "thrust_coefficient": 0.82,
+        "yaw_deg": 0.0
+      }
+    },
+    {
+      "id": 1,
+      "location": {
+        "x_m": 800.0,
+        "y_m": 300.0
+      },
+      "turbine_type": "DTU10MW",
+      "rotor_diameter_m": 178.0,
+      "hub_height_agl_m": 90.0,
+      "wind_conditions": {
+        "speed_ms": 9.92606878764526,
+        "direction_deg": 83.04091107954399
+      },
+      "power": {
+        "output_kw": 3200.0,
+        "thrust_coefficient": 0.82,
+        "yaw_deg": 0.0
+      }
+    },
+    {
+      "id": 2,
+      "location": {
+        "x_m": 1300.0,
+        "y_m": 300.0
+      },
+      "turbine_type": "NREL15MW",
+      "rotor_diameter_m": 240.0,
+      "hub_height_agl_m": 120.0,
+      "wind_conditions": {
+        "speed_ms": 10.47317200080855,
+        "direction_deg": 77.681615624449
+      },
+      "power": {
+        "output_kw": 6500.0,
+        "thrust_coefficient": 0.82,
+        "yaw_deg": 0.0
+      }
+    },
+    {
+      "id": 3,
+      "location": {
+        "x_m": 500.0,
+        "y_m": 700.0
+      },
+      "turbine_type": "DTU10MW",
+      "rotor_diameter_m": 178.0,
+      "hub_height_agl_m": 90.0,
+      "wind_conditions": {
+        "speed_ms": 9.434144152851903,
+        "direction_deg": 74.829862828792
+      },
+      "power": {
+        "output_kw": 3000.0,
+        "thrust_coefficient": 0.82,
+        "yaw_deg": 0.0
+      }
+    }
+  ],
+  "wind_resource": {
+    "mean_speed_ms": 10.251284097187868,
+    "mean_direction_deg": 78.58915142363422,
+    "std_speed_ms": 0.9734455296551653,
+    "std_direction_deg": 2.934781552401601,
+    "height_agl_m": 90.0,
+    "turbulence_intensity": 0.08
+  }
+}

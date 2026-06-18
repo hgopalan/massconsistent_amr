@@ -18,16 +18,16 @@
 //   1. Power-law - Height-dependent power-law profile
 //   2. Logarithmic - Log-law profile for rough terrain
 //   3. Constant - Uniform intensity profile
-//   4. IEC 61400 - Industry-standard wind turbine design (NEW - Phase 1)
-//   5. SmoothProfile - User-defined smooth profiles (NEW - Phase 1)
+//   4. IEC 61400 - Industry-standard wind turbine design
+//   5. SmoothProfile - User-defined smooth profiles
 //
 // COHERENCE MODELS:
 //   1. Gaussian - Gaussian decay: Coh = exp(-k*distance^2)
 //   2. Exponential - Exponential decay: Coh = exp(-k*distance)
-//   3. QuadraticExponential - Smooth quadratic decay (NEW - Phase 1)
-//   4. PowerLaw - Algebraic power-law decay (NEW - Phase 1)
+//   3. QuadraticExponential - Smooth quadratic decay
+//   4. PowerLaw - Algebraic power-law decay
 //
-// PHASE 1 ENHANCEMENTS (June 2026):
+// Additional Turbulence Model Capabilities:
 //   - IEC 61400-1:2019 intensity model for wind turbine certification
 //   - QuadraticExponential and PowerLaw coherence models for complex terrain
 //   - Smooth user-defined intensity profiles with C-infinity continuity
@@ -71,7 +71,7 @@
 enum class TurbulenceModel {
     VonKarman = 0,    // Von Kármán (1948) isotropic spectrum
     Kaimal = 1,       // Kaimal et al. (1972) empirical spectrum
-    MannBox = 2       // Mann (1994) anisotropic spectral tensor model (Phase 2)
+    MannBox = 2       // Mann (1994) anisotropic spectral tensor model
 };
 
 enum class IntensityModel {
@@ -152,7 +152,7 @@ struct TurbulenceParams {
     // Ratio of w-velocity RMS to u-velocity RMS (typical: 0.50)
     amrex::Real anisotropy_ratio_w = amrex::Real(0.50);
     
-    // ---- Mann Box Parameters (NEW - Phase 2) ----
+    // ---- Mann Box Parameters ----
     // Mann Box is an anisotropic spectral tensor model for complex terrain
     // See docs/mann_model.rst for detailed documentation
     
@@ -180,7 +180,7 @@ struct TurbulenceParams {
     // Modifies tensor anisotropy based on local terrain features
     amrex::Real mann_terrain_adaptation_factor = amrex::Real(1.0);
     
-    // ---- Phase 3+ Enhancements: Non-neutral Stability Corrections ----
+    // ---- Advanced Non-neutral Stability Corrections ----
     // Monin-Obukhov similarity theory for non-neutral atmospheric conditions
     // See docs/mann_model.rst or docs/iec61400_synthesis.rst for detailed documentation
     
@@ -528,7 +528,7 @@ amrex::Real coherence_exponential(
 }
 
 // ============================================================================
-// Additional Coherence Models (Phase 1 Enhancement)
+// Additional Coherence Models
 // ============================================================================
 
 // Quadratic exponential coherence: Coh(distance) = exp(-k * distance^2 / 2)
@@ -578,7 +578,7 @@ amrex::Real coherence_powerlaw(
 }
 
 // ============================================================================
-// Mann Box Spectral Tensor (NEW - Phase 2)
+// Mann Box Spectral Tensor
 //
 // The Mann Box model represents wind turbulence using an anisotropic spectral
 // tensor S_ij(k⃗), where k⃗ is the wavenumber vector. This tensor captures the
@@ -730,7 +730,7 @@ amrex::Real compute_velocity_rms(
 // configured parameters.
 //
 // Note: This is a GPU-compatible class for device-side computations.
-// FFT-based field generation will be added in Phase 2.
+// FFT-based field generation is provided by the random field synthesis module.
 // ============================================================================
 
 class TurbulenceGenerator {
@@ -933,7 +933,7 @@ public:
     }
     
     // ========================================================================
-    // Mann Box Specific Methods (NEW - Phase 2)
+    // Mann Box Specific Methods
     // ========================================================================
     
     // Compute adapted Mann Box length scale for complex terrain

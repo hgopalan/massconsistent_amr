@@ -490,7 +490,7 @@ class TestAgriculturalDrone(unittest.TestCase):
         self.assertGreater(np.sum(lpd_model.concentration), 0.0)
 
     def test_foliage_interception_and_deposition_mapping_puff(self):
-        """Test Phase 4: Foliage interception and cumulative 2D registers for Puff dispersion."""
+        """Test foliage interception and cumulative 2D registers for puff dispersion."""
         traj = DroneTrajectory(
             times=[0.0, 3.0],
             x_pts=[50.0, 80.0],
@@ -534,7 +534,7 @@ class TestAgriculturalDrone(unittest.TestCase):
         self.assertAlmostEqual(balance['total_emitted_mass'], balance['total_accounted'], places=5)
 
     def test_foliage_interception_and_deposition_mapping_lpd(self):
-        """Test Phase 4: Foliage interception, ground deposition and registers for LPDM."""
+        """Test foliage interception, ground deposition, and registers for LPDM."""
         traj = DroneTrajectory(
             times=[0.0, 3.0],
             x_pts=[50.0, 80.0],
@@ -574,7 +574,7 @@ class TestAgriculturalDrone(unittest.TestCase):
         self.assertAlmostEqual(balance['total_emitted_mass'], balance['total_accounted'], places=5)
 
     def test_spatially_varying_canopy_fields(self):
-        """Test Phase 4: 2D spatially distributed canopy parameter arrays lookup."""
+        """Test lookup of spatially distributed two-dimensional canopy parameter arrays."""
         ny, nx = 15, 15
         can_h_arr = np.zeros((ny, nx))
         can_h_arr[4:7, 4:7] = 3.0  # localized crop patch
@@ -626,7 +626,7 @@ class TestAgriculturalDrone(unittest.TestCase):
         self.assertTrue(conserved)
 
     def test_mass_conservation_degradation_and_out_of_bounds(self):
-        """Test Phase 4: Mass conservation accounting with degradation & out-of-bounds loss."""
+        """Test mass conservation accounting with degradation and out-of-bounds loss."""
         traj = DroneTrajectory(
             times=[0.0, 2.0],
             x_pts=[145.0, 145.0],  # very close to +X boundary of 150m, so particles will drift out

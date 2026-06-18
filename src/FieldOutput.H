@@ -32,18 +32,18 @@
 // Terrain & Geometry:
 //  10  terrain_z      Terrain elevation at each (i,j) location [m MSL]
 //
-// Surface Flux Diagnostics (Phase 2, Features 5-7):
+// Surface Flux Diagnostics:
 //  11  heat_flux      Sensible heat flux SHF = ρ Cp u* θ* [W/m²]
 //  12  drag_coeff     Drag coefficient Cd = (κ / ln(z/z₀))² [dimensionless]
 //  13  tau_x          Shear stress x-component τ_x = ρ u*² (u/|U|) [Pa]
 //  14  tau_y          Shear stress y-component τ_y = ρ u*² (v/|U|) [Pa]
 //  15  u_star         Friction velocity u* [m/s]
 //
-// Boundary Layer & Stability (Phase 2, Features 23-24):
+// Boundary Layer & Stability:
 //  16  richardson_no  Richardson number Ri_b (bulk) [dimensionless]
 //  17  bl_depth       Boundary layer depth [m]
 //
-// Terrain Analysis (Phase 2, Feature 22):
+// Terrain Analysis:
 //  18  terrain_type   Classification of terrain type (0=smooth, 1=rough, etc.)
 //  19  terrain_slope  Local terrain slope magnitude [dimensionless]
 //  20  adaptive_z0    Adaptive aerodynamic roughness length [m]

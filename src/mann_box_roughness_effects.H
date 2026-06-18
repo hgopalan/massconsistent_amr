@@ -2,7 +2,7 @@
 #define MANN_BOX_ROUGHNESS_EFFECTS_H_
 
 /**
- * Mann Box Phase 6: Surface Roughness & Canopy Effects
+ * Mann Box Surface Roughness & Canopy Effects
  *
  * This header implements roughness-dependent modifications to the Mann Box
  * spectral tensor, particularly for forest canopies and urban environments.
