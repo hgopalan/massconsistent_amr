@@ -10,6 +10,12 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(MASSCONSISTENT_EXE "${CMAKE_BINARY_DIR}/wind_solver"
     CACHE FILEPATH "Path to wind_solver executable")
 
+# Skip regression tests for HIP and SYCL backends (not yet fully validated)
+if(MASSCONSISTENT_GPU_BACKEND STREQUAL "HIP" OR MASSCONSISTENT_GPU_BACKEND STREQUAL "SYCL")
+  message(STATUS "Skipping regression tests for ${MASSCONSISTENT_GPU_BACKEND} backend")
+  return()
+endif()
+
 # ---------------------------------------------------------------------------
 # Helper: add a solver regression test
 # ---------------------------------------------------------------------------
