@@ -338,3 +338,5 @@ amrex::Real heat_source_strength_multiple(
     
     return total_source;
 }
+
+#endif // DATACENTER_HEAT_SOURCE_H
