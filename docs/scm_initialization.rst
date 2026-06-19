@@ -190,6 +190,10 @@ Add the following parameters to your inputs file:
    scm_domain_height = 4000.0      # Domain height [m]
    scm_dz = 4.0                    # Grid spacing [m]
 
+   # Optional stability parameters (default: neutral conditions)
+   scm_heat_flux = 0.0             # Surface sensible heat flux [W/m^2] (optional)
+   scm_monin_obukhov_length = -1e30    # Monin-Obukhov length [m] (optional, default=-1e30 for neutral)
+
 C++ API
 ~~~~~~~
 
@@ -263,6 +267,40 @@ Parameters
      - Real
      - 4.0
      - Vertical grid spacing for 1D SCM [m]
+   * - ``scm_heat_flux``
+     - Real
+     - 0.0
+     - Surface sensible heat flux [W/m^2] (optional, 0=neutral)
+   * - ``scm_monin_obukhov_length``
+     - Real
+     - -1e30
+     - Monin-Obukhov length [m] (optional, -1e30=neutral)
+
+Atmospheric Stability
+---------------------
+
+The SCM model supports optional atmospheric stability corrections via Monin-Obukhov similarity theory. By default, if neither ``scm_heat_flux`` nor ``scm_monin_obukhov_length`` are specified, the model assumes **neutral conditions**.
+
+**Stability Functions**
+
+When a prescribed Monin-Obukhov length is provided, the model applies stability corrections to surface layer parameters:
+
+- **Stable regime** (z/L > 0): Φ_m = 1 + 5(z/L) (Högström 1988)
+- **Unstable regime** (z/L < 0): Φ_m = (1 - 16|z/L|)^(-1/4) (Businger et al. 1971)
+- **Neutral regime**: Φ_m = 1 (default when M-O length not specified)
+
+**Heat Flux vs. Monin-Obukhov Length**
+
+Users can specify either:
+
+1. ``scm_heat_flux`` [W/m²]: The model uses this to drive buoyancy-driven turbulence
+2. ``scm_monin_obukhov_length`` [m]: Direct specification of the stability length scale
+
+If neither is provided, the model defaults to neutral stratification.
+
+**3D-1D Grid Mapping**
+
+The 1D SCM solves on a uniform grid with spacing ``scm_dz`` (typically 4 m). When mapping the 1D profile to the 3D domain with potentially different grid spacing (``dz``), the model now uses **linear interpolation** for accurate vertical mapping at each 3D grid point. This provides better accuracy compared to nearest-neighbor interpolation when the 1D and 3D grids have different resolutions.
 
 Output
 ------

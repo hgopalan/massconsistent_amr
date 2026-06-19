@@ -52,6 +52,8 @@ struct SCMState1D {
     amrex::Real ustar;                   // Friction velocity [m/s]
     amrex::Real Qh;                      // Sensible heat flux [W/m^2]
     amrex::Real mo_length;               // Monin-Obukhov length [m]
+    amrex::Real mo_length_prescribed;    // User-specified Monin-Obukhov length (if provided)
+    bool use_prescribed_mo_length;       // Whether to use prescribed M-O length
     
     // Simulation parameters
     amrex::Real t_ref;                   // Reference surface temperature [K]
@@ -62,8 +64,61 @@ struct SCMState1D {
 };
 
 // ============================================================================
+// Monin-Obukhov Stability Functions
+// These functions compute stability corrections based on z/L (height/Obukhov length)
+// ============================================================================
+
+// Stable correction function (Högström 1988)
+inline amrex::Real mo_stable_correction(amrex::Real z_over_L) {
+    // phi_m = 1 + a*z/L
+    constexpr amrex::Real a_stable = 5.0;
+    return 1.0 + a_stable * z_over_L;
+}
+
+// Unstable correction function (Businger et al. 1971)
+inline amrex::Real mo_unstable_correction(amrex::Real z_over_L) {
+    // phi_m = (1 - b*z/L)^(-1/4)
+    // This is only valid for z/L < 0
+    constexpr amrex::Real b_unstable = 16.0;
+    amrex::Real x = 1.0 + b_unstable * std::abs(z_over_L);
+    return std::pow(x, -0.25);
+}
+
+// Combined stability function
+inline amrex::Real mo_phi_m(amrex::Real z_over_L) {
+    if (z_over_L > 0.0) {
+        // Stable
+        return mo_stable_correction(z_over_L);
+    } else if (z_over_L < -0.001) {
+        // Unstable
+        return mo_unstable_correction(z_over_L);
+    } else {
+        // Neutral (approximately)
+        return 1.0;
+    }
+}
+
+// Heat transfer stability function
+inline amrex::Real mo_phi_h(amrex::Real z_over_L) {
+    if (z_over_L > 0.0) {
+        // Stable - similar to momentum with slightly different coefficient
+        constexpr amrex::Real a_stable_h = 5.0;
+        return 1.0 + a_stable_h * z_over_L;
+    } else if (z_over_L < -0.001) {
+        // Unstable - different exponent for heat
+        constexpr amrex::Real b_unstable_h = 16.0;
+        amrex::Real x = 1.0 + b_unstable_h * std::abs(z_over_L);
+        return std::pow(x, -0.5);  // Note: -0.5 exponent for heat
+    } else {
+        // Neutral
+        return 1.0;
+    }
+}
+
+// ============================================================================
 // initialize_1d_state
 // Initialize 1D SCM state with uniform geostrophic wind and linear temperature profile
+// Supports optional heat flux and Monin-Obukhov length specification
 // ============================================================================
 void initialize_1d_state(SCMState1D& state,
                          amrex::Real ug,
@@ -73,7 +128,9 @@ void initialize_1d_state(SCMState1D& state,
                          amrex::Real z0,
                          amrex::Real domain_height,
                          amrex::Real dz,
-                         amrex::Real latitude)
+                         amrex::Real latitude,
+                         amrex::Real heat_flux = 0.0,
+                         amrex::Real mo_length_prescribed = -1.0e30)
 {
     state.ug = ug;
     state.vg = vg;
@@ -129,14 +186,25 @@ void initialize_1d_state(SCMState1D& state,
         state.ustar = 0.0;
     }
     
-    state.Qh = 0.0;
-    state.mo_length = -1.0e30;
+    // Set heat flux
+    state.Qh = heat_flux;
+    
+    // Set Monin-Obukhov length
+    state.mo_length_prescribed = mo_length_prescribed;
+    state.use_prescribed_mo_length = (std::abs(mo_length_prescribed) < 1.0e29);  // If reasonable value provided
+    
+    // Initialize mo_length to neutral (will be updated in compute_similarity_surface)
+    if (state.use_prescribed_mo_length) {
+        state.mo_length = state.mo_length_prescribed;
+    } else {
+        state.mo_length = -1.0e30;  // Neutral
+    }
 }
 
 // ============================================================================
 // compute_similarity_surface
 // Compute surface layer parameters (ustar, heat flux, etc.)
-// Uses Monin-Obukhov similarity theory
+// Uses Monin-Obukhov similarity theory with optional stability corrections
 // ============================================================================
 void compute_similarity_surface(SCMState1D& state)
 {
@@ -145,25 +213,42 @@ void compute_similarity_surface(SCMState1D& state)
     amrex::Real M1 = std::sqrt(state.ux[state.lower + 1] * state.ux[state.lower + 1] +
                                state.uy[state.lower + 1] * state.uy[state.lower + 1]);
     
-    // Compute friction velocity
+    // Compute friction velocity (log-law, neutral approximation)
     if (M1 > 0.0) {
         state.ustar = VON_KARMAN * M1 / std::log((state.z[state.lower + 1] + state.z0) / state.z0);
     } else {
         state.ustar = 0.0;
     }
     
-    // For neutral condition (simplified)
-    state.mo_length = -1.0e30;
+    // Use prescribed Monin-Obukhov length if provided, otherwise neutral
+    if (!state.use_prescribed_mo_length) {
+        // Neutral condition
+        state.mo_length = -1.0e30;
+    }
     
-    // Compute eddy viscosity in surface layer
+    // Compute eddy viscosity in surface layer with stability correction
     if (state.lower < state.nz) {
-        amrex::Real z0_phi = (state.mo_length < 0.0) ? 1.0 : 1.0 + 5.0 * state.z0 / state.mo_length;
+        amrex::Real z0_phi = 1.0;  // Default neutral
+        
+        // Apply Monin-Obukhov stability correction if prescribed M-O length is available
+        if (state.use_prescribed_mo_length && std::abs(state.mo_length) > 1.0e-10) {
+            amrex::Real z_over_L_z0 = state.z0 / state.mo_length;
+            z0_phi = mo_phi_m(z_over_L_z0);
+        }
+        
         state.nut[state.lower] = state.ustar * VON_KARMAN * state.z0 / z0_phi;
     }
     
-    // Update velocities at lowest level
+    // Update velocities at lowest level using stability-corrected log-law
     if (state.lower < state.nz && state.lower + 1 < state.nz) {
-        amrex::Real z0_phi = 1.0;  // Neutral
+        amrex::Real z0_phi = 1.0;  // Default neutral
+        
+        // Apply stability correction if prescribed M-O length is available
+        if (state.use_prescribed_mo_length && std::abs(state.mo_length) > 1.0e-10) {
+            amrex::Real z_over_L_z0 = state.z0 / state.mo_length;
+            z0_phi = mo_phi_m(z_over_L_z0);
+        }
+        
         amrex::Real M0 = M1 - state.ustar / VON_KARMAN * z0_phi;
         if (M1 > 0.0) {
             state.ux[state.lower] = M0 * state.ux[state.lower + 1] / M1;

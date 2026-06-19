@@ -642,6 +642,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.scm_dz = 4.0;
     state.scm_ug = 0.0;
     state.scm_vg = 0.0;
+    state.scm_heat_flux = 0.0;            // Default: neutral (no heat flux)
+    state.scm_monin_obukhov_length = -1.0e30;  // Default: neutral (very large L)
     pp.query("scm_wind_speed", state.scm_wind_speed);
     pp.query("scm_wind_direction", state.scm_wind_direction);
     pp.query("scm_ref_height", state.scm_ref_height);
@@ -649,6 +651,8 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("scm_lapse_rate", state.scm_lapse_rate);
     pp.query("scm_domain_height", state.scm_domain_height);
     pp.query("scm_dz", state.scm_dz);
+    pp.query("scm_heat_flux", state.scm_heat_flux);
+    pp.query("scm_monin_obukhov_length", state.scm_monin_obukhov_length);
 
     // Marine Boundary Layer parameters
     state.enable_marine_bl = false;
@@ -1078,6 +1082,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
 // Helper function to find geostrophic wind (Ug, Vg) that produces desired wind speed at reference height
 // Uses 1D time-dependent SCM iteratively
+// Supports optional heat flux and Monin-Obukhov length specification
 std::pair<Real, Real> find_geostrophic_wind_scm(Real target_wind_speed,
                                                  Real wind_direction,
                                                  Real ref_height,
@@ -1087,6 +1092,8 @@ std::pair<Real, Real> find_geostrophic_wind_scm(Real target_wind_speed,
                                                  Real dz,
                                                  Real t_ref,
                                                  Real lapse_rate,
+                                                 Real heat_flux = 0.0,
+                                                 Real mo_length = -1.0e30,
                                                  Real tolerance = 0.05,
                                                  int max_iterations = 20)
 {
@@ -1101,11 +1108,17 @@ std::pair<Real, Real> find_geostrophic_wind_scm(Real target_wind_speed,
     
     amrex::Print() << "SCM: Searching for geostrophic wind..." << std::endl;
     amrex::Print() << "  Target wind speed: " << target_wind_speed << " m/s at height " << ref_height << " m" << std::endl;
+    if (std::abs(heat_flux) > 1.0e-10) {
+        amrex::Print() << "  Heat flux: " << heat_flux << " W/m^2" << std::endl;
+    }
+    if (std::abs(mo_length) < 1.0e29) {
+        amrex::Print() << "  Monin-Obukhov length: " << mo_length << " m" << std::endl;
+    }
     
     for (int iter = 0; iter < max_iterations; ++iter) {
         // Run 1D SCM with current geostrophic wind
         SCMModels::SCMState1D state;
-        SCMModels::initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude);
+        SCMModels::initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude, heat_flux, mo_length);
         state.dt = 0.8 * dz / std::sqrt(std::max(ug * ug + vg * vg, 0.01));
         
         amrex::Real current_speed = SCMModels::run_1d_scm(state, ref_height);
@@ -1506,17 +1519,19 @@ void initialize_wind_field(WindSolverState& state)
         const Real ref_height = state.scm_ref_height;
         const Real t_ref = state.scm_ref_temperature;
         const Real lapse_rate = state.scm_lapse_rate;
+        const Real heat_flux = state.scm_heat_flux;
+        const Real mo_length = state.scm_monin_obukhov_length;
         
         // Run 1D SCM to find geostrophic wind
         auto [ug_result, vg_result] = find_geostrophic_wind_scm(
-            target_speed, wind_dir, ref_height, lat, z0, domain_height, dz_scm, t_ref, lapse_rate);
+            target_speed, wind_dir, ref_height, lat, z0, domain_height, dz_scm, t_ref, lapse_rate, heat_flux, mo_length);
         
         state.scm_ug = ug_result;
         state.scm_vg = vg_result;
         
         // 2. Run final SCM to get converged 1D profile
         SCMModels::SCMState1D scm_state;
-        SCMModels::initialize_1d_state(scm_state, ug_result, vg_result, t_ref, lapse_rate, z0, domain_height, dz_scm, lat);
+        SCMModels::initialize_1d_state(scm_state, ug_result, vg_result, t_ref, lapse_rate, z0, domain_height, dz_scm, lat, heat_flux, mo_length);
         scm_state.dt = 0.8 * dz_scm / std::sqrt(std::max(ug_result * ug_result + vg_result * vg_result, 0.01));
         SCMModels::run_1d_scm(scm_state, ref_height);
          
@@ -1528,6 +1543,7 @@ void initialize_wind_field(WindSolverState& state)
         int nz_scm = scm_state.z.size();
          
         // 3. Initialize 3D velocity field from 1D profile using terrain-aligned mapping
+        // Use linear interpolation for better accuracy when 3D grid differs from 1D SCM grid
         for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto vel = state.vel0->array(mfi);
@@ -1540,20 +1556,26 @@ void initialize_wind_field(WindSolverState& state)
                     vel(i, j, k, 1) = Real(0.0);
                     vel(i, j, k, 2) = Real(0.0);
                 } else {
-                    // Interpolate from 1D profile
-                    // Find closest index in 1D grid
-                    int idx = 0;
-                    Real min_dist = std::abs(z_ptr[0] - z_agl);
-                    for (int kk = 1; kk < nz_scm; ++kk) {
-                        Real dist = std::abs(z_ptr[kk] - z_agl);
-                        if (dist < min_dist) {
-                            min_dist = dist;
-                            idx = kk;
+                    // Linear interpolation from 1D profile
+                    int idx_lower = 0;
+                    int idx_upper = nz_scm - 1;
+                    
+                    // Find surrounding indices
+                    for (int kk = 0; kk < nz_scm - 1; ++kk) {
+                        if (z_ptr[kk] <= z_agl && z_ptr[kk + 1] >= z_agl) {
+                            idx_lower = kk;
+                            idx_upper = kk + 1;
+                            break;
                         }
                     }
-                     
-                    vel(i, j, k, 0) = ux_ptr[idx];
-                    vel(i, j, k, 1) = uy_ptr[idx];
+                    
+                    // Linear interpolation weights
+                    Real dz_local = z_ptr[idx_upper] - z_ptr[idx_lower];
+                    Real weight_upper = (dz_local > 1.0e-10) ? (z_agl - z_ptr[idx_lower]) / dz_local : Real(0.0);
+                    Real weight_lower = 1.0 - weight_upper;
+                    
+                    vel(i, j, k, 0) = weight_lower * ux_ptr[idx_lower] + weight_upper * ux_ptr[idx_upper];
+                    vel(i, j, k, 1) = weight_lower * uy_ptr[idx_lower] + weight_upper * uy_ptr[idx_upper];
                     vel(i, j, k, 2) = Real(0.0);
                 }
             });
@@ -1571,17 +1593,25 @@ void initialize_wind_field(WindSolverState& state)
                     if (z_agl <= Real(0.0)) {
                         temp(i, j, k) = t_ref;
                     } else {
-                        // Interpolate from 1D profile
-                        int idx = 0;
-                        Real min_dist = std::abs(z_ptr[0] - z_agl);
-                        for (int kk = 1; kk < nz_scm; ++kk) {
-                            Real dist = std::abs(z_ptr[kk] - z_agl);
-                            if (dist < min_dist) {
-                                min_dist = dist;
-                                idx = kk;
+                        // Linear interpolation from 1D profile
+                        int idx_lower = 0;
+                        int idx_upper = nz_scm - 1;
+                        
+                        // Find surrounding indices
+                        for (int kk = 0; kk < nz_scm - 1; ++kk) {
+                            if (z_ptr[kk] <= z_agl && z_ptr[kk + 1] >= z_agl) {
+                                idx_lower = kk;
+                                idx_upper = kk + 1;
+                                break;
                             }
                         }
-                        temp(i, j, k) = temp_ptr[idx];
+                        
+                        // Linear interpolation weights
+                        Real dz_local = z_ptr[idx_upper] - z_ptr[idx_lower];
+                        Real weight_upper = (dz_local > 1.0e-10) ? (z_agl - z_ptr[idx_lower]) / dz_local : Real(0.0);
+                        Real weight_lower = 1.0 - weight_upper;
+                        
+                        temp(i, j, k) = weight_lower * temp_ptr[idx_lower] + weight_upper * temp_ptr[idx_upper];
                     }
                 });
             }
