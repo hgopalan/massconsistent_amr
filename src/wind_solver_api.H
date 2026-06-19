@@ -203,6 +203,8 @@ struct WindSolverState {
     amrex::Real scm_dz;                   // Uniform vertical spacing for SCM [m]
     amrex::Real scm_ug;                   // Computed geostrophic wind x-component [m/s] (output from recursion)
     amrex::Real scm_vg;                   // Computed geostrophic wind y-component [m/s] (output from recursion)
+    amrex::Real scm_heat_flux;            // Surface sensible heat flux [W/m^2] (optional, default=0.0 for neutral)
+    amrex::Real scm_monin_obukhov_length; // Monin-Obukhov length [m] (optional, default=-1e30 for neutral)
 
     // Marine Boundary Layer mixing height
     bool enable_marine_bl;
