@@ -29,6 +29,10 @@ scm_lapse_rate = 0.0065         # Temperature lapse rate [K/m] (standard atmosph
 scm_domain_height = 4000.0      # Domain height for 1D SCM [m]
 scm_dz = 4.0                    # Vertical resolution for 1D SCM [m]
 
+# Optional stability parameters (uncomment to use non-neutral conditions)
+# scm_heat_flux = 100.0                 # Surface sensible heat flux [W/m^2] (positive=unstable)
+# scm_monin_obukhov_length = 50.0       # Monin-Obukhov length [m] (positive=stable, negative=unstable)
+
 # ============================================================================
 # SURFACE PARAMETERS
 # ============================================================================
