@@ -249,6 +249,12 @@ add_regression_test(combined_thermal_terrain physics/combined_thermal_terrain)
 # ---------------------------------------------------------------------------
 add_regression_test(scm_initialization physics/scm_initialization)
 add_python_regression_test(scm_initialization_python physics/scm_initialization verify_scm.py)
+add_regression_test(scm_ysu physics/scm_ysu)
+add_python_regression_test(scm_ysu_python physics/scm_ysu verify_scm.py)
+add_regression_test(scm_myj physics/scm_myj)
+add_python_regression_test(scm_myj_python physics/scm_myj verify_scm.py)
+add_regression_test(scm_microphysics physics/scm_microphysics)
+add_python_regression_test(scm_microphysics_python physics/scm_microphysics verify_scm.py)
 
 # ---------------------------------------------------------------------------
 # Canopy model tests
@@ -764,6 +770,9 @@ message(STATUS "  physics/terrain_kinematic_bc/  : Kinematic terrain-following b
 message(STATUS "  physics/scalar_transport/      : 3D scalar transport with mixing length turbulence model")
 message(STATUS "  physics/combined_thermal_terrain/: Combined buoyancy and kinematic BC features")
 message(STATUS "  physics/scm_initialization/    : Single Column Model (SCM) wind profile initialization")
+message(STATUS "  physics/scm_ysu/               : SCM with YSU boundary layer turbulence model")
+message(STATUS "  physics/scm_myj/               : SCM with MYJ boundary layer turbulence model")
+message(STATUS "  physics/scm_microphysics/      : SCM with simple microphysics & saturation adjustment")
 message(STATUS "  physics/canopy_forest/         : Forest canopy with MacDonald et al. (2000) parameterization")
 message(STATUS "  physics/canopy_spatially_varying/: Spatially-varying canopy height and frontal area index")
 message(STATUS "  physics/canopy_exponential/    : Exponential canopy profile model")

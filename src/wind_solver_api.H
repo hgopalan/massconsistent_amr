@@ -205,6 +205,9 @@ struct WindSolverState {
     amrex::Real scm_vg;                   // Computed geostrophic wind y-component [m/s] (output from recursion)
     amrex::Real scm_heat_flux;            // Surface sensible heat flux [W/m^2] (optional, default=0.0 for neutral)
     amrex::Real scm_monin_obukhov_length; // Monin-Obukhov length [m] (optional, default=-1e30 for neutral)
+    std::string scm_turbulence_model;     // SCM turbulence model: "one_equation" (default), "ysu", "myj"
+    bool scm_enable_microphysics;         // Enable SCM simple microphysics (saturation adjustment)
+    amrex::Real scm_initial_humidity;     // SCM initial relative humidity [0.0 - 1.0] (default=0.0)
 
     // Marine Boundary Layer mixing height
     bool enable_marine_bl;

@@ -644,6 +644,9 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.scm_vg = 0.0;
     state.scm_heat_flux = 0.0;            // Default: neutral (no heat flux)
     state.scm_monin_obukhov_length = -1.0e30;  // Default: neutral (very large L)
+    state.scm_turbulence_model = "one_equation";
+    state.scm_enable_microphysics = false;
+    state.scm_initial_humidity = 0.0;
     pp.query("scm_wind_speed", state.scm_wind_speed);
     pp.query("scm_wind_direction", state.scm_wind_direction);
     pp.query("scm_ref_height", state.scm_ref_height);
@@ -653,6 +656,9 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("scm_dz", state.scm_dz);
     pp.query("scm_heat_flux", state.scm_heat_flux);
     pp.query("scm_monin_obukhov_length", state.scm_monin_obukhov_length);
+    pp.query("scm_turbulence_model", state.scm_turbulence_model);
+    pp.query("scm_enable_microphysics", state.scm_enable_microphysics);
+    pp.query("scm_initial_humidity", state.scm_initial_humidity);
 
     // Marine Boundary Layer parameters
     state.enable_marine_bl = false;
@@ -1095,7 +1101,10 @@ std::pair<Real, Real> find_geostrophic_wind_scm(Real target_wind_speed,
                                                  Real heat_flux = 0.0,
                                                  Real mo_length = -1.0e30,
                                                  Real tolerance = 0.05,
-                                                 int max_iterations = 20)
+                                                 int max_iterations = 20,
+                                                 const std::string& turb_model = "one_equation",
+                                                 bool enable_mp = false,
+                                                 Real init_rh = 0.0)
 {
     // Convert wind direction to components for initial guess
     Real pi_val = MathConstants::pi;
@@ -1118,7 +1127,7 @@ std::pair<Real, Real> find_geostrophic_wind_scm(Real target_wind_speed,
     for (int iter = 0; iter < max_iterations; ++iter) {
         // Run 1D SCM with current geostrophic wind
         SCMModels::SCMState1D state;
-        SCMModels::initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude, heat_flux, mo_length);
+        SCMModels::initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude, heat_flux, mo_length, turb_model, enable_mp, init_rh);
         state.dt = 0.8 * dz / std::sqrt(std::max(ug * ug + vg * vg, 0.01));
         
         amrex::Real current_speed = SCMModels::run_1d_scm(state, ref_height);
@@ -1524,14 +1533,16 @@ void initialize_wind_field(WindSolverState& state)
         
         // Run 1D SCM to find geostrophic wind
         auto [ug_result, vg_result] = find_geostrophic_wind_scm(
-            target_speed, wind_dir, ref_height, lat, z0, domain_height, dz_scm, t_ref, lapse_rate, heat_flux, mo_length);
+            target_speed, wind_dir, ref_height, lat, z0, domain_height, dz_scm, t_ref, lapse_rate, heat_flux, mo_length,
+            0.05, 20, state.scm_turbulence_model, state.scm_enable_microphysics, state.scm_initial_humidity);
         
         state.scm_ug = ug_result;
         state.scm_vg = vg_result;
         
         // 2. Run final SCM to get converged 1D profile
         SCMModels::SCMState1D scm_state;
-        SCMModels::initialize_1d_state(scm_state, ug_result, vg_result, t_ref, lapse_rate, z0, domain_height, dz_scm, lat, heat_flux, mo_length);
+        SCMModels::initialize_1d_state(scm_state, ug_result, vg_result, t_ref, lapse_rate, z0, domain_height, dz_scm, lat, heat_flux, mo_length,
+                                       state.scm_turbulence_model, state.scm_enable_microphysics, state.scm_initial_humidity);
         scm_state.dt = 0.8 * dz_scm / std::sqrt(std::max(ug_result * ug_result + vg_result * vg_result, 0.01));
         SCMModels::run_1d_scm(scm_state, ref_height);
          

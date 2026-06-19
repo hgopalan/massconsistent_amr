@@ -256,7 +256,7 @@ Test cases are located in `test/` and documented in `test/README.md`.
 
 ## Regression Tests
 
-Over 80 automated regression tests are located in `regtest/` covering the core solver, wake models, turbulence, dispersion, and wildfire coupling.
+Over 80 automated regression tests are located in `regtest/` covering the core solver, wake models, turbulence, dispersion, SCM (Single Column Model) boundary layer schemes (including YSU, MYJ, and microphysics), and wildfire coupling.
 
 Run them with CTest from your build directory:
 ```bash

@@ -58,6 +58,19 @@ struct SCMState1D {
     std::vector<amrex::Real> lscale;     // Mixing length [m]
     std::vector<amrex::Real> Ri;         // Richardson number (stratification indicator)
     
+    // Moisture and extra thermodynamic fields
+    std::vector<amrex::Real> qv;         // Water vapor mixing ratio [kg/kg]
+    std::vector<amrex::Real> qc;         // Cloud water mixing ratio [kg/kg]
+    std::vector<amrex::Real> qr;         // Rain water mixing ratio [kg/kg]
+    std::vector<amrex::Real> theta;      // Potential temperature [K]
+    std::vector<amrex::Real> pressure;   // Pressure [Pa]
+    
+    // Turbulence model parameters
+    std::string turbulence_model;        // "one_equation", "ysu", "myj"
+    bool enable_microphysics;            // Enable saturation adjustment / microphysics
+    amrex::Real initial_humidity;        // Initial relative humidity [0.0 - 1.0]
+    amrex::Real pbl_height;              // Planetary boundary layer height [m] (computed)
+    
     // Geostrophic wind
     amrex::Real ug;
     amrex::Real vg;
@@ -127,6 +140,80 @@ inline amrex::Real mo_phi_h(amrex::Real z_over_L) {
     } else {
         // Neutral
         return 1.0;
+    }
+}
+
+// Extra thermodynamic/microphysics physical constants and functions
+constexpr amrex::Real Rd = 287.05;                    // J/(kg*K)
+constexpr amrex::Real Cp = 1004.0;                    // J/(kg*K)
+constexpr amrex::Real Lv = 2.5e6;                     // J/kg (latent heat of vaporization)
+
+inline amrex::Real compute_es(amrex::Real T) {
+    amrex::Real Tc = T - 273.15;
+    return 610.78 * std::exp(17.27 * Tc / (Tc + 237.3));
+}
+
+inline amrex::Real compute_qvs(amrex::Real T, amrex::Real p) {
+    amrex::Real es = compute_es(T);
+    return 0.622 * es / std::max(p - es, 1.0e-5);
+}
+
+inline void apply_saturation_adjustment(SCMState1D& state) {
+    constexpr amrex::Real Rv = 461.5;
+    for (int i = 0; i < state.nz; ++i) {
+        amrex::Real T = state.temperature[i];
+        amrex::Real p = state.pressure[i];
+        amrex::Real qv = state.qv[i];
+        amrex::Real qc = state.qc[i];
+        
+        amrex::Real qvs = compute_qvs(T, p);
+        amrex::Real dq = qv - qvs;
+        
+        if (dq > 0.0 || (dq < 0.0 && qc > 0.0)) {
+            // Clausius-Clapeyron slope
+            amrex::Real dqvs_dT = qvs * (Lv / (Rv * T * T));
+            amrex::Real denom = 1.0 + (Lv / Cp) * dqvs_dT;
+            amrex::Real dqc = dq / denom;
+            
+            // Cannot evaporate more than available cloud water
+            if (dqc < -qc) {
+                dqc = -qc;
+            }
+            
+            state.qv[i] -= dqc;
+            state.qc[i] += dqc;
+            state.temperature[i] += (Lv / Cp) * dqc;
+        }
+    }
+}
+
+inline void apply_kessler_microphysics(SCMState1D& state, amrex::Real dt) {
+    // Kessler microphysics parameters:
+    // qc_threshold: Cloud water mixing ratio threshold for autoconversion to rain [kg/kg] (typical range 1.0e-4 to 1.0e-3)
+    // k_auto: Autoconversion rate constant [1/s] (typical value 1.0e-3)
+    // k_accr: Accretion rate constant [1/s] (typical value 1.0)
+    constexpr amrex::Real qc_threshold = 1.0e-4;
+    constexpr amrex::Real k_auto = 1.0e-3;
+    constexpr amrex::Real k_accr = 1.0;
+    
+    for (int i = 0; i < state.nz; ++i) {
+        amrex::Real qc = state.qc[i];
+        amrex::Real qr = state.qr[i];
+        
+        amrex::Real auto_conv = 0.0;
+        if (qc > qc_threshold) {
+            auto_conv = k_auto * (qc - qc_threshold);
+        }
+        
+        amrex::Real accr = k_accr * qc * qr;
+        
+        amrex::Real total_conversion = (auto_conv + accr) * dt;
+        if (total_conversion > qc) {
+            total_conversion = qc;
+        }
+        
+        state.qc[i] -= total_conversion;
+        state.qr[i] += total_conversion;
     }
 }
 
@@ -270,7 +357,10 @@ void initialize_1d_state(SCMState1D& state,
                          amrex::Real dz,
                          amrex::Real latitude,
                          amrex::Real heat_flux = 0.0,
-                         amrex::Real mo_length_prescribed = -1.0e30)
+                         amrex::Real mo_length_prescribed = -1.0e30,
+                         const std::string& turb_model = "one_equation",
+                         bool enable_mp = false,
+                         amrex::Real init_rh = 0.0)
 {
     state.ug = ug;
     state.vg = vg;
@@ -280,6 +370,10 @@ void initialize_1d_state(SCMState1D& state,
     state.dz = dz;
     state.z_upper = domain_height;
     state.latitude = latitude;
+    state.turbulence_model = turb_model;
+    state.enable_microphysics = enable_mp;
+    state.initial_humidity = init_rh;
+    state.pbl_height = 0.0;
     
     // Build height grid
     state.nz = static_cast<int>(std::ceil(domain_height / dz)) + 1;
@@ -303,6 +397,30 @@ void initialize_1d_state(SCMState1D& state,
     state.nut.resize(state.nz, 1.0e-5);
     state.lscale.resize(state.nz, 0.1);
     state.Ri.resize(state.nz, 0.0);  // Initialize Richardson number
+    
+    // Hydrostatic pressure profile
+    state.pressure.resize(state.nz);
+    state.pressure[0] = 101325.0; // Pa
+    for (int i = 1; i < state.nz; ++i) {
+        amrex::Real T_avg = 0.5 * (state.temperature[i] + state.temperature[i-1]);
+        amrex::Real dz_step = state.z[i] - state.z[i-1];
+        state.pressure[i] = state.pressure[i-1] * std::exp(-GRAVITY * dz_step / (Rd * T_avg));
+    }
+    
+    // Potential temperature (theta)
+    state.theta.resize(state.nz);
+    for (int i = 0; i < state.nz; ++i) {
+        state.theta[i] = state.temperature[i] * std::pow(101325.0 / state.pressure[i], Rd / Cp);
+    }
+    
+    // Moisture variables
+    state.qv.resize(state.nz);
+    state.qc.resize(state.nz, 0.0);
+    state.qr.resize(state.nz, 0.0);
+    for (int i = 0; i < state.nz; ++i) {
+        amrex::Real qvs = compute_qvs(state.temperature[i], state.pressure[i]);
+        state.qv[i] = state.initial_humidity * qvs;
+    }
     
     // Find lowest active level above z0
     state.lower = 0;
@@ -457,48 +575,147 @@ void compute_eddy_viscosity(SCMState1D& state)
 {
     amrex::Real dz = state.dz;
     
-    for (int i = state.lower + 1; i < state.nz - 1; ++i) {
-        // Mixing length models
-        amrex::Real lshear = VON_KARMAN * (state.z[i] - state.z[state.lower]);
+    if (state.turbulence_model == "ysu") {
+        // 1. Compute PBL height using bulk Richardson number (threshold Ri_cr = 0.25)
+        amrex::Real h = 100.0; // Minimum PBL height
+        amrex::Real theta_s = state.theta[state.lower];
+        amrex::Real u_s = state.ux[state.lower];
+        amrex::Real v_s = state.uy[state.lower];
         
-        // Maximum length scale (Blackadar length scale)
-        amrex::Real fg = std::sqrt(state.ug * state.ug + state.vg * state.vg);
-        amrex::Real lmax = (std::abs(state.coriolis) > 1.0e-8) 
-                             ? 0.00027 * fg / std::abs(state.coriolis)
-                             : 1000.0;
+        for (int i = state.lower + 1; i < state.nz; ++i) {
+            amrex::Real du = state.ux[i] - u_s;
+            amrex::Real dv = state.uy[i] - v_s;
+            amrex::Real wind_sq = std::max(du*du + dv*dv, 0.01);
+            amrex::Real dtheta = state.theta[i] - theta_s;
+            amrex::Real Ri_b = (GRAVITY / theta_s) * dtheta * (state.z[i] - state.z[state.lower]) / wind_sq;
+            
+            if (Ri_b >= 0.25) {
+                h = state.z[i];
+                break;
+            }
+        }
+        state.pbl_height = h;
         
-        // Compute Brunt-Väisälä frequency squared (N^2)
-        amrex::Real dTdz = (i > state.lower) ? 
-                           (state.temperature[i] - state.temperature[i - 1]) / dz :
-                           0.0;
-        amrex::Real N2 = (GRAVITY / state.t_ref) * dTdz;  // Brunt-Väisälä frequency squared
+        // 2. Compute velocity scale ws
+        amrex::Real ws = state.ustar;
+        if (state.use_prescribed_mo_length && std::abs(state.mo_length) > 1.0e-10) {
+            amrex::Real zeta = (0.1 * h) / state.mo_length;
+            ws = state.ustar / mo_phi_m(zeta);
+        }
         
-        // Compute wind shear
-        amrex::Real dudz = (i > state.lower) ?
-                           std::sqrt((state.ux[i] - state.ux[i-1])*(state.ux[i] - state.ux[i-1]) +
-                                     (state.uy[i] - state.uy[i-1])*(state.uy[i] - state.uy[i-1])) / dz :
-                           0.0;
+        // 3. Compute eddy viscosity profile
+        for (int i = state.lower + 1; i < state.nz - 1; ++i) {
+            amrex::Real z = state.z[i];
+            if (z < h) {
+                state.nut[i] = VON_KARMAN * ws * z * std::pow(1.0 - z/h, 2.0);
+            } else {
+                // Decay above PBL
+                state.nut[i] = 1.0e-5;
+            }
+            state.nut[i] = std::max(state.nut[i], 1.0e-5);
+        }
+    }
+    else if (state.turbulence_model == "myj") {
+        // Mellor-Yamada-Janjić (Level 2.5) local closure
+        constexpr amrex::Real A1 = 0.92;
+        constexpr amrex::Real A2 = 0.74;
+        constexpr amrex::Real B1 = 16.6;
+        constexpr amrex::Real B2 = 10.1;
+        constexpr amrex::Real C1 = 0.08;
         
-        // Compute Richardson number
-        state.Ri[i] = compute_richardson_number(dudz, N2);
-        
-        // Determine local stability
-        amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
-                               state.z[i] / state.mo_length : 0.0;
-        StabilityClass stability = get_stability_class(z_over_L);
-        
-        // Compute stability-dependent mixing length
-        amrex::Real lscale = compute_mixing_length(state.z[i], state.z[state.lower],
-                                                    z_over_L, lmax, stability);
-        
-        state.lscale[i] = lscale;
-        
-        // Compute stability-dependent cmu coefficient
-        amrex::Real cmu = compute_cmu(state.Ri[i]);
-        
-        // Eddy viscosity: nut = cmu * sqrt(tke) * lscale
-        state.nut[i] = cmu * std::sqrt(std::max(state.tke[i], MIN_TKE)) * lscale;
-        state.nut[i] = std::max(state.nut[i], 1.0e-5);
+        // Compute Blackadar length scale
+        for (int i = state.lower + 1; i < state.nz - 1; ++i) {
+            amrex::Real lshear = VON_KARMAN * (state.z[i] - state.z[state.lower]);
+            amrex::Real fg = std::sqrt(state.ug * state.ug + state.vg * state.vg);
+            amrex::Real lmax = (std::abs(state.coriolis) > 1.0e-8) 
+                                 ? 0.00027 * fg / std::abs(state.coriolis)
+                                 : 1000.0;
+            amrex::Real inv_l_sq = 1.0 / (lshear * lshear) + 1.0 / (lmax * lmax);
+            amrex::Real lscale = 1.0 / std::sqrt(inv_l_sq);
+            state.lscale[i] = lscale;
+            
+            // Compute shear and buoyancy parameters Gm and Gh
+            amrex::Real dudz = (state.ux[i + 1] - state.ux[i - 1]) / (2.0 * dz);
+            amrex::Real dvdz = (state.uy[i + 1] - state.uy[i - 1]) / (2.0 * dz);
+            amrex::Real dTdz = (state.temperature[i + 1] - state.temperature[i - 1]) / (2.0 * dz);
+            
+            amrex::Real shear_sq = dudz * dudz + dvdz * dvdz;
+            amrex::Real N_sq = (GRAVITY / state.t_ref) * dTdz;
+            
+            amrex::Real q = std::sqrt(std::max(2.0 * state.tke[i], 1.0e-8));
+            amrex::Real lscale_clamped = std::max(lscale, 0.01);
+            
+            amrex::Real Gm = (lscale_clamped * lscale_clamped / (q * q)) * shear_sq;
+            amrex::Real Gh = - (lscale_clamped * lscale_clamped / (q * q)) * N_sq;
+            
+            // Clamping Gh to avoid Mellor-Yamada singularities
+            // Bounds of -0.28 (unstable limit) and 0.028 (stable limit) are stability limits 
+            // derived from the realizability conditions of the Mellor-Yamada Level 2.5 formulation.
+            amrex::Real Gh_clamped = std::max(-0.28, std::min(Gh, 0.028));
+            
+            // Solve for Sm, Sh
+            amrex::Real den = 1.0 - 3.0 * A2 * Gh_clamped * (6.0 * A1 + B2) 
+                                  - 9.0 * A1 * A2 * Gh_clamped * (1.0 - 6.0 * A1 / B1);
+            // Default/fallback values for neutral conditions (Ri = 0, Gh_clamped = 0)
+            // Sh = 0.49, Sm = 0.39
+            amrex::Real Sh = 0.49;
+            amrex::Real Sm = 0.39;
+            if (std::abs(den) > 1.0e-5) {
+                Sh = A2 * (1.0 - 6.0 * A1 / B1) / den;
+                Sm = (A1 * (1.0 - 3.0 * C1 - 6.0 * A1 / B1) + 9.0 * A1 * A2 * Gh_clamped * Sh) / den;
+            }
+            
+            Sm = std::max(0.01, std::min(Sm, 1.0));
+            
+            state.nut[i] = lscale_clamped * q * Sm;
+            state.nut[i] = std::max(state.nut[i], 1.0e-5);
+        }
+    }
+    else {
+        // Original "one_equation" model (with advanced stability physics)
+        for (int i = state.lower + 1; i < state.nz - 1; ++i) {
+            // Mixing length models
+            amrex::Real lshear = VON_KARMAN * (state.z[i] - state.z[state.lower]);
+            
+            // Maximum length scale (Blackadar length scale)
+            amrex::Real fg = std::sqrt(state.ug * state.ug + state.vg * state.vg);
+            amrex::Real lmax = (std::abs(state.coriolis) > 1.0e-8) 
+                                 ? 0.00027 * fg / std::abs(state.coriolis)
+                                 : 1000.0;
+            
+            // Compute Brunt-Väisälä frequency squared (N^2)
+            amrex::Real dTdz = (i > state.lower) ? 
+                               (state.temperature[i] - state.temperature[i - 1]) / dz :
+                               0.0;
+            amrex::Real N2 = (GRAVITY / state.t_ref) * dTdz;  // Brunt-Väisälä frequency squared
+            
+            // Compute wind shear
+            amrex::Real dudz = (i > state.lower) ?
+                               std::sqrt((state.ux[i] - state.ux[i-1])*(state.ux[i] - state.ux[i-1]) +
+                                         (state.uy[i] - state.uy[i-1])*(state.uy[i] - state.uy[i-1])) / dz :
+                               0.0;
+            
+            // Compute Richardson number
+            state.Ri[i] = compute_richardson_number(dudz, N2);
+            
+            // Determine local stability
+            amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
+                                   state.z[i] / state.mo_length : 0.0;
+            StabilityClass stability = get_stability_class(z_over_L);
+            
+            // Compute stability-dependent mixing length
+            amrex::Real lscale = compute_mixing_length(state.z[i], state.z[state.lower],
+                                                        z_over_L, lmax, stability);
+            
+            state.lscale[i] = lscale;
+            
+            // Compute stability-dependent cmu coefficient
+            amrex::Real cmu = compute_cmu(state.Ri[i]);
+            
+            // Eddy viscosity: nut = cmu * sqrt(tke) * lscale
+            state.nut[i] = cmu * std::sqrt(std::max(state.tke[i], MIN_TKE)) * lscale;
+            state.nut[i] = std::max(state.nut[i], 1.0e-5);
+        }
     }
     
     // Boundary conditions at top
@@ -634,6 +851,47 @@ void update_temperature(SCMState1D& state, int i, amrex::Real dt)
 }
 
 // ============================================================================
+// update_moisture
+// Time-step the moisture variables
+// ============================================================================
+void update_moisture(SCMState1D& state, int i, amrex::Real dt)
+{
+    if (i <= state.lower || i >= state.nz - 1) return;
+    
+    amrex::Real dz = state.dz;
+    // Schmidt number Sc = 1.0 assumes that moisture and momentum diffuse at equal rates,
+    // which is a standard first-order approximation in boundary layer modeling.
+    amrex::Real Sc = 1.0;  // Schmidt number for moisture
+    
+    // Update qv
+    {
+        amrex::Real term1 = (state.nut[i] / Sc) * 
+                            (state.qv[i + 1] - 2.0 * state.qv[i] + state.qv[i - 1]) / (dz * dz);
+        amrex::Real dqv_dz = (state.qv[i] - state.qv[i - 1]) / dz;
+        amrex::Real term2 = (1.0 / dz) * (state.nut[i] / Sc - state.nut[i - 1] / Sc) * dqv_dz;
+        state.qv[i] += dt * (term1 + term2);
+    }
+    
+    // Update qc
+    {
+        amrex::Real term1 = (state.nut[i] / Sc) * 
+                            (state.qc[i + 1] - 2.0 * state.qc[i] + state.qc[i - 1]) / (dz * dz);
+        amrex::Real dqc_dz = (state.qc[i] - state.qc[i - 1]) / dz;
+        amrex::Real term2 = (1.0 / dz) * (state.nut[i] / Sc - state.nut[i - 1] / Sc) * dqc_dz;
+        state.qc[i] += dt * (term1 + term2);
+    }
+
+    // Update qr
+    {
+        amrex::Real term1 = (state.nut[i] / Sc) * 
+                            (state.qr[i + 1] - 2.0 * state.qr[i] + state.qr[i - 1]) / (dz * dz);
+        amrex::Real dqr_dz = (state.qr[i] - state.qr[i - 1]) / dz;
+        amrex::Real term2 = (1.0 / dz) * (state.nut[i] / Sc - state.nut[i - 1] / Sc) * dqr_dz;
+        state.qr[i] += dt * (term1 + term2);
+    }
+}
+
+// ============================================================================
 // update_tke
 // Time-step the turbulent kinetic energy
 // 1-equation TKE model with stability-dependent buoyancy production
@@ -656,23 +914,41 @@ void update_tke(SCMState1D& state, int i, amrex::Real dt)
     amrex::Real dvdz = (state.uy[i] - state.uy[i - 1]) / dz;
     amrex::Real production = state.nut[i] * (dudz * dudz + dvdz * dvdz);
     
-    // Buoyancy production: -g/T * (nut/sigma_t) * dT/dz
-    // This term can be positive (destabilizing in unstable) or negative (stabilizing in stable)
+    // Buoyancy production
     amrex::Real buoyancy = 0.0;
-    if (i > state.lower) {
-        amrex::Real dTdz = (state.temperature[i] - state.temperature[i - 1]) / dz;
-        amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
-                               state.z[i] / state.mo_length : 0.0;
-        amrex::Real sigma_t = compute_prandtl_number(z_over_L);
-        amrex::Real K_h = state.nut[i] / std::max(sigma_t, MIN_STABILITY_FACTOR);
-        buoyancy = -(GRAVITY / state.t_ref) * K_h * dTdz;
+    if (state.turbulence_model == "myj") {
+        // MYJ uses standard buoyancy with Central Difference dTdz
+        amrex::Real dTdz = (state.temperature[i + 1] - state.temperature[i - 1]) / (2.0 * dz);
+        buoyancy = - state.nut[i] * (GRAVITY / state.t_ref) * dTdz;
+    } else {
+        // "one_equation" and "ysu" use the stability-dependent buoyancy
+        if (i > state.lower) {
+            amrex::Real dTdz = (state.temperature[i] - state.temperature[i - 1]) / dz;
+            amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
+                                   state.z[i] / state.mo_length : 0.0;
+            amrex::Real sigma_t = compute_prandtl_number(z_over_L);
+            amrex::Real K_h = state.nut[i] / std::max(sigma_t, MIN_STABILITY_FACTOR);
+            buoyancy = -(GRAVITY / state.t_ref) * K_h * dTdz;
+        }
     }
     
-    // Dissipation: Ce * (tke^3/2) / l
-    // Stability-dependent dissipation rate
-    amrex::Real Ce = 1.92;
-    amrex::Real lscale = std::max(state.lscale[i], MIN_STABILITY_FACTOR);
-    amrex::Real dissipation = Ce * std::pow(std::max(state.tke[i], MIN_TKE), 1.5) / lscale;
+    // Dissipation
+    amrex::Real dissipation = 0.0;
+    if (state.turbulence_model == "myj") {
+        constexpr amrex::Real B1 = 16.6;
+        amrex::Real lscale = std::max(state.lscale[i], 0.01);
+        amrex::Real q = std::sqrt(std::max(2.0 * state.tke[i], 1.0e-8));
+        dissipation = (q * q * q) / (B1 * lscale);
+        // Note: The standard Mellor-Yamada prognostic equation is solved for q^2 (twice the TKE).
+        // Since this SCM solver integrates the equation directly for TKE (e = q^2 / 2),
+        // we multiply the q^2 dissipation rate epsilon = q^3 / (B1 * l) by 0.5 to convert it
+        // explicitly to the correct TKE dissipation rate.
+        dissipation *= 0.5;
+    } else {
+        amrex::Real Ce = 1.92;
+        amrex::Real lscale = std::max(state.lscale[i], MIN_STABILITY_FACTOR);
+        dissipation = Ce * std::pow(std::max(state.tke[i], MIN_TKE), 1.5) / lscale;
+    }
     
     // Update TKE: includes production (shear + buoyancy), diffusion, and dissipation
     state.tke[i] += dt * (production + buoyancy + term1 + term2 - dissipation);
@@ -703,7 +979,36 @@ amrex::Real run_1d_scm(SCMState1D& state,
             update_wind_x(state, i, state.dt);
             update_wind_y(state, i, state.dt);
             update_temperature(state, i, state.dt);
-            update_tke(state, i, state.dt);
+            if (state.enable_microphysics) {
+                update_moisture(state, i, state.dt);
+            }
+            if (state.turbulence_model != "ysu") {
+                update_tke(state, i, state.dt);
+            }
+        }
+        
+        // Apply microphysics / saturation adjustment
+        if (state.enable_microphysics) {
+            apply_saturation_adjustment(state);
+            apply_kessler_microphysics(state, state.dt);
+        }
+        
+        // Update potential temperature and pressure hydrostatically
+        // (to keep variables in framework consistent as ABL evolves)
+        for (int i = 1; i < state.nz; ++i) {
+            amrex::Real T_avg = 0.5 * (state.temperature[i] + state.temperature[i-1]);
+            amrex::Real dz_step = state.z[i] - state.z[i-1];
+            state.pressure[i] = state.pressure[i-1] * std::exp(-GRAVITY * dz_step / (Rd * T_avg));
+        }
+        for (int i = 0; i < state.nz; ++i) {
+            state.theta[i] = state.temperature[i] * std::pow(101325.0 / state.pressure[i], Rd / Cp);
+        }
+        
+        // Apply zero-gradient boundary conditions for moisture at top boundary
+        if (state.nz > 1 && state.enable_microphysics) {
+            state.qv[state.nz - 1] = state.qv[state.nz - 2];
+            state.qc[state.nz - 1] = state.qc[state.nz - 2];
+            state.qr[state.nz - 1] = state.qr[state.nz - 2];
         }
         
         // Update eddy viscosity
@@ -782,7 +1087,10 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
                              amrex::Real t_ref,
                              amrex::Real lapse_rate,
                              amrex::Real tolerance = 0.05,
-                             int max_iterations = 20)
+                             int max_iterations = 20,
+                             const std::string& turb_model = "one_equation",
+                             bool enable_mp = false,
+                             amrex::Real init_rh = 0.0)
 {
     // Convert direction to components for initial guess
     amrex::Real pi_val = amrex::Real(3.14159265358979323846);
@@ -796,7 +1104,8 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
     for (int iter = 0; iter < max_iterations; ++iter) {
         // Run 1D SCM with current geostrophic wind
         SCMState1D state;
-        initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude);
+        initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude,
+                            0.0, -1.0e30, turb_model, enable_mp, init_rh);
         state.dt = 0.8 * dz / std::sqrt(ug * ug + vg * vg);
         
         amrex::Real current_speed = run_1d_scm(state, ref_height);
