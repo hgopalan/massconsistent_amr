@@ -26,6 +26,8 @@ constexpr amrex::Real GRAVITY = 9.81;                 // m/s^2
 constexpr amrex::Real VON_KARMAN = 0.41;              // dimensionless
 constexpr amrex::Real RHO_AIR = 1.225;                // kg/m^3 (air density at sea level)
 constexpr amrex::Real CP_AIR = 1005.0;                // J/(kg*K) (specific heat of air)
+constexpr amrex::Real NEUTRAL_MO_LENGTH = -1.0e30;    // Neutral M-O length placeholder
+constexpr amrex::Real MIN_STABILITY_FACTOR = 0.1;     // Minimum stability correction factor
 
 // Stability enumeration
 enum class StabilityClass {
@@ -203,7 +205,7 @@ inline amrex::Real compute_monin_obukhov_length(amrex::Real ustar,
     // L = -ρ*cp*T*u*^3 / (κ*g*Qh)
     if (std::abs(Qh) < 1.0e-10) {
         // Neutral condition
-        return -1.0e30;
+        return NEUTRAL_MO_LENGTH;
     }
     
     amrex::Real numerator = -RHO_AIR * CP_AIR * t_ref * ustar * ustar * ustar;
@@ -212,7 +214,7 @@ inline amrex::Real compute_monin_obukhov_length(amrex::Real ustar,
     if (std::abs(denominator) > 1.0e-12) {
         return numerator / denominator;
     }
-    return -1.0e30;
+    return NEUTRAL_MO_LENGTH;
 }
 
 // ============================================================================
@@ -226,7 +228,7 @@ inline amrex::Real compute_mixing_length(amrex::Real z,
                                           amrex::Real lmax,
                                           StabilityClass stability) {
     // Shear-based mixing length
-    amrex::Real lshear = VON_KARMAN * std::max(z - z0, 0.1);
+    amrex::Real lshear = VON_KARMAN * std::max(z - z0, MIN_STABILITY_FACTOR);
     
     if (stability == StabilityClass::STABLE) {
         // Holtslag & Boville (1993) stable mixing length
@@ -234,14 +236,14 @@ inline amrex::Real compute_mixing_length(amrex::Real z,
         // For z/L parameterization:
         // l_s = l_m * sqrt(1 + a * z/L)
         constexpr amrex::Real a_stable = 5.0;
-        amrex::Real factor = std::sqrt(std::max(1.0 + a_stable * z_over_L, 0.1));
+        amrex::Real factor = std::sqrt(std::max(1.0 + a_stable * z_over_L, MIN_STABILITY_FACTOR));
         return lshear / factor;
     } else if (stability == StabilityClass::UNSTABLE) {
         // Deardorff (1966) unstable mixing length enhancement
         // For unstable conditions, allow larger mixing lengths
         // l_u = l_m * (1 - c * z/L)^(1/3)
         constexpr amrex::Real c_unstable = 8.0;
-        amrex::Real arg = std::max(1.0 - c_unstable * z_over_L, 0.1);
+        amrex::Real arg = std::max(1.0 - c_unstable * z_over_L, MIN_STABILITY_FACTOR);
         amrex::Real factor = std::pow(arg, 0.333333);
         return lshear * factor;
     } else {
@@ -334,7 +336,7 @@ void initialize_1d_state(SCMState1D& state,
     if (state.use_prescribed_mo_length) {
         state.mo_length = state.mo_length_prescribed;
     } else {
-        state.mo_length = -1.0e30;  // Neutral
+        state.mo_length = NEUTRAL_MO_LENGTH;
     }
     
     // Initialize stability class
@@ -375,7 +377,7 @@ void compute_similarity_surface(SCMState1D& state)
             // Qh = -ρ*cp*w'*T' ≈ -ρ*cp * K_h * dT/dz
             // where K_h is the thermal diffusivity
             if (state.lower < state.nz) {
-                amrex::Real K_h = state.nut[state.lower] / std::max(compute_prandtl_number(0.0), 0.1);
+                amrex::Real K_h = state.nut[state.lower] / std::max(compute_prandtl_number(0.0), MIN_STABILITY_FACTOR);
                 Qh_estimated = -RHO_AIR * CP_AIR * K_h * dTdz;
             }
         }
@@ -386,7 +388,7 @@ void compute_similarity_surface(SCMState1D& state)
         if (state.ustar > 1.0e-10) {
             state.mo_length = compute_monin_obukhov_length(state.ustar, state.Qh, state.t_ref);
         } else {
-            state.mo_length = -1.0e30;  // Neutral
+            state.mo_length = NEUTRAL_MO_LENGTH;
         }
     }
     
@@ -500,9 +502,7 @@ void compute_eddy_viscosity(SCMState1D& state)
         state.nut[state.nz - 1] = state.nut[state.nz - 2];
         state.tke[state.nz - 1] = state.tke[state.nz - 2];
         state.lscale[state.nz - 1] = state.lscale[state.nz - 2];
-        if (state.Ri.size() > state.nz - 1) {
-            state.Ri[state.nz - 1] = state.Ri[state.nz - 2];
-        }
+        state.Ri[state.nz - 1] = state.Ri[state.nz - 2];
     }
 }
 
@@ -621,7 +621,10 @@ void update_temperature(SCMState1D& state, int i, amrex::Real dt)
     
     // term2: d/dz(nut/sigma_t) * dT/dz
     amrex::Real dTdz = (state.temperature[i] - state.temperature[i - 1]) / dz;
-    amrex::Real term2 = (1.0 / dz) * (state.nut[i] / sigma_t - state.nut[i - 1] / compute_prandtl_number(z_over_L - dz / state.mo_length)) * dTdz;
+    amrex::Real z_over_L_lower = (std::abs(state.mo_length) > 1.0e-10) ? 
+                                 state.z[i - 1] / state.mo_length : 0.0;
+    amrex::Real sigma_t_lower = compute_prandtl_number(z_over_L_lower);
+    amrex::Real term2 = (1.0 / dz) * (state.nut[i] / sigma_t - state.nut[i - 1] / sigma_t_lower) * dTdz;
     
     state.temperature[i] += dt * (term1 + term2);
 }
