@@ -14,6 +14,7 @@
 #include "bridge_models.H"
 #include "structure_models.H"
 #include "thermodynamic_lid_models.H"
+#include "datacenter_heat_source.H"
 
 namespace amrex {
     class EBFArrayBoxFactory;
@@ -64,6 +65,12 @@ public:
     void compute_eddy_diffusivity_mixing_length(
         amrex::MultiFab& kappa_eddy);
     amrex::Real compute_adaptive_dt_transport();
+    
+    // Data center heat source methods
+    void apply_datacenter_heat_source(
+        amrex::MultiFab& temp_source,
+        amrex::Real dt);
+    void compute_datacenter_plume_diagnostics();
 
 private:
     std::vector<StreetCanyon> detect_street_canyons(
@@ -563,6 +570,29 @@ private:
     int multi_step_corrector_steps = 1;          // Number of corrector iterations for temperature-dependent mass-consistent solve
     std::string scalar_coupling_mode = "segregated"; // Mode for scalar transport: "segregated" or "coupled"
     
+    // Data center heat source parameters
+    bool datacenter_enabled = false;             // Enable data center heat source modeling
+    std::vector<amrex::Real> datacenter_heat_release;  // Heat release rates [W] for each facility
+    std::vector<amrex::Real> datacenter_x;      // X-coordinates of facility centers [m]
+    std::vector<amrex::Real> datacenter_y;      // Y-coordinates of facility centers [m]
+    std::vector<amrex::Real> datacenter_z;      // Z-coordinates/heights of facilities [m]
+    std::vector<amrex::Real> datacenter_area;   // Facility footprint areas [m²]
+    std::vector<amrex::Real> datacenter_sigma_x; // Gaussian spreads in X [m]
+    std::vector<amrex::Real> datacenter_sigma_y; // Gaussian spreads in Y [m]
+    std::vector<amrex::Real> datacenter_sigma_z; // Gaussian spreads in Z [m]
+    std::vector<std::string> datacenter_names;  // Names/identifiers for facilities
+    
+    // Legacy single-center parameters (for backward compatibility)
+    // These are mapped to the first element of the vectors
+    amrex::Real datacenter_heat_release_single = 0.0;  // Single center heat release [W] (deprecated, use vector)
+    amrex::Real datacenter_x_single = 0.0;             // Single center X [m] (deprecated, use vector)
+    amrex::Real datacenter_y_single = 0.0;             // Single center Y [m] (deprecated, use vector)
+    amrex::Real datacenter_z_single = 10.0;            // Single center Z [m] (deprecated, use vector)
+    amrex::Real datacenter_area_single = 1000.0;       // Single center area [m²] (deprecated, use vector)
+    amrex::Real datacenter_sigma_x_single = 50.0;      // Single center sigma_x [m] (deprecated, use vector)
+    amrex::Real datacenter_sigma_y_single = 50.0;      // Single center sigma_y [m] (deprecated, use vector)
+    amrex::Real datacenter_sigma_z_single = 5.0;       // Single center sigma_z [m] (deprecated, use vector)
+    
     // Mixing length model parameters for eddy diffusivity
     bool enable_mixing_length_turbulence = true; // Use mixing length model for eddy diffusivity
     amrex::Real mixing_length_coefficient = 0.1; // Proportionality constant for mixing length: l = coeff * Δz
@@ -585,6 +615,9 @@ private:
     TurbulenceParams turb_params;
     std::string turbulence_export_format = "bts";
     std::string turbulence_output_file = "turbulence.bts";
+    
+    // Data center heat source structures (vector for multiple facilities)
+    std::vector<DataCenterHeatSourceParams> datacenter_params;
 
     // --- COMPUTED & STATE VARIABLES ---
     std::vector<amrex::Real> x_terr, y_terr, z_terr;

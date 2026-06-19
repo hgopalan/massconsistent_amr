@@ -1060,6 +1060,124 @@ void WindSolverApp::parse_inputs() {
         amrex::Print() << "  export_format: " << turbulence_export_format << "\n"
                        << "  output_file: " << turbulence_output_file << "\n";
     }
+    
+    // Data center heat source parameters (supports multiple facilities)
+    pp.query("datacenter.enabled", datacenter_enabled);
+    
+    if (datacenter_enabled) {
+        // Ensure temperature transport is enabled for heat source to work
+        if (!enable_temperature_transport) {
+            amrex::Abort("datacenter heat source requires enable_temperature_transport = true");
+        }
+        // Parse multi-facility parameters using arrays
+        int num_heat_releases = pp.countval("datacenter.heat_release");
+        
+        if (num_heat_releases > 0) {
+            // Multi-center mode: parse arrays
+            datacenter_heat_release.resize(num_heat_releases);
+            datacenter_x.resize(num_heat_releases);
+            datacenter_y.resize(num_heat_releases);
+            datacenter_z.resize(num_heat_releases);
+            datacenter_area.resize(num_heat_releases);
+            datacenter_sigma_x.resize(num_heat_releases);
+            datacenter_sigma_y.resize(num_heat_releases);
+            datacenter_sigma_z.resize(num_heat_releases);
+            datacenter_names.resize(num_heat_releases);
+            
+            pp.getarr("datacenter.heat_release", datacenter_heat_release, 0, num_heat_releases);
+            pp.getarr("datacenter.x", datacenter_x, 0, num_heat_releases);
+            pp.getarr("datacenter.y", datacenter_y, 0, num_heat_releases);
+            pp.getarr("datacenter.z", datacenter_z, 0, num_heat_releases);
+            pp.getarr("datacenter.area", datacenter_area, 0, num_heat_releases);
+            pp.getarr("datacenter.sigma_x", datacenter_sigma_x, 0, num_heat_releases);
+            pp.getarr("datacenter.sigma_y", datacenter_sigma_y, 0, num_heat_releases);
+            pp.getarr("datacenter.sigma_z", datacenter_sigma_z, 0, num_heat_releases);
+            
+            // Try to parse facility names (optional)
+            int num_names = pp.countval("datacenter.names");
+            if (num_names == num_heat_releases) {
+                pp.getarr("datacenter.names", datacenter_names, 0, num_heat_releases);
+            } else {
+                // Auto-generate names
+                for (int i = 0; i < num_heat_releases; ++i) {
+                    datacenter_names[i] = "DataCenter_" + std::to_string(i);
+                }
+            }
+        } else {
+            // Single-center legacy mode: parse scalars
+            pp.query("datacenter.heat_release", datacenter_heat_release_single);
+            pp.query("datacenter.x", datacenter_x_single);
+            pp.query("datacenter.y", datacenter_y_single);
+            pp.query("datacenter.z", datacenter_z_single);
+            pp.query("datacenter.area", datacenter_area_single);
+            pp.query("datacenter.sigma_x", datacenter_sigma_x_single);
+            pp.query("datacenter.sigma_y", datacenter_sigma_y_single);
+            pp.query("datacenter.sigma_z", datacenter_sigma_z_single);
+            
+            // Convert single-center to vector form
+            datacenter_heat_release.resize(1);
+            datacenter_x.resize(1);
+            datacenter_y.resize(1);
+            datacenter_z.resize(1);
+            datacenter_area.resize(1);
+            datacenter_sigma_x.resize(1);
+            datacenter_sigma_y.resize(1);
+            datacenter_sigma_z.resize(1);
+            datacenter_names.resize(1);
+            
+            datacenter_heat_release[0] = datacenter_heat_release_single;
+            datacenter_x[0] = datacenter_x_single;
+            datacenter_y[0] = datacenter_y_single;
+            datacenter_z[0] = datacenter_z_single;
+            datacenter_area[0] = datacenter_area_single;
+            datacenter_sigma_x[0] = datacenter_sigma_x_single;
+            datacenter_sigma_y[0] = datacenter_sigma_y_single;
+            datacenter_sigma_z[0] = datacenter_sigma_z_single;
+            datacenter_names[0] = "DataCenter";
+        }
+        
+        // Initialize DataCenterHeatSourceParams structures
+        datacenter_params.clear();
+        for (size_t i = 0; i < datacenter_heat_release.size(); ++i) {
+            DataCenterHeatSourceParams params;
+            params.enabled = true;
+            params.x_center = datacenter_x[i];
+            params.y_center = datacenter_y[i];
+            params.z_center = datacenter_z[i];
+            params.heat_release_rate = datacenter_heat_release[i];
+            params.source_area = datacenter_area[i];
+            params.sigma_x = datacenter_sigma_x[i];
+            params.sigma_y = datacenter_sigma_y[i];
+            params.sigma_z = datacenter_sigma_z[i];
+            params.name = datacenter_names[i];
+            
+            // Set reference conditions (from buoyancy params if available)
+            params.reference_temperature = temperature_reference;
+            params.rho_ref = 1.225;  // Sea level reference
+            params.cp = 1005.0;
+            
+            datacenter_params.push_back(params);
+        }
+        
+        // Print data center configuration
+        if (!datacenter_params.empty()) {
+            amrex::Print() << "wind_solver: ========================================\n"
+                           << "wind_solver: Data Center Heat Source Configuration\n"
+                           << "wind_solver: ========================================\n";
+            amrex::Print() << "wind_solver: Number of facilities: " << datacenter_params.size() << "\n";
+            for (size_t i = 0; i < datacenter_params.size(); ++i) {
+                const auto& p = datacenter_params[i];
+                amrex::Print() << "wind_solver: Facility " << i << " (" << p.name << ")\n"
+                               << "wind_solver:   Heat release: " << p.heat_release_rate / 1.0e6 << " MW\n"
+                               << "wind_solver:   Location: (" << p.x_center << ", " << p.y_center 
+                               << ", " << p.z_center << ") m\n"
+                               << "wind_solver:   Footprint area: " << p.source_area << " m²\n"
+                               << "wind_solver:   Gaussian spreads: σx=" << p.sigma_x 
+                               << ", σy=" << p.sigma_y << ", σz=" << p.sigma_z << " m\n";
+            }
+            amrex::Print() << "wind_solver: ========================================\n\n";
+        }
+    }
 
     amrex::Print() << "wind_solver: input parsing time = " 
                    << (amrex::second() - t_phase) << " s\n";
@@ -6434,21 +6552,35 @@ void WindSolverApp::compute_eddy_diffusivity_mixing_length(amrex::MultiFab& kapp
 
 void WindSolverApp::solve_transport_equations(int time_step, amrex::Real dt_transport) {
     // Solve scalar transport equations for temperature and moisture
-    // ∂ϕ/∂t + u·∇ϕ = ∇·(K_eff ∇ϕ)
-    // where K_eff = K_mol + K_eddy
+    // ∂ϕ/∂t + u·∇ϕ = ∇·(K_eff ∇ϕ) + S
+    // where K_eff = K_mol + K_eddy and S is any source term
     
     amrex::Print() << "wind_solver: solving scalar transport equations with dt = " << dt_transport << " s\n";
     
     if (enable_temperature_transport && temp_3d_ptr) {
-       solve_scalar_transport(*temp_3d_ptr, *temp_3d_old_ptr, *vel_c_ptr, 
-                             temperature_diffusivity, dt_transport, "temperature");
-      amrex::MultiFab::Copy(*temp_3d_old_ptr, *temp_3d_ptr, 0, 0, 1, temp_3d_old_ptr->nGrow());
+        // Apply datacenter heat source term if enabled
+        if (datacenter_enabled && !datacenter_params.empty()) {
+            // Create temporary source term field
+            amrex::MultiFab temp_source(temp_3d_ptr->boxArray(), temp_3d_ptr->DistributionMap(), 1, 0);
+            temp_source.setVal(0.0);
+            
+            // Compute and apply datacenter heat source
+            apply_datacenter_heat_source(temp_source, dt_transport);
+            
+            // Add source term to temperature equation
+            amrex::MultiFab::Add(*temp_3d_ptr, temp_source, 0, 0, 1, 0);
+        }
+        
+        // Solve advection-diffusion for temperature
+        solve_scalar_transport(*temp_3d_ptr, *temp_3d_old_ptr, *vel_c_ptr, 
+                              temperature_diffusivity, dt_transport, "temperature");
+        amrex::MultiFab::Copy(*temp_3d_old_ptr, *temp_3d_ptr, 0, 0, 1, temp_3d_old_ptr->nGrow());
     }
     
     if (enable_moisture_transport && moisture_3d_ptr) {
-      solve_scalar_transport(*moisture_3d_ptr, *moisture_3d_old_ptr, *vel_c_ptr,
-                            moisture_diffusivity, dt_transport, "moisture");
-      amrex::MultiFab::Copy(*moisture_3d_old_ptr, *moisture_3d_ptr, 0, 0, 1, moisture_3d_old_ptr->nGrow());
+        solve_scalar_transport(*moisture_3d_ptr, *moisture_3d_old_ptr, *vel_c_ptr,
+                              moisture_diffusivity, dt_transport, "moisture");
+        amrex::MultiFab::Copy(*moisture_3d_old_ptr, *moisture_3d_ptr, 0, 0, 1, moisture_3d_old_ptr->nGrow());
     }
 }
 
@@ -6559,4 +6691,139 @@ void WindSolverApp::solve_scalar_transport(
     // Copy boundary conditions from old field
     amrex::MultiFab::Copy(scalar_new, scalar_old, 0, 0, 1, 0);  // Copy ghost cells
     scalar_new.FillBoundary(geom_ptr->periodicity());
+}
+
+void WindSolverApp::apply_datacenter_heat_source(
+    amrex::MultiFab& temp_source,
+    amrex::Real dt)
+{
+    /**
+     * @brief Apply heat source term to temperature equation.
+     *
+     * For multiple data centers, compute the combined heat source strength
+     * from all enabled facilities and add to temperature source term.
+     *
+     * The heat source is distributed using Gaussian profiles:
+     *   Q(x,y,z) = Q_total * exp(-[(x-x_c)²/σ_x² + (y-y_c)²/σ_y² + (z-z_c)²/σ_z²]/2)
+     *
+     * Source term dT/dt [K/s] is computed from: dT/dt = Q / (ρ * cp * V_cell)
+     */
+    
+    if (!datacenter_enabled || datacenter_params.empty()) {
+        return;
+    }
+    
+    amrex::Print() << "wind_solver: applying datacenter heat sources\n";
+    
+    // Prepare params array for GPU
+    std::vector<DataCenterHeatSourceParams> params_vec = datacenter_params;
+    DataCenterHeatSourceParams* params_ptr = params_vec.data();
+    int num_sources = static_cast<int>(params_vec.size());
+    
+    // Apply heat source to each cell
+    for (amrex::MFIter mfi(temp_source); mfi.isValid(); ++mfi) {
+        const auto& box = mfi.validbox();
+        auto src_arr = temp_source.array(mfi);
+        
+        amrex::ParallelFor(box, [this, src_arr, params_ptr, num_sources, dt] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Get cell center coordinates
+            amrex::Real x = this->x_lo + (amrex::Real(i) + 0.5) * this->dx;
+            amrex::Real y = this->y_lo + (amrex::Real(j) + 0.5) * this->dy;
+            amrex::Real z = this->zs_min + (amrex::Real(k) + 0.5) * this->dz;
+            
+            // Cell volume
+            amrex::Real volume_cell = this->dx * this->dy * this->dz;
+            
+            // Compute combined heat source from all facilities
+            amrex::Real source_strength = heat_source_strength_multiple(
+                params_ptr, num_sources, x, y, z, volume_cell);
+            
+            // Add to source term (heat_source_strength returns dT/dt)
+            src_arr(i, j, k) += source_strength * dt;
+        });
+    }
+}
+
+void WindSolverApp::compute_datacenter_plume_diagnostics()
+{
+    /**
+     * @brief Extract plume metrics from current temperature field.
+     *
+     * Computes diagnostics for each data center facility:
+     *   - Maximum temperature excess above ambient
+     *   - Plume rise height
+     *   - Horizontal extent
+     *   - Mean temperature in plume region
+     */
+    
+    if (!datacenter_enabled || !temp_3d_ptr || datacenter_params.empty()) {
+        return;
+    }
+    
+    amrex::Print() << "wind_solver: computing datacenter plume diagnostics\n";
+    
+    // For each facility, compute diagnostics
+    for (size_t idc = 0; idc < datacenter_params.size(); ++idc) {
+        const auto& params = datacenter_params[idc];
+        
+        // Create temporary field for temperature anomaly
+        amrex::Real T_max = 0.0;
+        amrex::Real plume_height_max = 0.0;
+        int num_plume_cells = 0;
+        amrex::Real sum_dT = 0.0;
+        
+        // Scan over all cells to compute diagnostics
+        for (amrex::MFIter mfi(*temp_3d_ptr); mfi.isValid(); ++mfi) {
+            const auto& box = mfi.validbox();
+            const auto& temp_arr = temp_3d_ptr->array(mfi);
+            
+            amrex::ReduceOps<amrex::ReduceOpMax, amrex::ReduceOpMax, amrex::ReduceOpSum, amrex::ReduceOpSum> 
+                reduce_ops;
+            amrex::ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real> reduce_data(reduce_ops);
+            
+            using ReduceTuple = typename decltype(reduce_data)::Type;
+            
+            reduce_ops.eval(box, reduce_data, 
+                [x_lo = this->x_lo, y_lo = this->y_lo, zs_min = this->zs_min,
+                 dx = this->dx, dy = this->dy, dz = this->dz,
+                 temperature_reference = this->temperature_reference,
+                 z_center = params.z_center,
+                 temp_arr] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
+                amrex::Real x = x_lo + (amrex::Real(i) + 0.5) * dx;
+                amrex::Real y = y_lo + (amrex::Real(j) + 0.5) * dy;
+                amrex::Real z = zs_min + (amrex::Real(k) + 0.5) * dz;
+                
+                // Temperature anomaly (assume reference at first cell)
+                amrex::Real dT = temp_arr(i, j, k) - temperature_reference;
+                dT = std::max(dT, amrex::Real(0.0));  // Only positive anomalies
+                
+                if (dT > 0.1) {  // Threshold for plume detection
+                    amrex::Real plume_height = z - z_center;
+                    return ReduceTuple{dT, plume_height, dT, amrex::Real(1.0)};
+                } else {
+                    return ReduceTuple{amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0)};
+                }
+            });
+            
+            auto hv = reduce_data.value(reduce_ops);
+            T_max = std::max(T_max, amrex::get<0>(hv));
+            plume_height_max = std::max(plume_height_max, amrex::get<1>(hv));
+            sum_dT += amrex::get<2>(hv);
+            num_plume_cells += static_cast<int>(amrex::get<3>(hv));
+        }
+        
+        // Reduce across all processors
+        amrex::ParallelDescriptor::ReduceRealMax(T_max);
+        amrex::ParallelDescriptor::ReduceRealMax(plume_height_max);
+        amrex::ParallelDescriptor::ReduceRealSum(sum_dT);
+        amrex::ParallelDescriptor::ReduceIntSum(num_plume_cells);
+        
+        // Print diagnostics
+        amrex::Real mean_dT = (num_plume_cells > 0) ? sum_dT / static_cast<amrex::Real>(num_plume_cells) : 0.0;
+        amrex::Print() << "wind_solver: Facility '" << params.name << "'\n"
+                       << "  Max temperature excess: " << T_max << " K\n"
+                       << "  Plume rise height: " << plume_height_max << " m\n"
+                       << "  Mean temperature in plume: " << mean_dT << " K\n"
+                       << "  Plume extent (cells): " << num_plume_cells << "\n";
+    }
 }
