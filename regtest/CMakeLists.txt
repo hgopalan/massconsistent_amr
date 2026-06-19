@@ -255,6 +255,10 @@ add_regression_test(scm_myj physics/scm_myj)
 add_python_regression_test(scm_myj_python physics/scm_myj verify_scm.py)
 add_regression_test(scm_microphysics physics/scm_microphysics)
 add_python_regression_test(scm_microphysics_python physics/scm_microphysics verify_scm.py)
+add_regression_test(scm_non_canonical physics/scm_non_canonical)
+add_python_regression_test(scm_non_canonical_python physics/scm_non_canonical verify_scm.py)
+add_regression_test(scm_cloud_top_cooling physics/scm_cloud_top_cooling)
+add_python_regression_test(scm_cloud_top_cooling_python physics/scm_cloud_top_cooling verify_scm.py)
 
 # ---------------------------------------------------------------------------
 # Canopy model tests

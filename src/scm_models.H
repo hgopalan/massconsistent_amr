@@ -14,6 +14,7 @@
 #define SCM_MODELS_H
 
 #include <AMReX.H>
+#include <AMReX_ParmParse.H>
 #include <cmath>
 #include <algorithm>
 #include <vector>
@@ -89,6 +90,17 @@ struct SCMState1D {
     amrex::Real coriolis;                // Coriolis parameter [1/s]
     amrex::Real latitude;                // Latitude [degrees]
     int lower;                           // Index of lowest active level
+
+    // New fields for MYJ and non-canonical/entrainment physics
+    std::vector<amrex::Real> nuh;        // Eddy diffusivity for scalars [m^2/s]
+    amrex::Real cooling_rate;            // Surface cooling rate [K/hr]
+    bool use_charnock;                  // Enable Charnock overwater roughness
+    amrex::Real subsidence_rate;         // Subsidence rate [m/s]
+    amrex::Real radiation_cooling_rate;  // Radiative cooling rate [K/hr]
+    amrex::Real cloud_top_cooling_rate;  // Cloud-top radiative cooling rate [K/hr]
+    std::vector<amrex::Real> w_subsidence; // Vertical subsidence velocity [m/s]
+    amrex::Real inversion_strength;      // Inversion potential temperature jump [K]
+    amrex::Real inversion_thickness;     // Inversion layer thickness [m]
 };
 
 // ============================================================================
@@ -461,6 +473,32 @@ void initialize_1d_state(SCMState1D& state,
     
     // Initialize stability class
     state.stability_class = 0.0;  // Start with neutral
+
+    // Initialize new fields
+    state.nuh.resize(state.nz, 1.0e-5);
+    state.cooling_rate = 0.0;
+    state.use_charnock = false;
+    state.subsidence_rate = 0.0;
+    state.radiation_cooling_rate = 0.0;
+    state.cloud_top_cooling_rate = 0.0;
+    state.inversion_strength = 0.0;
+    state.inversion_thickness = 0.0;
+
+    // Use ParmParse to query from "scm" namespace if present
+    amrex::ParmParse pp("scm");
+    pp.query("cooling_rate", state.cooling_rate);
+    pp.query("use_charnock", state.use_charnock);
+    pp.query("subsidence_rate", state.subsidence_rate);
+    pp.query("radiation_cooling_rate", state.radiation_cooling_rate);
+    pp.query("cloud_top_cooling_rate", state.cloud_top_cooling_rate);
+
+    state.w_subsidence.resize(state.nz, 0.0);
+    if (std::abs(state.subsidence_rate) > 1.0e-10) {
+        for (int i = 0; i < state.nz; ++i) {
+            // Linear subsidence profile: 0 at surface, max at domain top
+            state.w_subsidence[i] = - state.subsidence_rate * (state.z[i] / domain_height);
+        }
+    }
 }
 
 // ============================================================================
@@ -472,14 +510,30 @@ void compute_similarity_surface(SCMState1D& state)
 {
     if (state.lower + 1 >= state.nz) return;
     
+    // Apply surface temperature cooling rate if specified
+    if (std::abs(state.cooling_rate) > 1.0e-10) {
+        state.temperature[state.lower] -= (state.cooling_rate / 3600.0) * state.dt;
+    }
+
     amrex::Real M1 = std::sqrt(state.ux[state.lower + 1] * state.ux[state.lower + 1] +
                                state.uy[state.lower + 1] * state.uy[state.lower + 1]);
     
-    // Compute friction velocity (log-law, neutral approximation)
-    if (M1 > 0.0) {
-        state.ustar = VON_KARMAN * M1 / std::log((state.z[state.lower + 1] + state.z0) / state.z0);
+    // Compute friction velocity and optionally Charnock overwater roughness length
+    if (state.use_charnock) {
+        for (int iter = 0; iter < 5; ++iter) {
+            if (M1 > 0.0) {
+                state.ustar = VON_KARMAN * M1 / std::log((state.z[state.lower + 1] + state.z0) / state.z0);
+            } else {
+                state.ustar = 0.0;
+            }
+            state.z0 = std::max(1.0e-4, 0.0185 * state.ustar * state.ustar / GRAVITY);
+        }
     } else {
-        state.ustar = 0.0;
+        if (M1 > 0.0) {
+            state.ustar = VON_KARMAN * M1 / std::log((state.z[state.lower + 1] + state.z0) / state.z0);
+        } else {
+            state.ustar = 0.0;
+        }
     }
     
     // Compute or use prescribed Monin-Obukhov length
@@ -582,11 +636,25 @@ void compute_eddy_viscosity(SCMState1D& state)
         amrex::Real u_s = state.ux[state.lower];
         amrex::Real v_s = state.uy[state.lower];
         
+        // Compute convective velocity scale ws and thermal perturbation theta_T if Qh > 0
+        amrex::Real w_theta_0 = 0.0;
+        amrex::Real w_star = 0.0;
+        amrex::Real theta_T = 0.0;
+        if (state.Qh > 0.0) {
+            w_theta_0 = state.Qh / (RHO_AIR * CP_AIR);
+            // Estimate a preliminary h for w_star bootstrap (using old h if available, or 500m)
+            amrex::Real h_est = (state.pbl_height > 100.0) ? state.pbl_height : 500.0;
+            w_star = std::pow(std::max(0.0, (GRAVITY / state.t_ref) * w_theta_0 * h_est), ONE_THIRD);
+            theta_T = 7.8 * w_theta_0 / std::max(w_star, 0.01);
+        }
+        
         for (int i = state.lower + 1; i < state.nz; ++i) {
             amrex::Real du = state.ux[i] - u_s;
             amrex::Real dv = state.uy[i] - v_s;
             amrex::Real wind_sq = std::max(du*du + dv*dv, 0.01);
-            amrex::Real dtheta = state.theta[i] - theta_s;
+            // Add thermal perturbation under unstable conditions
+            amrex::Real theta_s_eff = theta_s + theta_T;
+            amrex::Real dtheta = state.theta[i] - theta_s_eff;
             amrex::Real Ri_b = (GRAVITY / theta_s) * dtheta * (state.z[i] - state.z[state.lower]) / wind_sq;
             
             if (Ri_b >= 0.25) {
@@ -601,6 +669,9 @@ void compute_eddy_viscosity(SCMState1D& state)
         if (state.use_prescribed_mo_length && std::abs(state.mo_length) > 1.0e-10) {
             amrex::Real zeta = (0.1 * h) / state.mo_length;
             ws = state.ustar / mo_phi_m(zeta);
+        } else if (state.Qh > 0.0) {
+            // Unstable convective scale
+            ws = state.ustar + 0.6 * w_star;
         }
         
         // 3. Compute eddy viscosity profile
@@ -609,10 +680,34 @@ void compute_eddy_viscosity(SCMState1D& state)
             if (z < h) {
                 state.nut[i] = VON_KARMAN * ws * z * std::pow(1.0 - z/h, 2.0);
             } else {
-                // Decay above PBL
-                state.nut[i] = 1.0e-5;
+                // Dynamic local diffusion above PBL (e.g., Louis/Richardson-dependent scheme)
+                amrex::Real lshear = VON_KARMAN * state.z[i];
+                amrex::Real lmax = 100.0;
+                amrex::Real lscale = 1.0 / std::sqrt(1.0 / (lshear * lshear) + 1.0 / (lmax * lmax));
+                
+                amrex::Real dudz = (state.ux[i + 1] - state.ux[i - 1]) / (2.0 * dz);
+                amrex::Real dvdz = (state.uy[i + 1] - state.uy[i - 1]) / (2.0 * dz);
+                amrex::Real dTdz = (state.temperature[i + 1] - state.temperature[i - 1]) / (2.0 * dz);
+                amrex::Real shear = std::sqrt(std::max(dudz * dudz + dvdz * dvdz, 1.0e-8));
+                amrex::Real N_sq = (GRAVITY / state.t_ref) * dTdz;
+                amrex::Real local_Ri = N_sq / (shear * shear);
+                
+                amrex::Real stability_func = 1.0;
+                if (local_Ri >= 0.0) {
+                    stability_func = std::pow(std::max(0.0, 1.0 - local_Ri / 0.25), 2.0);
+                } else {
+                    stability_func = std::sqrt(1.0 - 16.0 * local_Ri);
+                }
+                state.nut[i] = lscale * lscale * shear * stability_func;
             }
             state.nut[i] = std::max(state.nut[i], 1.0e-5);
+            
+            // Set eddy diffusivity for scalars
+            amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
+                                  state.z[i] / state.mo_length : 0.0;
+            amrex::Real sigma_t = compute_prandtl_number(z_over_L);
+            state.nuh[i] = state.nut[i] / sigma_t;
+            state.nuh[i] = std::max(state.nuh[i], 1.0e-5);
         }
     }
     else if (state.turbulence_model == "myj") {
@@ -632,7 +727,6 @@ void compute_eddy_viscosity(SCMState1D& state)
                                  : 1000.0;
             amrex::Real inv_l_sq = 1.0 / (lshear * lshear) + 1.0 / (lmax * lmax);
             amrex::Real lscale = 1.0 / std::sqrt(inv_l_sq);
-            state.lscale[i] = lscale;
             
             // Compute shear and buoyancy parameters Gm and Gh
             amrex::Real dudz = (state.ux[i + 1] - state.ux[i - 1]) / (2.0 * dz);
@@ -642,22 +736,29 @@ void compute_eddy_viscosity(SCMState1D& state)
             amrex::Real shear_sq = dudz * dudz + dvdz * dvdz;
             amrex::Real N_sq = (GRAVITY / state.t_ref) * dTdz;
             
-            amrex::Real q = std::sqrt(std::max(2.0 * state.tke[i], 1.0e-8));
-            amrex::Real lscale_clamped = std::max(lscale, 0.01);
+            amrex::Real q = std::sqrt(std::max(2.0 * state.tke[i], 1.0e-5));
+            amrex::Real lscale_val = lscale;
+            
+            // Apply stable buoyancy limit (Janjić 1990)
+            if (N_sq > 0.0) {
+                amrex::Real N_freq = std::sqrt(N_sq);
+                amrex::Real l_buoy = 0.53 * q / N_freq;
+                lscale_val = std::min(lscale_val, l_buoy);
+            }
+            // Background minimum mixing length (prevent entrainment pinch-off)
+            lscale_val = std::max(lscale_val, 1.0);
+            state.lscale[i] = lscale_val;
+            amrex::Real lscale_clamped = lscale_val;
             
             amrex::Real Gm = (lscale_clamped * lscale_clamped / (q * q)) * shear_sq;
             amrex::Real Gh = - (lscale_clamped * lscale_clamped / (q * q)) * N_sq;
             
             // Clamping Gh to avoid Mellor-Yamada singularities
-            // Bounds of -0.28 (unstable limit) and 0.028 (stable limit) are stability limits 
-            // derived from the realizability conditions of the Mellor-Yamada Level 2.5 formulation.
             amrex::Real Gh_clamped = std::max(-0.28, std::min(Gh, 0.028));
             
             // Solve for Sm, Sh
             amrex::Real den = 1.0 - 3.0 * A2 * Gh_clamped * (6.0 * A1 + B2) 
                                   - 9.0 * A1 * A2 * Gh_clamped * (1.0 - 6.0 * A1 / B1);
-            // Default/fallback values for neutral conditions (Ri = 0, Gh_clamped = 0)
-            // Sh = 0.49, Sm = 0.39
             amrex::Real Sh = 0.49;
             amrex::Real Sm = 0.39;
             if (std::abs(den) > 1.0e-5) {
@@ -666,10 +767,24 @@ void compute_eddy_viscosity(SCMState1D& state)
             }
             
             Sm = std::max(0.01, std::min(Sm, 1.0));
+            Sh = std::max(0.01, std::min(Sh, 1.0));
             
             state.nut[i] = lscale_clamped * q * Sm;
             state.nut[i] = std::max(state.nut[i], 1.0e-5);
+            
+            state.nuh[i] = lscale_clamped * q * Sh;
+            state.nuh[i] = std::max(state.nuh[i], 1.0e-5);
         }
+        
+        // Compute PBL height for MYJ using TKE threshold (e.g., TKE = 0.01 m^2/s^2)
+        amrex::Real h = 100.0;
+        for (int i = state.lower + 1; i < state.nz; ++i) {
+            if (state.tke[i] < 0.01) {
+                h = state.z[i];
+                break;
+            }
+        }
+        state.pbl_height = h;
     }
     else {
         // Original "one_equation" model (with advanced stability physics)
@@ -692,7 +807,7 @@ void compute_eddy_viscosity(SCMState1D& state)
             // Compute wind shear
             amrex::Real dudz = (i > state.lower) ?
                                std::sqrt((state.ux[i] - state.ux[i-1])*(state.ux[i] - state.ux[i-1]) +
-                                         (state.uy[i] - state.uy[i-1])*(state.uy[i] - state.uy[i-1])) / dz :
+                                        (state.uy[i] - state.uy[i-1])*(state.uy[i] - state.uy[i-1])) / dz :
                                0.0;
             
             // Compute Richardson number
@@ -700,12 +815,12 @@ void compute_eddy_viscosity(SCMState1D& state)
             
             // Determine local stability
             amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
-                                   state.z[i] / state.mo_length : 0.0;
+                                  state.z[i] / state.mo_length : 0.0;
             StabilityClass stability = get_stability_class(z_over_L);
             
             // Compute stability-dependent mixing length
             amrex::Real lscale = compute_mixing_length(state.z[i], state.z[state.lower],
-                                                        z_over_L, lmax, stability);
+                                                       z_over_L, lmax, stability);
             
             state.lscale[i] = lscale;
             
@@ -715,15 +830,36 @@ void compute_eddy_viscosity(SCMState1D& state)
             // Eddy viscosity: nut = cmu * sqrt(tke) * lscale
             state.nut[i] = cmu * std::sqrt(std::max(state.tke[i], MIN_TKE)) * lscale;
             state.nut[i] = std::max(state.nut[i], 1.0e-5);
+            
+            // Set eddy diffusivity for scalars
+            amrex::Real sigma_t = compute_prandtl_number(z_over_L);
+            state.nuh[i] = state.nut[i] / sigma_t;
+            state.nuh[i] = std::max(state.nuh[i], 1.0e-5);
         }
     }
     
     // Boundary conditions at top
     if (state.nz > 1) {
         state.nut[state.nz - 1] = state.nut[state.nz - 2];
+        state.nuh[state.nz - 1] = state.nuh[state.nz - 2];
         state.tke[state.nz - 1] = state.tke[state.nz - 2];
         state.lscale[state.nz - 1] = state.lscale[state.nz - 2];
         state.Ri[state.nz - 1] = state.Ri[state.nz - 2];
+    }
+    
+    // Inversion tracking diagnostics for any turbulence model
+    {
+        int k_inv = state.lower + 1;
+        for (int k = state.lower + 1; k < state.nz; ++k) {
+            if (state.z[k] >= state.pbl_height) {
+                k_inv = k;
+                break;
+            }
+        }
+        int k1 = std::max(state.lower, k_inv - 2);
+        int k2 = std::min(state.nz - 1, k_inv + 2);
+        state.inversion_strength = state.theta[k2] - state.theta[k1];
+        state.inversion_thickness = state.z[k2] - state.z[k1];
     }
 }
 
@@ -772,6 +908,11 @@ void update_wind_x(SCMState1D& state, int i, amrex::Real dt)
     
     // Update u-velocity
     state.ux[i] += dt * (term1 + term2 + coriolis + geostrophic + damping);
+
+    // Subsidence vertical advection (upwind since w_subsidence <= 0)
+    if (!state.w_subsidence.empty() && state.w_subsidence[i] < 0.0) {
+        state.ux[i] -= dt * state.w_subsidence[i] * (state.ux[i + 1] - state.ux[i]) / dz;
+    }
 }
 
 // ============================================================================
@@ -818,6 +959,11 @@ void update_wind_y(SCMState1D& state, int i, amrex::Real dt)
     
     // Update v-velocity
     state.uy[i] += dt * (term1 + term2 + coriolis + geostrophic + damping);
+
+    // Subsidence vertical advection (upwind since w_subsidence <= 0)
+    if (!state.w_subsidence.empty() && state.w_subsidence[i] < 0.0) {
+        state.uy[i] -= dt * state.w_subsidence[i] * (state.uy[i + 1] - state.uy[i]) / dz;
+    }
 }
 
 // ============================================================================
@@ -831,23 +977,66 @@ void update_temperature(SCMState1D& state, int i, amrex::Real dt)
     
     amrex::Real dz = state.dz;
     
-    // Compute stability-dependent Prandtl number
-    amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
-                           state.z[i] / state.mo_length : 0.0;
-    amrex::Real sigma_t = compute_prandtl_number(z_over_L);
+    // Get diffusivities at interfaces
+    amrex::Real Kh_ip = 0.5 * (state.nuh[i] + state.nuh[i + 1]);
+    amrex::Real Kh_im = 0.5 * (state.nuh[i] + state.nuh[i - 1]);
     
-    // term1: (nut/sigma_t) * d²T/dz²
-    amrex::Real term1 = (state.nut[i] / sigma_t) * 
-                        (state.temperature[i + 1] - 2.0 * state.temperature[i] + state.temperature[i - 1]) / (dz * dz);
+    // YSU non-local counter-gradient term
+    amrex::Real gamma_h_ip = 0.0;
+    amrex::Real gamma_h_im = 0.0;
+    if (state.turbulence_model == "ysu" && state.Qh > 0.0) {
+        amrex::Real h = state.pbl_height;
+        if (state.z[i] < h) {
+            amrex::Real w_theta_0 = state.Qh / (RHO_AIR * CP_AIR);
+            amrex::Real w_theta_h = -0.2 * w_theta_0;
+            // ws convective scale
+            amrex::Real ws = state.ustar;
+            if (state.use_prescribed_mo_length && std::abs(state.mo_length) > 1.0e-10) {
+                amrex::Real zeta = (0.1 * h) / state.mo_length;
+                ws = state.ustar / mo_phi_m(zeta);
+            }
+            gamma_h_ip = 10.0 * (w_theta_0 + w_theta_h) / (std::max(ws, 0.01) * h);
+            gamma_h_im = gamma_h_ip;
+        }
+    }
     
-    // term2: d/dz(nut/sigma_t) * dT/dz
-    amrex::Real dTdz = (state.temperature[i] - state.temperature[i - 1]) / dz;
-    amrex::Real z_over_L_lower = (std::abs(state.mo_length) > 1.0e-10) ? 
-                                 state.z[i - 1] / state.mo_length : 0.0;
-    amrex::Real sigma_t_lower = compute_prandtl_number(z_over_L_lower);
-    amrex::Real term2 = (1.0 / dz) * (state.nut[i] / sigma_t - state.nut[i - 1] / sigma_t_lower) * dTdz;
+    // Discretize flux at interfaces (flux = -Kh * (dT/dz - gamma))
+    amrex::Real flux_ip = -Kh_ip * ((state.temperature[i + 1] - state.temperature[i]) / dz - gamma_h_ip);
+    amrex::Real flux_im = -Kh_im * ((state.temperature[i] - state.temperature[i - 1]) / dz - gamma_h_im);
     
-    state.temperature[i] += dt * (term1 + term2);
+    // If we have prescribed sensible heat flux, use it as boundary condition at lowest active level
+    if (i == state.lower + 1 && std::abs(state.Qh) > 1.0e-10) {
+        flux_im = - state.Qh / (RHO_AIR * CP_AIR);
+    }
+    
+    // Temperature change due to vertical diffusion
+    amrex::Real dT_dt = -(flux_ip - flux_im) / dz;
+    
+    // Subsidence vertical advection (upwind since w_subsidence <= 0)
+    if (!state.w_subsidence.empty() && state.w_subsidence[i] < 0.0) {
+        dT_dt -= state.w_subsidence[i] * (state.temperature[i + 1] - state.temperature[i]) / dz;
+    }
+    
+    // Radiative cooling
+    if (state.radiation_cooling_rate > 0.0) {
+        dT_dt -= state.radiation_cooling_rate / 3600.0;
+    }
+    
+    // Cloud-top radiative cooling (applied dynamically at highest level where qc > 1e-5)
+    if (state.cloud_top_cooling_rate > 0.0) {
+        int k_ct = -1;
+        for (int k = state.nz - 2; k > state.lower; --k) {
+            if (state.qc[k] > 1.0e-5) {
+                k_ct = k;
+                break;
+            }
+        }
+        if (i == k_ct) {
+            dT_dt -= state.cloud_top_cooling_rate / 3600.0;
+        }
+    }
+    
+    state.temperature[i] += dt * dT_dt;
 }
 
 // ============================================================================
@@ -859,35 +1048,74 @@ void update_moisture(SCMState1D& state, int i, amrex::Real dt)
     if (i <= state.lower || i >= state.nz - 1) return;
     
     amrex::Real dz = state.dz;
-    // Schmidt number Sc = 1.0 assumes that moisture and momentum diffuse at equal rates,
-    // which is a standard first-order approximation in boundary layer modeling.
-    amrex::Real Sc = 1.0;  // Schmidt number for moisture
+    amrex::Real Sc = 1.0; // Schmidt number for moisture
+    
+    // Eddy diffusivity at interfaces
+    amrex::Real Kq_ip = 0.5 * (state.nuh[i] / Sc + state.nuh[i + 1] / Sc);
+    amrex::Real Kq_im = 0.5 * (state.nuh[i] / Sc + state.nuh[i - 1] / Sc);
+    
+    // Counter-gradient term for moisture in YSU
+    amrex::Real gamma_q_ip = 0.0;
+    amrex::Real gamma_q_im = 0.0;
+    if (state.turbulence_model == "ysu" && state.Qh > 0.0) {
+        amrex::Real h = state.pbl_height;
+        if (state.z[i] < h) {
+            // Find inversion jump
+            int k_inv = state.lower + 1;
+            for (int k = state.lower + 1; k < state.nz; ++k) {
+                if (state.z[k] >= h) {
+                    k_inv = k;
+                    break;
+                }
+            }
+            amrex::Real dtheta = state.theta[std::min(k_inv + 1, state.nz - 1)] - state.theta[std::max(k_inv - 1, 0)];
+            amrex::Real dqv = state.qv[std::min(k_inv + 1, state.nz - 1)] - state.qv[std::max(k_inv - 1, 0)];
+            amrex::Real w_theta_0 = state.Qh / (RHO_AIR * CP_AIR);
+            amrex::Real w_e = 0.2 * w_theta_0 / std::max(dtheta, 0.01);
+            w_e = std::min(w_e, 0.2); // clamp
+            amrex::Real w_qv_h = -w_e * dqv;
+            
+            amrex::Real ws = state.ustar;
+            if (state.use_prescribed_mo_length && std::abs(state.mo_length) > 1.0e-10) {
+                amrex::Real zeta = (0.1 * h) / state.mo_length;
+                ws = state.ustar / mo_phi_m(zeta);
+            }
+            gamma_q_ip = 10.0 * w_qv_h / (std::max(ws, 0.01) * h);
+            gamma_q_im = gamma_q_ip;
+        }
+    }
     
     // Update qv
     {
-        amrex::Real term1 = (state.nut[i] / Sc) * 
-                            (state.qv[i + 1] - 2.0 * state.qv[i] + state.qv[i - 1]) / (dz * dz);
-        amrex::Real dqv_dz = (state.qv[i] - state.qv[i - 1]) / dz;
-        amrex::Real term2 = (1.0 / dz) * (state.nut[i] / Sc - state.nut[i - 1] / Sc) * dqv_dz;
-        state.qv[i] += dt * (term1 + term2);
+        amrex::Real flux_ip = -Kq_ip * ((state.qv[i + 1] - state.qv[i]) / dz - gamma_q_ip);
+        amrex::Real flux_im = -Kq_im * ((state.qv[i] - state.qv[i - 1]) / dz - gamma_q_im);
+        amrex::Real dqv_dt = -(flux_ip - flux_im) / dz;
+        if (!state.w_subsidence.empty() && state.w_subsidence[i] < 0.0) {
+            dqv_dt -= state.w_subsidence[i] * (state.qv[i + 1] - state.qv[i]) / dz;
+        }
+        state.qv[i] += dt * dqv_dt;
     }
     
     // Update qc
     {
-        amrex::Real term1 = (state.nut[i] / Sc) * 
-                            (state.qc[i + 1] - 2.0 * state.qc[i] + state.qc[i - 1]) / (dz * dz);
-        amrex::Real dqc_dz = (state.qc[i] - state.qc[i - 1]) / dz;
-        amrex::Real term2 = (1.0 / dz) * (state.nut[i] / Sc - state.nut[i - 1] / Sc) * dqc_dz;
-        state.qc[i] += dt * (term1 + term2);
+        amrex::Real flux_ip = -Kq_ip * ((state.qc[i + 1] - state.qc[i]) / dz);
+        amrex::Real flux_im = -Kq_im * ((state.qc[i] - state.qc[i - 1]) / dz);
+        amrex::Real dqc_dt = -(flux_ip - flux_im) / dz;
+        if (!state.w_subsidence.empty() && state.w_subsidence[i] < 0.0) {
+            dqc_dt -= state.w_subsidence[i] * (state.qc[i + 1] - state.qc[i]) / dz;
+        }
+        state.qc[i] += dt * dqc_dt;
     }
 
     // Update qr
     {
-        amrex::Real term1 = (state.nut[i] / Sc) * 
-                            (state.qr[i + 1] - 2.0 * state.qr[i] + state.qr[i - 1]) / (dz * dz);
-        amrex::Real dqr_dz = (state.qr[i] - state.qr[i - 1]) / dz;
-        amrex::Real term2 = (1.0 / dz) * (state.nut[i] / Sc - state.nut[i - 1] / Sc) * dqr_dz;
-        state.qr[i] += dt * (term1 + term2);
+        amrex::Real flux_ip = -Kq_ip * ((state.qr[i + 1] - state.qr[i]) / dz);
+        amrex::Real flux_im = -Kq_im * ((state.qr[i] - state.qr[i - 1]) / dz);
+        amrex::Real dqr_dt = -(flux_ip - flux_im) / dz;
+        if (!state.w_subsidence.empty() && state.w_subsidence[i] < 0.0) {
+            dqr_dt -= state.w_subsidence[i] * (state.qr[i + 1] - state.qr[i]) / dz;
+        }
+        state.qr[i] += dt * dqr_dt;
     }
 }
 
