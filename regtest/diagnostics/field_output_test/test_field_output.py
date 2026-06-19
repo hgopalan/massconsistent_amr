@@ -83,8 +83,8 @@ def validate_field_output(plotfile_dir):
         return False, errors
     
     # Extract version number
-    if "9" not in header_content[:10]:
-        errors.append("Invalid AMReX plotfile format (expected version 9)")
+    if "HyperCLaw" not in header_content[:20] and "NavierStokes" not in header_content[:20] and "9" not in header_content[:10]:
+        errors.append("Invalid AMReX plotfile format")
         return False, errors
     
     print(f"✓ Valid AMReX plotfile format")
@@ -157,19 +157,32 @@ def validate_field_output(plotfile_dir):
     print(f"{'-'*70}")
     
     try:
-        # List data files
-        data_files = sorted([f for f in os.listdir(plotfile_dir) 
-                           if f.startswith("data_") and f.endswith(".fab")])
-        
-        if not data_files:
-            errors.append("No data files (.fab) found in plotfile")
-            return False, errors
-        
-        print(f"  ✓ Found {len(data_files)} data file(s)")
-        for df in data_files[:5]:  # Print first 5
-            df_path = os.path.join(plotfile_dir, df)
-            df_size = os.path.getsize(df_path)
-            print(f"    - {df} ({df_size} bytes)")
+        # Check Level_0 data files (standard AMReX structure)
+        level0_dir = os.path.join(plotfile_dir, "Level_0")
+        if os.path.isdir(level0_dir):
+            data_files = sorted([f for f in os.listdir(level0_dir) if f.startswith("Cell_D")])
+            if not data_files:
+                errors.append("No data files (Cell_D*) found in Level_0 directory")
+                return False, errors
+            print(f"  ✓ Found {len(data_files)} data file(s) in Level_0")
+            for df in data_files:
+                df_path = os.path.join(level0_dir, df)
+                df_size = os.path.getsize(df_path)
+                print(f"    - Level_0/{df} ({df_size} bytes)")
+        else:
+            # Check top level
+            data_files = sorted([f for f in os.listdir(plotfile_dir) 
+                               if f.startswith("data_") and f.endswith(".fab")])
+            
+            if not data_files:
+                errors.append("No data files (.fab) found in plotfile")
+                return False, errors
+            
+            print(f"  ✓ Found {len(data_files)} data file(s)")
+            for df in data_files[:5]:  # Print first 5
+                df_path = os.path.join(plotfile_dir, df)
+                df_size = os.path.getsize(df_path)
+                print(f"    - {df} ({df_size} bytes)")
         
         if len(data_files) > 5:
             print(f"    ... and {len(data_files)-5} more")

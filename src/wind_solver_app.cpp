@@ -677,6 +677,7 @@ void WindSolverApp::parse_inputs() {
     pp.query("mlmg_bottom_solver", mlmg_bottom_solver);
     pp.query("max_grid_size", max_grid_size);
     pp.query("plot_file",     plot_file);
+    pp.queryarr("plot_vars",  plot_vars);
     
     // Flux Diagnostics
     pp.query("enable_flux_diagnostics", enable_flux_diagnostics);
@@ -6222,7 +6223,42 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
 
     t_phase = amrex::second();
     std::string indexed_plot_file = amrex::Concatenate(plot_file, time_step);
-    WriteSingleLevelPlotfile(indexed_plot_file, output, var_names, *geom_ptr, 0.0, 0);
+
+    if (plot_vars.empty()) {
+        WriteSingleLevelPlotfile(indexed_plot_file, output, var_names, *geom_ptr, 0.0, 0);
+    } else {
+        Vector<std::string> final_var_names;
+        std::vector<int> final_components;
+        for (const auto& pv : plot_vars) {
+            int found_idx = -1;
+            for (int i = 0; i < static_cast<int>(var_names.size()); ++i) {
+                if (var_names[i] == pv) {
+                    found_idx = i;
+                    break;
+                }
+            }
+            if (found_idx != -1) {
+                final_var_names.push_back(pv);
+                final_components.push_back(found_idx);
+            } else {
+                amrex::Print() << "wind_solver: warning, requested plot variable '" << pv 
+                               << "' is not valid or not computed. Skipping.\n";
+            }
+        }
+
+        if (final_var_names.empty()) {
+            amrex::Print() << "wind_solver: warning, no valid plot variables selected. Writing all variables as fallback.\n";
+            WriteSingleLevelPlotfile(indexed_plot_file, output, var_names, *geom_ptr, 0.0, 0);
+        } else {
+            MultiFab plot_output(*ba_ptr, *dm_ptr, final_var_names.size(), 0);
+            for (int dcomp = 0; dcomp < static_cast<int>(final_var_names.size()); ++dcomp) {
+                int scomp = final_components[dcomp];
+                MultiFab::Copy(plot_output, output, scomp, dcomp, 1, 0);
+            }
+            WriteSingleLevelPlotfile(indexed_plot_file, plot_output, final_var_names, *geom_ptr, 0.0, 0);
+        }
+    }
+
     amrex::Print() << "wind_solver: plotfile written to " << indexed_plot_file << "\n";
     amrex::Print() << "wind_solver: output writing time = " 
                    << (amrex::second() - t_phase) << " s\n";

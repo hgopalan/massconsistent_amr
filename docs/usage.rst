@@ -222,6 +222,9 @@ Parameter Reference
    * - ``plot_file``
      - ``plt_wind``
      - Output plotfile prefix.
+   * - ``plot_vars``
+     - (all variables)
+     - Space-separated list of specific variable names to write to the plotfile. If empty, all variables are written. See `Plot Variables Reference`_.
    * - ``extract_agl``
      - ``-1.0``
      - Sample heights AGL [m] for 2-D CSV extraction. Space-separated for multiple heights.
@@ -294,9 +297,112 @@ Core Domain & Solver Settings
 * **mlmg_bottom_solver** (String, Default: ``default``): Bottom solver type (``default``, ``bicgstab``, ``cg``, ``smoother``).
 * **deriv_method** (String, Default: ``central``): Spatial derivative discretization scheme (``central``, ``weno3``, ``weno5``).
 * **plot_file** (String, Default: ``plt_wind``): Prefix of the output AMReX plotfile.
+* **plot_vars** (List of Strings, Default: none): Space-separated list of variable names to write to the plotfile. If empty or not specified, all computed variables are written.
 * **extract_agl** (List of Reals, Default: none): Sampling heights above ground level [m] for 2D CSV extraction.
 * **extract_k** (List of Integers, Default: none): Grid vertical indices to extract data at.
 * **extract_file** (String, Default: ``wind_extract.csv``): Filename for terrain-aligned CSV extraction output.
+
+.. _plot-variables-reference:
+
+Plot Variables Reference
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following table lists the available variable names that can be specified in the ``plot_vars`` input list, along with their physical meanings and units:
+
+.. list-table:: Available Plot Variables
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - Variable Name
+     - Description
+     - Units
+   * - ``u``
+     - U-component of corrected wind
+     - m/s
+   * - ``v``
+     - V-component of corrected wind
+     - m/s
+   * - ``w``
+     - W-component of corrected wind
+     - m/s
+   * - ``vel_magnitude``
+     - Horizontal wind speed :math:`|U| = \sqrt{u^2 + v^2}`
+     - m/s
+   * - ``u0``
+     - U-component of initial wind
+     - m/s
+   * - ``v0``
+     - V-component of initial wind
+     - m/s
+   * - ``w0``
+     - W-component of initial wind
+     - m/s
+   * - ``lambda``
+     - Lagrange multiplier (pressure-like variable)
+     - dimensionless
+   * - ``div_before``
+     - Divergence of initial field :math:`\nabla \cdot u_0`
+     - 1/s
+   * - ``div_after``
+     - Divergence of corrected field :math:`\nabla \cdot u`
+     - 1/s
+   * - ``terrain_z``
+     - Terrain elevation at each (i,j) location
+     - m MSL
+   * - ``heat_flux``
+     - Sensible heat flux :math:`\text{SHF} = \rho C_p u_* \theta_*`
+     - W/m²
+   * - ``drag_coeff``
+     - Drag coefficient :math:`C_d = (\kappa / \ln((z + z_0)/z_0))^2`
+     - dimensionless
+   * - ``tau_x``
+     - Shear stress x-component :math:`\tau_x = \rho u_*^2 (u / |U|)`
+     - Pa
+   * - ``tau_y``
+     - Shear stress y-component :math:`\tau_y = \rho u_*^2 (v / |U|)`
+     - Pa
+   * - ``u_star``
+     - Friction velocity :math:`u_*`
+     - m/s
+   * - ``richardson_no``
+     - Bulk Richardson stability parameter :math:`Ri_b`
+     - dimensionless
+   * - ``bl_depth``
+     - Boundary layer depth
+     - m
+   * - ``terrain_type``
+     - Classification of local terrain type
+     - dimensionless
+   * - ``terrain_slope``
+     - Local terrain slope magnitude
+     - dimensionless
+   * - ``adaptive_z0``
+     - Adaptive aerodynamic roughness length
+     - m
+   * - ``u_openfast``
+     - Turbulent fluctuated U-component (synthetic turbulence)
+     - m/s
+   * - ``v_openfast``
+     - Turbulent fluctuated V-component (synthetic turbulence)
+     - m/s
+   * - ``w_openfast``
+     - Turbulent fluctuated W-component (synthetic turbulence)
+     - m/s
+   * - ``coriolis_f``
+     - Coriolis parameter :math:`f` (latitude scaling)
+     - 1/s
+   * - ``rossby_number``
+     - Rossby number (latitude scaling)
+     - dimensionless
+   * - ``inertial_period``
+     - Inertial period (latitude scaling)
+     - h
+   * - ``wire_drag_force_per_m``
+     - Drag force per unit length on power conductor wires
+     - N/m
+   * - ``wire_conductor_temp``
+     - Conductor temperature for wire loading diagnostics
+     - °C
 
 Terrain & Initialization
 ~~~~~~~~~~~~~~~~~~~~~~~~
