@@ -169,6 +169,13 @@ Advanced Stability Physics (Neutral, Stable, Unstable)
 
 The SCM now supports comprehensive physics for three atmospheric boundary layer stability classes through the following enhancements:
 
+**Physical Constants Used**
+
+- Air density: ρ = 1.225 kg/m³ (standard sea level value at 15°C; may require adjustment for different altitudes or temperatures)
+- Specific heat of air: c_p = 1005 J/(kg·K)
+- Gravitational acceleration: g = 9.81 m/s²
+- von Kármán constant: κ = 0.41
+
 **1. Richardson Number and Stratification Metrics**
 
 The Richardson number (Ri) is computed at each level to quantify static stability:
@@ -426,7 +433,7 @@ If ``scm_heat_flux`` is specified (non-zero), the model automatically:
 
 1. Computes sensible heat flux from temperature gradients
 2. Calculates Monin-Obukhov length: L = -ρ·c_p·T·u*³ / (κ·g·Q_h)
-3. Classifies stability: stable (L>0), neutral (|L|>1000), unstable (L<0)
+3. Classifies stability based on z/L: stable (z/L > 0.01), neutral (|z/L| ≤ 0.01), unstable (z/L < -0.01)
 4. Applies appropriate mixing length and TKE modifications
 
 Atmospheric Stability

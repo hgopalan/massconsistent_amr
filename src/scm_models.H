@@ -26,8 +26,10 @@ constexpr amrex::Real GRAVITY = 9.81;                 // m/s^2
 constexpr amrex::Real VON_KARMAN = 0.41;              // dimensionless
 constexpr amrex::Real RHO_AIR = 1.225;                // kg/m^3 (air density at sea level)
 constexpr amrex::Real CP_AIR = 1005.0;                // J/(kg*K) (specific heat of air)
-constexpr amrex::Real NEUTRAL_MO_LENGTH = -1.0e30;    // Neutral M-O length placeholder
+constexpr amrex::Real MO_LENGTH_NEUTRAL_SENTINEL = -1.0e30;  // Sentinel value for neutral M-O conditions
 constexpr amrex::Real MIN_STABILITY_FACTOR = 0.1;     // Minimum stability correction factor
+constexpr amrex::Real MIN_TKE = MIN_TKE;              // Minimum turbulent kinetic energy threshold
+constexpr amrex::Real ONE_THIRD = 1.0 / 3.0;          // Cube root exponent
 
 // Stability enumeration
 enum class StabilityClass {
@@ -134,11 +136,11 @@ inline amrex::Real mo_phi_h(amrex::Real z_over_L) {
 // ============================================================================
 
 // Compute Richardson number for stratification effects
-inline amrex::Real compute_richardson_number(amrex::Real duz_dz,
+inline amrex::Real compute_richardson_number(amrex::Real shear,
                                               amrex::Real N2) {
     // Ri = N^2 / (dU/dz)^2
     // N^2 = (g/T) * dT/dz (Brunt-Väisälä frequency squared)
-    amrex::Real shear_sq = duz_dz * duz_dz + 1.0e-12;  // Avoid division by zero
+    amrex::Real shear_sq = shear * shear + 1.0e-12;  // Avoid division by zero
     if (shear_sq > 0.0) {
         return N2 / shear_sq;
     }
@@ -205,16 +207,16 @@ inline amrex::Real compute_monin_obukhov_length(amrex::Real ustar,
     // L = -ρ*cp*T*u*^3 / (κ*g*Qh)
     if (std::abs(Qh) < 1.0e-10) {
         // Neutral condition
-        return NEUTRAL_MO_LENGTH;
+        return MO_LENGTH_NEUTRAL_SENTINEL;
     }
     
-    amrex::Real numerator = -RHO_AIR * CP_AIR * t_ref * ustar * ustar * ustar;
+    amrex::Real numerator = -RHO_AIR * CP_AIR * t_ref * std::pow(ustar, 3);
     amrex::Real denominator = kappa * GRAVITY * Qh;
     
     if (std::abs(denominator) > 1.0e-12) {
         return numerator / denominator;
     }
-    return NEUTRAL_MO_LENGTH;
+    return MO_LENGTH_NEUTRAL_SENTINEL;
 }
 
 // ============================================================================
@@ -244,7 +246,7 @@ inline amrex::Real compute_mixing_length(amrex::Real z,
         // l_u = l_m * (1 - c * z/L)^(1/3)
         constexpr amrex::Real c_unstable = 8.0;
         amrex::Real arg = std::max(1.0 - c_unstable * z_over_L, MIN_STABILITY_FACTOR);
-        amrex::Real factor = std::pow(arg, 0.333333);
+        amrex::Real factor = std::pow(arg, ONE_THIRD);
         return lshear * factor;
     } else {
         // Neutral: standard Blackadar length scale
@@ -336,7 +338,7 @@ void initialize_1d_state(SCMState1D& state,
     if (state.use_prescribed_mo_length) {
         state.mo_length = state.mo_length_prescribed;
     } else {
-        state.mo_length = NEUTRAL_MO_LENGTH;
+        state.mo_length = MO_LENGTH_NEUTRAL_SENTINEL;
     }
     
     // Initialize stability class
@@ -376,8 +378,10 @@ void compute_similarity_surface(SCMState1D& state)
             // Heat flux proportional to vertical temperature gradient and TKE
             // Qh = -ρ*cp*w'*T' ≈ -ρ*cp * K_h * dT/dz
             // where K_h is the thermal diffusivity
+            // Use neutral Prandtl number (1.0) for initial heat flux estimate
+            // since final M-O length hasn't been computed yet (bootstrap)
             if (state.lower < state.nz) {
-                amrex::Real K_h = state.nut[state.lower] / std::max(compute_prandtl_number(0.0), MIN_STABILITY_FACTOR);
+                amrex::Real K_h = state.nut[state.lower] / std::max(1.0, MIN_STABILITY_FACTOR);
                 Qh_estimated = -RHO_AIR * CP_AIR * K_h * dTdz;
             }
         }
@@ -388,7 +392,7 @@ void compute_similarity_surface(SCMState1D& state)
         if (state.ustar > 1.0e-10) {
             state.mo_length = compute_monin_obukhov_length(state.ustar, state.Qh, state.t_ref);
         } else {
-            state.mo_length = NEUTRAL_MO_LENGTH;
+            state.mo_length = MO_LENGTH_NEUTRAL_SENTINEL;
         }
     }
     
@@ -493,7 +497,7 @@ void compute_eddy_viscosity(SCMState1D& state)
         amrex::Real cmu = compute_cmu(state.Ri[i]);
         
         // Eddy viscosity: nut = cmu * sqrt(tke) * lscale
-        state.nut[i] = cmu * std::sqrt(std::max(state.tke[i], 1.0e-15)) * lscale;
+        state.nut[i] = cmu * std::sqrt(std::max(state.tke[i], MIN_TKE)) * lscale;
         state.nut[i] = std::max(state.nut[i], 1.0e-5);
     }
     
@@ -660,19 +664,19 @@ void update_tke(SCMState1D& state, int i, amrex::Real dt)
         amrex::Real z_over_L = (std::abs(state.mo_length) > 1.0e-10) ? 
                                state.z[i] / state.mo_length : 0.0;
         amrex::Real sigma_t = compute_prandtl_number(z_over_L);
-        amrex::Real K_h = state.nut[i] / std::max(sigma_t, 0.1);
+        amrex::Real K_h = state.nut[i] / std::max(sigma_t, MIN_STABILITY_FACTOR);
         buoyancy = -(GRAVITY / state.t_ref) * K_h * dTdz;
     }
     
     // Dissipation: Ce * (tke^3/2) / l
     // Stability-dependent dissipation rate
     amrex::Real Ce = 1.92;
-    amrex::Real lscale = std::max(state.lscale[i], 0.01);
-    amrex::Real dissipation = Ce * std::pow(std::max(state.tke[i], 1.0e-15), 1.5) / lscale;
+    amrex::Real lscale = std::max(state.lscale[i], MIN_STABILITY_FACTOR);
+    amrex::Real dissipation = Ce * std::pow(std::max(state.tke[i], MIN_TKE), 1.5) / lscale;
     
     // Update TKE: includes production (shear + buoyancy), diffusion, and dissipation
     state.tke[i] += dt * (production + buoyancy + term1 + term2 - dissipation);
-    state.tke[i] = std::max(state.tke[i], 1.0e-15);
+    state.tke[i] = std::max(state.tke[i], MIN_TKE);
 }
 
 // ============================================================================
