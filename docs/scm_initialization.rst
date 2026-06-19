@@ -164,6 +164,116 @@ TKE (1-equation model)
 
 where :math:`C_\varepsilon \approx 1.92`.
 
+Advanced Stability Physics (Neutral, Stable, Unstable)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The SCM now supports comprehensive physics for three atmospheric boundary layer stability classes through the following enhancements:
+
+**1. Richardson Number and Stratification Metrics**
+
+The Richardson number (Ri) is computed at each level to quantify static stability:
+
+.. math::
+
+   Ri = \frac{N^2}{(dU/dz)^2}
+
+where the Brunt-Väisälä frequency squared is:
+
+.. math::
+
+   N^2 = \frac{g}{T}\frac{\partial T}{\partial z}
+
+Positive Ri indicates stable stratification (TKE suppressed), while negative Ri indicates unstable stratification (TKE enhanced).
+
+**2. Stability-Dependent Mixing Length**
+
+The mixing length varies with stability class:
+
+- **Stable (z/L > 0.01)**: Reduced mixing length (Holtslag & Boville 1993)
+
+  .. math::
+
+     l_s = \frac{l_m}{\sqrt{1 + 5(z/L)}}
+
+  Suppresses turbulent mixing and vertical transport.
+
+- **Unstable (z/L < -0.01)**: Enhanced mixing length (Deardorff 1966)
+
+  .. math::
+
+     l_u = l_m \cdot (1 - 8(z/L))^{1/3}
+
+  Promotes vigorous convective mixing and thermals.
+
+- **Neutral (|z/L| ≤ 0.01)**: Standard Blackadar length scale
+
+  .. math::
+
+     l_m = \frac{1}{\sqrt{1/l_{\text{shear}}^2 + 1/l_{\text{max}}^2}}
+
+**3. Stability-Dependent Prandtl Number**
+
+The turbulent Prandtl number (σ_t) varies with stability based on Högström (1988) and Beljaars & Holtslag (1989):
+
+- **Stable**: :math:`\sigma_t = 1.0 \cdot (1 + 2.0 \cdot z/L)` → Reduced heat transfer
+- **Unstable**: :math:`\sigma_t = 1.0 / (1 + 2.0 \cdot |z/L|)` → Enhanced heat transfer
+- **Neutral**: :math:`\sigma_t = 1.0`
+
+**4. Stability-Dependent TKE Coefficient**
+
+The model coefficient (c_μ) for eddy viscosity is modified by Richardson number:
+
+- **Stable (Ri > 0)**: :math:`c_\mu = 0.1 \cdot \frac{1}{1 + 10 \cdot Ri}` → Reduced turbulence production
+- **Unstable (Ri < 0)**: :math:`c_\mu = 0.1 \cdot \sqrt{1 - 5 \cdot Ri}` → Enhanced turbulence production
+- **Neutral (Ri ≈ 0)**: :math:`c_\mu = 0.1`
+
+**5. Buoyancy Production in TKE**
+
+The TKE equation now includes explicit buoyancy production term:
+
+.. math::
+
+   \frac{\partial \text{tke}}{\partial t} = P + B + D - \varepsilon
+
+where the buoyancy production is:
+
+.. math::
+
+   B = -\frac{g}{T} \cdot \frac{\nu_t}{\sigma_t} \cdot \frac{\partial T}{\partial z}
+
+- Positive (B > 0) in unstable conditions → TKE enhancement via convection
+- Negative (B < 0) in stable conditions → TKE suppression via stratification
+
+**6. Dynamic Monin-Obukhov Length**
+
+When heat flux is specified, the Monin-Obukhov length is computed dynamically:
+
+.. math::
+
+   L = -\frac{\rho c_p T u_*^3}{\kappa g Q_h}
+
+where:
+- ρ = air density (1.225 kg/m³)
+- c_p = specific heat of air (1005 J/(kg·K))
+- u_* = friction velocity [m/s]
+- Q_h = sensible heat flux [W/m²]
+- κ = von Kármán constant (0.41)
+- g = gravitational acceleration (9.81 m/s²)
+
+This enables automatic stability classification and application of appropriate physics.
+
+**Physical Mechanism Summary**
+
++-----------+-------------------+-------------------+-----------------+
+| Condition | z/L range         | Mixing Length     | TKE Production  |
++===========+===================+===================+=================+
+| Unstable  | z/L < -0.01       | Enhanced (larger) | Positive (B>0)  |
++-----------+-------------------+-------------------+-----------------+
+| Neutral   | -0.01 ≤ z/L ≤0.01 | Standard          | Near zero       |
++-----------+-------------------+-------------------+-----------------+
+| Stable    | z/L > 0.01        | Reduced (smaller) | Negative (B<0)  |
++-----------+-------------------+-------------------+-----------------+
+
 Usage
 -----
 
@@ -275,6 +385,49 @@ Parameters
      - Real
      - -1e30
      - Monin-Obukhov length [m] (optional, -1e30=neutral)
+
+Atmospheric Stability Models
+----------------------------
+
+The SCM now features comprehensive physics for three atmospheric stability regimes: **neutral, stable, and unstable**.
+
+**Neutral ABL**
+
+When ``scm_heat_flux`` = 0 and ``scm_monin_obukhov_length`` = -1e30:
+
+- Standard log-law wind profile applies throughout
+- Constant mixing length follows Blackadar scale
+- Minimal buoyancy effects on turbulence
+- Appropriate for weakly stratified conditions
+
+**Stable ABL** (cold nocturnal conditions)
+
+Specify positive ``scm_monin_obukhov_length`` (e.g., 100 m):
+
+- Reduced mixing length suppresses turbulent mixing
+- Increased Prandtl number reduces heat transfer
+- Negative buoyancy production dampens TKE
+- Wind profile deviates from log-law due to stability
+- Results in stronger wind shear near surface
+
+**Unstable ABL** (warm daytime convection)
+
+Specify negative ``scm_monin_obukhov_length`` (e.g., -50 m):
+
+- Enhanced mixing length promotes convective mixing
+- Reduced Prandtl number enhances heat transfer
+- Positive buoyancy production energizes TKE
+- Vigorous vertical mixing and thermals develop
+- Results in weaker wind shear, better mixed vertical profiles
+
+**Automatic Stability Classification**
+
+If ``scm_heat_flux`` is specified (non-zero), the model automatically:
+
+1. Computes sensible heat flux from temperature gradients
+2. Calculates Monin-Obukhov length: L = -ρ·c_p·T·u*³ / (κ·g·Q_h)
+3. Classifies stability: stable (L>0), neutral (|L|>1000), unstable (L<0)
+4. Applies appropriate mixing length and TKE modifications
 
 Atmospheric Stability
 ---------------------
