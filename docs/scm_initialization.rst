@@ -164,6 +164,15 @@ TKE (1-equation model)
 
 where :math:`C_\varepsilon \approx 1.92`.
 
+Turbulence and Microphysics Models
+----------------------------------
+
+In addition to the standard one-equation model, the SCM framework supports advanced boundary layer turbulence closures and simple moisture physics:
+
+* **Yonsei University (YSU) PBL Scheme**: A non-local first-order closure that calculates the planetary boundary layer height :math:`h` using a bulk Richardson number threshold of 0.25, and computes eddy viscosity via :math:`\nu_t = \kappa w_s z (1 - z/h)^2` within the boundary layer.
+* **Mellor-Yamada-Janjić (MYJ) Scheme**: A local Mellor-Yamada Level 2.5 closure model. It solves prognostic equations for turbulent kinetic energy (TKE) and computes shear and buoyancy parameter functions to derive eddy viscosity.
+* **Simple Microphysics & Saturation Adjustment**: Solves advection-diffusion of moisture variables—water vapor mixing ratio (:math:`q_v`), cloud water mixing ratio (:math:`q_c`), and rain water mixing ratio (:math:`q_r`). It implements a Clausius-Clapeyron-based saturation adjustment and Kessler autoconversion/accretion schemes to model phase changes and precipitation processes.
+
 Usage
 -----
 
@@ -275,6 +284,18 @@ Parameters
      - Real
      - -1e30
      - Monin-Obukhov length [m] (optional, -1e30=neutral)
+   * - ``scm_turbulence_model``
+     - String
+     - "one_equation"
+     - SCM boundary layer turbulence model: "one_equation", "ysu", or "myj"
+   * - ``scm_enable_microphysics``
+     - Boolean
+     - false
+     - Enable SCM simple microphysics & saturation adjustment (Kessler scheme)
+   * - ``scm_initial_humidity``
+     - Real
+     - 0.0
+     - SCM initial relative humidity [0.0 - 1.0] for microphysics
 
 Atmospheric Stability
 ---------------------
