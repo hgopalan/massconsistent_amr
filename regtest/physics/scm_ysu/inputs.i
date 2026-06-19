@@ -2,7 +2,7 @@
 # This test validates the SCM's ability to run with the YSU model
 
 # ============================================================================
-# GEOMETOMETRY
+# GEOMETRY
 # ============================================================================
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 1000.0 1000.0 4000.0  # Domain height = 4 km for SCM
