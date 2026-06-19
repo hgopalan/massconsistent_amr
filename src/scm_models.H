@@ -28,7 +28,7 @@ constexpr amrex::Real RHO_AIR = 1.225;                // kg/m^3 (air density at 
 constexpr amrex::Real CP_AIR = 1005.0;                // J/(kg*K) (specific heat of air)
 constexpr amrex::Real MO_LENGTH_NEUTRAL_SENTINEL = -1.0e30;  // Sentinel value for neutral M-O conditions
 constexpr amrex::Real MIN_STABILITY_FACTOR = 0.1;     // Minimum stability correction factor
-constexpr amrex::Real MIN_TKE = MIN_TKE;              // Minimum turbulent kinetic energy threshold
+constexpr amrex::Real MIN_TKE = 1.0e-15;              // Minimum turbulent kinetic energy threshold
 constexpr amrex::Real ONE_THIRD = 1.0 / 3.0;          // Cube root exponent
 
 // Stability enumeration
