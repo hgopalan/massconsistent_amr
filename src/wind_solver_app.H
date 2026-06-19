@@ -108,6 +108,9 @@ private:
     amrex::Real scm_dz = 4.0;                    // Vertical resolution for 1D SCM [m]
     amrex::Real scm_ug = 0.0;                    // Geostrophic u-wind (computed)
     amrex::Real scm_vg = 0.0;                    // Geostrophic v-wind (computed)
+    std::string scm_turbulence_model = "one_equation"; // SCM turbulence model: "one_equation", "ysu", "myj"
+    bool scm_enable_microphysics = false;         // Enable SCM simple microphysics (saturation adjustment)
+    amrex::Real scm_initial_humidity = 0.0;       // SCM initial relative humidity [0.0 - 1.0]
 
     // Canopy
     bool enable_canopy = false;
