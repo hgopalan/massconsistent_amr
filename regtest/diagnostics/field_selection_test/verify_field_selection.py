@@ -12,8 +12,9 @@ def run_solver(inputs_file, work_dir):
     if not solver_exe:
         # Try to find it in the build directory
         build_dir = os.path.dirname(os.path.dirname(os.path.dirname(work_dir)))
+        solver_exe = os.path.join(build_dir, 'wind_solver')
         candidates = [
-            os.path.join(build_dir, 'wind_solver'),
+            solver_exe,
             os.path.join(build_dir, 'wind_solver.exe'),
             os.path.join(build_dir, 'Debug', 'wind_solver.exe'),
             os.path.join(build_dir, 'Release', 'wind_solver.exe'),
@@ -22,8 +23,6 @@ def run_solver(inputs_file, work_dir):
             if os.path.isfile(candidate):
                 solver_exe = candidate
                 break
-        else:
-            solver_exe = os.path.join(build_dir, 'wind_solver')
     
     if not os.path.isfile(solver_exe):
         print(f"Error: wind_solver executable not found at {solver_exe}")
