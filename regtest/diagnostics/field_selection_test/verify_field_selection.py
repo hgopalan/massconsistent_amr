@@ -23,10 +23,8 @@ def run_solver(inputs_file, work_dir):
             if os.path.isfile(candidate):
                 solver_exe = candidate
                 break
-        else:
-            solver_exe = os.path.join(build_dir, 'wind_solver')
     
-    if not os.path.isfile(solver_exe):
+    if not solver_exe or not os.path.isfile(solver_exe):
         print(f"Error: wind_solver executable not found at {solver_exe}")
         return False
     
