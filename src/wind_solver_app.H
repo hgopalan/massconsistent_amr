@@ -477,6 +477,7 @@ private:
     std::string mlmg_bottom_solver = "default";
     int max_grid_size = 32;
     std::string plot_file = "plt_wind";
+    std::vector<std::string> plot_vars;
 
     // Flux diagnostics
     bool enable_flux_diagnostics = false;

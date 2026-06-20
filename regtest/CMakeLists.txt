@@ -633,6 +633,7 @@ add_python_regression_test(iec61400_categories_regtest turbulence/iec61400_categ
 # field_output_test/ – Unified field output (21 diagnostic fields)
 # ===========================================================================
 add_regression_test(field_output_test diagnostics/field_output_test)
+add_python_regression_test(field_selection_test diagnostics/field_selection_test verify_field_selection.py)
 
 # ===========================================================================
 # New easy-to-implement features tests
