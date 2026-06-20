@@ -12,6 +12,9 @@ def run_solver(inputs_file, work_dir):
     if not solver_exe:
         # Try to find it in the build directory
         build_dir = os.path.dirname(os.path.dirname(os.path.dirname(work_dir)))
+        # Check standard and configuration-specific fallback locations.
+        # If none of the candidates exist, solver_exe is left as the default path
+        # to be handled by the existence validation check below.
         solver_exe = os.path.join(build_dir, 'wind_solver')
         candidates = [
             solver_exe,
