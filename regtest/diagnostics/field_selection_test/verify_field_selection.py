@@ -29,7 +29,10 @@ def run_solver(inputs_file, work_dir):
                 break
     
     if not solver_exe or not os.path.isfile(solver_exe):
-        print(f"Error: wind_solver executable not found at {solver_exe}")
+        if solver_exe:
+            print(f"Error: wind_solver executable not found at {solver_exe}")
+        else:
+            print("Error: wind_solver executable not found")
         return False
     
     print(f"Running solver: {solver_exe}")
