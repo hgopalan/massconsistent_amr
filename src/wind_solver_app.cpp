@@ -1511,7 +1511,7 @@ void WindSolverApp::setup_geometry_and_mesh() {
 
     num_time_steps = 1;
     pp.query("num_time_steps", num_time_steps);
-    if (!enable_time_varying && !enable_3d_scalars) {
+    if (!pp.contains("num_time_steps") && !enable_time_varying && !enable_3d_scalars) {
         // Run 2 steps to ensure proper initialization and allow frozen wind field to be used as a dummy step
         num_time_steps = 2;
     }
