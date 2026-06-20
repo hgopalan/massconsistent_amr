@@ -9,18 +9,18 @@ This section documents the pre-processing, terrain manipulation, data ingestion,
    :local:
    :depth: 2
 
-Pre-Processing & Terrain Utilities
-----------------------------------
+Pre-Processing & Terrain Utilities (``tools/terrain_processing/``)
+------------------------------------------------------------------
 
 Gaussian Hill Generator (``gaussian_hill_generator.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Generates synthetic Gaussian hill topography CSV files for testing, validation, and benchmarking.
+Generates synthetic Gaussian hill topography CSV files for testing, validation, and benchmarking. Located in ``tools/terrain_processing/gaussian_hill_generator.py``.
 
 * **Usage**:
 
   .. code-block:: bash
 
-     python3 tools/gaussian_hill_generator.py \
+     python3 tools/terrain_processing/gaussian_hill_generator.py \
        --nx 21 --ny 21 \
        --dx 25.0 --dy 25.0 \
        --peak-elevation 75.0 \
@@ -36,13 +36,13 @@ Generates synthetic Gaussian hill topography CSV files for testing, validation, 
 
 SRTM Terrain Reader (``terrain_reader_srtm.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Parses Shuttle Radar Topography Mission (SRTM) 1-arcsecond HGT files and projects coordinate systems to local flat/UTM grids, exporting solver-compatible CSV terrain point clouds.
+Parses Shuttle Radar Topography Mission (SRTM) 1-arcsecond HGT files and projects coordinate systems to local flat/UTM grids, exporting solver-compatible CSV terrain point clouds. Located in ``tools/terrain_processing/terrain_reader_srtm.py``.
 
 * **Usage**:
 
   .. code-block:: bash
 
-     python3 tools/terrain_reader_srtm.py N45W121.hgt \
+     python3 tools/terrain_processing/terrain_reader_srtm.py N45W121.hgt \
        --output terrain.csv \
        --lat-min 45.36 --lat-max 45.38 \
        --lon-min -121.70 --lon-max -121.68
@@ -54,13 +54,13 @@ Parses Shuttle Radar Topography Mission (SRTM) 1-arcsecond HGT files and project
 
 Geographic Data Fetcher (``geographic_data_fetcher.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Queries public web APIs (such as USGS or NASA databases) using latitude/longitude bounding boxes to automatically download and format elevation DEMs (e.g., SRTM or USGS 3DEP) and land-cover maps (e.g., USGS NLCD) into solver-compatible local flat/UTM grid coordinate formats.
+Queries public web APIs (such as USGS or NASA databases) using latitude/longitude bounding boxes to automatically download and format elevation DEMs (e.g., SRTM or USGS 3DEP) and land-cover maps (e.g., USGS NLCD) into solver-compatible local flat/UTM grid coordinate formats. Located in ``tools/data_ingestion/geographic_data_fetcher.py``.
 
 * **Usage**:
 
   .. code-block:: bash
 
-     python3 tools/geographic_data_fetcher.py \
+     python3 tools/data_ingestion/geographic_data_fetcher.py \
        --lat-min 39.9 --lat-max 40.1 \
        --lon-min -105.3 --lon-max -105.2 \
        --nx 100 --ny 100 \
@@ -74,26 +74,26 @@ Queries public web APIs (such as USGS or NASA databases) using latitude/longitud
   * Dual-projection system supporting local relative UTM meters or flat-earth projections.
   * Advanced high-quality offline mockup/synthetic data generation when running in restricted or sandboxed environments without network access.
 
-Boundary Condition & Weather Processing
----------------------------------------
+Boundary Condition & Weather Processing (``tools/data_ingestion/``)
+------------------------------------------------------------------
 
 NetCDF Wind Field Parser (``netcdf_to_windfield.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Parses 3D meteorological outputs (WRF, GFS) in NetCDF format, performs coordinate transformations, un-staggers Arakawa-C variables, and interpolates in space and time to produce solver-ready 3D windfield files. See the :ref:`usage guide for complete parameters <usage>`.
+Parses 3D meteorological outputs (WRF, GFS) in NetCDF format, performs coordinate transformations, un-staggers Arakawa-C variables, and interpolates in space and time to produce solver-ready 3D windfield files. Located in ``tools/data_ingestion/netcdf_to_windfield.py``. See the :ref:`usage guide for complete parameters <usage>`.
 
 HRRR Surface Parameter Extractor (``hrrr_to_surface_data.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Extracts friction velocities (:math:`u_*`), roughness lengths (:math:`z_0`), and 10m velocities from High-Resolution Rapid Refresh (HRRR) GRIB/NetCDF products to build surface parameter CSV files for ``init_mode = surface_data``.
+Extracts friction velocities (:math:`u_*`), roughness lengths (:math:`z_0`), and 10m velocities from High-Resolution Rapid Refresh (HRRR) GRIB/NetCDF products to build surface parameter CSV files for ``init_mode = surface_data``. Located in ``tools/data_ingestion/hrrr_to_surface_data.py``.
 
 NAM Data Ingestor (``nam_ingestion.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Provides full ingestion of North American Mesoscale (NAM) meteorological datasets under both pathways:
+Provides full ingestion of North American Mesoscale (NAM) meteorological datasets under both pathways. Located in ``tools/data_ingestion/nam_ingestion.py``:
   * **Pathway A (3D Wind Field)**: Extracts and interpolates 3D wind velocity components on the solver coordinate mesh (generates ``windfield.csv`` for ``init_mode = windfield``).
   * **Pathway B (Surface Parameters)**: Extracts friction velocity, roughness, and 10m wind speed/direction (generates ``surface_data.csv`` for ``init_mode = surface_data``).
 
 Climate Projection Downscaler (``download_climate_projection.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Queries and downloads future climate projection models (CMIP6, downscaled projections) for target locations. This tool enables climate-change impact analysis by projecting wind resource and extreme wind distributions into the future.
+Queries and downloads future climate projection models (CMIP6, downscaled projections) for target locations. This tool enables climate-change impact analysis by projecting wind resource and extreme wind distributions into the future. Located in ``tools/data_ingestion/download_climate_projection.py``.
 
 * **Features**:
   * Retrieves CMIP6 climate model ensemble projections for target latitude/longitude.
@@ -106,7 +106,7 @@ Queries and downloads future climate projection models (CMIP6, downscaled projec
 
   .. code-block:: bash
 
-     python3 tools/download_climate_projection.py \
+     python3 tools/data_ingestion/download_climate_projection.py \
        --lat 40.0 --lon -105.0 \
        --model CMIP6 \
        --scenario SSP2-4.5 \
@@ -121,7 +121,7 @@ Queries and downloads future climate projection models (CMIP6, downscaled projec
 
 FARSITE Weather Parser (``farsite_weather_reader.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Reads diurnal, multi-station weather schedules from FARSITE format files and formats them for coupled wind-fire time-loop simulation steering. This is essential for wildfire simulation integration.
+Reads diurnal, multi-station weather schedules from FARSITE format files and formats them for coupled wind-fire time-loop simulation steering. This is essential for wildfire simulation integration. Located in ``tools/data_ingestion/farsite_weather_reader.py``.
 
 * **Features**:
   * Parses FARSITE hourly weather files (temperature, humidity, wind speed/direction, precipitation).
@@ -133,31 +133,31 @@ Reads diurnal, multi-station weather schedules from FARSITE format files and for
 
   .. code-block:: bash
 
-     python3 tools/farsite_weather_reader.py \
+     python3 tools/data_ingestion/farsite_weather_reader.py \
        --farsite-weather fire_domain.wnd \
        --solver-grid domain.csv \
        --output weather_profiles.nc
 
-Post-Processing & Export Utilities
-----------------------------------
+Post-Processing & Export Utilities (``tools/export_coupling/``)
+--------------------------------------------------------------
 
 BTS to VTK Converter (``bts_to_vtk.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Converts binary OpenFAST/TurbSim synthetic turbulence BTS files into structured XML VTK files (``.vts`` or ``.vtu``) for visual profiling and analysis in ParaView or VisIt.
+Converts binary OpenFAST/TurbSim synthetic turbulence BTS files into structured XML VTK files (``.vts`` or ``.vtu``) for visual profiling and analysis in ParaView or VisIt. Located in ``tools/export_coupling/bts_to_vtk.py``.
 
 * **Usage**:
 
   .. code-block:: bash
 
-     python3 tools/bts_to_vtk.py input_file.bts output_file.vtk
+     python3 tools/export_coupling/bts_to_vtk.py input_file.bts output_file.vtk
 
 FLORIS Export Driver (``floris_export.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Samples converged 3D solver MultiFabs at discrete wind-turbine coordinates and hub heights to export FLORIS-compatible wind speeds and speed-up ratio JSON/CSV tables.
+Samples converged 3D solver MultiFabs at discrete wind-turbine coordinates and hub heights to export FLORIS-compatible wind speeds and speed-up ratio JSON/CSV tables. Located in ``tools/export_coupling/floris_export.py``.
 
 OpenFAST Standalone Export (``openfast_export.py``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Standalone serializing driver that packages spatial-temporal velocity fluctuation fields into TurbSim-compliant binary layouts. Handles header specifications, coordinate layouts, and grid metadata.
+Standalone serializing driver that packages spatial-temporal velocity fluctuation fields into TurbSim-compliant binary layouts. Handles header specifications, coordinate layouts, and grid metadata. Located in ``tools/export_coupling/openfast_export.py``.
 
 Visualization & Doc Gallery Generators (``tools/postprocessing/``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -767,11 +767,118 @@ The terrain CSV file must contain one data point per line with columns **X  Y  Z
 
 Building File Format
 ~~~~~~~~~~~~~~~~~~~~
-Buildings are specified in a CSV file with one building box per line. The optional 7th column specifies building rotation in degrees counter-clockwise from the x-axis::
+Buildings are specified in a CSV file (indicated by the ``building_file`` parameter in your inputs) with one building per line. The solver supports standard rectangular buildings with shapes, arbitrary polygon footprints, and void courtyard exclusion zones.
 
-   # xmin  xmax  ymin  ymax  zmin  zmax  [rotation]
+**Standard / Rectangular Building Shapes**
+
+For rectangular-based shapes, columns must follow this order (space or comma-delimited):
+
+.. code-block:: none
+
+   # xmin  xmax  ymin  ymax  zmin  zmax  [rotation]  [shape]  [pitch_or_radius]  [pitch_direction]
+
+* **xmin, xmax, ymin, ymax** (Real): Horizontal bounds of the building's bounding box [m].
+* **zmin, zmax** (Real): Vertical extent (base to roof height) [m].
+* **rotation** (Real, Optional): Rotation angle of the building in degrees counter-clockwise from the positive x-axis. Default is ``0.0``.
+* **shape** (String or Integer, Optional): Determines the roof or 3D geometry shape. Supported values:
+  * ``rectangular`` or ``0`` (Default): Standard flat-roof rectangular box.
+  * ``cylindrical`` or ``1``: Cylindrical building shape.
+  * ``pitched_roof`` or ``2``: Pitched-roof building shape.
+* **pitch_or_radius** (Real, Optional): Roof pitch in degrees (if ``pitched_roof``) or cylinder radius in meters (if ``cylindrical``).
+* **pitch_direction** (Real, Optional): Direction of the roof pitch/ridge line in degrees relative to the positive x-axis (if ``pitched_roof``).
+
+Examples::
+
+   # xmin  xmax  ymin  ymax  zmin  zmax  [rotation]  [shape]  [pitch_or_radius]  [pitch_direction]
    40.0    60.0  40.0  60.0  0.0   30.0
    100.0   140.0 60.0  80.0  0.0   50.0  45.0
+   200.0   250.0 120.0 170.0 0.0   25.0  10.0        cylindrical  15.0
+   300.0   350.0 200.0 250.0 0.0   40.0  0.0         pitched_roof 30.0               90.0
+
+**Arbitrary Polygon Footprints**
+
+To model buildings with arbitrary footprints (such as L-shaped, T-shaped, or non-convex profiles), use the ``POLYGON:`` format prefix::
+
+   POLYGON: x1 y1 x2 y2 ... xn yn | zmin zmax
+
+* **x_i y_i** (Real): Ordered sequence of horizontal vertex coordinates [m] outlining the footprint (minimum 3 vertices).
+* **|** (Separator): Vertical bar dividing the horizontal coordinates from the height constraints.
+* **zmin zmax** (Real): Base and maximum roof heights [m].
+
+Example::
+
+   POLYGON: 0.0 0.0  100.0 0.0  100.0 50.0  50.0 50.0  50.0 100.0  0.0 100.0 | 0.0 35.0
+
+**Void exclusion Zones (Courtyards)**
+
+To model complex compounds with inner courtyards or central open-air atriums, use the ``VOID:`` format prefix to exclude solid obstacles from the building database::
+
+   VOID: x1 y1 x2 y2 ... xn yn | zmin zmax
+
+These regions are subtracted from any intersecting solid buildings, allowing the wind solver to treat them as free fluid areas.
+
+Example (a large hollow square building)::
+
+   POLYGON: 0.0 0.0  200.0 0.0  200.0 200.0  0.0 200.0 | 0.0 40.0
+   VOID: 50.0 50.0  150.0 50.0  150.0 150.0  50.0 150.0 | 0.0 40.0
+
+
+Porous Building File Format
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Porous structures (such as vegetation screens, industrial scaffolding, or structures that allow partial flow penetration) are specified in a dedicated file using the ``building_porosity_file`` input parameter.
+
+To enable the building porosity model, set:
+
+.. code-block:: none
+
+   enable_building_porosity = true
+   building_porosity_file = "porous_buildings.csv"
+
+The layout of the porous building file consists of:
+
+.. code-block:: none
+
+   # xmin xmax ymin ymax zmin zmax porosity [rotation_angle]
+
+* **xmin, xmax, ymin, ymax, zmin, zmax** (Real): Spatial bounds of the porous building zone [m].
+* **porosity** (Real): Structural porosity, ranging from ``0.0`` (completely solid) to ``1.0`` (completely open air).
+* **rotation_angle** (Real, Optional): Counter-clockwise rotation angle in degrees relative to the positive x-axis.
+
+Example::
+
+   # xmin  xmax  ymin  ymax  zmin  zmax  porosity  [rotation_angle]
+   120.0   150.0 80.0  110.0 0.0   20.0  0.4
+   320.0   370.0 180.0 210.0 0.0   35.0  0.65      30.0
+
+
+Windbreak File Format
+~~~~~~~~~~~~~~~~~~~~~
+Spatially thin barriers, shelterbelts, or fences that induce a localized pressure drop/drag are modeled as thin 2D windbreaks using the ``windbreaks_file`` input parameter.
+
+To enable the sub-grid windbreaks model, set:
+
+.. code-block:: none
+
+   enable_windbreaks = true
+   windbreaks_file = "windbreaks.csv"
+
+The windbreak file specifies individual line segments with the following columns:
+
+.. code-block:: none
+
+   # x1 y1 x2 y2 height blockage drag_coeff
+
+* **x1, y1** (Real): Starting horizontal coordinates of the line segment [m].
+* **x2, y2** (Real): Ending horizontal coordinates of the line segment [m].
+* **height** (Real): Vertical height of the windbreak sheet [m].
+* **blockage** (Real): Optical or physical flow blockage fraction (typically ``0.0`` to ``1.0``).
+* **drag_coeff** (Real): Aerodynamic drag coefficient ($C_d$) representing the flow resistance.
+
+Example::
+
+   # x1    y1    x2    y2    height  blockage  drag_coeff
+   100.0   100.0 300.0 100.0 4.5     0.7       1.5
+   250.0   150.0 250.0 350.0 6.0     0.5       1.2
 
 Wind Turbine File Format
 ~~~~~~~~~~~~~~~~~~~~~~~~
