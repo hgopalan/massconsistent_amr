@@ -992,13 +992,13 @@ Run the solver::
 3D Meteorological Ingestion (NetCDF)
 ------------------------------------
 
-The C++ solver can ingest pre-processed 3D wind fields from larger-scale weather prediction models (such as WRF or GFS outputs) through the `tools/netcdf_to_windfield.py` utility.
+The C++ solver can ingest pre-processed 3D wind fields from larger-scale weather prediction models (such as WRF or GFS outputs) through the `tools/data_ingestion/netcdf_to_windfield.py` utility.
 
 1. **Interpolation and Parsing**:
    
    .. code-block:: bash
 
-      python3 tools/netcdf_to_windfield.py \
+      python3 tools/data_ingestion/netcdf_to_windfield.py \
         --nc-files wrf_t1.nc wrf_t2.nc \
         --inputs inputs.i \
         --output windfield.csv \
