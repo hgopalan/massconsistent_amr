@@ -111,3 +111,5 @@ turbulence_export_format = bts
 # Will write binary .bts file (compatible with NREL OpenFAST)
 # Also generates .meta ASCII metadata file with same basename
 turbulence_output_file = turbulence_synthetic.bts
+
+num_time_steps = 1

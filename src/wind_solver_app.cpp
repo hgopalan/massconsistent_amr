@@ -83,7 +83,7 @@ void WindSolverApp::execute() {
         amrex::Print() << "wind_solver: Running coupled/unsteady simulation over " << num_time_steps << " steps\n";
         for (int time_step = 0; time_step < num_time_steps; ++time_step) {
             bool run_wind = true;
-            if (is_wind_steady && scalar_coupling_mode == "coupled" && time_step > 0) {
+            if (is_wind_steady && time_step > 0) {
                 run_wind = false; // Run with frozen wind after initial correction
             }
             
@@ -92,7 +92,11 @@ void WindSolverApp::execute() {
                 execute_poisson_solve(time_step);
                 apply_divergence_corrections(time_step);
             } else {
-                amrex::Print() << "wind_solver: [Coupled Mode] step " << time_step << " - using frozen wind field\n";
+                if (!enable_3d_scalars) {
+                    amrex::Print() << "wind_solver: step " << time_step << " - running dummy time step (using frozen wind field)\n";
+                } else {
+                    amrex::Print() << "wind_solver: [Coupled Mode] step " << time_step << " - using frozen wind field\n";
+                }
             }
             
             if (enable_3d_scalars && (enable_temperature_transport || enable_moisture_transport)) {
@@ -1508,8 +1512,9 @@ void WindSolverApp::setup_geometry_and_mesh() {
 
     num_time_steps = 1;
     pp.query("num_time_steps", num_time_steps);
-    if (!enable_time_varying && !enable_3d_scalars) {
-        num_time_steps = 1;
+    if (!pp.contains("num_time_steps") && !enable_time_varying && !enable_3d_scalars) {
+        // Run 2 steps to ensure proper initialization and allow frozen wind field to be used as a dummy step
+        num_time_steps = 2;
     }
     if (enable_time_varying) {
         std::ifstream check_file(time_series_file);
