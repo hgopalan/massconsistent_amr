@@ -17,12 +17,10 @@ def run_solver(inputs_file, work_dir):
             os.path.join(build_dir, 'wind_solver'),
             os.path.join(build_dir, 'wind_solver.exe'),
         ]
-        if os.path.isdir(build_dir):
-            for entry in os.listdir(build_dir):
-                entry_path = os.path.join(build_dir, entry)
-                if os.path.isdir(entry_path):
-                    candidates.append(os.path.join(entry_path, 'wind_solver.exe'))
-                    candidates.append(os.path.join(entry_path, 'wind_solver'))
+        # Check common multi-configuration build subdirectories
+        for config in ['Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel']:
+            candidates.append(os.path.join(build_dir, config, 'wind_solver.exe'))
+            candidates.append(os.path.join(build_dir, config, 'wind_solver'))
         
         for candidate in candidates:
             if os.path.isfile(candidate):
