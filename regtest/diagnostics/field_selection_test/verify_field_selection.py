@@ -15,14 +15,12 @@ def run_solver(inputs_file, work_dir):
         # Try to find it in the build directory
         build_dir = os.path.dirname(os.path.dirname(os.path.dirname(work_dir)))
         # Check standard, configuration-specific, and fallback locations.
-        candidates = [
-            os.path.join(build_dir, SOLVER_EXE_NAME),
-            os.path.join(build_dir, f"{SOLVER_EXE_NAME}.exe"),
-        ]
+        is_windows = sys.platform == 'win32'
+        exe_suffix = ".exe" if is_windows else ""
+        candidates = [os.path.join(build_dir, f"{SOLVER_EXE_NAME}{exe_suffix}")]
         # Check common multi-configuration build subdirectories
         for config in CMAKE_BUILD_CONFIGS:
-            candidates.append(os.path.join(build_dir, config, f"{SOLVER_EXE_NAME}.exe"))
-            candidates.append(os.path.join(build_dir, config, SOLVER_EXE_NAME))
+            candidates.append(os.path.join(build_dir, config, f"{SOLVER_EXE_NAME}{exe_suffix}"))
 
         for candidate in candidates:
             if os.path.isfile(candidate):
