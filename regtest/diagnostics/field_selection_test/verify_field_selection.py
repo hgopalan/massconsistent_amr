@@ -4,6 +4,8 @@ import os
 import subprocess
 
 EXPECTED_FIELDS = ["u", "v", "w", "vel_magnitude", "terrain_z"]
+CMAKE_BUILD_CONFIGS = ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
+SOLVER_EXE_NAME = "wind_solver"
 
 def run_solver(inputs_file, work_dir):
     """Run the wind solver to generate plotfile"""
@@ -12,10 +14,24 @@ def run_solver(inputs_file, work_dir):
     if not solver_exe:
         # Try to find it in the build directory
         build_dir = os.path.dirname(os.path.dirname(os.path.dirname(work_dir)))
-        solver_exe = os.path.join(build_dir, 'wind_solver')
+        # Check standard, configuration-specific, and fallback locations.
+        is_windows = sys.platform == 'win32'
+        exe_suffix = ".exe" if is_windows else ""
+        candidates = [os.path.join(build_dir, f"{SOLVER_EXE_NAME}{exe_suffix}")]
+        # Check common multi-configuration build subdirectories
+        for config in CMAKE_BUILD_CONFIGS:
+            candidates.append(os.path.join(build_dir, config, f"{SOLVER_EXE_NAME}{exe_suffix}"))
+
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                solver_exe = candidate
+                break
     
-    if not os.path.isfile(solver_exe):
-        print(f"Error: wind_solver executable not found at {solver_exe}")
+    if not solver_exe or not os.path.isfile(solver_exe):
+        if solver_exe:
+            print(f"Error: wind_solver executable not found at {solver_exe}")
+        else:
+            print("Error: wind_solver executable not found")
         return False
     
     print(f"Running solver: {solver_exe}")
