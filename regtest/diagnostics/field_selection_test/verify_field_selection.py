@@ -12,13 +12,18 @@ def run_solver(inputs_file, work_dir):
     if not solver_exe:
         # Try to find it in the build directory
         build_dir = os.path.dirname(os.path.dirname(os.path.dirname(work_dir)))
-        # Check standard and configuration-specific fallback locations.
+        # Check standard, configuration-specific, and fallback locations.
         candidates = [
-            os.path.join(build_dir, 'Debug', 'wind_solver.exe'),
-            os.path.join(build_dir, 'Release', 'wind_solver.exe'),
             os.path.join(build_dir, 'wind_solver'),
             os.path.join(build_dir, 'wind_solver.exe'),
         ]
+        if os.path.isdir(build_dir):
+            for entry in os.listdir(build_dir):
+                entry_path = os.path.join(build_dir, entry)
+                if os.path.isdir(entry_path):
+                    candidates.append(os.path.join(entry_path, 'wind_solver.exe'))
+                    candidates.append(os.path.join(entry_path, 'wind_solver'))
+        
         for candidate in candidates:
             if os.path.isfile(candidate):
                 solver_exe = candidate
