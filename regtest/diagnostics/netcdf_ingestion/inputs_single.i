@@ -20,3 +20,5 @@ extract_agl  = 15.0
 extract_file = wind_extract_single.csv
 
 plot_file = plt_netcdf_single
+
+num_time_steps = 1
