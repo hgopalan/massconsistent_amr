@@ -93,10 +93,6 @@ Atmospheric Stability & Richardson Number Methods
 
  Original definition of bulk Richardson number for characterizing atmospheric stability.
 
-* **Mahrt, L. (1981)**. The exit velocity of ra radiative cooling flows. *Journal of the Atmospheric Sciences*, 38(11), 2433–2449.
-
- Study of strongly stable boundary layer dynamics relevant to Richardson number-based model selection.
-
 Canopy & Vegetation Modeling
 -----------------------------
 
@@ -178,10 +174,6 @@ Obstacle & Building Wake Modeling
 * **Britter, R. E., & Hanna, S. R. (2003)**. Flow and dispersion in urban areas. *Annual Review of Fluid Mechanics*, 35, 469–496.
 
  Urban canyon wind speed attenuation model with frontal area index parameterization for dense building clusters.
-
-* **Lopes, A., Fragoso, M., & Santos, J. A. (2006)**. Coastal wind patterns and pedestrian discomfort assessment. *International Journal of Climatology*, 26(8), 1107–1128.
-
- Pedestrian wind comfort classification system based on discomfort frequency criterion for urban pedestrian wind assessments.
 
 * **Sini, J. F., Anquetin, S., & Mestayer, P. G. (1996)**. Pollutant dispersion and thermal effects in urban street canyons. *Atmospheric Environment*, 30(15), 2659–2677.
 
@@ -422,10 +414,6 @@ GPU Computing & Portability
 * **Kirk, D. B., & Hwu, W. W. (2013)**. *Programming Massively Parallel Processors: A Hands-on Approach* (2nd ed.). Morgan Kaufmann.
 
  Comprehensive reference on GPU programming for scientific computing.
-
-* **Bell, J. B., Colella, P., & Keen, N. D. (2011)**. A conservative front-tracking method for hyperbolic conservation laws. *SIAM Journal on Numerical Analysis*, 35(6), 2908–2933.
-
- Performance and algorithmic considerations for structured grid methods on accelerators.
 
 Regulatory & Dispersion Modeling Standards
 -------------------------------------------
