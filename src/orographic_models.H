@@ -402,8 +402,6 @@ amrex::Real terrain_adaptive_alpha_v(
 // References:
 // - Jackson, P.S., & Hunt, J.C.R. (1975). Turbulent wind flow over a low hill.
 //   Quarterly Journal of the Royal Meteorological Society, 101(430), 929-955.
-// - Grubisic, V. (2004). The Morning Glory of the Gulf of Carpentaria.
-//   Monthly Weather Review, 132(12), 2830-2841.
 // ============================================================================
 
 // Compute Froude number for orographic flow regime determination

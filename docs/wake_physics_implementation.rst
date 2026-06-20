@@ -203,11 +203,7 @@ References
 See :ref:`references` section for the complete bibliography. Key citations for building wake modeling include:
 
 - Röckle (1990): Foundational urban canyon wake model
-- Huber-Snyder (EPA): Empirical aspect-ratio dependent model
+- Snyder (1981): EPA guidelines on fluid modeling of diffusion (and Huber-Snyder model)
 - Pardyjak & Brown (2001): QUIC-URB implementation guide
-- Jensen (1979): Power-law wake recovery
-- Rodi (1986): Entrainment-based wake modeling
-- Blocken & Carmeliet (2004): Separable 3D deficit profiles
 - Yoshie et al. (2007): Height-dependent canyon effects
-- Oikonomou et al. (2017): Modern aspect-ratio refinements
-- Murakami & Uehara (1983): Non-dimensional self-similar forms
+- Oikonomou et al. (2011): Modern aspect-ratio refinements

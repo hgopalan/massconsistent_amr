@@ -11,7 +11,7 @@ Mass-Consistent Solver
 Basic Governing Equations
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The mass-consistent wind solver implements the variational wind field adjustment methodology based on Sherman (1978) and Mathiesen (1987). This diagnostic model adjusts an initial wind profile over complex terrain to satisfy mass conservation (∇·**u** = 0) while minimizing alterations to the initial flow field.
+The mass-consistent wind solver implements the variational wind field adjustment methodology based on Sherman (1978) and subsequent mass-consistent diagnostic models. This diagnostic model adjusts an initial wind profile over complex terrain to satisfy mass conservation (∇·**u** = 0) while minimizing alterations to the initial flow field.
 
 Terrain Interpolation
 ^^^^^^^^^^^^^^^^^^^^^
