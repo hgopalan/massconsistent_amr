@@ -5,6 +5,7 @@ import subprocess
 
 EXPECTED_FIELDS = ["u", "v", "w", "vel_magnitude", "terrain_z"]
 CMAKE_BUILD_CONFIGS = ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
+SOLVER_EXE_NAME = "wind_solver"
 
 def run_solver(inputs_file, work_dir):
     """Run the wind solver to generate plotfile"""
@@ -15,13 +16,13 @@ def run_solver(inputs_file, work_dir):
         build_dir = os.path.dirname(os.path.dirname(os.path.dirname(work_dir)))
         # Check standard, configuration-specific, and fallback locations.
         candidates = [
-            os.path.join(build_dir, 'wind_solver'),
-            os.path.join(build_dir, 'wind_solver.exe'),
+            os.path.join(build_dir, SOLVER_EXE_NAME),
+            os.path.join(build_dir, f"{SOLVER_EXE_NAME}.exe"),
         ]
         # Check common multi-configuration build subdirectories
         for config in CMAKE_BUILD_CONFIGS:
-            candidates.append(os.path.join(build_dir, config, 'wind_solver.exe'))
-            candidates.append(os.path.join(build_dir, config, 'wind_solver'))
+            candidates.append(os.path.join(build_dir, config, f"{SOLVER_EXE_NAME}.exe"))
+            candidates.append(os.path.join(build_dir, config, SOLVER_EXE_NAME))
 
         for candidate in candidates:
             if os.path.isfile(candidate):
