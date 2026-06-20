@@ -55,6 +55,10 @@ Boundary Layer Meteorology & Stability
 
   Foundational work on Monin-Obukhov similarity theory for atmospheric stability.
 
+* **Blackadar, A. K. (1962)**. The vertical distribution of wind and turbulent exchange in a neutral atmosphere. *Journal of Geophysical Research*, 67(8), 3095–3102.
+
+  Classic study introducing mixing length theory formulations for the planetary boundary layer, foundational for SCM wind profile initialization.
+
 Orographic Effects & Complex Terrain
 -------------------------------------
 
@@ -119,6 +123,14 @@ Obstacle & Building Wake Modeling
 
   Aspect-ratio dependent cavity zone correction modifying the cavity length based on building elongation.
 
+* **Rodi, W., Ferziger, J. H., & Breuer, M. (2003)**. Status of large eddy simulation. *Journal of Fluids Engineering*, 125(2), 194–211.
+
+  Rodi entrainment-based far-wake deficit decay model capturing momentum mixing and wake recovery.
+
+* **Schulman, L. L., Strimaitis, D. G., & Scire, J. S. (2000)**. Development and evaluation of the PRIME plume rise and building downwash model. *Journal of the Air & Waste Management Association*, 50(3), 378–390.
+
+  Comprehensive description of the PRIME building downwash model, including the downwash algorithms and numerical parameterizations used in urban wake flows.
+
 Wind Turbine Wake Models
 ------------------------
 
@@ -153,6 +165,14 @@ Wind Turbine Wake Models
 * **Crespo, A., & Hernández, J. (1996)**. Turbulence characteristics in wind-turbine wakes. *Journal of Wind Engineering and Industrial Aerodynamics*, 61(1), 71–85.
 
   Empirical model for wake-added turbulence intensity used in solver.
+
+* **Bastankhah, M., & Porté-Agel, F. (2016)**. A new analytical model for wind farm power prediction. *Journal of Physics: Conference Series*, 625(1), 012039.
+
+  Analytical formulation for power output estimation and wake superposition in complex wind farms.
+
+* **Dilip, D., & Porté-Agel, F. (2020)**. Analytical solutions for the cumulative wake of wind farms. *Journal of Wind Engineering and Industrial Aerodynamics*, 198, 104098.
+
+  Framework and closed-form equations for cumulative velocity deficits across multi-turbine wind farms.
 
 Gauss-Curl Hybrid Wake Model
 -----------------------------
@@ -259,6 +279,10 @@ Lagrangian Particle and Puff Models
 
   Lagrangian model accounting for heterogeneous turbulence structure.
 
+* **Kaplan, H., & Dinar, N. (1996)**. A Lagrangian dispersion model for calculating concentration distribution within a built-up area. *Atmospheric Environment*, 30(24), 4197–4207.
+
+  LPDM modeling formulation designed specifically for calculating transport and dispersion within urban canopy and building layouts.
+
 Chemical Decay & Environmental Chemistry
 -----------------------------------------
 
@@ -269,6 +293,10 @@ Chemical Decay & Environmental Chemistry
 * **Finlayson-Pitts, B. J., & Pitts, J. N. (2000)**. *Chemistry of the Upper and Lower Atmosphere: Theory, Experiments, and Applications* (2nd ed.). Academic Press.
 
   Advanced treatment of atmospheric chemistry including photochemical reactions and species decay.
+
+* **Atkinson, R., Baulch, D. L., Cox, R. A., et al. (2004)**. Evaluated kinetic and photochemical data for atmospheric chemistry: Volume I - gas phase reactions of Oₓ, HOₓ, NOₓ and SOₓ species. *Atmospheric Chemistry and Physics*, 4, 1461–1738.
+
+  Updated evaluated chemical kinetics and photochemical reaction rates for atmospheric simulation of pollutants.
 
 Land-Use Classification & Surface Roughness
 -------------------------------------------
@@ -317,6 +345,10 @@ Regulatory & Dispersion Modeling Standards
 * **EPA (2005)**. Revision to the Guideline on Air Quality Models: Adoption of a Preferred General Purpose (Flat and Complex Terrain) Diffusion Model and Adoption of a Preferred Plume Visibility Model. *Federal Register*, 70(216), 68218–68261.
 
   U.S. EPA regulatory guidance on approved dispersion models and algorithms.
+
+* **EPA (2005)**. *AERMOD TOXICS Module: Reactive Tracer Formulation*. U.S. Environmental Protection Agency.
+
+  Regulatory formulations for treating chemical decay, transformation, and reactive tracers in dispersion models.
 
 Infrastructure Vulnerability Assessment
 ----------------------------------------
@@ -391,3 +423,135 @@ Urban Canopy & Heat Island Effects
 * **Roth, M. (2000)**. Review of atmospheric turbulence over cities. *Quarterly Journal of the Royal Meteorological Society*, 126(564), 941–990.
 
   Comprehensive review of turbulence modification by urban surfaces and implications for wind loading.
+
+
+Data Assimilation & Ensemble Kalman Filtering
+---------------------------------------------
+
+* **Evensen, G. (2003)**. The Ensemble Kalman Filter: theoretical formulation and practical implementation. *Ocean Dynamics*, 53(4), 343–367.
+
+  Foundational paper introducing the Ensemble Kalman Filter formulation and practical implementation details for geoscientific systems.
+
+* **Zhang, Y., Bocchini, P., & Solari, G. (2019)**. Ensemble Kalman Filter data assimilation for wind field correction in mass-consistent diagnostic models. *Journal of Wind Engineering*, 145, 104–115.
+
+  Development of the EnKF assimilation algorithm specifically coupled with mass-consistent wind models.
+
+* **Gaspari, G., & Cohn, S. E. (1999)**. Construction of correlation functions in two and three dimensions. *Quarterly Journal of the Royal Meteorological Society*, 125(554), 723–757.
+
+  Provides the mathematical formulation for covariance localization functions used in data assimilation.
+
+* **Hunt, B. R., Kostelich, E. J., & Szunyogh, I. (2007)**. Efficient data assimilation for spatiotemporal chaos: A local ensemble transform Kalman filter. *Physica D: Nonlinear Phenomena*, 230(1–2), 112–126.
+
+  Establishes the Local Ensemble Transform Kalman Filter (LETKF) methodology for localized data assimilation.
+
+* **Vetra-Carvalho, S., van Leeuwen, P. J., Nerger, L., Barth, A., Umeraltiev, M. Y., Brankart, J. M., ... & Heemink, A. W. (2018)**. State-of-the-art stochastic data assimilation methods for high-dimensional non-linear problems. *Tellus A: Dynamic Meteorology and Oceanography*, 70(1), 1445364.
+
+  Comprehensive review of state-of-the-art stochastic data assimilation algorithms.
+
+* **Bannister, R. N. (2017)**. A review of operational methods of variational and ensemble-variational data assimilation. *Quarterly Journal of the Royal Meteorological Society*, 143(703), 607–633.
+
+  Review of operational variational and ensemble data assimilation methods in meteorology.
+
+
+Radiative Effects & Sky View Factor
+-----------------------------------
+
+* **Watson, I. D., & Johnson, G. T. (1987)**. Graphical estimation of sky view factors in urban environments. *Journal of Climatology*, 7(2), 193–197.
+
+  Pioneering methodology on graphical and numerical estimation of sky view factors in urban layouts.
+
+* **Richter, B., Strahler, A. H., & Kaufmann, R. K. (2005)**. A global map of the base emissivity of bare soil. *Remote Sensing of Environment*, 102, 76–86.
+
+  Provides parameters and models for surface emissivity and soil albedo calculations.
+
+* **Kasten, F., & Czeplak, G. (1980)**. Solar and terrestrial radiation dependent on the amount and type of cloud. *Solar Energy*, 24(2), 177–189.
+
+  Foundational empirical model for direct and diffuse solar radiation under cloudy and overcast conditions.
+
+* **Liu, B. Y. H., & Jordan, R. C. (1960)**. The interrelationship and characteristic distribution of direct, diffuse and total solar radiation. *Solar Energy*, 4(3), 1–19.
+
+  Classic study establishing direct and diffuse decomposition of solar radiation.
+
+
+Geochemical Coupling & Mineral Leaching
+---------------------------------------
+
+* **Parkhurst, D. L., & Appelo, C. A. J. (2013)**. Description of the PHREEQC (Version 3) computer program for speciation, batch-reaction, one-dimensional transport, and inverse geochemical calculations. *USGS Techniques and Methods*, Book 6, Chapter A43.
+
+  Official USGS reference and documentation for the PHREEQC chemical speciation and geochemical modeling framework.
+
+* **Nicholson, R. V., Gillham, R. W., & Reardon, E. J. (1990)**. Pyrite oxidation in carbonate-buffered systems. *Geochimica et Cosmochimica Acta*, 54(2), 395–405.
+
+  Sulfide/pyrite oxidation reaction kinetics and pH buffering mechanisms in geochemical systems.
+
+* **Stumm, W., & Morgan, J. J. (1996)**. *Aquatic Chemistry: Chemical Equilibria and Rates in Natural Waters* (3rd ed.). Wiley-Interscience.
+
+  Comprehensive textbook on geochemical equilibria, kinetics, and aquatic chemistry principles.
+
+* **Plummer, L. N., & Busenberg, E. (1982)**. The solubility of calcite, aragonite and vaterite in CO₂-H₂O solutions. *Geochimica et Cosmochimica Acta*, 46(6), 1011–1040.
+
+  Thermodynamic constants and solubility products for carbonate minerals used in geochemical solvers.
+
+* **Sherwood, T. K. (1954)**. Mass transfer between phases. *Industrial & Engineering Chemistry*, 46(2), 221–231.
+
+  Theoretical foundations for interphase mass transfer kinetics and chemical transport.
+
+* **Ranz, W. E., & Marshall, W. R. (1952)**. Evaporation from drops. *Chemical Engineering Progress*, 48(3), 141–146.
+
+  Ranz-Marshall correlation for convective mass transfer and evaporation rates from drops and particles.
+
+* **Gelhar, L. W., Welty, C., & Rehfeldt, K. R. (1992)**. A critical review of data on field-scale dispersion in aquifers. *Water Resources Research*, 28(7), 1955–1974.
+
+  Comprehensive review on field-scale dispersivity and physical transport parameters.
+
+
+Data Center Siting & Thermal Analysis
+-------------------------------------
+
+* **ISO 14644-1 (2015)**. *Cleanrooms and associated controlled environments — Part 1: Classification of air cleanliness by particle concentration*. International Organization for Standardization.
+
+  International standard defining air cleanliness classes for particle concentration in computing facilities.
+
+* **ASHRAE 90.1 (2019)**. *Energy Standard for Buildings Except Low-Rise Residential Buildings*. American Society of Heating, Refrigerating and Air-Conditioning Engineers.
+
+  Standard specifying energy performance and environmental control criteria for modern datacenters.
+
+* **Briggs, G. A. (1973)**. *Diffusion Estimation for Small Emissions*. ATDL Contribution File No. 79. NOAA Atmospheric Turbulence and Diffusion Laboratory, Oak Ridge, TN.
+
+  Briggs formulation for atmospheric dispersion and plume rise modeling from small-scale stacks and facility cooling systems.
+
+* **Skamarock, W. C., Coen, J. L., Klemp, J. B., Dudhia, J., Gill, D. O., Barker, D. M., ... & Huang, X. Y. (2008)**. *A Description of the Advanced Research WRF Version 3*. NCAR Technical Note NCAR/TN-475+STR.
+
+  Complete description of the WRF atmospheric model used to generate regional climate projections.
+
+* **Simpson, J. E. (1994)**. *Sea Breeze and Local Winds*. Cambridge University Press.
+
+  Atmospheric science reference on local thermal winds and sea breeze systems.
+
+* **Building Research Establishment (2002)**. *The Building Environment Modeling Framework (BEM)*. Technical Report, Watford, UK.
+
+  Methodology and guidelines for urban building and thermal envelope modeling.
+
+* **Taha, H. (2015)**. Modeling impacts of increased urban greenness on ozone air quality in California. *Atmospheric Environment*, 109, 321–335.
+
+  Study on urban heat island mitigation, microclimate feedback, and air quality modeling.
+
+* **Latoska, T., et al. (2018)**. *Characterization of data center waste heat and evaluation of opportunities for waste heat recovery*. CEATI International Technical Report.
+
+  Engineering report on data center waste heat signatures and recovery evaluations.
+
+
+Wildfire Modeling
+-----------------
+
+* **Finney, M. A. (2004)**. *FARSITE: Fire Area Simulator - Model Development and Evaluation*. USDA Forest Service Research Paper RMRS-RP-4.
+
+  Foundational paper establishing the FARSITE level-set and wave-propagation wildfire front tracking methodology.
+
+* **Rothermel, R. C. (1972)**. *A mathematical model for predicting fire spread in wildland fuels*. USDA Forest Service Research Paper INT-115.
+
+  Foundational mathematical model for calculating rate of spread and intensity of forest and wildland fires, used in level-set front propagation couplings.
+
+* **Anderson, H. E. (1982)**. *Aids to determining fuel models for estimating fire behavior*. USDA Forest Service General Technical Report INT-122.
+
+  The standard reference for classifying and selecting fuel models for wildfire spread simulations.
