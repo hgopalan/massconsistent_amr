@@ -68,42 +68,83 @@ set_target_properties(pyWindSolver PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python
 )
 
+# Ensure Python3_SITELIB is defined and relative for proper wheel packaging.
+# When compiling for a wheel with scikit-build-core, Python3_SITELIB may be absolute,
+# so we fall back to "." to install everything directly into the root of the site-packages prefix.
+if(SKBUILD OR SKBUILD_CORE_VERSION)
+  if(NOT DEFINED Python3_SITELIB OR IS_ABSOLUTE "${Python3_SITELIB}")
+    set(Python3_SITELIB ".")
+  endif()
+else()
+  if(NOT DEFINED Python3_SITELIB)
+    set(Python3_SITELIB "python")
+  endif()
+endif()
+
 # Copy Python wrapper files to build directory
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/wind_solver.py
-  ${CMAKE_BINARY_DIR}/python/wind_solver.py
-  COPYONLY
+# PYTHON_WRAPPERS contains all Python modules and scripts sorted alphabetically.
+# REMINDER: When adding, renaming, or removing Python files, please update this list.
+set(PYTHON_WRAPPERS
+  __init__.py
+  aep_calculator.py
+  agricultural_drone.py
+  coupled_wind_fire_example.py
+  datacenter_heat_source.py
+  datacenter_siting.py
+  example_datacenter_siting.py
+  example_floris_export.py
+  example_floris_extensions.py
+  example_iec61400_models.py
+  example_layout_optimization.py
+  example_openfast_export.py
+  floris_coupling.py
+  floris_extensions.py
+  fuga_lookup.py
+  iec61400_models.py
+  infrastructure_models.py
+  layout_optimizer.py
+  mann_box.py
+  pyoptimization_export.py
+  pywake_coupling.py
+  turbine_io.py
+  wake_models.py
+  wind_field_cache.py
+  wind_resource_stats.py
+  wind_solver.py
 )
 
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/__init__.py
-  ${CMAKE_BINARY_DIR}/python/__init__.py
-  COPYONLY
+set(PYTHON_DATA_FILES
+  README.md
+  chemical_database.json
 )
 
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/README.md
-  ${CMAKE_BINARY_DIR}/python/README.md
-  COPYONLY
-)
+foreach(file IN LISTS PYTHON_WRAPPERS PYTHON_DATA_FILES)
+  configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/${file}
+    ${CMAKE_BINARY_DIR}/python/${file}
+    COPYONLY
+  )
+endforeach()
 
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/mann_box.py
-  ${CMAKE_BINARY_DIR}/python/mann_box.py
-  COPYONLY
-)
+# Copy phreeqc_coupling directory to build directory
+file(COPY phreeqc_coupling DESTINATION ${CMAKE_BINARY_DIR}/python)
 
 # Installation support (optional)
 install(TARGETS pyWindSolver
-  LIBRARY DESTINATION python
+  LIBRARY DESTINATION ${Python3_SITELIB}
 )
 
-install(FILES
-  wind_solver.py
-  __init__.py
-  README.md
-  mann_box.py
-  DESTINATION python
+install(FILES ${PYTHON_WRAPPERS}
+  DESTINATION ${Python3_SITELIB}
+)
+
+install(FILES ${PYTHON_DATA_FILES}
+  DESTINATION ${Python3_SITELIB}
+)
+
+install(DIRECTORY phreeqc_coupling
+  DESTINATION ${Python3_SITELIB}
+  FILES_MATCHING PATTERN "*.py"
 )
 
 message(STATUS "Python bindings configured")
