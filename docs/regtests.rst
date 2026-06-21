@@ -581,7 +581,7 @@ scm_ysu
 
 **Purpose:** Validates the SCM with the Yonsei University (YSU) boundary layer turbulence model. Verifies that bulk Richardson number-based planetary boundary layer height is computed and the YSU eddy viscosity profile is correctly applied.
 
-**Physics:** Employs the YSU non-local boundary layer scheme with a bulk Richardson number threshold of 0.25 to compute PBL height.
+**Physics:** Employs the YSU non-local boundary layer scheme with a bulk Richardson number threshold of 0.0 under unstable conditions and 0.25 under stable conditions (fully consistent with the WRF formulation) to compute PBL height.
 
 **Key input parameters:**
 

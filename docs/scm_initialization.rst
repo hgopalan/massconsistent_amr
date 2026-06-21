@@ -287,7 +287,7 @@ Turbulence and Microphysics Models
 
 In addition to the standard one-equation model, the SCM framework supports advanced boundary layer turbulence closures and simple moisture physics:
 
-* **Yonsei University (YSU) PBL Scheme**: A non-local first-order closure that calculates the planetary boundary layer height :math:`h` using a bulk Richardson number threshold of 0.25, and computes eddy viscosity via :math:`\nu_t = \kappa w_s z (1 - z/h)^2` within the boundary layer.
+* **Yonsei University (YSU) PBL Scheme**: A non-local first-order closure that calculates the planetary boundary layer height :math:`h` using a bulk Richardson number threshold of 0.0 under unstable conditions and 0.25 under stable conditions (fully consistent with the WRF formulation), and computes eddy viscosity via :math:`\nu_t = \kappa w_s z (1 - z/h)^2` within the boundary layer.
 * **Mellor-Yamada-Janjić (MYJ) Scheme**: A local Mellor-Yamada Level 2.5 closure model. It solves prognostic equations for turbulent kinetic energy (TKE) and computes shear and buoyancy parameter functions to derive eddy viscosity.
 * **Simple Microphysics & Saturation Adjustment**: Solves advection-diffusion of moisture variables—water vapor mixing ratio (:math:`q_v`), cloud water mixing ratio (:math:`q_c`), and rain water mixing ratio (:math:`q_r`). It implements a Clausius-Clapeyron-based saturation adjustment and Kessler autoconversion/accretion schemes to model phase changes and precipitation processes.
 
