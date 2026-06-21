@@ -250,11 +250,11 @@ See [INSTALL.md](INSTALL.md) for detailed instructions on all installation metho
 - **Field Application:** Enables precise pesticide and nutrient application modeling over complex terrain with wind speed-dependent drift prediction.
 
 ### 14. Operational Wind Farm Management
-- **Power Curtailment and Control:** Real-time farm-level and per-turbine power limiting with ramp rate constraints, enabling grid compliance and curtailment revenue optimization.
+- **Power Curtailment and Control:** Real-time farm-level and per-turbine power limiting with ramp rate constraints, enabling grid compliance and power management.
 - **SCADA Data Integration:** Ingests real-time turbine telemetry (wind speed, power output, yaw, pitch, ambient conditions) with automated quality validation and time-series buffering.
 - **Wind Speed and AEP Forecasting:** Persistence-based 10-minute ahead forecasting with uncertainty quantification for grid dispatch planning.
 - **Wake Loss Diagnostics:** Per-turbine wake loss analysis with upwind relationship identification, enabling rapid performance troubleshooting.
-- **Enhanced AEP Accounting:** Availability factors, seasonal energy breakdown, and micro-siting analysis for investor reporting and contractual guarantee validation.
+- **Enhanced AEP Accounting:** Availability factors, seasonal energy breakdown, and micro-siting analysis for operational performance assessment.
 
 
 ## Test Cases

@@ -27,7 +27,7 @@ Purpose
 Real-time farm-level and per-turbine power limiting is essential for:
 
 - Grid stability compliance (mandated by transmission operators)
-- Revenue optimization during curtailment periods
+- Power management and flow control during high wind periods
 - Load balancing across interconnected wind farms
 - Emergency response to grid requests
 
@@ -311,17 +311,17 @@ Purpose
 
 Operational wind farms require detailed AEP accounting for:
 
-- Investor reporting and performance verification
-- Contractual guarantee validation
-- Seasonal cash flow forecasting
-- Performance warranty assessments
+- Performance verification and diagnostics
+- Energy production assessment
+- Seasonal energy breakdown
+- Performance monitoring assessments
 
 The enhancement module provides:
 
 - **Availability factors** - Mechanical, electrical, environmental, blade degradation, control
 - **Seasonal breakdown** - Monthly energy estimates with seasonal variation
 - **Per-turbine micro-siting** - Identify best-performing locations
-- **Contractual validation** - Compare measured vs. guaranteed AEP
+- **Performance comparison** - Compare measured vs. baseline AEP
 
 Implementation
 ~~~~~~~~~~~~~~
@@ -357,10 +357,10 @@ The AEP enhancement module is in ``aep_enhancements.py``:
     seasonal = engine.compute_seasonal_breakdown(breakdown['final_aep_gwh'])
     print(engine.export_seasonal_report())
     
-    # Validate against contractual guarantee
+    # Compare measured vs. baseline AEP
     measured_aep = 142.0  # GWh measured
-    guaranteed_aep = 143.0  # GWh guaranteed
-    validation = engine.validate_contractual_guarantee(measured_aep, guaranteed_aep, tolerance_pct=5)
+    baseline_aep = 143.0  # GWh baseline
+    validation = engine.validate_contractual_guarantee(measured_aep, baseline_aep, tolerance_pct=5)
     print(f"Status: {validation['status']}")
     print(f"Explanation: {validation['explanation']}")
 
@@ -400,4 +400,4 @@ References
 
 - Wind farm curtailment: Essential Grid Integration (2020). NREL Technical Report.
 - SCADA data assimilation: Wind energy forecasting (2019). Journal of Renewable Energy.
-- Contractual wind resource assessment: Best practices (2017). IWEA Guidelines.
+- Wind resource assessment: Best practices (2017). IWEA Guidelines.
