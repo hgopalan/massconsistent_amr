@@ -68,18 +68,24 @@ set_target_properties(pyWindSolver PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python
 )
 
-# Ensure Python3_SITELIB is defined for installations
-if(NOT DEFINED Python3_SITELIB)
-  set(Python3_SITELIB "python")
+# Ensure Python3_SITELIB is defined and relative for proper wheel packaging.
+# When compiling for a wheel with scikit-build-core, Python3_SITELIB may be absolute,
+# so we fall back to "." to install everything directly into the root of the site-packages prefix.
+if(SKBUILD OR SKBUILD_CORE_VERSION)
+  if(NOT DEFINED Python3_SITELIB OR IS_ABSOLUTE "${Python3_SITELIB}")
+    set(Python3_SITELIB ".")
+  endif()
+else()
+  if(NOT DEFINED Python3_SITELIB)
+    set(Python3_SITELIB "python")
+  endif()
 endif()
 
 # Copy Python wrapper files to build directory
 set(PYTHON_WRAPPERS
   __init__.py
-  README.md
   aep_calculator.py
   agricultural_drone.py
-  chemical_database.json
   coupled_wind_fire_example.py
   datacenter_heat_source.py
   datacenter_siting.py
@@ -105,7 +111,12 @@ set(PYTHON_WRAPPERS
   wind_solver.py
 )
 
-foreach(file IN LISTS PYTHON_WRAPPERS)
+set(PYTHON_DATA_FILES
+  README.md
+  chemical_database.json
+)
+
+foreach(file IN LISTS PYTHON_WRAPPERS PYTHON_DATA_FILES)
   configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/${file}
     ${CMAKE_BINARY_DIR}/python/${file}
@@ -122,6 +133,10 @@ install(TARGETS pyWindSolver
 )
 
 install(FILES ${PYTHON_WRAPPERS}
+  DESTINATION ${Python3_SITELIB}
+)
+
+install(FILES ${PYTHON_DATA_FILES}
   DESTINATION ${Python3_SITELIB}
 )
 
