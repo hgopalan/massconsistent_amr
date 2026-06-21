@@ -630,7 +630,8 @@ void compute_eddy_viscosity(SCMState1D& state)
     amrex::Real dz = state.dz;
     
     if (state.turbulence_model == "ysu") {
-        // 1. Compute PBL height using bulk Richardson number (threshold Ri_cr = 0.25)
+        // 1. Compute PBL height using bulk Richardson number (threshold: 0.0 for unstable, 0.25 for stable)
+        amrex::Real Ri_cr = (state.Qh > 0.0) ? 0.0 : 0.25;
         amrex::Real h = 100.0; // Minimum PBL height
         amrex::Real theta_s = state.theta[state.lower];
         amrex::Real u_s = state.ux[state.lower];
@@ -657,7 +658,7 @@ void compute_eddy_viscosity(SCMState1D& state)
             amrex::Real dtheta = state.theta[i] - theta_s_eff;
             amrex::Real Ri_b = (GRAVITY / theta_s) * dtheta * (state.z[i] - state.z[state.lower]) / wind_sq;
             
-            if (Ri_b >= 0.25) {
+            if (Ri_b >= Ri_cr) {
                 h = state.z[i];
                 break;
             }
