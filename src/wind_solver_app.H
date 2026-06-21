@@ -230,7 +230,15 @@ private:
 
     // Windfield data
     std::string windfield_file = "windfield.csv";
-
+     
+    // Cached windfield data for memory-based wind-scalar coupling
+    // When init_mode == "windfield" and scalar transport is enabled,
+    // we cache the windfield data on first read to avoid re-reading from disk
+    // on every time step in unsteady mode
+    std::vector<amrex::Real> cached_x_wf, cached_y_wf, cached_z_wf;
+    std::vector<amrex::Real> cached_ux_wf, cached_uy_wf, cached_uz_wf;
+    bool windfield_data_cached = false;
+ 
     // Roughness file
     std::string z0_file = "";
     bool use_z0_file = false;
