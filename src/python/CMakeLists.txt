@@ -83,6 +83,7 @@ endif()
 
 # Copy Python wrapper files to build directory
 # PYTHON_WRAPPERS contains all Python modules and scripts sorted alphabetically.
+# REMINDER: When adding, renaming, or removing Python files, please update this list.
 set(PYTHON_WRAPPERS
   __init__.py
   aep_calculator.py
