@@ -82,6 +82,8 @@ else()
 endif()
 
 # Copy Python wrapper files to build directory
+# PYTHON_WRAPPERS contains all Python modules and scripts sorted alphabetically.
+# Note: both 'datacenter_siting.py' (module) and 'example_datacenter_siting.py' (usage example) are distinct, valid files.
 set(PYTHON_WRAPPERS
   __init__.py
   aep_calculator.py
@@ -89,12 +91,12 @@ set(PYTHON_WRAPPERS
   coupled_wind_fire_example.py
   datacenter_heat_source.py
   datacenter_siting.py
+  example_datacenter_siting.py
   example_floris_export.py
   example_floris_extensions.py
   example_iec61400_models.py
-  example_openfast_export.py
   example_layout_optimization.py
-  example_datacenter_siting.py
+  example_openfast_export.py
   floris_coupling.py
   floris_extensions.py
   fuga_lookup.py
