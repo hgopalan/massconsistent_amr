@@ -6,7 +6,7 @@ Overview
 
 The massconsistent_amr solver includes comprehensive operational capabilities for real-time
 wind farm management and control. These features address the practical requirements of
-commercial wind farm operators, integrating with SCADA systems, grid requirements, and
+wind farm operations, integrating with SCADA systems, grid requirements, and
 performance monitoring workflows.
 
 Operational capabilities include:
