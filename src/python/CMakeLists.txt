@@ -83,7 +83,6 @@ endif()
 
 # Copy Python wrapper files to build directory
 # PYTHON_WRAPPERS contains all Python modules and scripts sorted alphabetically.
-# Note: both 'datacenter_siting.py' (module) and 'example_datacenter_siting.py' (usage example) are distinct, valid files.
 set(PYTHON_WRAPPERS
   __init__.py
   aep_calculator.py
