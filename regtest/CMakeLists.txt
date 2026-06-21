@@ -668,6 +668,13 @@ add_python_regression_test(wire_loading_validation terrain/wire_loading verify_w
 add_python_regression_test(bridge_loading_validation terrain/bridge_loading verify_bridge_loading.py)
 
 # ===========================================================================
+# Datacenter Heat Source Tests
+# ===========================================================================
+add_regression_test(datacenter_flat_terrain datacenter/flat_terrain)
+add_regression_test(datacenter_multi_facility datacenter/multi_facility)
+add_regression_test(datacenter_valley_terrain datacenter/valley_terrain)
+
+# ===========================================================================
 # Cell-Local Spatially-Varying Variational Anisotropy
 # ===========================================================================
 add_regression_test(cell_local_anisotropy_base physics/cell_local_anisotropy)
@@ -833,5 +840,10 @@ message(STATUS "  iec61400_categories_regtest/    : Python unit tests for IEC 61
 message(STATUS "  diagnostics/field_output_test/              : Unified field output with 21 diagnostic fields")
 message(STATUS "  diagnostics/parameter_sensitivity_test/     : Parameter sensitivity sweep tool validation")
 message(STATUS "  wakes/analytical_wake_extensions: Analytical turbine wake deficit, deflection, and added turbulence models")
+message(STATUS "")
+message(STATUS "Datacenter Heat Source Tests:")
+message(STATUS "  datacenter_flat_terrain/        : Data center heat source on flat terrain")
+message(STATUS "  datacenter_multi_facility/      : Multiple data centers with superposition")
+message(STATUS "  datacenter_valley_terrain/      : Data center in valley with stable stratification")
 message(STATUS "")
 message(STATUS "Run tests with: ctest -L regtest  or  cmake --build build --target regtest")
