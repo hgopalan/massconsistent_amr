@@ -14,6 +14,21 @@ set_property(CACHE MASSCONSISTENT_GPU_BACKEND PROPERTY STRINGS NONE CUDA HIP SYC
 
 project(MassConsistentAMR LANGUAGES CXX C)
 
+# Enable ccache for compiler caching if available
+option(MASSCONSISTENT_USE_CCACHE "Enable compiler caching using ccache" ON)
+if(MASSCONSISTENT_USE_CCACHE)
+  find_program(CCACHE_PROGRAM ccache)
+  if(CCACHE_PROGRAM)
+    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_CUDA_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_HIP_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+  else()
+    message(STATUS "ccache not found; compiler caching disabled")
+  endif()
+endif()
+
 if(WIN32)
   add_compile_definitions(_USE_MATH_DEFINES)
 endif()
