@@ -62,7 +62,7 @@ def test_single_parameter_sweep(inputs_file, terrain_dir):
         if repo_root is None:
             repo_root = curr.parent.parent.parent
         tools_dir = os.path.join(repo_root, "tools")
-        param_sens_script = os.path.join(tools_dir, "parameter_sensitivity.py")
+        param_sens_script = os.path.join(tools_dir, "analysis_optimization", "parameter_sensitivity.py")
         
         if not os.path.isfile(param_sens_script):
             errors.append(f"parameter_sensitivity.py not found: {param_sens_script}")

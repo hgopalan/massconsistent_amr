@@ -17,7 +17,7 @@ class TestNWPTerrainOptions(unittest.TestCase):
     
     def setUp(self):
         self.repo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        self.tools_dir = os.path.join(self.repo_dir, "tools")
+        self.tools_dir = os.path.join(self.repo_dir, "tools", "data_ingestion")
         
         # Paths to scripts
         self.hrrr_script = os.path.join(self.tools_dir, "hrrr_to_surface_data.py")

@@ -210,7 +210,7 @@ def main():
         repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(test_dir)))
     else:
         repo_dir = str(repo_dir)
-    parser_script = os.path.join(repo_dir, "tools", "netcdf_to_windfield.py")
+    parser_script = os.path.join(repo_dir, "tools", "data_ingestion", "netcdf_to_windfield.py")
     
     # Copy inputs and terrain files to current working directory
     import shutil
@@ -300,7 +300,7 @@ def main():
     # Test 3: ERA5 Format Ingestion, Profile Printing, and Solver Run
     # =========================================================================
     print("\n--- TEST 3: ERA5 Format Ingestion, Profile Printing, and Solver Run ---")
-    era5_script = os.path.join(repo_dir, "tools", "era5_to_windfield.py")
+    era5_script = os.path.join(repo_dir, "tools", "data_ingestion", "era5_to_windfield.py")
     
     # Run the ERA5 converter
     run_cmd([
