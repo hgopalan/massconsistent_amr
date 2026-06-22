@@ -3868,7 +3868,32 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         }
     } else if (init_mode == "windfield") {
         std::vector<Real> x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf;
-        WindIO::read_windfield_file(windfield_file, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf);
+         
+        // Memory-based wind-scalar coupling: cache windfield data on first read
+        // This avoids repeated disk I/O in coupled unsteady simulations
+        if (windfield_data_cached) {
+            // Use cached windfield data from memory
+            x_wf = cached_x_wf;
+            y_wf = cached_y_wf;
+            z_wf = cached_z_wf;
+            ux_wf = cached_ux_wf;
+            uy_wf = cached_uy_wf;
+            uz_wf = cached_uz_wf;
+            amrex::Print() << "wind_solver: using cached windfield data from memory\n";
+        } else {
+            // Read windfield file and cache it
+            WindIO::read_windfield_file(windfield_file, x_wf, y_wf, z_wf, ux_wf, uy_wf, uz_wf);
+             
+            // Cache the data for future time steps
+            cached_x_wf = x_wf;
+            cached_y_wf = y_wf;
+            cached_z_wf = z_wf;
+            cached_ux_wf = ux_wf;
+            cached_uy_wf = uy_wf;
+            cached_uz_wf = uz_wf;
+            windfield_data_cached = true;
+            amrex::Print() << "wind_solver: windfield data cached for subsequent time steps\n";
+        }
 
         std::vector<Real> vel_u_h(static_cast<std::size_t>(nx) * ny * nz);
         std::vector<Real> vel_v_h(static_cast<std::size_t>(nx) * ny * nz);
