@@ -6729,15 +6729,21 @@ void WindSolverApp::recalculate_wind_after_transport(int time_step) {
            const auto& bx = mfi.validbox();
            auto vel_new_arr = vel_c_ptr->array(mfi);
            auto vel_old_arr = vel_old_for_conv.array(mfi);
+             
+           amrex::ReduceOps<amrex::ReduceOpMax> reduce_ops;
+           amrex::ReduceData<amrex::Real> reduce_data(reduce_ops);
             
-           amrex::Real local_max = 0.0;
-           amrex::ParallelFor(bx, [=, &local_max] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-               amrex::Real w_new = vel_new_arr(i, j, k, 2);
-               amrex::Real w_old = vel_old_arr(i, j, k, 2);
-               amrex::Real w_diff = std::abs(w_new - w_old);
-               local_max = amrex::max(local_max, w_diff);
-           });
+           using ReduceTuple = typename decltype(reduce_data)::Type;
             
+           reduce_ops.eval(bx, reduce_data,
+               [vel_new_arr, vel_old_arr] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
+                   amrex::Real w_new = vel_new_arr(i, j, k, 2);
+                   amrex::Real w_old = vel_old_arr(i, j, k, 2);
+                   amrex::Real w_diff = std::abs(w_new - w_old);
+                   return ReduceTuple(w_diff);
+               });
+             
+           auto local_max = amrex::get<0>(reduce_data.value(reduce_ops));
            max_w_change = amrex::max(max_w_change, local_max);
        }
         
