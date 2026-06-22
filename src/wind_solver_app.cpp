@@ -75,6 +75,7 @@ void WindSolverApp::execute() {
             if (enable_temperature_transport || enable_moisture_transport) {
                 amrex::Real dt_transport = compute_adaptive_dt_transport();
                 solve_transport_equations(time_step, dt_transport);
+                recalculate_wind_after_transport(time_step);
             }
             compute_diagnostics_and_output(time_step);
         }
@@ -98,12 +99,13 @@ void WindSolverApp::execute() {
                     amrex::Print() << "wind_solver: [Coupled Mode] step " << time_step << " - using frozen wind field\n";
                 }
             }
-            
+             
             if (enable_3d_scalars && (enable_temperature_transport || enable_moisture_transport)) {
                 amrex::Real dt_transport = compute_adaptive_dt_transport();
                 solve_transport_equations(time_step, dt_transport);
+                recalculate_wind_after_transport(time_step);
             }
-            
+             
             compute_diagnostics_and_output(time_step);
         }
     }
@@ -584,7 +586,18 @@ void WindSolverApp::parse_inputs() {
         amrex::Abort("wind_solver: invalid scalar_coupling_mode: " + scalar_coupling_mode + 
                      " (must be 'segregated' or 'coupled')");
     }
-    
+     
+    // Temperature-wind recalculation parameters
+    pp.query("enable_temperature_wind_recalculation", enable_temperature_wind_recalculation);
+    pp.query("temperature_wind_recalc_iterations", temperature_wind_recalc_iterations);
+    pp.query("temperature_wind_recalc_tolerance", temperature_wind_recalc_tolerance);
+     
+    if (enable_temperature_wind_recalculation && enable_temperature_transport) {
+        amrex::Print() << "wind_solver: Temperature-wind recalculation enabled\n";
+        amrex::Print() << "  max_iterations = " << temperature_wind_recalc_iterations << "\n";
+        amrex::Print() << "  convergence_tolerance = " << temperature_wind_recalc_tolerance << " m/s\n";
+    }
+     
     // Mixing length turbulence model parameters
     pp.query("enable_mixing_length_turbulence", enable_mixing_length_turbulence);
     pp.query("mixing_length_coefficient", mixing_length_coefficient);
@@ -1306,6 +1319,28 @@ void WindSolverApp::validate_configuration() {
         amrex::Print() << "wind_solver: Stability correction, diurnal temperature, and buoyancy all enabled.\n";
         amrex::Print() << "wind_solver: These features are compatible but can create complex feedback loops.\n";
         amrex::Print() << "wind_solver: Monitor results for physically reasonable behavior.\n";
+    }
+    
+    // --- CONFLICT 5B: Temperature-Wind Recalculation Requirements ---
+    // Temperature-wind recalculation requires temperature transport to be enabled
+    if (enable_temperature_wind_recalculation && !enable_temperature_transport) {
+        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: Temperature-wind recalculation enabled (enable_temperature_wind_recalculation=true)\n";
+        amrex::Print() << "wind_solver: but temperature transport is disabled (enable_temperature_transport=false).\n";
+        amrex::Print() << "wind_solver: Temperature-wind recalculation will be inactive.\n";
+        amrex::Print() << "wind_solver: Set enable_temperature_transport = true to enable this feature.\n";
+        has_warning = true;
+    }
+    
+    // Ensure buoyancy is available for temperature-wind recalculation
+    if (enable_temperature_wind_recalculation && enable_temperature_transport && 
+        !enable_buoyancy_stratification && temperature_file.empty()) {
+        amrex::Print() << "wind_solver: *** INFO ***\n";
+        amrex::Print() << "wind_solver: Temperature-wind recalculation enabled (enable_temperature_wind_recalculation=true).\n";
+        amrex::Print() << "wind_solver: For best results, enable buoyancy effects via:\n";
+        amrex::Print() << "wind_solver:   - enable_buoyancy_stratification = true, AND\n";
+        amrex::Print() << "wind_solver:   - provide temperature_file\n";
+        amrex::Print() << "wind_solver: Or set up diurnal temperature (enable_diurnal_temperature = true).\n";
     }
     
     // --- CONFLICT 6: Turbine Wake Models Compatibility ---
@@ -6653,6 +6688,78 @@ void WindSolverApp::solve_transport_equations(int time_step, amrex::Real dt_tran
                               moisture_diffusivity, dt_transport, "moisture");
         amrex::MultiFab::Copy(*moisture_3d_old_ptr, *moisture_3d_ptr, 0, 0, 1, moisture_3d_old_ptr->nGrow());
     }
+}
+
+void WindSolverApp::recalculate_wind_after_transport(int time_step) {
+    // Recalculate wind field after temperature transport to account for buoyancy feedback
+    // This is a segregated approach where temperature updates are followed by wind corrections
+    
+    if (!enable_temperature_wind_recalculation) {
+       return;  // Feature disabled
+    }
+    
+    if (!enable_temperature_transport && !enable_moisture_transport) {
+       return;  // No scalar transport, nothing to correct
+    }
+    
+    amrex::Print() << "wind_solver: starting temperature-wind recalculation with up to "
+                  << temperature_wind_recalc_iterations << " iterations\n";
+    
+    amrex::Real w_velocity_max_change = 1.0e10;  // Large initial value for convergence check
+    amrex::Real tolerance_squared = temperature_wind_recalc_tolerance * temperature_wind_recalc_tolerance;
+    
+    // Store reference to old velocity field for convergence checking
+    amrex::MultiFab vel_old_for_conv(vel_c_ptr->boxArray(), vel_c_ptr->DistributionMap(), 3, 0);
+    
+    for (int iter = 0; iter < temperature_wind_recalc_iterations; ++iter) {
+       // Save current velocity for convergence check
+       amrex::MultiFab::Copy(vel_old_for_conv, *vel_c_ptr, 0, 0, 3, 0);
+        
+       amrex::Print() << "wind_solver:   recalculation iteration " << (iter + 1) 
+                      << " of " << temperature_wind_recalc_iterations << "\n";
+        
+       // Re-solve the Poisson equation with updated temperature field
+       // The Poisson solver uses enable_buoyancy_stratification to include temperature effects
+       execute_poisson_solve(time_step);
+        
+       // Apply divergence corrections with the new velocity field
+       apply_divergence_corrections(time_step);
+        
+       // Check convergence: compute max change in vertical velocity
+       amrex::Real max_w_change = 0.0;
+       {
+           for (amrex::MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
+               const auto& bx = mfi.validbox();
+               auto vel_new_arr = vel_c_ptr->array(mfi);
+               auto vel_old_arr = vel_old_for_conv.array(mfi);
+                
+               amrex::ParallelFor(bx, [=, &max_w_change] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                   amrex::Real w_new = vel_new_arr(i, j, k, 2);
+                   amrex::Real w_old = vel_old_arr(i, j, k, 2);
+                   amrex::Real w_diff = std::abs(w_new - w_old);
+                   max_w_change = amrex::max(max_w_change, w_diff);
+               });
+           }
+       }
+        
+       // Reduce across all processes
+       max_w_change = amrex::ParallelDescriptor::ReduceRealMax(max_w_change);
+        
+       amrex::Print() << "wind_solver:     max |Δw| = " << max_w_change << " m/s\n";
+        
+       // Check for convergence
+       if (max_w_change < temperature_wind_recalc_tolerance) {
+           amrex::Print() << "wind_solver:   converged at iteration " << (iter + 1) 
+                          << " (Δw < " << temperature_wind_recalc_tolerance << " m/s)\n";
+           break;
+       }
+        
+       if (iter == temperature_wind_recalc_iterations - 1) {
+           amrex::Print() << "wind_solver:   max iterations reached (Δw = " << max_w_change << " m/s)\n";
+       }
+    }
+    
+    amrex::Print() << "wind_solver: temperature-wind recalculation complete\n";
 }
 
 void WindSolverApp::solve_scalar_transport(
