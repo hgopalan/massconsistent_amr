@@ -1,0 +1,65 @@
+# Example 2: Datacenter Heat Island with Temperature-Wind Recalculation
+# This example shows strong coupling between heat source, temperature transport,
+# and wind recalculation. Demonstrates a typical urban heat island scenario.
+
+# Domain and mesh parameters
+wind_solver.dx = 5.0                           # Fine resolution for urban heat island [m]
+wind_solver.dy = 5.0
+wind_solver.dz = 2.0
+wind_solver.domain_height = 300.0              # Moderate height for urban domain [m]
+
+# Initial wind field
+wind_solver.init_mode = "loglaw"
+wind_solver.U_ref = 8.0                        # Moderate wind speed [m/s]
+wind_solver.z_ref = 10.0                       # Reference height [m]
+wind_solver.z0 = 0.5                           # Urban roughness length [m]
+
+# Buildings for urban environment
+wind_solver.building_file = "buildings.csv"
+
+# Temperature initialization
+wind_solver.enable_buoyancy_stratification = true
+wind_solver.temperature_file = "urban_temperature.csv"
+wind_solver.temperature_reference = 298.0      # Reference temperature [K]
+wind_solver.buoyancy_coefficient = 1.2
+wind_solver.buoyancy_method = "rhs"
+
+# ===== DATACENTER HEAT SOURCE =====
+wind_solver.datacenter.enabled = true
+# Multiple facility configuration (example: 3 data centers)
+wind_solver.datacenter.heat_release = 5e6 3e6 4e6    # Heat release rates [W]
+wind_solver.datacenter.x = 100.0 200.0 150.0         # X-coordinates [m]
+wind_solver.datacenter.y = 100.0 200.0 300.0         # Y-coordinates [m]
+wind_solver.datacenter.z = 50.0 50.0 50.0            # Heights [m]
+wind_solver.datacenter.area = 10000.0 8000.0 12000.0 # Footprint areas [m²]
+wind_solver.datacenter.sigma_x = 70.0 60.0 80.0      # Gaussian spreads [m]
+wind_solver.datacenter.sigma_y = 70.0 60.0 80.0
+wind_solver.datacenter.sigma_z = 30.0 25.0 35.0
+
+# ===== TEMPERATURE TRANSPORT =====
+wind_solver.enable_3d_scalars = true
+wind_solver.enable_temperature_transport = true
+wind_solver.temperature_diffusivity = 2.5e-5   # Thermal diffusivity [m²/s]
+wind_solver.scalar_dt = -1.0                   # Auto-compute from CFL
+wind_solver.scalar_cfl = 0.7                   # Conservative CFL for stability
+wind_solver.scalar_coupling_mode = "segregated"
+
+# ===== TEMPERATURE-WIND RECALCULATION (AGGRESSIVE) =====
+wind_solver.enable_temperature_wind_recalculation = true
+wind_solver.temperature_wind_recalc_iterations = 3   # More iterations for strong heat
+wind_solver.temperature_wind_recalc_tolerance = 0.001 # Tight convergence for accuracy [m/s]
+
+# Time stepping
+wind_solver.num_time_steps = 200
+wind_solver.enable_time_varying = false
+
+# Output
+wind_solver.plot_file = "plt_datacenter_coupling"
+wind_solver.extract_file = "extract_datacenter.csv"
+wind_solver.extract_agl = 10.0 50.0 100.0 150.0
+
+# Solver parameters (stricter for better accuracy with heat source)
+wind_solver.mlmg_verbose = 1
+wind_solver.tol_rel = 1.0e-9
+wind_solver.mlmg_max_iter = 250
+wind_solver.max_grid_size = 16  # Finer grids for urban features

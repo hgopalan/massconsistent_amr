@@ -1,0 +1,47 @@
+# Example 1: Basic Temperature-Wind Recalculation Setup
+# This example demonstrates the simplest use case with temperature transport
+# and coupled wind recalculation.
+
+# Domain and mesh parameters
+wind_solver.dx = 10.0                          # Grid spacing [m]
+wind_solver.dy = 10.0
+wind_solver.dz = 5.0
+wind_solver.domain_height = 400.0              # Domain height [m]
+
+# Initial wind field
+wind_solver.init_mode = "loglaw"
+wind_solver.U_ref = 10.0                       # Reference wind speed [m/s]
+wind_solver.z_ref = 10.0                       # Reference height [m]
+wind_solver.z0 = 0.1                           # Roughness length [m]
+
+# Temperature initialization
+wind_solver.enable_buoyancy_stratification = true
+wind_solver.temperature_file = "temperature_profile.csv"
+wind_solver.temperature_reference = 300.0      # Reference temperature [K]
+
+# ===== TEMPERATURE TRANSPORT =====
+wind_solver.enable_3d_scalars = true
+wind_solver.enable_temperature_transport = true
+wind_solver.temperature_diffusivity = 2.5e-5   # Thermal diffusivity [m²/s]
+wind_solver.scalar_dt = -1.0                   # Auto-compute from CFL
+wind_solver.scalar_cfl = 0.8
+
+# ===== TEMPERATURE-WIND RECALCULATION =====
+wind_solver.enable_temperature_wind_recalculation = true
+wind_solver.temperature_wind_recalc_iterations = 2
+wind_solver.temperature_wind_recalc_tolerance = 0.01  # [m/s]
+
+# Time stepping
+wind_solver.num_time_steps = 100
+wind_solver.enable_time_varying = false
+
+# Output
+wind_solver.plot_file = "plt_temp_wind_basic"
+wind_solver.extract_file = "extract_temp_wind_basic.csv"
+wind_solver.extract_agl = 10.0 50.0 100.0 200.0
+
+# Solver parameters
+wind_solver.mlmg_verbose = 1
+wind_solver.tol_rel = 1.0e-8
+wind_solver.mlmg_max_iter = 200
+wind_solver.max_grid_size = 32

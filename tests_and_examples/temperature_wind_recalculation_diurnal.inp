@@ -1,0 +1,62 @@
+# Example 3: Diurnal Heating with Temperature-Wind Recalculation
+# Demonstrates temperature variation throughout the day and how recalculation
+# captures the evolution of thermal circulation patterns.
+
+# Domain and mesh parameters
+wind_solver.dx = 20.0                          # Regional scale [m]
+wind_solver.dy = 20.0
+wind_solver.dz = 10.0
+wind_solver.domain_height = 1000.0             # Deeper domain for thermal effects [m]
+
+# Initial wind field (neutral conditions)
+wind_solver.init_mode = "loglaw"
+wind_solver.U_ref = 6.0
+wind_solver.z_ref = 10.0
+wind_solver.z0 = 0.1
+
+# Diurnal temperature cycle
+wind_solver.enable_diurnal_temperature = true
+wind_solver.diurnal_temperature_amplitude = 12.0  # ±12 K variation [K]
+wind_solver.diurnal_time_of_day = 12.0             # Start at noon [hours, 0-24]
+wind_solver.diurnal_phase_hour = 14.0              # Peak heating at 14:00 [hours]
+wind_solver.diurnal_period = 24.0                  # 24-hour cycle [hours]
+
+# Buoyancy effects from diurnal heating
+wind_solver.enable_buoyancy_stratification = true
+wind_solver.temperature_reference = 288.0      # Reference temperature [K]
+wind_solver.buoyancy_coefficient = 1.0
+wind_solver.buoyancy_method = "velocity"       # Simpler velocity-based approach for diurnal
+wind_solver.buoyancy_timescale = 30.0          # Relaxation timescale [s]
+
+# ===== TEMPERATURE TRANSPORT =====
+wind_solver.enable_3d_scalars = true
+wind_solver.enable_temperature_transport = true
+wind_solver.temperature_diffusivity = 3.0e-5   # Slightly higher for diurnal mixing [m²/s]
+wind_solver.scalar_dt = 60.0                   # 60-second transport steps [s]
+wind_solver.scalar_coupling_mode = "segregated"
+
+# ===== TEMPERATURE-WIND RECALCULATION (MODERATE) =====
+wind_solver.enable_temperature_wind_recalculation = true
+wind_solver.temperature_wind_recalc_iterations = 2  # Standard 2 iterations
+wind_solver.temperature_wind_recalc_tolerance = 0.01  # Standard tolerance [m/s]
+
+# Time stepping (one day simulation)
+wind_solver.num_time_steps = 1440             # 1440 minutes = 24 hours (1 step per minute)
+wind_solver.enable_time_varying = false
+
+# Output
+wind_solver.plot_file = "plt_diurnal_cycle"
+wind_solver.extract_file = "extract_diurnal.csv"
+wind_solver.extract_agl = 10.0 50.0 150.0 500.0
+
+# Solver parameters (balanced for efficiency)
+wind_solver.mlmg_verbose = 1
+wind_solver.tol_rel = 1.0e-8
+wind_solver.mlmg_max_iter = 200
+wind_solver.max_grid_size = 32
+
+# Additional options for better diurnal representation
+wind_solver.enable_stability_correction = true      # Include stability effects
+wind_solver.stability_length = -100.0               # Initial neutral condition
+wind_solver.enable_bl_decay = true                  # Boundary layer decay at height
+wind_solver.bl_depth_param = 500.0                  # BL depth scale [m]
