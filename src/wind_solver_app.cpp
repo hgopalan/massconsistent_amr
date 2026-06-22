@@ -6965,6 +6965,7 @@ void WindSolverApp::compute_turbulent_velocity_increment(amrex::MultiFab& vel_in
             Real z_physical = zs_min_cap + (Real(k) + Real(0.5)) * dz_cap;
             Real z_agl      = z_physical - d_terr[jj * nx_cap + ii];
 
+            // Guard against degenerate grids; dz validity is checked at initialization.
             Real inv_dz = (dz_cap > Real(0.0)) ? Real(1.0) / dz_cap : Real(0.0);
             Real shear  = TurbulentStress::compute_velocity_gradient_magnitude(
                               i, j, k, vel_arr, inv_dz, nz_cap);

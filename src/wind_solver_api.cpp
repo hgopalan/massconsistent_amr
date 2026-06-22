@@ -2245,7 +2245,9 @@ static void apply_turbulent_stress_api(WindSolverState& state)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real z_phys = z_lo + (Real(k) + Real(0.5)) * dz_val;
-            Real z_agl  = z_phys - terrain_ptr[j * nx_val + i];
+            int  ii = amrex::max(0, amrex::min(i, nx_val - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_val - 1));
+            Real z_agl  = z_phys - terrain_ptr[jj * nx_val + ii];
             if (z_agl <= Real(0.0)) {
                 delta_arr(i, j, k, 0) = Real(0.0);
                 delta_arr(i, j, k, 1) = Real(0.0);
@@ -2269,6 +2271,9 @@ static void apply_turbulent_stress_api(WindSolverState& state)
 
     // ------------------------------------------------------------------
     // Step 3: Recompute RHS = −∇·u†
+    // Note: The API path uses second-order central differences throughout,
+    // consistent with correct_velocity_field() in this file.  The standalone
+    // WindSolverApp path additionally supports WENO3/WENO5 via deriv_method.
     // ------------------------------------------------------------------
     MultiFab rhs2(*state.ba, *state.dm, 1, 0);
     rhs2.setVal(Real(0.0));
@@ -2280,7 +2285,9 @@ static void apply_turbulent_stress_api(WindSolverState& state)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real z_phys = z_lo + (Real(k) + Real(0.5)) * dz_val;
-            Real z_agl  = z_phys - terrain_ptr[j * nx_val + i];
+            int  ii = amrex::max(0, amrex::min(i, nx_val - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_val - 1));
+            Real z_agl  = z_phys - terrain_ptr[jj * nx_val + ii];
             if (z_agl <= Real(0.0)) { rh(i, j, k) = Real(0.0); return; }
 
             Real du = (i == ilo) ? (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx
@@ -2345,6 +2352,8 @@ static void apply_turbulent_stress_api(WindSolverState& state)
 
     // ------------------------------------------------------------------
     // Step 5: Apply second correction  u_final = u† − A²∇λ₂
+    // Uses second-order central differences consistent with the first
+    // correction in correct_velocity_field().
     // ------------------------------------------------------------------
     const bool use_spatial = state.enable_cell_local_anisotropy;
     for (MFIter mfi(*state.vel); mfi.isValid(); ++mfi) {
@@ -2356,7 +2365,9 @@ static void apply_turbulent_stress_api(WindSolverState& state)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real z_phys = z_lo + (Real(k) + Real(0.5)) * dz_val;
-            Real z_agl  = z_phys - terrain_ptr[j * nx_val + i];
+            int  ii = amrex::max(0, amrex::min(i, nx_val - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_val - 1));
+            Real z_agl  = z_phys - terrain_ptr[jj * nx_val + ii];
             if (z_agl <= Real(0.0)) {
                 vel(i, j, k, 0) = Real(0.0);
                 vel(i, j, k, 1) = Real(0.0);

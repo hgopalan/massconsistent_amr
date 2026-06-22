@@ -70,6 +70,8 @@ amrex::Real compute_mixing_length_nut(
     amrex::Real coeff,
     amrex::Real shear) noexcept
 {
+    // Clamp to 1 mm above ground to avoid a zero/negative mixing length at
+    // terrain-coincident cells and to prevent division by zero in l_m.
     amrex::Real z_eff = amrex::max(z_agl, amrex::Real(1.0e-3));
     amrex::Real l_m   = kappa * (z_eff + z0) * coeff;
     return l_m * l_m * shear;
