@@ -176,9 +176,10 @@ if(MASSCONSISTENT_GPU_BACKEND STREQUAL "CUDA" AND WIN32)
   # in GPU kernels that use boundary-handling logic, which can appear unreachable to
   # MSVC's static analyzer in edge cases (e.g., domain size of 1).
   # Define common compile options and definitions for all CUDA targets on Windows
+  # Note: /W4 must come BEFORE the /wd flags to ensure warnings are properly suppressed
   set(_cuda_windows_compile_opts
     $<$<COMPILE_LANGUAGE:CUDA>:--allow-unsupported-compiler>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4005,/wd4244,/wd4702>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4,/wd4005,/wd4244,/wd4702>
   )
   set(_cuda_windows_compile_defs
     $<$<COMPILE_LANGUAGE:CUDA>:_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH>
