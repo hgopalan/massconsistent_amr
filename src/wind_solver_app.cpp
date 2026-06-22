@@ -6705,9 +6705,6 @@ void WindSolverApp::recalculate_wind_after_transport(int time_step) {
     amrex::Print() << "wind_solver: starting temperature-wind recalculation with up to "
                   << temperature_wind_recalc_iterations << " iterations\n";
     
-    amrex::Real w_velocity_max_change = 1.0e10;  // Large initial value for convergence check
-    amrex::Real tolerance_squared = temperature_wind_recalc_tolerance * temperature_wind_recalc_tolerance;
-    
     // Store reference to old velocity field for convergence checking
     amrex::MultiFab vel_old_for_conv(vel_c_ptr->boxArray(), vel_c_ptr->DistributionMap(), 3, 0);
     
@@ -6727,19 +6724,21 @@ void WindSolverApp::recalculate_wind_after_transport(int time_step) {
         
        // Check convergence: compute max change in vertical velocity
        amrex::Real max_w_change = 0.0;
-       {
-           for (amrex::MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
-               const auto& bx = mfi.validbox();
-               auto vel_new_arr = vel_c_ptr->array(mfi);
-               auto vel_old_arr = vel_old_for_conv.array(mfi);
-                
-               amrex::ParallelFor(bx, [=, &max_w_change] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                   amrex::Real w_new = vel_new_arr(i, j, k, 2);
-                   amrex::Real w_old = vel_old_arr(i, j, k, 2);
-                   amrex::Real w_diff = std::abs(w_new - w_old);
-                   max_w_change = amrex::max(max_w_change, w_diff);
-               });
-           }
+        
+       for (amrex::MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
+           const auto& bx = mfi.validbox();
+           auto vel_new_arr = vel_c_ptr->array(mfi);
+           auto vel_old_arr = vel_old_for_conv.array(mfi);
+            
+           amrex::Real local_max = 0.0;
+           amrex::ParallelFor(bx, [=, &local_max] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+               amrex::Real w_new = vel_new_arr(i, j, k, 2);
+               amrex::Real w_old = vel_old_arr(i, j, k, 2);
+               amrex::Real w_diff = std::abs(w_new - w_old);
+               local_max = amrex::max(local_max, w_diff);
+           });
+            
+           max_w_change = amrex::max(max_w_change, local_max);
        }
         
        // Reduce across all processes
