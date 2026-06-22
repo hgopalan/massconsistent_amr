@@ -55,6 +55,7 @@ public:
     
     // 3D Scalar transport methods
     void solve_transport_equations(int time_step, amrex::Real dt_transport);
+    void recalculate_wind_after_transport(int time_step);
     void solve_scalar_transport(
         amrex::MultiFab& scalar_new,
         const amrex::MultiFab& scalar_old,
@@ -581,7 +582,12 @@ private:
     amrex::Real scalar_cfl = 0.8;                // CFL number for scalar transport
     int multi_step_corrector_steps = 1;          // Number of corrector iterations for temperature-dependent mass-consistent solve
     std::string scalar_coupling_mode = "segregated"; // Mode for scalar transport: "segregated" or "coupled"
-    
+     
+    // Temperature-wind recalculation parameters (coupled feedback after transport)
+    bool enable_temperature_wind_recalculation = false; // Enable wind recalculation after temperature transport
+    int temperature_wind_recalc_iterations = 2;         // Number of iterations for temperature-wind coupling
+    amrex::Real temperature_wind_recalc_tolerance = 0.01; // Convergence tolerance for w-velocity [m/s]
+     
     // Data center heat source parameters
     bool datacenter_enabled = false;             // Enable data center heat source modeling
     std::vector<amrex::Real> datacenter_heat_release;  // Heat release rates [W] for each facility
