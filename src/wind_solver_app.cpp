@@ -6742,7 +6742,7 @@ void WindSolverApp::recalculate_wind_after_transport(int time_step) {
        }
         
        // Reduce across all processes
-       max_w_change = amrex::ParallelDescriptor::ReduceRealMax(max_w_change);
+       amrex::ParallelDescriptor::ReduceRealMax(max_w_change);
         
        amrex::Print() << "wind_solver:     max |Δw| = " << max_w_change << " m/s\n";
         
