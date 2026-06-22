@@ -65,6 +65,10 @@ public:
     void compute_eddy_diffusivity_mixing_length(
         amrex::MultiFab& kappa_eddy);
     amrex::Real compute_adaptive_dt_transport();
+
+    // Double-pass turbulent stress correction
+    void compute_turbulent_velocity_increment(amrex::MultiFab& vel_increment);
+    void apply_turbulent_stress_correction(int time_step);
     
     // Data center heat source methods
     void apply_datacenter_heat_source(
@@ -610,6 +614,13 @@ private:
     amrex::Real mixing_length_coefficient = 0.1; // Proportionality constant for mixing length: l = coeff * Δz
     amrex::Real von_karman = 0.41;               // Von Kármán constant
     amrex::Real zground = 0.1;                   // Ground roughness for mixing length calculation [m]
+
+    // Double-pass turbulent stress correction parameters (default OFF)
+    bool enable_turbulent_stress = false;                         // Enable second mass-correction pass with turbulent stress
+    std::string turbulent_stress_method = "mixing_length";        // Eddy-viscosity method: "mixing_length" (or future "smagorinsky")
+    amrex::Real turbulent_stress_mixing_length_coefficient = 0.1; // Mixing-length coefficient for turbulent stress: l = coeff * κ * (z+z0)
+    amrex::Real turbulent_schmidt_number_horizontal = 1.0;        // Schmidt number for horizontal turbulent stress (ν_t / Sc_h)
+    amrex::Real turbulent_schmidt_number_vertical = 1.3;          // Schmidt number for vertical turbulent stress (ν_t / Sc_v)
 
     // Extraction
     std::vector<amrex::Real> extract_agl_list;

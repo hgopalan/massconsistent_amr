@@ -263,6 +263,13 @@ struct WindSolverState {
     amrex::Real mixing_length_coefficient = 0.1; // Proportionality constant for mixing length: l = coeff * Δz
     amrex::Real von_karman = 0.41;               // Von Kármán constant
     amrex::Real zground = 0.1;                   // Ground roughness for mixing length calculation [m]
+
+    // Double-pass turbulent stress correction parameters (default OFF)
+    bool enable_turbulent_stress = false;                         // Enable second mass-correction pass with turbulent stress
+    std::string turbulent_stress_method = "mixing_length";        // Eddy-viscosity method: "mixing_length"
+    amrex::Real turbulent_stress_mixing_length_coefficient = 0.1; // Mixing-length coefficient for turbulent stress ν_t
+    amrex::Real turbulent_schmidt_number_horizontal = 1.0;        // Schmidt number for horizontal turbulent stress
+    amrex::Real turbulent_schmidt_number_vertical = 1.3;          // Schmidt number for vertical turbulent stress
 };
 
 // Global singleton instance
