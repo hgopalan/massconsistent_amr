@@ -7,6 +7,7 @@
 #include "cell_local_anisotropy.H"
 #include "solver_math_constants.H"
 #include "scm_models.H"
+#include "turbulent_stress.H"
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
@@ -402,7 +403,7 @@ void read_vertical_profile_csv(const std::string& filename,
             std::string first_token;
             if (iss >> first_token) {
                 try {
-                    std::stod(first_token);
+                    static_cast<void>(std::stod(first_token));
                 } catch (...) {
                     is_first = false;
                     continue;
@@ -557,6 +558,19 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("mixing_length_coefficient", state.mixing_length_coefficient);
     pp.query("von_karman", state.von_karman);
     pp.query("zground", state.zground);
+
+    // Double-pass turbulent stress correction (disabled by default)
+    state.enable_turbulent_stress = false;
+    state.turbulent_stress_method = "mixing_length";
+    state.turbulent_stress_mixing_length_coefficient = 0.1;
+    state.turbulent_schmidt_number_horizontal = 1.0;
+    state.turbulent_schmidt_number_vertical = 1.3;
+
+    pp.query("enable_turbulent_stress", state.enable_turbulent_stress);
+    pp.query("turbulent_stress_method", state.turbulent_stress_method);
+    pp.query("turbulent_stress_mixing_length_coefficient", state.turbulent_stress_mixing_length_coefficient);
+    pp.query("turbulent_schmidt_number_horizontal", state.turbulent_schmidt_number_horizontal);
+    pp.query("turbulent_schmidt_number_vertical", state.turbulent_schmidt_number_vertical);
     
     // If any transport is enabled, automatically enable 3D scalars
     if (state.enable_temperature_transport || state.enable_moisture_transport) {
@@ -2140,6 +2154,254 @@ bool wind_solver_initialize(const std::string& inputs_file)
     }
 }
 
+// ============================================================================
+// apply_turbulent_stress_api
+//
+// Implements the double-pass turbulent stress correction for the Python API
+// path.  Called from wind_solver_solve() when state.enable_turbulent_stress
+// is true.
+//
+// On entry  : state.vel holds u* (first-pass mass-corrected velocity)
+// On exit   : state.vel holds u_final (second-pass mass-corrected velocity)
+// ============================================================================
+void apply_turbulent_stress_api(WindSolverState& state)
+{
+    using namespace amrex;
+
+    amrex::Print() << "wind_solver: ---- Turbulent Stress Second Pass (API) ----\n";
+
+    const IntVect lo = state.geom->Domain().smallEnd();
+    const IntVect hi = state.geom->Domain().bigEnd();
+    const int ilo = lo[0], ihi = hi[0];
+    const int jlo = lo[1], jhi = hi[1];
+    const int klo = lo[2], khi = hi[2];
+
+    const Real dx_val = state.dx;
+    const Real dy_val = state.dy;
+    const Real dz_val = state.dz;
+    const Real z_lo   = state.zmin;
+    const int  nx_val = state.nx;
+    const int  ny_val = state.ny;
+    const int  nz_val = state.nz;
+
+    const Real kappa_cap = state.von_karman;
+    const Real coeff_cap = state.turbulent_stress_mixing_length_coefficient;
+    const Real z0_cap    = state.zground;
+
+    const Real inv_sc_h = (state.turbulent_schmidt_number_horizontal > Real(0.0))
+                          ? Real(1.0) / state.turbulent_schmidt_number_horizontal : Real(1.0);
+    const Real inv_sc_v = (state.turbulent_schmidt_number_vertical > Real(0.0))
+                          ? Real(1.0) / state.turbulent_schmidt_number_vertical : Real(1.0);
+
+    const Real inv_dx2 = Real(1.0) / (dx_val * dx_val);
+    const Real inv_dy2 = Real(1.0) / (dy_val * dy_val);
+    const Real inv_dz2 = Real(1.0) / (dz_val * dz_val);
+    const Real inv1dx  = Real(1.0) / dx_val;
+    const Real inv1dy  = Real(1.0) / dy_val;
+    const Real inv1dz  = Real(1.0) / dz_val;
+    const Real inv2dx  = Real(0.5) * inv1dx;
+    const Real inv2dy  = Real(0.5) * inv1dy;
+    const Real inv2dz  = Real(0.5) * inv1dz;
+
+    const Real* terrain_ptr = g_wind_solver_runtime->terrain_device.data();
+
+    // ------------------------------------------------------------------
+    // Step 1: Build cell-centred eddy viscosity ν_t
+    // ------------------------------------------------------------------
+    MultiFab nut(*state.ba, *state.dm, 1, 1);
+    nut.setVal(Real(0.0));
+
+    for (MFIter mfi(nut); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.growntilebox(1);
+        auto nut_arr = nut.array(mfi);
+        const auto vel_arr = state.vel->const_array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            int ii = amrex::max(0, amrex::min(i, nx_val - 1));
+            int jj = amrex::max(0, amrex::min(j, ny_val - 1));
+            Real z_phys = z_lo + (Real(k) + Real(0.5)) * dz_val;
+            Real z_agl  = z_phys - terrain_ptr[jj * nx_val + ii];
+
+            Real inv_dz = (dz_val > Real(0.0)) ? Real(1.0) / dz_val : Real(0.0);
+            Real shear  = TurbulentStress::compute_velocity_gradient_magnitude(
+                              i, j, k, vel_arr, inv_dz, nz_val);
+            nut_arr(i, j, k) = TurbulentStress::compute_mixing_length_nut(
+                                    z_agl, z0_cap, kappa_cap, coeff_cap, shear);
+        });
+    }
+    nut.FillBoundary(state.geom->periodicity());
+
+    // ------------------------------------------------------------------
+    // Step 2: Compute Δu = div(ν_t ∇u) and add to state.vel (→ u†)
+    // ------------------------------------------------------------------
+    MultiFab vel_increment(*state.ba, *state.dm, 3, 0);
+    vel_increment.setVal(Real(0.0));
+
+    for (MFIter mfi(vel_increment); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto delta_arr     = vel_increment.array(mfi);
+        const auto vel_arr = state.vel->const_array(mfi);
+        const auto nut_arr = nut.const_array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real z_phys = z_lo + (Real(k) + Real(0.5)) * dz_val;
+            int  ii = amrex::max(0, amrex::min(i, nx_val - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_val - 1));
+            Real z_agl  = z_phys - terrain_ptr[jj * nx_val + ii];
+            if (z_agl <= Real(0.0)) {
+                delta_arr(i, j, k, 0) = Real(0.0);
+                delta_arr(i, j, k, 1) = Real(0.0);
+                delta_arr(i, j, k, 2) = Real(0.0);
+                return;
+            }
+            for (int comp = 0; comp < 3; ++comp) {
+                delta_arr(i, j, k, comp) =
+                    TurbulentStress::apply_turbulent_stress_term(
+                        i, j, k, comp,
+                        nut_arr, vel_arr,
+                        ilo, ihi, jlo, jhi, klo, khi,
+                        inv_dx2, inv_dy2, inv_dz2,
+                        inv_sc_h, inv_sc_v);
+            }
+        });
+    }
+
+    MultiFab::Add(*state.vel, vel_increment, 0, 0, 3, 0);
+    state.vel->FillBoundary(state.geom->periodicity());
+
+    // ------------------------------------------------------------------
+    // Step 3: Recompute RHS = −∇·u†
+    // Note: The API path uses second-order central differences throughout,
+    // consistent with correct_velocity_field() in this file.  The standalone
+    // WindSolverApp path additionally supports WENO3/WENO5 via deriv_method.
+    // ------------------------------------------------------------------
+    MultiFab rhs2(*state.ba, *state.dm, 1, 0);
+    rhs2.setVal(Real(0.0));
+
+    for (MFIter mfi(rhs2); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto vel = state.vel->const_array(mfi);
+        auto rh = rhs2.array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real z_phys = z_lo + (Real(k) + Real(0.5)) * dz_val;
+            int  ii = amrex::max(0, amrex::min(i, nx_val - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_val - 1));
+            Real z_agl  = z_phys - terrain_ptr[jj * nx_val + ii];
+            if (z_agl <= Real(0.0)) { rh(i, j, k) = Real(0.0); return; }
+
+            Real du = (i == ilo) ? (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx
+                    : (i == ihi) ? (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx
+                    :              (vel(i+1,j,k,0) - vel(i-1,j,k,0)) * inv2dx;
+            Real dv = (j == jlo) ? (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy
+                    : (j == jhi) ? (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy
+                    :              (vel(i,j+1,k,1) - vel(i,j-1,k,1)) * inv2dy;
+            Real dw = (k == klo) ? (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz
+                    : (k == khi) ? (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz
+                    :              (vel(i,j,k+1,2) - vel(i,j,k-1,2)) * inv2dz;
+            rh(i, j, k) = -(du + dv + dw);
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Step 4: Second Poisson solve  ∇·(A²∇λ₂) = −∇·u†
+    // ------------------------------------------------------------------
+    LPInfo info2;
+    info2.setAgglomeration(true);
+    info2.setConsolidation(true);
+
+    MLABecLaplacian mlabec2({*state.geom}, {*state.ba}, {*state.dm}, info2);
+    mlabec2.setMaxOrder(2);
+
+    Array<LinOpBCType, AMREX_SPACEDIM> lo_bc2, hi_bc2;
+    lo_bc2[0] = LinOpBCType::Dirichlet; hi_bc2[0] = LinOpBCType::Dirichlet;
+    lo_bc2[1] = LinOpBCType::Neumann;   hi_bc2[1] = LinOpBCType::Neumann;
+    lo_bc2[2] = LinOpBCType::Neumann;   hi_bc2[2] = LinOpBCType::Neumann;
+    mlabec2.setDomainBC(lo_bc2, hi_bc2);
+    mlabec2.setScalars(Real(0.0), Real(1.0));
+
+    MultiFab acoef2(*state.ba, *state.dm, 1, 0);
+    acoef2.setVal(Real(0.0));
+    mlabec2.setACoeffs(0, acoef2);
+
+    const Real bh = state.alpha_h * state.alpha_h;
+    const Real bv = state.alpha_v * state.alpha_v;
+    Array<MultiFab, AMREX_SPACEDIM> bcoef2;
+    bcoef2[0].define(convert(*state.ba, IntVect(1, 0, 0)), *state.dm, 1, 0);
+    bcoef2[1].define(convert(*state.ba, IntVect(0, 1, 0)), *state.dm, 1, 0);
+    bcoef2[2].define(convert(*state.ba, IntVect(0, 0, 1)), *state.dm, 1, 0);
+    bcoef2[0].setVal(bh);
+    bcoef2[1].setVal(bh);
+    bcoef2[2].setVal(bv);
+    mlabec2.setBCoeffs(0, GetArrOfConstPtrs(bcoef2));
+    mlabec2.setLevelBC(0, nullptr);
+
+    state.lambda->setVal(Real(0.0));
+    MLMG mlmg2(mlabec2);
+    mlmg2.setMaxIter(state.max_iter);
+    mlmg2.setMaxFmgIter(20);
+    mlmg2.setVerbose(state.mlmg_verbose);
+    mlmg2.setBottomVerbose(0);
+    mlmg2.setPreSmooth(16);
+    mlmg2.setPostSmooth(16);
+
+    amrex::Print() << "wind_solver: starting second MLMG solve (turbulent stress, API)...\n";
+    mlmg2.solve({state.lambda.get()}, {&rhs2}, state.tol_rel, state.tol_abs);
+    amrex::Print() << "wind_solver: second MLMG solve complete (API).\n";
+    state.lambda->FillBoundary(state.geom->periodicity());
+
+    // ------------------------------------------------------------------
+    // Step 5: Apply second correction  u_final = u† − A²∇λ₂
+    // Uses second-order central differences consistent with the first
+    // correction in correct_velocity_field().
+    // ------------------------------------------------------------------
+    const bool use_spatial = state.enable_cell_local_anisotropy;
+    for (MFIter mfi(*state.vel); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto lam = state.lambda->const_array(mfi);
+        auto vel = state.vel->array(mfi);
+        const auto ah_arr = state.alpha_h_field->const_array(mfi);
+        const auto av_arr = state.alpha_v_field->const_array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real z_phys = z_lo + (Real(k) + Real(0.5)) * dz_val;
+            int  ii = amrex::max(0, amrex::min(i, nx_val - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_val - 1));
+            Real z_agl  = z_phys - terrain_ptr[jj * nx_val + ii];
+            if (z_agl <= Real(0.0)) {
+                vel(i, j, k, 0) = Real(0.0);
+                vel(i, j, k, 1) = Real(0.0);
+                vel(i, j, k, 2) = Real(0.0);
+                return;
+            }
+
+            Real dlx = (i == ilo) ? (lam(i+1,j,k) - lam(i,j,k))   * inv1dx
+                     : (i == ihi) ? (lam(i,j,k)   - lam(i-1,j,k)) * inv1dx
+                     :              (lam(i+1,j,k) - lam(i-1,j,k))  * inv2dx;
+            Real dly = (j == jlo) ? (lam(i,j+1,k) - lam(i,j,k))   * inv1dy
+                     : (j == jhi) ? (lam(i,j,k)   - lam(i,j-1,k)) * inv1dy
+                     :              (lam(i,j+1,k) - lam(i,j-1,k))  * inv2dy;
+            Real dlz = (k == klo) ? (lam(i,j,k+1) - lam(i,j,k))   * inv1dz
+                     : (k == khi) ? (lam(i,j,k)   - lam(i,j,k-1)) * inv1dz
+                     :              (lam(i,j,k+1) - lam(i,j,k-1))  * inv2dz;
+
+            Real local_bh = bh;
+            Real local_bv = bv;
+            if (use_spatial) {
+                Real ah = ah_arr(i, j, k);
+                Real av = av_arr(i, j, k);
+                local_bh = ah * ah;
+                local_bv = av * av;
+            }
+            vel(i, j, k, 0) -= local_bh * dlx;
+            vel(i, j, k, 1) -= local_bh * dly;
+            vel(i, j, k, 2) -= local_bv * dlz;
+        });
+    }
+
+    amrex::Print() << "wind_solver: ---- Turbulent Stress Second Pass Complete (API) ----\n";
+}
+
 bool wind_solver_solve()
 {
     try {
@@ -2325,6 +2587,10 @@ bool wind_solver_solve()
         state.lambda->FillBoundary(state.geom->periodicity());
 
         correct_velocity_field(state);
+
+        if (state.enable_turbulent_stress) {
+            apply_turbulent_stress_api(state);
+        }
 
         MultiFab div_corrected(*state.ba, *state.dm, 1, 0);
         state.vel->FillBoundary(state.geom->periodicity());

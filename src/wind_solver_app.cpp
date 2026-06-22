@@ -1,5 +1,6 @@
 #include "wind_solver_app.H"
 #include "canopy_models.H"
+#include "turbulent_stress.H"
 #include "morphometric_models.H"
 #include "wake_models.H"
 #include "solver_math_constants.H"
@@ -69,6 +70,9 @@ void WindSolverApp::execute() {
         initialize_wind_fields(0);
         execute_poisson_solve(0);
         apply_divergence_corrections(0);
+        if (enable_turbulent_stress) {
+            apply_turbulent_stress_correction(0);
+        }
         
         for (int time_step = 0; time_step < num_time_steps; ++time_step) {
             amrex::Print() << "wind_solver: [Segregated Mode] step " << time_step << " of " << num_time_steps << "\n";
@@ -92,6 +96,9 @@ void WindSolverApp::execute() {
                 initialize_wind_fields(time_step);
                 execute_poisson_solve(time_step);
                 apply_divergence_corrections(time_step);
+                if (enable_turbulent_stress) {
+                    apply_turbulent_stress_correction(time_step);
+                }
             } else {
                 if (!enable_3d_scalars) {
                     amrex::Print() << "wind_solver: step " << time_step << " - running dummy time step (using frozen wind field)\n";
@@ -603,6 +610,13 @@ void WindSolverApp::parse_inputs() {
     pp.query("mixing_length_coefficient", mixing_length_coefficient);
     pp.query("von_karman", von_karman);
     pp.query("zground", zground);
+
+    // Double-pass turbulent stress correction (disabled by default)
+    pp.query("enable_turbulent_stress", enable_turbulent_stress);
+    pp.query("turbulent_stress_method", turbulent_stress_method);
+    pp.query("turbulent_stress_mixing_length_coefficient", turbulent_stress_mixing_length_coefficient);
+    pp.query("turbulent_schmidt_number_horizontal", turbulent_schmidt_number_horizontal);
+    pp.query("turbulent_schmidt_number_vertical", turbulent_schmidt_number_vertical);
     
     // If any transport is enabled, automatically enable 3D scalars
     if (enable_temperature_transport || enable_moisture_transport) {
@@ -7009,4 +7023,509 @@ void WindSolverApp::compute_datacenter_plume_diagnostics()
                        << "  Mean temperature in plume: " << mean_dT << " K\n"
                        << "  Plume extent (cells): " << num_plume_cells << "\n";
     }
+}
+
+// ============================================================================
+// compute_turbulent_velocity_increment
+//
+// Computes the turbulent stress increment  Δu = div(ν_t ∇u*)  for all three
+// velocity components, where u* is the current content of vel_c_ptr (the
+// mass-corrected velocity after the first Poisson pass).
+//
+// Eddy viscosity ν_t is computed locally using a mixing-length model:
+//   l_m  = κ * (z_agl + z₀) * coeff
+//   ν_t  = l_m² * |∂u/∂z|
+//
+// The divergence of the stress tensor is discretised with second-order
+// central differences; boundary cells use one-sided differences.
+//
+// The result is stored in the three-component MultiFab `vel_increment`.
+// ============================================================================
+void WindSolverApp::compute_turbulent_velocity_increment(amrex::MultiFab& vel_increment)
+{
+    using namespace amrex;
+
+    vel_increment.setVal(Real(0.0));
+
+    // -----------------------------------------------------------------------
+    // Step 1: Build cell-centred eddy viscosity ν_t field
+    // -----------------------------------------------------------------------
+    MultiFab nut(*ba_ptr, *dm_ptr, 1, 1);   // 1 ghost cell for face averaging
+    nut.setVal(Real(0.0));
+
+    const Real kappa_cap     = von_karman;
+    const Real coeff_cap     = turbulent_stress_mixing_length_coefficient;
+    const Real z0_cap        = zground;
+    const Real zs_min_cap    = zs_min;
+    const Real dz_cap        = dz;
+    const int  nz_cap        = nz;
+    const int  nx_cap        = nx;
+    const int  ny_cap        = ny;
+    const Real* d_terr       = d_obstacle_h.data();
+
+    for (MFIter mfi(nut); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.growntilebox(1);  // include ghost cells
+        auto nut_arr = nut.array(mfi);
+        const auto vel_arr = vel_c_ptr->const_array(mfi);
+
+        amrex::ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Clamp indices to valid domain range for terrain lookup
+            int ii = amrex::max(0, amrex::min(i, nx_cap - 1));
+            int jj = amrex::max(0, amrex::min(j, ny_cap - 1));
+            Real z_physical = zs_min_cap + (Real(k) + Real(0.5)) * dz_cap;
+            Real z_agl      = z_physical - d_terr[jj * nx_cap + ii];
+
+            // Guard against degenerate grids; dz validity is checked at initialization.
+            Real inv_dz = (dz_cap > Real(0.0)) ? Real(1.0) / dz_cap : Real(0.0);
+            Real shear  = TurbulentStress::compute_velocity_gradient_magnitude(
+                              i, j, k, vel_arr, inv_dz, nz_cap);
+
+            nut_arr(i, j, k) = TurbulentStress::compute_mixing_length_nut(
+                                    z_agl, z0_cap, kappa_cap, coeff_cap, shear);
+        });
+    }
+
+    nut.FillBoundary(geom_ptr->periodicity());
+
+    // -----------------------------------------------------------------------
+    // Step 2: Compute Δu = div(ν_t ∇u) for each velocity component
+    // -----------------------------------------------------------------------
+    const Box domain       = geom_ptr->Domain();
+    const int ilo = domain.smallEnd(0), ihi = domain.bigEnd(0);
+    const int jlo = domain.smallEnd(1), jhi = domain.bigEnd(1);
+    const int klo = domain.smallEnd(2), khi = domain.bigEnd(2);
+
+    const Real inv_sc_h  = (turbulent_schmidt_number_horizontal > Real(0.0))
+                           ? Real(1.0) / turbulent_schmidt_number_horizontal : Real(1.0);
+    const Real inv_sc_v  = (turbulent_schmidt_number_vertical > Real(0.0))
+                           ? Real(1.0) / turbulent_schmidt_number_vertical : Real(1.0);
+    const Real inv_dx2   = Real(1.0) / (dx * dx);
+    const Real inv_dy2   = Real(1.0) / (dy * dy);
+    const Real inv_dz2   = Real(1.0) / (dz * dz);
+
+    const bool use_eb    = enable_eb;
+    const Real eb_thresh = eb_threshold;
+    const amrex::MultiFab* vfrac_ptr_ts =
+        enable_eb ? &(eb_factory->getVolFrac()) : nullptr;
+
+    for (MFIter mfi(vel_increment); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto delta_arr  = vel_increment.array(mfi);
+        const auto vel_arr = vel_c_ptr->const_array(mfi);
+        const auto nut_arr = nut.const_array(mfi);
+        const auto vfrac_arr =
+            use_eb ? vfrac_ptr_ts->const_array(mfi) : Array4<Real const>{};
+
+        amrex::ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Skip solid cells
+            Real z_physical = zs_min_cap + (Real(k) + Real(0.5)) * dz_cap;
+            int  ii = amrex::max(0, amrex::min(i, nx_cap - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_cap - 1));
+            Real z_agl = z_physical - d_terr[jj * nx_cap + ii];
+            bool is_solid = (z_agl <= Real(0.0));
+            if (use_eb) {
+                is_solid = is_solid || (vfrac_arr(i, j, k) < eb_thresh);
+            }
+            if (is_solid) {
+                delta_arr(i, j, k, 0) = Real(0.0);
+                delta_arr(i, j, k, 1) = Real(0.0);
+                delta_arr(i, j, k, 2) = Real(0.0);
+                return;
+            }
+
+            for (int comp = 0; comp < 3; ++comp) {
+                delta_arr(i, j, k, comp) =
+                    TurbulentStress::apply_turbulent_stress_term(
+                        i, j, k, comp,
+                        nut_arr, vel_arr,
+                        ilo, ihi, jlo, jhi, klo, khi,
+                        inv_dx2, inv_dy2, inv_dz2,
+                        inv_sc_h, inv_sc_v);
+            }
+        });
+    }
+}
+
+// ============================================================================
+// apply_turbulent_stress_correction
+//
+// Implements the double-pass turbulent stress scheme:
+//
+//   Pass 1 (already done): ∇·(A²∇λ₁) = −∇·u₀  →  u* = u₀ − A²∇λ₁
+//   (vel_c_ptr holds u* on entry)
+//
+//   Turbulent stress:       u† = u* + Δu,   Δu = div(ν_t ∇u*)
+//
+//   Pass 2 (this method):   ∇·(A²∇λ₂) = −∇·u†  →  u_final = u† − A²∇λ₂
+//   (vel_c_ptr holds u_final on exit)
+//
+// The method is a no-op when enable_turbulent_stress is false (guarded at the
+// call sites in execute()), so the existing code path is unchanged.
+// ============================================================================
+void WindSolverApp::apply_turbulent_stress_correction(int time_step)
+{
+    using namespace amrex;
+    amrex::ignore_unused(time_step);
+
+    amrex::Print() << "wind_solver: ---- Turbulent Stress Second Pass ----\n";
+    t_phase = amrex::second();
+
+    // ------------------------------------------------------------------
+    // 1.  Δu = div(ν_t ∇u*)
+    // ------------------------------------------------------------------
+    MultiFab vel_increment(*ba_ptr, *dm_ptr, 3, 0);
+    compute_turbulent_velocity_increment(vel_increment);
+
+    // ------------------------------------------------------------------
+    // 2.  u† = u* + Δu   (update vel_c_ptr in-place)
+    // ------------------------------------------------------------------
+    MultiFab::Add(*vel_c_ptr, vel_increment, 0, 0, 3, 0);
+    vel_c_ptr->FillBoundary(geom_ptr->periodicity());
+
+    amrex::Print() << "wind_solver: turbulent stress increment time = "
+                   << (amrex::second() - t_phase) << " s\n";
+
+    // ------------------------------------------------------------------
+    // 3.  Recompute RHS = −∇·u†
+    // ------------------------------------------------------------------
+    t_phase = amrex::second();
+
+    const Box domain = geom_ptr->Domain();
+    const IntVect glo = domain.smallEnd();
+    const IntVect ghi = domain.bigEnd();
+    const int ilo = glo[0], ihi = ghi[0];
+    const int jlo = glo[1], jhi = ghi[1];
+    const int klo = glo[2], khi = ghi[2];
+
+    const Real inv2dx = Real(0.5) / dx;
+    const Real inv2dy = Real(0.5) / dy;
+    const Real inv2dz = Real(0.5) / dz;
+    const Real inv1dx = Real(1.0) / dx;
+    const Real inv1dy = Real(1.0) / dy;
+    const Real inv1dz = Real(1.0) / dz;
+
+    const int  deriv_cap  = deriv_method_int;
+    const Real dx_cap     = dx;
+    const Real dy_cap     = dy;
+    const Real dz_cap     = dz;
+    const Real zs_min_cap = zs_min;
+    const int  nx_cap     = nx;
+    const int  ny_cap     = ny;
+    const Real* d_terr    = d_obstacle_h.data();
+
+    const bool use_eb    = enable_eb;
+    const Real eb_thresh = eb_threshold;
+    const amrex::MultiFab* vfrac_ptr_ts =
+        enable_eb ? &(eb_factory->getVolFrac()) : nullptr;
+
+    rhs_ptr->setVal(Real(0.0));
+
+    for (MFIter mfi(*rhs_ptr); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto vel = vel_c_ptr->const_array(mfi);
+        auto rh        = rhs_ptr->array(mfi);
+        const auto vfrac_arr =
+            use_eb ? vfrac_ptr_ts->const_array(mfi) : Array4<Real const>{};
+
+        amrex::ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real z_physical = zs_min_cap + (Real(k) + Real(0.5)) * dz_cap;
+            int  ii = amrex::max(0, amrex::min(i, nx_cap - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_cap - 1));
+            Real z_agl = z_physical - d_terr[jj * nx_cap + ii];
+
+            bool is_solid = (z_agl <= Real(0.0));
+            if (use_eb) {
+                is_solid = is_solid || (vfrac_arr(i, j, k) < eb_thresh);
+            }
+            if (is_solid) { rh(i, j, k) = Real(0.0); return; }
+
+            Real du, dv, dw;
+
+            // X-derivative of u
+            if (deriv_cap == 0) {
+                if (i == ilo)       du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                else if (i == ihi)  du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                else                du = (vel(i+1,j,k,0) - vel(i-1,j,k,0)) * inv2dx;
+            } else if (deriv_cap == 1) {
+                if (i == ilo)       du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                else if (i == ihi)  du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                else                du = NumericalDerivatives::weno3_deriv(vel(i-1,j,k,0), vel(i,j,k,0), vel(i+1,j,k,0), dx_cap);
+            } else {
+                if (i <= ilo+1)     du = (vel(i+1,j,k,0) - vel(i,j,k,0)) * inv1dx;
+                else if (i >= ihi-1)du = (vel(i,j,k,0) - vel(i-1,j,k,0)) * inv1dx;
+                else                du = NumericalDerivatives::weno5_deriv(vel(i-2,j,k,0), vel(i-1,j,k,0), vel(i,j,k,0), vel(i+1,j,k,0), vel(i+2,j,k,0), dx_cap);
+            }
+
+            // Y-derivative of v
+            if (deriv_cap == 0) {
+                if (j == jlo)       dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                else if (j == jhi)  dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                else                dv = (vel(i,j+1,k,1) - vel(i,j-1,k,1)) * inv2dy;
+            } else if (deriv_cap == 1) {
+                if (j == jlo)       dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                else if (j == jhi)  dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                else                dv = NumericalDerivatives::weno3_deriv(vel(i,j-1,k,1), vel(i,j,k,1), vel(i,j+1,k,1), dy_cap);
+            } else {
+                if (j <= jlo+1)     dv = (vel(i,j+1,k,1) - vel(i,j,k,1)) * inv1dy;
+                else if (j >= jhi-1)dv = (vel(i,j,k,1) - vel(i,j-1,k,1)) * inv1dy;
+                else                dv = NumericalDerivatives::weno5_deriv(vel(i,j-2,k,1), vel(i,j-1,k,1), vel(i,j,k,1), vel(i,j+1,k,1), vel(i,j+2,k,1), dy_cap);
+            }
+
+            // Z-derivative of w
+            if (deriv_cap == 0) {
+                if (k == klo)       dw = (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz;
+                else if (k == khi)  dw = (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz;
+                else                dw = (vel(i,j,k+1,2) - vel(i,j,k-1,2)) * inv2dz;
+            } else if (deriv_cap == 1) {
+                if (k == klo)       dw = (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz;
+                else if (k == khi)  dw = (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz;
+                else                dw = NumericalDerivatives::weno3_deriv(vel(i,j,k-1,2), vel(i,j,k,2), vel(i,j,k+1,2), dz_cap);
+            } else {
+                if (k <= klo+1)     dw = (vel(i,j,k+1,2) - vel(i,j,k,2)) * inv1dz;
+                else if (k >= khi-1)dw = (vel(i,j,k,2) - vel(i,j,k-1,2)) * inv1dz;
+                else                dw = NumericalDerivatives::weno5_deriv(vel(i,j,k-2,2), vel(i,j,k-1,2), vel(i,j,k,2), vel(i,j,k+1,2), vel(i,j,k+2,2), dz_cap);
+            }
+
+            rh(i, j, k) = -(du + dv + dw);
+        });
+    }
+
+    amrex::Print() << "wind_solver: turbulent-stress RHS recomputation time = "
+                   << (amrex::second() - t_phase) << " s\n";
+
+    // ------------------------------------------------------------------
+    // 4.  Second Poisson solve:  ∇·(A²∇λ₂) = −∇·u†
+    // ------------------------------------------------------------------
+    t_phase = amrex::second();
+
+    LPInfo info;
+    info.setAgglomeration(true);
+    info.setConsolidation(true);
+
+    MLABecLaplacian mlabec2({*geom_ptr}, {*ba_ptr}, {*dm_ptr}, info);
+    mlabec2.setMaxOrder(2);
+
+    Array<LinOpBCType, AMREX_SPACEDIM> lo_bc, hi_bc;
+    lo_bc[0] = LinOpBCType::Dirichlet;
+    hi_bc[0] = LinOpBCType::Dirichlet;
+    lo_bc[1] = LinOpBCType::Neumann;
+    hi_bc[1] = LinOpBCType::Neumann;
+    lo_bc[2] = LinOpBCType::Neumann;
+    hi_bc[2] = LinOpBCType::Neumann;
+    mlabec2.setDomainBC(lo_bc, hi_bc);
+
+    mlabec2.setScalars(Real(0.0), Real(1.0));
+
+    MultiFab acoef2(*ba_ptr, *dm_ptr, 1, 0);
+    acoef2.setVal(Real(0.0));
+    mlabec2.setACoeffs(0, acoef2);
+
+    // Reuse the same anisotropy coefficients as the first solve
+    const Real bh = alpha_h * alpha_h;
+    const Real bv = alpha_v * alpha_v;
+    Array<MultiFab, AMREX_SPACEDIM> bcoef2;
+    bcoef2[0].define(convert(*ba_ptr, IntVect(1, 0, 0)), *dm_ptr, 1, 0);
+    bcoef2[1].define(convert(*ba_ptr, IntVect(0, 1, 0)), *dm_ptr, 1, 0);
+    bcoef2[2].define(convert(*ba_ptr, IntVect(0, 0, 1)), *dm_ptr, 1, 0);
+
+    if (use_spatial_alpha_coefficients && (!alpha_h_data.empty() || enable_cell_local_anisotropy)) {
+        const int nx_val = nx;
+        const int ny_val = ny;
+        const int nz_val = nz;
+        for (MFIter mfi(bcoef2[0]); mfi.isValid(); ++mfi) {
+            const Box& bx_x = mfi.validbox();
+            const Box& bx_y = convert(mfi.validbox(), IntVect(0, 1, 0));
+            const Box& bx_z = convert(mfi.validbox(), IntVect(0, 0, 1));
+
+            auto bx_arr = bcoef2[0].array(mfi);
+            auto by_arr = bcoef2[1].array(mfi);
+            auto bz_arr = bcoef2[2].array(mfi);
+            const auto ah_arr = alpha_h_field_ptr->const_array(mfi);
+            const auto av_arr = alpha_v_field_ptr->const_array(mfi);
+
+            amrex::ParallelFor(bx_x,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int li = amrex::max(0, i - 1);
+                int ri = amrex::min(nx_val - 1, i);
+                Real ah_avg = Real(0.5) * (ah_arr(li, j, k) + ah_arr(ri, j, k));
+                bx_arr(i, j, k) = ah_avg * ah_avg;
+            });
+
+            amrex::ParallelFor(bx_y,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int bj = amrex::max(0, j - 1);
+                int tj = amrex::min(ny_val - 1, j);
+                Real ah_avg = Real(0.5) * (ah_arr(i, bj, k) + ah_arr(i, tj, k));
+                by_arr(i, j, k) = ah_avg * ah_avg;
+            });
+
+            amrex::ParallelFor(bx_z,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int bk = amrex::max(0, k - 1);
+                int tk = amrex::min(nz_val - 1, k);
+                Real av_avg = Real(0.5) * (av_arr(i, j, bk) + av_arr(i, j, tk));
+                bz_arr(i, j, k) = av_avg * av_avg;
+            });
+        }
+    } else {
+        bcoef2[0].setVal(bh);
+        bcoef2[1].setVal(bh);
+        bcoef2[2].setVal(bv);
+    }
+
+    mlabec2.setBCoeffs(0, GetArrOfConstPtrs(bcoef2));
+    mlabec2.setLevelBC(0, nullptr);
+
+    // Solve for λ₂  (reuse lam_ptr as scratch; it is overwritten)
+    lam_ptr->setVal(Real(0.0));
+
+    MLMG mlmg2(mlabec2);
+    mlmg2.setMaxIter(mlmg_max_iter);
+    mlmg2.setMaxFmgIter(mlmg_max_fmg_iter);
+    mlmg2.setVerbose(mlmg_verbose);
+    mlmg2.setBottomVerbose(0);
+    mlmg2.setPreSmooth(mlmg_pre_smooth);
+    mlmg2.setPostSmooth(mlmg_post_smooth);
+
+    if (mlmg_bottom_solver == "bicgstab") {
+        mlmg2.setBottomSolver(MLMG::BottomSolver::bicgstab);
+    } else if (mlmg_bottom_solver == "cg") {
+        mlmg2.setBottomSolver(MLMG::BottomSolver::cg);
+    } else if (mlmg_bottom_solver == "smoother") {
+        mlmg2.setBottomSolver(MLMG::BottomSolver::smoother);
+    }
+
+    amrex::Print() << "wind_solver: starting second MLMG Poisson solve (turbulent stress)...\n";
+    mlmg2.solve({lam_ptr.get()}, {rhs_ptr.get()}, tol_rel, Real(0.0));
+    amrex::Print() << "wind_solver: second MLMG solve complete.\n";
+    amrex::Print() << "wind_solver: second Poisson solve time = "
+                   << (amrex::second() - t_phase) << " s\n";
+
+    lam_ptr->FillBoundary(geom_ptr->periodicity());
+
+    // ------------------------------------------------------------------
+    // 5.  Apply second correction:  u_final = u† − A²∇λ₂
+    //     (same logic as apply_divergence_corrections but using vel_c_ptr
+    //      as both input (u†) and output (u_final))
+    // ------------------------------------------------------------------
+    t_phase = amrex::second();
+
+    const Real inv2dx_ts = Real(0.5) / dx;
+    const Real inv2dy_ts = Real(0.5) / dy;
+    const Real inv2dz_ts = Real(0.5) / dz;
+    const Real inv1dx_ts = Real(1.0) / dx;
+    const Real inv1dy_ts = Real(1.0) / dy;
+    const Real inv1dz_ts = Real(1.0) / dz;
+    const bool local_use_spatial = use_spatial_alpha_coefficients;
+
+    const bool cap_capping_lid   = enable_capping_lid;
+    const Real cap_lid_height    = capping_lid_height;
+
+    for (MFIter mfi(*vel_c_ptr); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto la  = lam_ptr->const_array(mfi);
+        auto       vc  = vel_c_ptr->array(mfi);
+        const auto z_bl_arr = z_bl_diag_ptr->const_array(mfi);
+        const auto ah_arr   = alpha_h_field_ptr->const_array(mfi);
+        const auto av_arr   = alpha_v_field_ptr->const_array(mfi);
+        const auto vfrac_arr =
+            use_eb ? vfrac_ptr_ts->const_array(mfi) : Array4<Real const>{};
+
+        amrex::ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real z_physical = zs_min_cap + (Real(k) + Real(0.5)) * dz_cap;
+            int  ii = amrex::max(0, amrex::min(i, nx_cap - 1));
+            int  jj = amrex::max(0, amrex::min(j, ny_cap - 1));
+            Real z_agl = z_physical - d_terr[jj * nx_cap + ii];
+
+            bool is_solid = (z_agl <= Real(0.0));
+            if (use_eb) {
+                is_solid = is_solid || (vfrac_arr(i, j, k) < eb_thresh);
+            }
+            if (is_solid) {
+                vc(i, j, k, 0) = Real(0.0);
+                vc(i, j, k, 1) = Real(0.0);
+                vc(i, j, k, 2) = Real(0.0);
+                return;
+            }
+
+            Real dlx, dly, dlz;
+
+            if (deriv_cap == 0) {
+                if (i == ilo)       dlx = (la(i+1,j,k) - la(i,j,k))   * inv1dx_ts;
+                else if (i == ihi)  dlx = (la(i,j,k)   - la(i-1,j,k)) * inv1dx_ts;
+                else                dlx = (la(i+1,j,k) - la(i-1,j,k)) * inv2dx_ts;
+            } else if (deriv_cap == 1) {
+                if (i == ilo)       dlx = (la(i+1,j,k) - la(i,j,k))   * inv1dx_ts;
+                else if (i == ihi)  dlx = (la(i,j,k)   - la(i-1,j,k)) * inv1dx_ts;
+                else                dlx = NumericalDerivatives::weno3_deriv(la(i-1,j,k), la(i,j,k), la(i+1,j,k), dx_cap);
+            } else {
+                if (i <= ilo+1)     dlx = (la(i+1,j,k) - la(i,j,k))   * inv1dx_ts;
+                else if (i >= ihi-1)dlx = (la(i,j,k)   - la(i-1,j,k)) * inv1dx_ts;
+                else                dlx = NumericalDerivatives::weno5_deriv(la(i-2,j,k), la(i-1,j,k), la(i,j,k), la(i+1,j,k), la(i+2,j,k), dx_cap);
+            }
+
+            if (deriv_cap == 0) {
+                if (j == jlo)       dly = (la(i,j+1,k) - la(i,j,k))   * inv1dy_ts;
+                else if (j == jhi)  dly = (la(i,j,k)   - la(i,j-1,k)) * inv1dy_ts;
+                else                dly = (la(i,j+1,k) - la(i,j-1,k)) * inv2dy_ts;
+            } else if (deriv_cap == 1) {
+                if (j == jlo)       dly = (la(i,j+1,k) - la(i,j,k))   * inv1dy_ts;
+                else if (j == jhi)  dly = (la(i,j,k)   - la(i,j-1,k)) * inv1dy_ts;
+                else                dly = NumericalDerivatives::weno3_deriv(la(i,j-1,k), la(i,j,k), la(i,j+1,k), dy_cap);
+            } else {
+                if (j <= jlo+1)     dly = (la(i,j+1,k) - la(i,j,k))   * inv1dy_ts;
+                else if (j >= jhi-1)dly = (la(i,j,k)   - la(i,j-1,k)) * inv1dy_ts;
+                else                dly = NumericalDerivatives::weno5_deriv(la(i,j-2,k), la(i,j-1,k), la(i,j,k), la(i,j+1,k), la(i,j+2,k), dy_cap);
+            }
+
+            if (deriv_cap == 0) {
+                if (k == klo)       dlz = (la(i,j,k+1) - la(i,j,k))   * inv1dz_ts;
+                else if (k == khi)  dlz = (la(i,j,k)   - la(i,j,k-1)) * inv1dz_ts;
+                else                dlz = (la(i,j,k+1) - la(i,j,k-1)) * inv2dz_ts;
+            } else if (deriv_cap == 1) {
+                if (k == klo)       dlz = (la(i,j,k+1) - la(i,j,k))   * inv1dz_ts;
+                else if (k == khi)  dlz = (la(i,j,k)   - la(i,j,k-1)) * inv1dz_ts;
+                else                dlz = NumericalDerivatives::weno3_deriv(la(i,j,k-1), la(i,j,k), la(i,j,k+1), dz_cap);
+            } else {
+                if (k <= klo+1)     dlz = (la(i,j,k+1) - la(i,j,k))   * inv1dz_ts;
+                else if (k >= khi-1)dlz = (la(i,j,k)   - la(i,j,k-1)) * inv1dz_ts;
+                else                dlz = NumericalDerivatives::weno5_deriv(la(i,j,k-2), la(i,j,k-1), la(i,j,k), la(i,j,k+1), la(i,j,k+2), dz_cap);
+            }
+
+            Real local_bh = bh;
+            Real local_bv = bv;
+            if (local_use_spatial) {
+                Real ah = ah_arr(i, j, k);
+                Real av = av_arr(i, j, k);
+                local_bh = ah * ah;
+                local_bv = av * av;
+            }
+
+            // u_final = u† − A²∇λ₂   (vc already contains u†)
+            vc(i, j, k, 0) -= local_bh * dlx;
+            vc(i, j, k, 1) -= local_bh * dly;
+            vc(i, j, k, 2) -= local_bv * dlz;
+
+            Real local_lid_height = (z_bl_arr(i, j, k) > Real(0.0))
+                                    ? z_bl_arr(i, j, k) : cap_lid_height;
+            if (cap_capping_lid && z_agl >= local_lid_height) {
+                vc(i, j, k, 2) = Real(0.0);
+            }
+        });
+    }
+
+    amrex::Print() << "wind_solver: second velocity correction time = "
+                   << (amrex::second() - t_phase) << " s\n";
+    amrex::Print() << "wind_solver: ---- Turbulent Stress Second Pass Complete ----\n";
 }
