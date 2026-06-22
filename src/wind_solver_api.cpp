@@ -403,7 +403,7 @@ void read_vertical_profile_csv(const std::string& filename,
             std::string first_token;
             if (iss >> first_token) {
                 try {
-                    std::stod(first_token);
+                    static_cast<void>(std::stod(first_token));
                 } catch (...) {
                     is_first = false;
                     continue;
@@ -2164,7 +2164,7 @@ bool wind_solver_initialize(const std::string& inputs_file)
 // On entry  : state.vel holds u* (first-pass mass-corrected velocity)
 // On exit   : state.vel holds u_final (second-pass mass-corrected velocity)
 // ============================================================================
-static void apply_turbulent_stress_api(WindSolverState& state)
+void apply_turbulent_stress_api(WindSolverState& state)
 {
     using namespace amrex;
 
