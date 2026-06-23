@@ -95,6 +95,42 @@ ctest
 - [ ] GPU/MPI compatibility verified
 - [ ] Performance impact assessed
 
+## Default Development Guidelines
+
+When working on code changes, follow these mandatory requirements:
+
+1. **Documentation Organization**
+   - Do not create stray .MD files
+   - Always integrate documentation into proper existing sections (`docs/`, inline comments, existing README files)
+   - Do not create top-level documentation unless explicitly specified
+
+2. **Regression Tests**
+   - Check if regtests exist for the feature/area being modified
+   - If regtests don't exist, create them
+   - All regtests must pass before submitting PR
+
+3. **Code Comments & Documentation**
+   - Include detailed comments explaining changes
+   - Add citations where applicable (papers, references, issues)
+   - Include date of code addition in comments
+   - Reference related issues/PRs in commit messages and comments
+
+4. **Professional Documentation**
+   - Keep all documentation and comments professional
+   - Avoid informal agent conversations (e.g., "Feature 1", "Case 1", "Phase 1")
+   - Use clear, technical language appropriate for code maintenance
+
+5. **Build & Testing Requirements**
+   - Code must compile without warnings/errors
+   - All regtests must pass on Ubuntu and macOS
+   - Verify no regression in existing functionality
+   - Run validation before creating PR
+
+6. **No Stray Content**
+   - Don't include temporary exploration notes in final code
+   - Keep commit messages and documentation focused on the actual change
+   - Remove debug code before committing
+
 ## Contact & References
 
 - See README.md for project overview and capabilities
