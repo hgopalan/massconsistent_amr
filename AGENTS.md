@@ -4,7 +4,7 @@ This project contains default instruction files for AI agents and language model
 
 ## Available Instructions
 
-### [claude-instructions.md](.github/agents/claude-instructions.md)
+### [CLAUDE.md](CLAUDE.md)
 Instructions optimized for Claude (Anthropic). Emphasizes:
 - Project context and architecture
 - Development guidelines and best practices
@@ -12,7 +12,7 @@ Instructions optimized for Claude (Anthropic). Emphasizes:
 - Documentation requirements
 - Task-oriented guidance
 
-### [gemini-instructions.md](.github/agents/gemini-instructions.md)
+### [GEMINI.md](GEMINI.md)
 Instructions optimized for Gemini (Google). Emphasizes:
 - Technical deep-dives and subsystem understanding
 - Performance and scalability considerations
@@ -20,7 +20,7 @@ Instructions optimized for Gemini (Google). Emphasizes:
 - Development best practices
 - Critical subsystem documentation
 
-### [codex-instructions.md](.github/agents/codex-instructions.md)
+### [copilot-instructions.md](.github/copilot-instructions.md)
 Instructions optimized for Codex (OpenAI) and Copilot. Emphasizes:
 - Code structure and file organization
 - Language and framework specifics
@@ -72,15 +72,15 @@ When starting a conversation with an AI agent, reference the appropriate instruc
 - Or provide the file path/content as context
 
 ### Option 2: Automated Integration
-If your IDE or tool supports it, you can:
-- Configure your AI assistant to load instructions from `.github/agents/` automatically
-- Set up pre-conversation scripts to inject the relevant instructions
-- Create Git hooks to reference these files in commit messages or PR templates
+Many modern coding agents and assistants will automatically load these instructions based on standard locations:
+- **Claude Code** and other Claude assistants will automatically load `CLAUDE.md` from the root directory.
+- **GitHub Copilot** will automatically load `.github/copilot-instructions.md` for all repo-wide sessions.
+- **Gemini** and general agents will automatically load `GEMINI.md` or `AGENTS.md` from the root directory.
 
 ### Option 3: Direct Link
-Share the raw GitHub URL with the agent:
+Share the raw GitHub URL of your preferred instruction file with the agent:
 ```
-https://raw.githubusercontent.com/hgopalan/massconsistent_amr/main/.github/agents/claude-instructions.md
+https://raw.githubusercontent.com/hgopalan/massconsistent_amr/main/CLAUDE.md
 ```
 
 ## Benefits
