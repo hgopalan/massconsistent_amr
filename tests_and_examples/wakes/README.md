@@ -23,5 +23,5 @@ This directory contains wind farm modeling scenarios, analytical wakes, yaw defl
 * **Purpose**: Utilities for layout optimization exports and wind resource summary statistics.
 
 ### 7. `alta_wind_center/`
-* **Purpose**: Large-scale simulation of the Alta Wind Energy Center (Mojave, CA) featuring 39 turbines placed along multiple mountain ridges under power-law wind inflow from the west. Includes wake deficits and spatial power distribution visualization scripts.
+* **Purpose**: Fixed operational Alta wake case using 485 exact USWTDB turbine entries across the committed Alta phases, plus static setup files and plotting scripts for hub-height wind speed and turbine power.
 

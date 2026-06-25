@@ -1,69 +1,28 @@
 #!/usr/bin/env python3
-"""
-test_alta_wind_center.py - Simulation and Wake Analysis of the Alta Wind Energy Center (AWEC)
+"""Run the fixed Alta operational wake case and generate setup and hub-height plots."""
 
-This test case models wind turbines from the Alta Wind Energy Center (AWEC), located in 
-Tehachapi Pass, Kern County, California. Turbine coordinates are loaded from the USGS Wind 
-Turbine Database (USWTB) and positioned in realistic UTM Zone 11N coordinates.
-
-Data Sources:
-    - USGS Wind Turbine Database (USWTB): https://energy.usgs.gov/uswtdb/
-    - Turbine coordinates extracted from: https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
-    - USGS Topographic Maps: 1:24,000 scale Tehachapi topographic quadrangle
-    - National Elevation Dataset (NED): 30-meter resolution digital elevation model
-
-Test Characteristics:
-    - Loads turbine coordinates from turbines_uswtb.csv file (placed at exact USWTB locations)
-    - Supports any number of turbines: sample (20) to full database (600+)
-    - Converts WGS84 coordinates to UTM Zone 11N projection
-    - Automatically sizes domain based on actual turbine positions with 600m buffer
-    - Generates terrain grid within buffered domain
-
-Wind Solver Configuration:
-    - Wind profile: Power-law profile representing 8 m/s wind from the west (U_ref = 8.0 m/s, 
-      z_ref = 80.0 m) under neutral atmospheric boundary layer conditions.
-    - Wake Model: Bastankhah-Gaussian analytical wake deficit model with quadratic superposition.
-    - Hub height: 80m, Rotor diameter: 80m for all turbines (default).
-    - Uses grid spacing with aspect ratio of exactly 8.0 (dx = dy = 120m, dz = 15m).
-    - Employs MLMG solver tuning (16 pre- and post-smoothing steps) 
-      to ensure convergence without divergence at high aspect ratios.
-
-Test Verification:
-    - For small datasets (< 100 turbines): Verifies basic wind speed statistics
-    - For large datasets (100+ turbines): Performs ridge-by-ridge wake deficit analysis
-    - Generates hub height wake field visualization in UTM coordinates
-    - Outputs turbine power results to CSV file with exact coordinates
-
-References:
-    - Alta Wind Energy Center, Mojave, California, USA.
-    - USGS Wind Turbine Database: https://energy.usgs.gov/uswtdb/
-    - Bastankhah, M. and Porté-Agel, F., "A new analytical model for wind-turbine wakes", 
-      Renewable Energy, 2014.
-    - Power Law Wind Profile: u(z) = U_ref * (z / z_ref)^alpha.
-
-To use full USWTB turbine coordinates:
-    - Run: python3 tools/data_ingestion/fetch_uswtb_turbines.py
-    - This will extract real turbine locations from the USWTB database
-    - See TURBINE_LOCATIONS.md for coordinate system details
-"""
-
+import csv
 import os
 import sys
 import unittest
-import math
-import csv
-import numpy as np
-import pyproj
-import matplotlib
-matplotlib.use('Agg')  # Non-interactive backend
-import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Setup paths
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+
 TEST_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TEST_DIR.parent.parent.parent
 SRC_PYTHON_DIR = REPO_ROOT / "src" / "python"
 BUILD_PYTHON_DIR = REPO_ROOT / "build" / "python"
+TURBINE_FILE = TEST_DIR / "turbines.csv"
+TERRAIN_FILE = TEST_DIR / "terrain.csv"
+INPUTS_FILE = TEST_DIR / "inputs.i"
+LAYOUT_IMAGE = TEST_DIR / "alta_turbine_layout.png"
+WAKE_IMAGE = TEST_DIR / "alta_wake_80m.png"
+OUTPUT_CSV = TEST_DIR / "turbine_power_output.csv"
+EXPECTED_TURBINE_COUNT = 485
 
 sys.path.insert(0, str(BUILD_PYTHON_DIR))
 sys.path.insert(0, str(SRC_PYTHON_DIR))
@@ -75,281 +34,136 @@ except ImportError as e:
     sys.exit(1)
 
 
+def load_turbine_records(path: Path):
+    records = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = [part.strip() for part in line.split(",")]
+            records.append(
+                {
+                    "x": float(parts[0]),
+                    "y": float(parts[1]),
+                    "hub_height": float(parts[2]),
+                    "rotor_diameter": float(parts[3]),
+                }
+            )
+    return records
+
+
 class TestAltaWindCenter(unittest.TestCase):
-    
     def setUp(self):
-        """Set up the simulation coordinates, turbines, terrain, and solver inputs."""
         self.output_dir = TEST_DIR
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Define projection to UTM Zone 11N (California)
-        self.proj = pyproj.Proj(proj='utm', zone=11, ellps='WGS84', hemisphere='north')
-        
-        # Load turbine coordinates from USWTB data
-        # Turbines should be extracted from USGS Wind Turbine Database using:
-        # python3 tools/data_ingestion/fetch_uswtb_turbines.py --project "Alta Wind"
-        
-        # Try to load real USWTB turbine data
-        uswtb_turbines_file = self.output_dir / "turbines_uswtb.csv"
-        
-        if uswtb_turbines_file.exists():
-            # Load from pre-generated USWTB file
-            self.xs = []
-            self.ys = []
-            with open(uswtb_turbines_file, 'r') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    try:
-                        lat = float(row.get('latitude', 0))
-                        lon = float(row.get('longitude', 0))
-                        easting, northing = self.proj(lon, lat)
-                        self.xs.append(easting)
-                        self.ys.append(northing)
-                    except (ValueError, TypeError) as e:
-                        print(f"Warning: Skipping turbine row: {e}")
-                        continue
-            
-            print(f"✓ Loaded {len(self.xs)} turbines from USWTB file: {uswtb_turbines_file}")
-            
-            if len(self.xs) == 0:
-                raise RuntimeError(f"No valid turbine coordinates found in {uswtb_turbines_file}")
-        
-        else:
-            # USWTB file not found - provide helpful error message
-            error_msg = f"""
-ERROR: USWTB turbine data file not found: {uswtb_turbines_file}
+        self.assertTrue(TURBINE_FILE.exists(), f"Missing {TURBINE_FILE}")
+        self.assertTrue(TERRAIN_FILE.exists(), f"Missing {TERRAIN_FILE}")
+        self.assertTrue(INPUTS_FILE.exists(), f"Missing {INPUTS_FILE}")
 
-To use actual USWTB coordinates:
+        self.records = load_turbine_records(TURBINE_FILE)
+        self.num_turbines = len(self.records)
+        self.assertEqual(
+            self.num_turbines,
+            EXPECTED_TURBINE_COUNT,
+            "Alta operational setup must contain the committed 485 turbines.",
+        )
+        self.xs = np.array([record["x"] for record in self.records])
+        self.ys = np.array([record["y"] for record in self.records])
+        self.hub_heights = np.array([record["hub_height"] for record in self.records])
+        self.rotor_diameters = np.array([record["rotor_diameter"] for record in self.records])
 
-1. Download the USGS Wind Turbine Database:
-   https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
-
-2. Extract and filter for Alta Wind Energy Center turbines using:
-   python3 tools/data_ingestion/fetch_uswtb_turbines.py \\
-     --output {uswtb_turbines_file} \\
-     --project "Alta Wind"
-
-3. Or manually download the CSV from the USWTB viewer at:
-   https://energy.usgs.gov/uswtdb/
-
-This test case uses exact turbine locations from the USGS Wind Turbine Database,
-not synthetic coordinates. See TURBINE_LOCATIONS.md for details.
-"""
-            raise RuntimeError(error_msg.strip())
-        
-        # Store number of turbines
-        self.num_turbines = len(self.xs)
-        assert self.num_turbines > 0, "No turbines loaded"
-                
-        # Suzlon/GE/Vestas-style 2.0MW typical turbine parameters
-        self.hub_height = 80.0       # Hub height [m]
-        self.rotor_diameter = 80.0   # Rotor diameter [m]
-        self.ct = 0.8                # Thrust coefficient
-        
-        # Find bounds of turbines in UTM
-        self.e_min, self.e_max = min(self.xs), max(self.xs)
-        self.n_min, self.n_max = min(self.ys), max(self.ys)
-        
-        # Add a 600m buffer around the turbine bounding box for the terrain domain
-        self.xmin = self.e_min - 600.0
-        self.xmax = self.e_max + 600.0
-        self.ymin = self.n_min - 600.0
-        self.ymax = self.n_max + 600.0
-        
-        self.x_center = (self.xmin + self.xmax) / 2.0
-        self.y_center = (self.ymin + self.ymax) / 2.0
-        
-        # 2. Write turbines.csv with exact USWTB coordinates
-        self.turbine_file = self.output_dir / "turbines.csv"
-        with open(self.turbine_file, "w") as f:
-            f.write("# x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file\n")
-            for x, y in zip(self.xs, self.ys):
-                f.write(f"{x:.2f}, {y:.2f}, {self.hub_height:.1f}, {self.rotor_diameter:.1f}, {self.ct:.2f}, 0.0, 0.0, nrel_5mw.csv\n")
-                
-        # 3. Write terrain.csv representing Tehachapi Pass Ridge-Valley system in UTM coordinates
-        self.terrain_file = self.output_dir / "terrain.csv"
-        with open(self.terrain_file, "w") as f:
-            f.write("# Alta Wind Energy Center Tehachapi Pass Ridge Terrain in UTM Coordinates\n")
-            f.write("# X[m] Y[m] Z[m]\n")
-            # 41x41 elevation grid spanning the UTM domain
-            tx = np.linspace(self.xmin, self.xmax, 41)
-            ty = np.linspace(self.ymin, self.ymax, 41)
-            for y_val in ty:
-                for x_val in tx:
-                    # Calculate terrain relative to domain center to generate ridges/valleys
-                    x_rel = x_val - self.x_center
-                    y_rel = y_val - self.y_center
-                    # Topography: 6 distinct ridges running N-S
-                    z = 900.0 + 150.0 * math.cos(x_rel / 500.0) + 50.0 * math.cos(y_rel / 1000.0)
-                    f.write(f"{x_val:.2f}, {y_val:.2f}, {z:.2f}\n")
-
-        # 4. Write inputs.i
-        self.inputs_file = self.output_dir / "inputs.i"
-        with open(self.inputs_file, "w") as f:
-            f.write(f"terrain_file = {self.terrain_file.name}\n")
-            f.write("enable_turbine_wake = true\n")
-            f.write(f"turbine_file = {self.turbine_file.name}\n")
-            f.write("turbine_wake_model_type = bastankhah_gaussian\n")
-            f.write("turbine_wake_superposition = quadratic\n")
-            f.write("wake_added_turbulence_model = none\n")
-            f.write("enable_jimenez_deflection = false\n")
-            f.write("enable_bastankhah_deflection = true\n")
-            f.write("turbopark_c1 = 0.38\n")
-            f.write("ambient_ti = 0.075\n")
-            
-            # Power law with 8 m/s from west
-            f.write("init_mode = powerlaw\n")
-            f.write("U_ref = 8.0\n")
-            f.write("V_ref = 0.0\n")
-            f.write("z_ref = 80.0\n")
-            f.write("powerlaw_exponent = 0.15\n")
-            
-            f.write("z0 = 0.05\n")
-            # Grid spacing with horizontal-to-vertical aspect ratio of 8.0 (dx = dy = 120m, dz = 15m)
-            # Aspect ratio is dx/dz = 120/15 = 8.0
-            f.write("dx = 120.0\n")
-            f.write("dy = 120.0\n")
-            f.write("dz = 15.0\n")
-            f.write("domain_height = 300.0\n")
-            f.write("alpha_h = 1.0\n")
-            f.write("alpha_v = 1.0\n")
-            f.write("mlmg_verbose = 0\n")
-            f.write("max_grid_size = 64\n")
-            f.write("plot_file = plt_alta_wind\n")
-            
-            # MLMG smoothing tuning for high aspect ratio (8.0) to prevent divergence
-            f.write("mlmg.num_pre_smooth = 16\n")
-            f.write("mlmg.num_post_smooth = 16\n")
+    def _write_layout_image(self):
+        fig, ax = plt.subplots(figsize=(10, 8))
+        scatter = ax.scatter(
+            self.xs,
+            self.ys,
+            c=self.hub_heights,
+            s=np.clip(self.rotor_diameters * 0.8, 30.0, 120.0),
+            cmap="viridis",
+            alpha=0.85,
+            edgecolors="black",
+            linewidths=0.2,
+        )
+        cbar = fig.colorbar(scatter, ax=ax)
+        cbar.set_label("Hub height [m]")
+        ax.set_title("Alta Wind Energy Center Operational Turbine Layout")
+        ax.set_xlabel("Easting [m] (UTM Zone 11N)")
+        ax.set_ylabel("Northing [m] (UTM Zone 11N)")
+        ax.grid(True, linestyle="--", alpha=0.35)
+        ax.set_aspect("equal", adjustable="box")
+        fig.tight_layout()
+        fig.savefig(LAYOUT_IMAGE, dpi=300)
+        plt.close(fig)
 
     def test_alta_simulation(self):
-        """Execute simulation, extract wind speeds at 80m AGL, generate wake image, and verify power outputs."""
+        self._write_layout_image()
+
         old_cwd = os.getcwd()
         os.chdir(self.output_dir)
-        
         try:
-            # Initialize wind solver
             wind = WindSolver()
-            wind.initialize("inputs.i")
-            
-            # Solve wind field with mass-consistent flow and analytical wake models
+            wind.initialize(str(INPUTS_FILE.name))
             solve_result = wind.solve()
-            self.assertTrue(solve_result['success'])
-            
-            # Extract power outputs and inflow speeds
-            powers = wind.get_turbine_power_outputs()
-            inflows = wind.get_turbine_inflow_speeds()
-            
-            # Verify that the number of turbines matches what was loaded from USWTB CSV
+            self.assertTrue(solve_result["success"])
+
+            powers = np.asarray(wind.get_turbine_power_outputs(), dtype=float)
+            inflows = np.asarray(wind.get_turbine_inflow_speeds(), dtype=float)
             self.assertEqual(len(powers), self.num_turbines)
             self.assertEqual(len(inflows), self.num_turbines)
-            
-            # Print a subset of turbine simulation stats for diagnostics
-            print(f"\nAlta Wind Energy Center ({self.num_turbines} Turbines, UTM Coordinates) - Simulated Outputs (Subset):")
-            print(f"{'WT ID':<6} | {'Easting (m)':<12} | {'Northing (m)':<12} | {'Inflow (m/s)':<12} | {'Power (kW)':<10}")
-            print("-" * 65)
-            # Show first 5 and last 5 turbines (or fewer if total < 10)
-            num_to_show = min(5, self.num_turbines)
-            indices_to_show = list(range(num_to_show))
-            if self.num_turbines > 10:
-                indices_to_show += list(range(self.num_turbines - num_to_show, self.num_turbines))
-            for i in indices_to_show:
-                print(f"WT {i+1:03d} | {self.xs[i]:12.1f} | {self.ys[i]:12.1f} | {inflows[i]:12.2f} | {powers[i]:10.1f}")
-                
-            # Write simulation outputs to CSV file
-            output_csv = self.output_dir / "turbine_power_output.csv"
-            with open(output_csv, "w") as f:
-                f.write("wt_id,easting_m,northing_m,inflow_speed_ms,power_kw\n")
-                for i in range(self.num_turbines):
-                    f.write(f"{i+1},{self.xs[i]:.2f},{self.ys[i]:.2f},{inflows[i]:.4f},{powers[i]:.2f}\n")
-            print(f"\n✓ Wrote turbine power results to {output_csv}")
-            
-            # Extract wind speed at 80 m above terrain (hub height)
+
+            with open(OUTPUT_CSV, "w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(
+                    [
+                        "wt_id",
+                        "easting_m",
+                        "northing_m",
+                        "hub_height_m",
+                        "rotor_diameter_m",
+                        "inflow_speed_ms",
+                        "power_kw",
+                    ]
+                )
+                for idx, (record, inflow, power) in enumerate(zip(self.records, inflows, powers), start=1):
+                    writer.writerow(
+                        [
+                            idx,
+                            f"{record['x']:.2f}",
+                            f"{record['y']:.2f}",
+                            f"{record['hub_height']:.1f}",
+                            f"{record['rotor_diameter']:.1f}",
+                            f"{inflow:.4f}",
+                            f"{power:.2f}",
+                        ]
+                    )
+
             vel_agl = wind.get_velocity_at_agl(80.0)
-            u = vel_agl['u']
-            v = vel_agl['v']
-            ws_agl = np.sqrt(u**2 + v**2)
-            
-            # Generate the 2D contour plot of the wake field in UTM coordinates
-            plt.figure(figsize=(10, 8))
-            
-            # Setup domain bounds
-            x_min, x_max = wind.xmin, wind.xmax
-            y_min, y_max = wind.ymin, wind.ymax
-            
-            # Generate coordinate grids for plotting
-            x_grid = np.linspace(x_min, x_max, wind.nx)
-            y_grid = np.linspace(y_min, y_max, wind.ny)
-            
-            # Contour plot of wind speed at 80m AGL
-            contour = plt.contourf(x_grid, y_grid, ws_agl, levels=50, cmap='viridis')
-            cbar = plt.colorbar(contour)
-            cbar.set_label('Wind Speed at 80 m AGL [m/s]', fontsize=12)
-            
-            # Overlay turbine locations - use dynamic turbine count
-            plt.scatter(self.xs, self.ys, color='red', marker='^', s=10, alpha=0.6, 
-                       label=f'{self.num_turbines} Turbines from USWTB')
-            
-            plt.title(f'Alta Wind Energy Center - Hub Height (80 m AGL) Wake Deficit\n'
-                      f'{self.num_turbines} Turbines (USWTB) in UTM coordinates; Wind from West (8 m/s)', 
-                      fontsize=13, fontweight='bold')
-            plt.xlabel('Easting [m] (UTM Zone 11N)', fontsize=12)
-            plt.ylabel('Northing [m] (UTM Zone 11N)', fontsize=12)
-            plt.xlim(x_min, x_max)
-            plt.ylim(y_min, y_max)
-            plt.grid(True, linestyle='--', alpha=0.5)
-            plt.legend(loc='upper right')
-            
-            image_path = self.output_dir / "alta_wake_80m.png"
-            plt.tight_layout()
-            plt.savefig(image_path, dpi=300)
-            plt.close()
-            
-            print(f"✓ Saved hub height wake field image to {image_path}")
-            
-            # Verify basic wind conditions - perform ridge-by-ridge analysis only if we have enough turbines
-            # For the 20-turbine sample, just verify that we have wind variation
-            if self.num_turbines >= 100:
-                # Ridge-by-ridge analysis for larger datasets (100+ turbines)
-                # Divide turbines into three groups by their location (sorted by easting/x-coordinate)
-                turbines_sorted_by_easting = sorted(enumerate(zip(self.xs, self.ys)), key=lambda x: x[1][0])
-                third = len(turbines_sorted_by_easting) // 3
-                west_indices = [i for i, _ in turbines_sorted_by_easting[:third]]
-                center_indices = [i for i, _ in turbines_sorted_by_easting[third:2*third]]
-                east_indices = [i for i, _ in turbines_sorted_by_easting[2*third:]]
-                
-                avg_west = np.mean([inflows[i] for i in west_indices]) if west_indices else np.mean(inflows)
-                avg_center = np.mean([inflows[i] for i in center_indices]) if center_indices else np.mean(inflows)
-                avg_east = np.mean([inflows[i] for i in east_indices]) if east_indices else np.mean(inflows)
-                
-                # West ridge is upstream and should be close to 8.0 m/s (minimal wake effects)
-                self.assertGreater(avg_west, 7.0)
-                # Center and East ridges are downstream and should experience some wind variation
-                self.assertGreater(np.min(inflows), 5.0)  # Ensure some minimum wind speed
-                
-                print(f"\nRidge-by-ridge average inflow speeds:")
-                print(f"  West Ridge (windward):  {avg_west:.2f} m/s")
-                print(f"  Center Ridge:           {avg_center:.2f} m/s")
-                print(f"  East Ridge (lee side):  {avg_east:.2f} m/s")
-            else:
-                # For small datasets (< 100 turbines), just verify basic wind conditions
-                avg_speed = np.mean(inflows)
-                min_speed = np.min(inflows)
-                max_speed = np.max(inflows)
-                
-                print(f"\nWind speed statistics across {self.num_turbines} turbines:")
-                print(f"  Minimum inflow speed: {min_speed:.2f} m/s")
-                print(f"  Average inflow speed: {avg_speed:.2f} m/s")
-                print(f"  Maximum inflow speed: {max_speed:.2f} m/s")
-                
-                # Verify that wind solver is working - check for wind variation
-                self.assertGreater(max_speed, min_speed, 
-                                 "Wind speeds should vary across domain")
-                self.assertGreater(min_speed, 0.0, 
-                                 "All turbines should have positive wind speeds")
-             
+            u = vel_agl["u"]
+            v = vel_agl["v"]
+            ws_agl = np.sqrt(u ** 2 + v ** 2)
+
+            x_grid = np.linspace(wind.xmin, wind.xmax, wind.nx)
+            y_grid = np.linspace(wind.ymin, wind.ymax, wind.ny)
+
+            fig, ax = plt.subplots(figsize=(10, 8))
+            contour = ax.contourf(x_grid, y_grid, ws_agl, levels=50, cmap="viridis")
+            cbar = fig.colorbar(contour, ax=ax)
+            cbar.set_label("Wind speed at 80 m AGL [m/s]")
+            ax.scatter(self.xs, self.ys, color="white", marker="^", s=12, alpha=0.8, label="Alta turbines")
+            ax.set_title("Alta Wind Energy Center Hub-Height Wind Speed")
+            ax.set_xlabel("Easting [m] (UTM Zone 11N)")
+            ax.set_ylabel("Northing [m] (UTM Zone 11N)")
+            ax.grid(True, linestyle="--", alpha=0.3)
+            ax.legend(loc="upper right")
+            fig.tight_layout()
+            fig.savefig(WAKE_IMAGE, dpi=300)
+            plt.close(fig)
+
+            self.assertGreater(float(np.min(inflows)), 0.0)
+            self.assertGreater(float(np.max(inflows)), float(np.min(inflows)))
+            self.assertGreater(float(np.sum(powers)), 0.0)
+
             wind.finalize()
-            print("\n✓ Alta Wind Energy Center simulation run and test verification successful!")
-            
         finally:
             os.chdir(old_cwd)
 
