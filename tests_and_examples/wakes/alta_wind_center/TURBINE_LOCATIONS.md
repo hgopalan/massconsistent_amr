@@ -48,6 +48,8 @@ Optional fields:
 - `manufacturer`: Turbine manufacturer
 - `model`: Turbine model
 
+**Note on field naming:** The test uses lowercase field names. When converting from raw USWTB database exports, the fetch tool automatically handles the conversion from uppercase field names (e.g., `Turbine`, `ProjectName`) used by USGS to the lowercase names expected by the test.
+
 ## Coordinate System
 
 ### Input: Geographic (WGS84)

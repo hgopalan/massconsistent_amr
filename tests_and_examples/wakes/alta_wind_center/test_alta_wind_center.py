@@ -310,12 +310,12 @@ not synthetic coordinates. See TURBINE_LOCATIONS.md for details.
             # For the 20-turbine sample, just verify that we have wind variation
             if self.num_turbines >= 100:
                 # Ridge-by-ridge analysis for larger datasets (100+ turbines)
-                # Divide turbines into three groups by their location
-                turbines_sorted = sorted(enumerate(zip(self.xs, self.ys)), key=lambda x: x[1][0])
-                third = len(turbines_sorted) // 3
-                west_indices = [i for i, _ in turbines_sorted[:third]]
-                center_indices = [i for i, _ in turbines_sorted[third:2*third]]
-                east_indices = [i for i, _ in turbines_sorted[2*third:]]
+                # Divide turbines into three groups by their location (sorted by easting/x-coordinate)
+                turbines_sorted_by_easting = sorted(enumerate(zip(self.xs, self.ys)), key=lambda x: x[1][0])
+                third = len(turbines_sorted_by_easting) // 3
+                west_indices = [i for i, _ in turbines_sorted_by_easting[:third]]
+                center_indices = [i for i, _ in turbines_sorted_by_easting[third:2*third]]
+                east_indices = [i for i, _ in turbines_sorted_by_easting[2*third:]]
                 
                 avg_west = np.mean([inflows[i] for i in west_indices]) if west_indices else np.mean(inflows)
                 avg_center = np.mean([inflows[i] for i in center_indices]) if center_indices else np.mean(inflows)
