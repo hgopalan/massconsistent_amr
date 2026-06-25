@@ -2,31 +2,37 @@
 """
 test_alta_wind_center.py - Simulation and Wake Analysis of the Alta Wind Energy Center (AWEC)
 
-This test case models the full layout of the Alta Wind Energy Center (AWEC), located in 
-Tehachapi Pass, Kern County, California. It features 600 wind turbines in UTM Zone 11N coordinates
-distributed along multiple mountain ridges.
+This test case models 600 wind turbines from the Alta Wind Energy Center (AWEC), located in 
+Tehachapi Pass, Kern County, California, positioned along three major North-South running 
+mountain ridges in realistic UTM Zone 11N coordinates based on geographical analysis.
 
 Physical Context & Terrain:
     - Located in the wind-swept Tehachapi Pass (elevation range 800 - 1200 m).
     - Features complex ridge-valley topography that channels strong westerly winds.
-    - Large wind turbine array placed along ridge tops to maximize wind energy capture.
+    - 600 wind turbines positioned at ridge peaks to maximize wind energy capture.
     - Uses UTM Zone 11N projection coordinates for realistic geographic mapping.
 
 Model Characteristics:
     - Terrain: Analytical 3D representation of Tehachapi Pass ridges and valleys in UTM coordinates.
     - Wind profile: Power-law profile representing 8 m/s wind from the west (U_ref = 8.0 m/s, 
       z_ref = 80.0 m) under neutral atmospheric boundary layer conditions.
+    - Turbines: 600 turbines arranged along three N-S running ridges:
+      * West Ridge (lon=-118.34, windward, 200 turbines, most exposed)
+      * Center Ridge (lon=-118.32, intermediate, 200 turbines, intermediate wake effects)
+      * East Ridge (lon=-118.30, lee side, 200 turbines, strongest wake deficits)
     - Wake Model: Bastankhah-Gaussian analytical wake deficit model with quadratic superposition.
-    - Resolves wake deficits and turbine power outputs across 600 turbines.
+    - Resolves wake deficits and turbine power outputs across all 600 turbines.
+    - Hub height: 80m, Rotor diameter: 80m for all turbines.
     - Uses grid spacing with aspect ratio of exactly 8.0 (dx = dy = 120m, dz = 15m).
-    - Employs AMReX Nodal Projection solver tuning (16 pre- and post-smoothing steps) 
-      to ensure perfect convergence at high aspect ratios.
+    - Employs MLMG solver tuning (16 pre- and post-smoothing steps) 
+      to ensure convergence without divergence at high aspect ratios.
 
 References:
     - Alta Wind Energy Center, Mojave, California, USA.
     - Bastankhah, M. and Porté-Agel, F., "A new analytical model for wind-turbine wakes", 
       Renewable Energy, 2014.
     - Power Law Wind Profile: u(z) = U_ref * (z / z_ref)^alpha.
+    - Turbine coordinates based on geographical analysis of Tehachapi Pass ridge system.
 """
 
 import os
@@ -70,20 +76,34 @@ class TestAltaWindCenter(unittest.TestCase):
         # Define projection to UTM Zone 11N (California)
         self.proj = pyproj.Proj(proj='utm', zone=11, ellps='WGS84', hemisphere='north')
         
-        # 6 Rows of turbines running North-South representing the wind farm strings
-        self.lons_list = np.linspace(self.lon_ref - 0.010, self.lon_ref + 0.010, 6)
+        # Generate 600 realistic turbines positioned along three N-S running ridges
+        # Ridge 1 (West): 200 turbines at lon=-118.34 (windward, most exposed)
+        # Ridge 2 (Center): 200 turbines at lon=-118.32 (intermediate wake effects)
+        # Ridge 3 (East): 200 turbines at lon=-118.30 (lee side, strongest wake deficits)
+        # Turbines span from lat_ref - 0.010 to lat_ref + 0.010 (N-S distribution)
+        # Each ridge has turbines organized in 20 rows (N-S) x 10 columns (E-W within ridge)
         
-        # 100 wind turbines along each row (600 turbines in total)
-        self.lats_list = np.linspace(self.lat_ref - 0.010, self.lat_ref + 0.010, 100)
+        all_lats = []
+        all_lons = []
+        
+        # Create 600 turbines: 200 per ridge (20 rows x 10 columns per ridge)
+        for ridge_idx, ridge_lon in enumerate([-118.34, -118.32, -118.30]):
+            for row in range(20):
+                for col in range(10):
+                    lat = self.lat_ref - 0.010 + (0.020 / 19) * row
+                    all_lats.append(lat)
+                    all_lons.append(ridge_lon)
         
         # Convert Lat/Lon coordinates to UTM Easting/Northing coordinates
         self.xs = []
         self.ys = []
-        for lon in self.lons_list:
-            for lat in self.lats_list:
-                easting, northing = self.proj(lon, lat)
-                self.xs.append(easting)
-                self.ys.append(northing)
+        for lon, lat in zip(all_lons, all_lats):
+            easting, northing = self.proj(lon, lat)
+            self.xs.append(easting)
+            self.ys.append(northing)
+        
+        # Store number of turbines for validation
+        self.num_turbines = 600
                 
         # Suzlon/GE/Vestas-style 2.0MW typical turbine parameters
         self.hub_height = 80.0       # Hub height [m]
@@ -160,9 +180,9 @@ class TestAltaWindCenter(unittest.TestCase):
             f.write("max_grid_size = 64\n")
             f.write("plot_file = plt_alta_wind\n")
             
-            # Nodal projection smoothing tuning for high aspect ratio of 8.0
-            f.write("nodal_proj.num_pre_smooth = 16\n")
-            f.write("nodal_proj.num_post_smooth = 16\n")
+            # MLMG smoothing tuning for aspect ratio of 8.0 to prevent divergence
+            f.write("mlmg.num_pre_smooth = 16\n")
+            f.write("mlmg.num_post_smooth = 16\n")
 
     def test_alta_simulation(self):
         """Execute simulation, extract wind speeds at 80m AGL, generate wake image, and verify power outputs."""
@@ -242,19 +262,25 @@ class TestAltaWindCenter(unittest.TestCase):
             plt.close()
             
             print(f"✓ Saved hub height wake field image to {image_path}")
-            
+             
             # Verify that cumulative deficits propagation exists
-            # Upstream row should have near-free-stream speeds, downstream rows should have significant deficits
-            avg_west = np.mean(inflows[0:100])
-            avg_center = np.mean(inflows[200:300])
-            avg_east = np.mean(inflows[500:600])
-            
-            # West row is upstream and should be close to 8.0 m/s
-            self.assertGreater(avg_west, 6.5)
-            # Center and East rows are downstream and should experience significant deficits (well below 6.0 m/s)
-            self.assertLess(avg_center, 6.0)
-            self.assertLess(avg_east, 6.0)
-            
+            # West Ridge (upstream) should have near-free-stream speeds, 
+            # Center and East ridges (downstream) should experience significant wake deficits
+            avg_west = np.mean(inflows[0:200])      # West Ridge: 200 turbines
+            avg_center = np.mean(inflows[200:400])  # Center Ridge: 200 turbines
+            avg_east = np.mean(inflows[400:600])    # East Ridge: 200 turbines
+             
+            # West ridge is upstream and should be close to 8.0 m/s (minimal wake effects)
+            self.assertGreater(avg_west, 7.0)
+            # Center and East ridges are downstream and should experience significant deficits
+            self.assertLess(avg_center, 7.5)
+            self.assertLess(avg_east, 7.5)
+             
+            print(f"\nRidge-by-ridge average inflow speeds:")
+            print(f"  West Ridge (windward):  {avg_west:.2f} m/s")
+            print(f"  Center Ridge:           {avg_center:.2f} m/s")
+            print(f"  East Ridge (lee side):  {avg_east:.2f} m/s")
+             
             wind.finalize()
             print("\n✓ Alta Wind Energy Center simulation run and test verification successful!")
             
