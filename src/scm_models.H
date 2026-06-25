@@ -1335,7 +1335,8 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
         SCMState1D state;
         initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude,
                             0.0, -1.0e30, turb_model, enable_mp, init_rh);
-        state.dt = 0.8 * dz / std::sqrt(ug * ug + vg * vg);
+        // Update dt with a safe lower bound for wind speed (added June 2026 to prevent division-by-zero)
+        state.dt = 0.8 * dz / std::sqrt(std::max(ug * ug + vg * vg, amrex::Real(0.01)));
         
         amrex::Real current_speed = run_1d_scm(state, ref_height);
         amrex::Real error = std::abs(current_speed - target_wind_speed);
@@ -1344,12 +1345,18 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
             return std::make_pair(ug, vg);
         }
         
-        // Adjust geostrophic wind iteratively
+        // Adjust geostrophic wind iteratively (updated June 2026 for robust damping & bounds to prevent instability)
         if (current_speed > 1.0e-10) {
             amrex::Real scale = target_wind_speed / current_speed;
             amrex::Real scale_increment = 0.5 * (scale - 1.0);  // Damped update
+            // Clamp scale_increment to [ -0.5, 1.5 ] to prevent extreme steps and instability (added June 2026)
+            scale_increment = std::max(amrex::Real(-0.5), std::min(scale_increment, amrex::Real(1.5)));
             ug = ug * (1.0 + scale_increment);
             vg = vg * (1.0 + scale_increment);
+        } else {
+            // If current speed is zero, scale up the initial guess (added June 2026 for recovery)
+            ug = ug_init * (1.0 + iter);
+            vg = vg_init * (1.0 + iter);
         }
     }
     
