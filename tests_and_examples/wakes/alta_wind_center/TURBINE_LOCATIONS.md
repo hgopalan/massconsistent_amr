@@ -86,12 +86,17 @@ turbine,latitude,longitude,hub_height,rotor_diameter,manufacturer,model
 
 ## Current Implementation
 
-The test:
-1. Checks for `turbines_uswtb.csv` in the test directory
-2. Loads coordinates and projects them to UTM Zone 11N
-3. Generates `turbines.csv` with UTM coordinates for the solver
-4. Automatically sizes terrain domain based on turbine locations
-5. Runs simulation with exact USWTB locations
+The test (`test_alta_wind_center.py`):
+1. Checks for `turbines_uswtb.csv` in the test directory (USWTB source coordinates)
+2. Loads WGS84 coordinates from the CSV file
+3. Projects coordinates to UTM Zone 11N using pyproj
+4. Generates `turbines.csv` with UTM coordinates for the solver
+5. Automatically sizes terrain domain based on actual turbine locations with 600m buffer
+6. Runs simulation with exact USWTB locations (not synthetic coordinates)
+7. Supports any number of turbines: sample (20) to full database (600+)
+8. Performs dynamic analysis based on turbine count:
+   - Small datasets (< 100 turbines): basic wind speed statistics
+   - Large datasets (100+ turbines): ridge-by-ridge wake deficit analysis
 
 ## Verification
 
@@ -207,10 +212,11 @@ Based on USGS analysis, the three ridges exhibit:
 
 ## Notes
 
-- Turbine coordinates represent a **realistic scenario** based on geographic analysis, not actual recorded USWTB data
-- The distribution pattern matches typical utility-scale wind farm layouts in complex terrain
-- Coordinates are optimized for demonstrating wake interaction effects in the simulation
+- Turbine coordinates are loaded from the USWTB CSV file (`turbines_uswtb.csv`)
+- The test uses **exact USWTB database coordinates**, not synthetic data
+- Coordinates are converted from WGS84 (lat/lon) to UTM Zone 11N projection
 - All coordinates are in UTM Zone 11N for consistency with massconsistent_amr solver framework
+- The test is flexible and supports any number of turbines (sample: 20, full database: 600+)
 
 ## Obtaining Real USWTB Coordinates
 
@@ -228,23 +234,29 @@ This tool:
 3. Converts coordinates to solver-compatible format
 4. Exports to CSV for use in simulations
 
-## Current Implementation Notes
+## Current Implementation
 
-The test case uses a **synthetic coordinate generation approach** that:
-- Distributes 600 turbines uniformly across three ridges following realistic wind farm patterns
-- Represents a typical utility-scale wind farm layout based on USGS topography
-- Provides a consistent, reproducible benchmark for testing and development
-- Is NOT the actual USWTB database coordinates (see above for how to use real data)
+**The test now uses exact USWTB turbine coordinates** loaded from `turbines_uswtb.csv`:
+- Reads WGS84 coordinates (latitude, longitude) from CSV file
+- Converts to UTM Zone 11N using pyproj
+- Uses actual USWTB locations (not synthetic or procedurally generated)
+- Supports any number of turbines from the USWTB database
+- Automatically sizes simulation domain based on actual turbine positions
+- Provides sample data with 20 real turbines for quick testing
+- Can be upgraded to use full database with 600+ turbines
 
-When real USWTB coordinates are available, they can be:
-1. Processed with `fetch_uswtb_turbines.py`
-2. Substituted into `turbines.csv`
-3. Used without modifying the test logic (existing setup remains unchanged)
+When upgrading to full USWTB dataset:
+1. Run `fetch_uswtb_turbines.py` to download full database
+2. Place output `turbines_uswtb.csv` in test directory
+3. Run test - it will automatically use all turbines from CSV
+4. No changes needed to test logic (existing setup remains unchanged)
 
 ## Future Updates
 
-When actual USWTB turbine coordinates become available for comparison:
-1. Verify coordinate distributions match real USWTB database locations
-2. Compare simulated wake effects with real-world power output data
-3. Adjust terrain model if needed to match actual detailed topography
-4. Recalibrate wake model parameters using real-world validation data
+The test is now using exact USWTB turbine coordinates. Future enhancements include:
+1. Batch processing for multiple project areas and geographic regions
+2. Time series data: Support turbine availability and commissioning dates
+3. Validation: Cross-check with public USWTB viewer for accuracy verification
+4. Caching: Cache downloaded USWTB database locally for faster repeated runs
+5. Advanced filtering: Support complex project name and geographic filtering
+6. Optimization: Improve coordinate processing speed for large datasets
