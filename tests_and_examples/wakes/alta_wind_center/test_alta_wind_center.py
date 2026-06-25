@@ -2,10 +2,9 @@
 """
 test_alta_wind_center.py - Simulation and Wake Analysis of the Alta Wind Energy Center (AWEC)
 
-This test case models 600 wind turbines from the Alta Wind Energy Center (AWEC), located in 
-Tehachapi Pass, Kern County, California. Turbine coordinates are positioned along three major 
-North-South running mountain ridges in realistic UTM Zone 11N coordinates derived from USGS 
-data sources and the USGS Wind Turbine Database (USWTB).
+This test case models wind turbines from the Alta Wind Energy Center (AWEC), located in 
+Tehachapi Pass, Kern County, California. Turbine coordinates are loaded from the USGS Wind 
+Turbine Database (USWTB) and positioned in realistic UTM Zone 11N coordinates.
 
 Data Sources:
     - USGS Wind Turbine Database (USWTB): https://energy.usgs.gov/uswtdb/
@@ -13,26 +12,27 @@ Data Sources:
     - USGS Topographic Maps: 1:24,000 scale Tehachapi topographic quadrangle
     - National Elevation Dataset (NED): 30-meter resolution digital elevation model
 
-Physical Context & Terrain:
-    - Located in the wind-swept Tehachapi Pass (elevation range 800 - 1200 m).
-    - Features complex ridge-valley topography that channels strong westerly winds.
-    - 600 wind turbines positioned at ridge peaks to maximize wind energy capture.
-    - Uses UTM Zone 11N projection coordinates for realistic geographic mapping.
+Test Characteristics:
+    - Loads turbine coordinates from turbines_uswtb.csv file (placed at exact USWTB locations)
+    - Supports any number of turbines: sample (20) to full database (600+)
+    - Converts WGS84 coordinates to UTM Zone 11N projection
+    - Automatically sizes domain based on actual turbine positions with 600m buffer
+    - Generates terrain grid within buffered domain
 
-Model Characteristics:
-    - Terrain: Analytical 3D representation of Tehachapi Pass ridges and valleys in UTM coordinates.
+Wind Solver Configuration:
     - Wind profile: Power-law profile representing 8 m/s wind from the west (U_ref = 8.0 m/s, 
       z_ref = 80.0 m) under neutral atmospheric boundary layer conditions.
-    - Turbines: 600 turbines arranged along three N-S running ridges:
-      * West Ridge (lon=-118.34, windward, 200 turbines, most exposed)
-      * Center Ridge (lon=-118.32, intermediate, 200 turbines, intermediate wake effects)
-      * East Ridge (lon=-118.30, lee side, 200 turbines, strongest wake deficits)
     - Wake Model: Bastankhah-Gaussian analytical wake deficit model with quadratic superposition.
-    - Resolves wake deficits and turbine power outputs across all 600 turbines.
-    - Hub height: 80m, Rotor diameter: 80m for all turbines.
+    - Hub height: 80m, Rotor diameter: 80m for all turbines (default).
     - Uses grid spacing with aspect ratio of exactly 8.0 (dx = dy = 120m, dz = 15m).
     - Employs MLMG solver tuning (16 pre- and post-smoothing steps) 
       to ensure convergence without divergence at high aspect ratios.
+
+Test Verification:
+    - For small datasets (< 100 turbines): Verifies basic wind speed statistics
+    - For large datasets (100+ turbines): Performs ridge-by-ridge wake deficit analysis
+    - Generates hub height wake field visualization in UTM coordinates
+    - Outputs turbine power results to CSV file with exact coordinates
 
 References:
     - Alta Wind Energy Center, Mojave, California, USA.
@@ -41,7 +41,7 @@ References:
       Renewable Energy, 2014.
     - Power Law Wind Profile: u(z) = U_ref * (z / z_ref)^alpha.
 
-To use actual USWTB turbine coordinates:
+To use full USWTB turbine coordinates:
     - Run: python3 tools/data_ingestion/fetch_uswtb_turbines.py
     - This will extract real turbine locations from the USWTB database
     - See TURBINE_LOCATIONS.md for coordinate system details
