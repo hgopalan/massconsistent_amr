@@ -29,6 +29,7 @@ The Alta Wind Energy Center is one of the largest onshore wind farms in the worl
 4. **`inputs.i`**: Solver configuration file with MLMG smoothing parameters tuned for aspect ratio of 8.0.
 5. **`turbines.csv`**: Wind turbine coordinate and specification registry (600 turbines).
 6. **`terrain.csv`**: Discretized 3D surface elevation grid representing Tehachapi Pass ridges.
+7. **`TURBINE_LOCATIONS.md`**: Detailed documentation of coordinate system, geographic references, and turbine location data sources.
 
 ## Turbine Location Data
 
@@ -39,6 +40,8 @@ Turbine coordinates are based on:
 - **UTM Zone 11N Projection**: All coordinates converted to UTM for accurate spatial analysis and modeling
 
 The turbine distribution (200 per ridge, 20 rows × 10 columns) represents a realistic density for utility-scale wind farm layouts in complex terrain.
+
+**See `TURBINE_LOCATIONS.md` for detailed coordinate system documentation and data source references.**
 
 ## Running the Case
 
