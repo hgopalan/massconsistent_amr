@@ -117,13 +117,14 @@ turbine,project,latitude,longitude,hub_height,rotor_diameter,manufacturer,model
 ## Features Implemented
 
 ### Requirements Met:
-- ✅ Uses exact turbine locations from USWTB viewer
-- ✅ Includes all 600 turbines (loaded from CSV)
+- ✅ Uses exact turbine locations from USWTB viewer (loaded from CSV)
+- ✅ Supports any number of turbines (20+ sample to 600+ full database)
 - ✅ MLMG solver parameters optimized for aspect ratio 8.0
-- ✅ Lat/lon coordinates match actual turbine locations
+- ✅ Lat/lon coordinates match actual USWTB turbine locations
 - ✅ Uses existing test setup infrastructure
 - ✅ No manual coordinate generation logic
-- ✅ Turbines placed at exact USWTB locations
+- ✅ Turbines placed at exact USWTB coordinates
+- ✅ Flexible test verification (adapts to turbine count)
 
 ### Data Sources:
 1. **USGS Wind Turbine Database**
@@ -168,6 +169,22 @@ python3 tests_and_examples/wakes/alta_wind_center/test_alta_wind_center.py
 - Fetch tool gracefully handles download failures
 - Provides manual download instructions
 - Suggests alternative methods
+
+## Test Verification Behavior
+
+The test automatically adapts verification strategy based on turbine count:
+
+### For Small Datasets (< 100 turbines):
+- Verifies basic wind speed statistics
+- Checks for wind speed variation across domain
+- Ensures all turbines have positive wind speeds
+- Outputs wind speed min/max/average statistics
+
+### For Large Datasets (100+ turbines):
+- Performs ridge-by-ridge wake deficit analysis
+- Divides turbines into three geographic groups
+- Compares upstream vs downstream wind conditions
+- Verifies wake deficit propagation patterns
 
 ## Performance Considerations
 
