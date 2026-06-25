@@ -1319,11 +1319,10 @@ void WindSolverApp::validate_configuration() {
     // --- CONFLICT 4: Buoyancy + Incompatible Features ---
     // Buoyancy requires temperature information
     if (enable_buoyancy_stratification && temperature_file.empty()) {
-        amrex::Print() << "wind_solver: *** WARNING ***\n";
+        amrex::Print() << "wind_solver: *** INFO ***\n";
         amrex::Print() << "wind_solver: Buoyancy stratification enabled (enable_buoyancy_stratification=true)\n";
         amrex::Print() << "wind_solver: but no temperature file specified (temperature_file empty).\n";
-        amrex::Print() << "wind_solver: Buoyancy effects will not be active. Specify temperature_file to enable.\n";
-        has_warning = true;
+        amrex::Print() << "wind_solver: A default temperature profile (potential temperature up to 1024 m, lapse rate 0.003 beyond) will be used.\n";
     }
     
     // --- CONFLICT 5: Stability Correction Redundancy ---
@@ -1631,7 +1630,7 @@ void WindSolverApp::setup_geometry_and_mesh() {
 
     if (enable_buoyancy_stratification || enable_cell_local_anisotropy) {
         bool has_temperature_file = false;
-        {
+        if (!temperature_file.empty()) {
             std::ifstream f(temperature_file);
             if (f.good()) {
                 has_temperature_file = true;
@@ -1640,30 +1639,33 @@ void WindSolverApp::setup_geometry_and_mesh() {
 
         if (has_temperature_file) {
             WindIO::read_temperature_file(temperature_file, z_temp, T_temp);
-            
-            if (enable_diurnal_temperature) {
-                amrex::Print() << "wind_solver: diurnal temperature variation enabled\n";
-                amrex::Print() << "  diurnal_temperature_amplitude = " << diurnal_temperature_amplitude << " K\n";
-                amrex::Print() << "  diurnal_time_of_day = " << diurnal_time_of_day << " hours\n";
-                amrex::Print() << "  diurnal_phase_hour = " << diurnal_phase_hour << " hours\n";
-                amrex::Print() << "  diurnal_period = " << diurnal_period << " hours\n";
-                
-                for (std::size_t m = 0; m < T_temp.size(); ++m) {
-                    Real T_mean = T_temp[m];
-                    T_temp[m] = diurnal_temperature(T_mean, diurnal_temperature_amplitude,
-                                                   diurnal_time_of_day, diurnal_phase_hour, 
-                                                   diurnal_period);
-                }
-            }
         } else {
-            if (enable_buoyancy_stratification) {
-                amrex::Abort("wind_solver: buoyancy stratification enabled but temperature file cannot be opened: " + temperature_file);
-            } else {
-                amrex::Print() << "wind_solver: WARNING: Cell-local anisotropy is enabled but temperature file '" << temperature_file << "' cannot be opened. Skipping temperature profile reading.\n";
+            // Temperature is not specified or file cannot be opened.
+            // Setup a default temperature profile of potential temperature up to 1024 m in z,
+            // and a lapse rate of 0.003 beyond that.
+            amrex::Print() << "wind_solver: Temperature profile not specified or file cannot be opened. "
+                           << "Initializing default temperature profile: potential temperature " << temperature_reference
+                           << " K up to 1024 m, and a lapse rate of 0.003 K/m beyond.\n";
+            z_temp = {0.0, 1024.0, 100000.0};
+            T_temp = {temperature_reference, temperature_reference, temperature_reference + 0.003 * (100000.0 - 1024.0)};
+        }
+
+        if (enable_diurnal_temperature) {
+            amrex::Print() << "wind_solver: diurnal temperature variation enabled\n";
+            amrex::Print() << "  diurnal_temperature_amplitude = " << diurnal_temperature_amplitude << " K\n";
+            amrex::Print() << "  diurnal_time_of_day = " << diurnal_time_of_day << " hours\n";
+            amrex::Print() << "  diurnal_phase_hour = " << diurnal_phase_hour << " hours\n";
+            amrex::Print() << "  diurnal_period = " << diurnal_period << " hours\n";
+            
+            for (std::size_t m = 0; m < T_temp.size(); ++m) {
+                Real T_mean = T_temp[m];
+                T_temp[m] = diurnal_temperature(T_mean, diurnal_temperature_amplitude,
+                                               diurnal_time_of_day, diurnal_phase_hour, 
+                                               diurnal_period);
             }
         }
         
-        if (enable_buoyancy_stratification && has_temperature_file) {
+        if (enable_buoyancy_stratification) {
             amrex::Print() << "wind_solver: buoyancy stratification enabled\n";
             amrex::Print() << "  temperature_reference = " << temperature_reference << " K\n";
             amrex::Print() << "  buoyancy_coefficient = " << buoyancy_coefficient << "\n";
