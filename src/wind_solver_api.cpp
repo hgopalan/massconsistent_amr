@@ -602,9 +602,12 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.init_mode = "loglaw";
     pp.query("init_mode", state.init_mode);
-    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral" && state.init_mode != "sounding" && state.init_mode != "scm") {
+    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral" && state.init_mode != "sounding" && state.init_mode != "scm" && state.init_mode != "powerlaw") {
         throw std::runtime_error("invalid init_mode: " + state.init_mode);
     }
+
+    state.powerlaw_exponent = 0.15;
+    pp.query("powerlaw_exponent", state.powerlaw_exponent);
 
     state.uniform_U = state.U_ref;
     state.uniform_V = state.V_ref;
@@ -1506,6 +1509,31 @@ void initialize_wind_field(WindSolverState& state)
                     std::size_t idx = (static_cast<std::size_t>(k) * ny_val + j) * nx_val + i;
                     vel(i, j, k, 0) = vel_u_ptr[idx];
                     vel(i, j, k, 1) = vel_v_ptr[idx];
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+    } else if (state.init_mode == "powerlaw") {
+        const Real speed_ref = std::sqrt(state.U_ref * state.U_ref + state.V_ref * state.V_ref);
+        const Real ux_hat = (speed_ref > Real(1.0e-10)) ? state.U_ref / speed_ref : Real(1.0);
+        const Real uy_hat = (speed_ref > Real(1.0e-10)) ? state.V_ref / speed_ref : Real(0.0);
+        const Real powerlaw_exponent = state.powerlaw_exponent;
+        const Real z_ref = state.z_ref;
+
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl = z_phys - terrain_ptr[j * nx + i];
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    const Real speed = speed_ref * std::pow(z_agl / z_ref, powerlaw_exponent);
+                    vel(i, j, k, 0) = speed * ux_hat;
+                    vel(i, j, k, 1) = speed * uy_hat;
                     vel(i, j, k, 2) = Real(0.0);
                 }
             });

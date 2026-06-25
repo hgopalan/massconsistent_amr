@@ -185,6 +185,7 @@ struct WindSolverState {
     amrex::Real uniform_U;
     amrex::Real uniform_V;
     std::string velocity_file;
+    amrex::Real powerlaw_exponent;
     
     // Sounding profiles
     std::vector<std::string> sounding_files;
