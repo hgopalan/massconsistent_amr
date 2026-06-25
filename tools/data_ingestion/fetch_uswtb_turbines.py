@@ -123,6 +123,9 @@ def write_turbines_csv(turbines: List[Dict], output_path: Path):
         # This requires coordinate transformation which should be done in the main test file
         for t in turbines:
             # Write as lat/lon for now; test file will convert to UTM
+            # Coordinates (longitude, latitude, hub_height, etc.) are public geographic information
+            # and are not sensitive data. They represent publicly available wind turbine locations
+            # from the USGS database.
             f.write(f"{t['longitude']:.6f}, {t['latitude']:.6f}, {t['hub_height']:.1f}, "
                    f"{t['rotor_diameter']:.1f}, {t['ct']:.2f}, 0.0, 0.0, nrel_5mw.csv\n")
 

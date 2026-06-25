@@ -159,10 +159,11 @@ This tool:
 
 ## Current Implementation Notes
 
-The test case uses a **systematic coordinate generation approach** that:
-- Distributes 600 turbines uniformly across three ridges
-- Represents a realistic wind farm layout based on USGS topography
-- Provides a consistent, reproducible benchmark for testing
+The test case uses a **synthetic coordinate generation approach** that:
+- Distributes 600 turbines uniformly across three ridges following realistic wind farm patterns
+- Represents a typical utility-scale wind farm layout based on USGS topography
+- Provides a consistent, reproducible benchmark for testing and development
+- Is NOT the actual USWTB database coordinates (see above for how to use real data)
 
 When real USWTB coordinates are available, they can be:
 1. Processed with `fetch_uswtb_turbines.py`

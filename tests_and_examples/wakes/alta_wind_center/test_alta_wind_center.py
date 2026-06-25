@@ -88,29 +88,36 @@ class TestAltaWindCenter(unittest.TestCase):
         # Define projection to UTM Zone 11N (California)
         self.proj = pyproj.Proj(proj='utm', zone=11, ellps='WGS84', hemisphere='north')
         
-        # Generate 600 realistic turbines positioned along three N-S running ridges
-        # Ridge 1 (West): 200 turbines at lon=-118.34 (windward, most exposed)
-        # Ridge 2 (Center): 200 turbines at lon=-118.32 (intermediate wake effects)
-        # Ridge 3 (East): 200 turbines at lon=-118.30 (lee side, strongest wake deficits)
-        # Turbines span from lat_ref - 0.010 to lat_ref + 0.010 (N-S distribution)
-        # Each ridge has turbines organized in 20 rows (N-S) x 10 columns (E-W within ridge)
+        # Ridge configuration for 600 turbines: 200 per ridge, 20 rows × 10 columns
+        num_rows = 20
+        num_cols = 10
+        num_ridges = 3
+        lat_span = 0.020  # Total N-S span in degrees (~2.22 km)
+        lon_span = 0.020  # E-W span per ridge in degrees (~1.8 km)
+        ridge_centers = [-118.34, -118.32, -118.30]  # Center longitude for each ridge
+        
+        # Generate turbines positioned along three N-S running ridges
+        # Ridge 1 (West, lon=-118.34): windward, most exposed
+        # Ridge 2 (Center, lon=-118.32): intermediate wake effects
+        # Ridge 3 (East, lon=-118.30): lee side, strongest wake deficits
         
         all_lats = []
         all_lons = []
         
-        # Create 600 turbines: 200 per ridge (20 rows x 10 columns per ridge)
-        # Each ridge spans ~0.02 degrees in longitude (roughly 1.8 km E-W)
+        # Create ridge longitude arrays with E-W distribution
         ridge_lons = [
-            np.linspace(-118.34 - 0.010, -118.34 + 0.010, 10),  # West ridge: 10 columns
-            np.linspace(-118.32 - 0.010, -118.32 + 0.010, 10),  # Center ridge: 10 columns
-            np.linspace(-118.30 - 0.010, -118.30 + 0.010, 10)   # East ridge: 10 columns
+            np.linspace(ridge_center - lon_span / 2, ridge_center + lon_span / 2, num_cols)
+            for ridge_center in ridge_centers
         ]
         
-        for ridge_idx, ridge_idx_lons in enumerate(ridge_lons):
-            for row in range(20):
-                for col in range(10):
-                    lat = self.lat_ref - 0.010 + (0.020 / 19) * row
-                    lon = ridge_idx_lons[col]
+        # Populate turbines across all ridges
+        for ridge_idx, ridge_lon_array in enumerate(ridge_lons):
+            for row in range(num_rows):
+                for col in range(num_cols):
+                    # N-S distribution: from lat_ref - lat_span/2 to lat_ref + lat_span/2
+                    lat = self.lat_ref - lat_span / 2 + (lat_span / (num_rows - 1)) * row
+                    # E-W distribution within ridge
+                    lon = ridge_lon_array[col]
                     all_lats.append(lat)
                     all_lons.append(lon)
         
@@ -122,8 +129,12 @@ class TestAltaWindCenter(unittest.TestCase):
             self.xs.append(easting)
             self.ys.append(northing)
         
-        # Store number of turbines for validation
-        self.num_turbines = 600
+        # Store and validate number of turbines
+        self.num_turbines = num_ridges * num_rows * num_cols
+        assert len(self.xs) == self.num_turbines, \
+            f"Turbine count mismatch: generated {len(self.xs)}, expected {self.num_turbines}"
+        assert len(self.ys) == self.num_turbines, \
+            f"Coordinate count mismatch: generated {len(self.ys)}, expected {self.num_turbines}"
                 
         # Suzlon/GE/Vestas-style 2.0MW typical turbine parameters
         self.hub_height = 80.0       # Hub height [m]
