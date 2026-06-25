@@ -223,6 +223,11 @@ add_regression_test(wall_function_adaptive physics/wall_function_adaptive)
 add_regression_test(buoyancy_stratification physics/buoyancy_stratification)
 
 # ---------------------------------------------------------------------------
+# buoyancy_default_profile/ – Thermal stratification using default profile
+# ---------------------------------------------------------------------------
+add_regression_test(buoyancy_default_profile physics/buoyancy_default_profile)
+
+# ---------------------------------------------------------------------------
 # buoyancy_rhs/ – Buoyancy RHS method (source term in lambda equation)
 # ---------------------------------------------------------------------------
 add_regression_test(buoyancy_rhs physics/buoyancy_rhs)
