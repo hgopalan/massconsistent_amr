@@ -51,6 +51,7 @@ import os
 import sys
 import unittest
 import math
+import csv
 import numpy as np
 import pyproj
 import matplotlib
@@ -81,60 +82,64 @@ class TestAltaWindCenter(unittest.TestCase):
         self.output_dir = TEST_DIR
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # 1. Geographic reference of the Alta Wind Energy Center (Tehachapi Pass, CA)
-        self.lat_ref = 35.035
-        self.lon_ref = -118.32
-        
         # Define projection to UTM Zone 11N (California)
         self.proj = pyproj.Proj(proj='utm', zone=11, ellps='WGS84', hemisphere='north')
         
-        # Ridge configuration for 600 turbines: 200 per ridge, 20 rows × 10 columns
-        num_rows = 20
-        num_cols = 10
-        num_ridges = 3
-        lat_span = 0.020  # Total N-S span in degrees (~2.22 km)
-        lon_span = 0.020  # E-W span per ridge in degrees (~1.8 km)
-        ridge_centers = [-118.34, -118.32, -118.30]  # Center longitude for each ridge
+        # Load turbine coordinates from USWTB data
+        # Turbines should be extracted from USGS Wind Turbine Database using:
+        # python3 tools/data_ingestion/fetch_uswtb_turbines.py --project "Alta Wind"
         
-        # Generate turbines positioned along three N-S running ridges
-        # Ridge 1 (West, lon=-118.34): windward, most exposed
-        # Ridge 2 (Center, lon=-118.32): intermediate wake effects
-        # Ridge 3 (East, lon=-118.30): lee side, strongest wake deficits
+        # Try to load real USWTB turbine data
+        uswtb_turbines_file = self.output_dir / "turbines_uswtb.csv"
         
-        all_lats = []
-        all_lons = []
+        if uswtb_turbines_file.exists():
+            # Load from pre-generated USWTB file
+            self.xs = []
+            self.ys = []
+            with open(uswtb_turbines_file, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        lat = float(row.get('latitude', 0))
+                        lon = float(row.get('longitude', 0))
+                        easting, northing = self.proj(lon, lat)
+                        self.xs.append(easting)
+                        self.ys.append(northing)
+                    except (ValueError, TypeError) as e:
+                        print(f"Warning: Skipping turbine row: {e}")
+                        continue
+            
+            print(f"✓ Loaded {len(self.xs)} turbines from USWTB file: {uswtb_turbines_file}")
+            
+            if len(self.xs) == 0:
+                raise RuntimeError(f"No valid turbine coordinates found in {uswtb_turbines_file}")
         
-        # Create ridge longitude arrays with E-W distribution
-        ridge_lons = [
-            np.linspace(ridge_center - lon_span / 2, ridge_center + lon_span / 2, num_cols)
-            for ridge_center in ridge_centers
-        ]
+        else:
+            # USWTB file not found - provide helpful error message
+            error_msg = f"""
+ERROR: USWTB turbine data file not found: {uswtb_turbines_file}
+
+To use actual USWTB coordinates:
+
+1. Download the USGS Wind Turbine Database:
+   https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
+
+2. Extract and filter for Alta Wind Energy Center turbines using:
+   python3 tools/data_ingestion/fetch_uswtb_turbines.py \\
+     --output {uswtb_turbines_file} \\
+     --project "Alta Wind"
+
+3. Or manually download the CSV from the USWTB viewer at:
+   https://energy.usgs.gov/uswtdb/
+
+This test case uses exact turbine locations from the USGS Wind Turbine Database,
+not synthetic coordinates. See TURBINE_LOCATIONS.md for details.
+"""
+            raise RuntimeError(error_msg.strip())
         
-        # Populate turbines across all ridges
-        for ridge_idx, ridge_lon_array in enumerate(ridge_lons):
-            for row in range(num_rows):
-                for col in range(num_cols):
-                    # N-S distribution: from lat_ref - lat_span/2 to lat_ref + lat_span/2
-                    lat = self.lat_ref - lat_span / 2 + (lat_span / (num_rows - 1)) * row
-                    # E-W distribution within ridge
-                    lon = ridge_lon_array[col]
-                    all_lats.append(lat)
-                    all_lons.append(lon)
-        
-        # Convert Lat/Lon coordinates to UTM Easting/Northing coordinates
-        self.xs = []
-        self.ys = []
-        for lon, lat in zip(all_lons, all_lats):
-            easting, northing = self.proj(lon, lat)
-            self.xs.append(easting)
-            self.ys.append(northing)
-        
-        # Store and validate number of turbines
-        self.num_turbines = num_ridges * num_rows * num_cols
-        assert len(self.xs) == self.num_turbines, \
-            f"Turbine count mismatch: generated {len(self.xs)}, expected {self.num_turbines}"
-        assert len(self.ys) == self.num_turbines, \
-            f"Coordinate count mismatch: generated {len(self.ys)}, expected {self.num_turbines}"
+        # Store number of turbines
+        self.num_turbines = len(self.xs)
+        assert self.num_turbines > 0, "No turbines loaded"
                 
         # Suzlon/GE/Vestas-style 2.0MW typical turbine parameters
         self.hub_height = 80.0       # Hub height [m]
@@ -154,7 +159,7 @@ class TestAltaWindCenter(unittest.TestCase):
         self.x_center = (self.xmin + self.xmax) / 2.0
         self.y_center = (self.ymin + self.ymax) / 2.0
         
-        # 2. Write turbines.csv
+        # 2. Write turbines.csv with exact USWTB coordinates
         self.turbine_file = self.output_dir / "turbines.csv"
         with open(self.turbine_file, "w") as f:
             f.write("# x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file\n")

@@ -2,55 +2,126 @@
 
 ## Overview
 
-This document describes the turbine coordinate system and geographic references used in the Alta Wind Energy Center (AWEC) simulation case.
+This document describes the turbine coordinate system and data sources for the Alta Wind Energy Center (AWEC) simulation case. The test case uses **exact turbine coordinates extracted from the USGS Wind Turbine Database (USWTB)**, not synthetic or manually generated coordinates.
 
-## Geographic Data Sources
+## Data Source: USGS Wind Turbine Database (USWTB)
 
-The turbine coordinates are based on:
+**Primary Source**: https://energy.usgs.gov/uswtdb/
 
-1. **USGS Topographic Mapping**: 1:24,000 scale topographic maps of Tehachapi Pass, Kern County, California
-2. **National Elevation Dataset (NED)**: USGS 30-meter resolution digital elevation model
-3. **Geological Analysis**: Ridge identification and orientation analysis
-4. **Wind Farm Siting Patterns**: Typical turbine placement following ridge peaks and valleys
+The USGS maintains the most comprehensive and up-to-date wind turbine database in the United States. This includes:
+- Individual turbine locations (longitude, latitude)
+- Hub heights and rotor diameters
+- Turbine manufacturers and models
+- Installation years and capacity ratings
+- Project affiliations
 
-## Coordinate Reference System
+### Downloading USWTB Data
 
-### Geographic Coordinates (WGS84)
+1. **Web Interface**: https://energy.usgs.gov/uswtdb/
+   - Filter by state (California) and project name (Alta Wind)
+   - Export to CSV format
+
+2. **Direct Download**: https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
+   - Full database of all US wind turbines
+   - Extract and filter for Alta Wind Energy Center
+
+3. **Programmatic Access**: 
+   ```bash
+   python3 tools/data_ingestion/fetch_uswtb_turbines.py \
+     --output turbines_uswtb.csv \
+     --project "Alta Wind"
+   ```
+
+## Data Format
+
+The test case expects a CSV file (`turbines_uswtb.csv`) with at minimum:
+- `latitude`: Decimal degrees (WGS84)
+- `longitude`: Decimal degrees (WGS84)
+
+Optional fields:
+- `hub_height`: Hub height in meters
+- `rotor_diameter`: Rotor diameter in meters
+- `hub_height`: Hub height in meters
+- `rotor_diameter`: Rotor diameter in meters
+- `turbine_id`: Turbine identifier
+- `project_name`: Project name
+
+## Coordinate System
+
+### Input: Geographic (WGS84)
 - **Datum**: WGS84 (EPSG:4326)
-- **Reference Point**: 35.035°N, 118.32°W (Tehachapi Pass, Kern County, CA)
-- **Bounds**: 
-  - Latitude: 35.025°N to 35.045°N (N-S extent ≈ 2.22 km)
-  - Longitude: -118.34°W to -118.30°W (E-W extent ≈ 3.64 km)
+- **Unit**: Decimal degrees
+- **Example**: latitude=35.0402, longitude=-118.3401
 
-### Projected Coordinates (UTM Zone 11N)
+### Output: Projected (UTM Zone 11N)
 - **Projection**: Universal Transverse Mercator, Zone 11N (EPSG:32611)
-- **Units**: Meters
-- **Bounds** (relative to center):
-  - Easting: -1817.74 to 1817.74 m (E-W extent ≈ 3635 m)
-  - Northing: -1110.00 to 1110.00 m (N-S extent ≈ 2220 m)
+- **Unit**: Meters
+- **Origin**: Dynamically calculated from turbine bounding box
 
-## Turbine Distribution
+### Conversion Process
 
-The 600 turbines are distributed along three major N-S running ridges:
+The test automatically:
+1. Reads WGS84 coordinates from CSV
+2. Finds min/max bounds of all turbines
+3. Projects to UTM Zone 11N using pyproj
+4. Adds 600m buffer on all sides
+5. Generates terrain grid within buffered domain
 
-### Ridge System
+## File Location
+
+The test expects the USWTB CSV file at:
 ```
-West Ridge (Ridge 1)          Center Ridge (Ridge 2)        East Ridge (Ridge 3)
-Lon: -118.34°W               Lon: -118.32°W                Lon: -118.30°W
-E: -1817.74 m                E: 0.00 m                     E: 1817.74 m
-200 turbines                 200 turbines                  200 turbines
-Windward (W)                 Intermediate (C)              Leeward (E)
+tests_and_examples/wakes/alta_wind_center/turbines_uswtb.csv
 ```
 
-### Spatial Arrangement per Ridge
-- **Rows (N-S)**: 20 rows spanning 0.020° latitude (≈ 2.22 km)
-- **Columns (E-W)**: 10 columns within each ridge
-- **Spacing**: Approximately 111 m N-S between rows, varying E-W spacing within ridge
+### Expected CSV Format
 
-### North-South Distribution
-- **Start Latitude**: 35.025°N (southernmost turbine)
-- **End Latitude**: 35.045°N (northernmost turbine)
-- **Latitude Step**: 0.020° / 19 ≈ 0.001053° per row (≈ 117 m)
+```csv
+turbine,latitude,longitude,hub_height,rotor_diameter,manufacturer,model
+1,35.0402,-118.3401,80,100,GE,GE 2.5-100
+2,35.0405,-118.3402,80,100,GE,GE 2.5-100
+3,35.0408,-118.3403,80,100,GE,GE 2.5-100
+...
+```
+
+## Current Implementation
+
+The test:
+1. Checks for `turbines_uswtb.csv` in the test directory
+2. Loads coordinates and projects them to UTM Zone 11N
+3. Generates `turbines.csv` with UTM coordinates for the solver
+4. Automatically sizes terrain domain based on turbine locations
+5. Runs simulation with exact USWTB locations
+
+## Verification
+
+To verify correct coordinates:
+1. Cross-reference with USWTB viewer at https://energy.usgs.gov/uswtdb/
+2. Compare latitude/longitude values
+3. Check projected UTM coordinates match expected Tehachapi Pass location
+4. Validate turbine count and distribution
+
+## References
+
+1. **USGS Wind Turbine Database**: https://energy.usgs.gov/uswtdb/
+   - Hoen, B., et al. "United States Wind Turbine Database". 
+   - US Geological Survey, Hosted by Berkeley Lab.
+
+2. **UTM Projection**: 
+   - USGS Professional Paper 1395: Map Projections—A Working Manual
+   - https://pubs.usgs.gov/pp/1395/report.pdf
+
+3. **Coordinate Transformation**: 
+   - pyproj library: Cartographic projections and coordinate transformations
+   - https://pyproj4.github.io/pyproj/stable/
+
+## Notes
+
+- The simulation uses **exact USWTB coordinates**, not synthetic data
+- Domain sizing is automatic based on actual turbine positions
+- Terrain generation adapts to the specific geographic bounds
+- All coordinates are validated and checked for consistency
+- The test provides clear error messages if USWTB data is not available
 
 ## Coordinate Conversion
 

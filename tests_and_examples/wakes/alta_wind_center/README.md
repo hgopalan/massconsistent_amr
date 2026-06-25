@@ -33,45 +33,74 @@ The Alta Wind Energy Center is one of the largest onshore wind farms in the worl
 
 ## Turbine Location Data
 
-Turbine coordinates in this simulation case:
-- **Primary Source**: USGS Wind Turbine Database (USWTB)
-  - Database: https://energy.usgs.gov/uswtdb/
+This simulation case uses **exact turbine coordinates from the USGS Wind Turbine Database (USWTB)**:
+
+- **Data Source**: USGS Wind Turbine Database
+  - Website: https://energy.usgs.gov/uswtdb/
   - Download: https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
-- **Coordinate Processing**: 
-  - Geographic coordinates (WGS84): 35.025-35.045°N, -118.34 to -118.30°W
-  - Projected coordinates (UTM Zone 11N): Referenced to Tehachapi Pass center
-- **Turbine Distribution**: 
-  - 200 turbines per ridge (20 rows × 10 columns)
-  - Realistic density for utility-scale wind farms in complex terrain
-  - Based on typical siting patterns following ridge topography
+  
+- **Turbine Specification**:
+  - Filter for "Alta Wind Energy Center" projects
+  - Extract longitude, latitude, hub height, rotor diameter
+  - Convert from WGS84 (geographic) to UTM Zone 11N (projected)
 
-### To Use Actual USWTB Coordinates
+- **Coordinate Processing**:
+  - Geographic coordinates: WGS84 datum (EPSG:4326)
+  - Projected coordinates: UTM Zone 11N (EPSG:32611)
+  - Automatic domain sizing based on actual turbine bounds
+  - 600m buffer applied around turbine bounding box
 
-The repository includes a tool to extract real turbine coordinates from the USWTB database:
+### Obtaining the Data
+
+Use the provided tool to download and convert USWTB coordinates:
 
 ```bash
-# Fetch and process USWTB turbine data
+# Extract Alta Wind turbines from USWTB database
 python3 tools/data_ingestion/fetch_uswtb_turbines.py \
-  --output tests_and_examples/wakes/alta_wind_center/turbines_real.csv \
-  --list-projects  # (optional) list all projects first
+  --output tests_and_examples/wakes/alta_wind_center/turbines_uswtb.csv \
+  --project "Alta Wind"
 ```
 
-This will download actual turbine locations from USGS and convert them to the solver format.
+Or manually:
+1. Visit https://energy.usgs.gov/uswtdb/
+2. Select "Alta Wind" in the project filter
+3. Download the CSV with turbine coordinates
+4. Save as `turbines_uswtb.csv` in this directory
 
-See `TURBINE_LOCATIONS.md` for detailed coordinate system documentation and data source references.
+**See `TURBINE_LOCATIONS.md` for detailed coordinate system documentation.**
 
 ## Running the Case
 
-To run the simulation and generate all outputs, execute:
+To run the simulation with actual USWTB turbine coordinates:
+
+### Step 1: Download USWTB Turbine Data
+
+Download the USGS Wind Turbine Database:
+```bash
+# Download from USGS
+wget https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
+
+# Or use the fetch tool to get filtered data
+python3 tools/data_ingestion/fetch_uswtb_turbines.py \
+  --output tests_and_examples/wakes/alta_wind_center/turbines_uswtb.csv \
+  --project "Alta Wind"
+```
+
+### Step 2: Run the Simulation
 
 ```bash
-# 1. Run the simulation and verification test
 export PYTHONPATH=/path/to/massconsistent_amr/build/python:$PYTHONPATH
+cd tests_and_examples/wakes/alta_wind_center
 python3 test_alta_wind_center.py
-
-# 2. Run the power visualization plots
 python3 plot_power.py
 ```
+
+The test will automatically:
+1. Load turbine coordinates from `turbines_uswtb.csv` (real USWTB data)
+2. Convert coordinates to UTM Zone 11N projection
+3. Generate terrain based on actual coordinate bounds
+4. Solve the wind field with analytical wake models
+5. Output power results and visualization
 
 ## Expected Results
 

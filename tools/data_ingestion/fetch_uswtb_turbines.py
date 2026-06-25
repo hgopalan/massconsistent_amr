@@ -115,19 +115,18 @@ def convert_to_solver_format(turbines: List[Dict]) -> List[Dict]:
     return solver_format
 
 def write_turbines_csv(turbines: List[Dict], output_path: Path):
-    """Write turbines in solver format to CSV."""
+    """Write turbines in solver format to CSV with latitude and longitude columns."""
     with open(output_path, 'w') as f:
-        f.write("# x, y, hub_height, rotor_diameter, default_ct, yaw, orientation, power_curve_file\n")
+        # Write header with required columns for test file
+        f.write("turbine,project,latitude,longitude,hub_height,rotor_diameter,manufacturer,model\n")
         
-        # Note: x, y should be in UTM coordinates
-        # This requires coordinate transformation which should be done in the main test file
-        for t in turbines:
-            # Write as lat/lon for now; test file will convert to UTM
-            # Coordinates (longitude, latitude, hub_height, etc.) are public geographic information
-            # and are not sensitive data. They represent publicly available wind turbine locations
-            # from the USGS database.
-            f.write(f"{t['longitude']:.6f}, {t['latitude']:.6f}, {t['hub_height']:.1f}, "
-                   f"{t['rotor_diameter']:.1f}, {t['ct']:.2f}, 0.0, 0.0, nrel_5mw.csv\n")
+        # Write turbine data
+        # Coordinates (longitude, latitude) are public geographic information
+        # from the USGS database and are not sensitive data.
+        for i, t in enumerate(turbines, 1):
+            f.write(f"{i},{t['project']},{t['latitude']:.6f},{t['longitude']:.6f},"
+                   f"{t['hub_height']:.1f},{t['rotor_diameter']:.1f},"
+                   f"{t['manufacturer']},{t['model']}\n")
 
 def main():
     parser = argparse.ArgumentParser(description='Fetch and process USWTB turbine data')
