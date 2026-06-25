@@ -99,12 +99,20 @@ class TestAltaWindCenter(unittest.TestCase):
         all_lons = []
         
         # Create 600 turbines: 200 per ridge (20 rows x 10 columns per ridge)
-        for ridge_idx, ridge_lon in enumerate([-118.34, -118.32, -118.30]):
+        # Each ridge spans ~0.02 degrees in longitude (roughly 1.8 km E-W)
+        ridge_lons = [
+            np.linspace(-118.34 - 0.010, -118.34 + 0.010, 10),  # West ridge: 10 columns
+            np.linspace(-118.32 - 0.010, -118.32 + 0.010, 10),  # Center ridge: 10 columns
+            np.linspace(-118.30 - 0.010, -118.30 + 0.010, 10)   # East ridge: 10 columns
+        ]
+        
+        for ridge_idx, ridge_idx_lons in enumerate(ridge_lons):
             for row in range(20):
                 for col in range(10):
                     lat = self.lat_ref - 0.010 + (0.020 / 19) * row
+                    lon = ridge_idx_lons[col]
                     all_lats.append(lat)
-                    all_lons.append(ridge_lon)
+                    all_lons.append(lon)
         
         # Convert Lat/Lon coordinates to UTM Easting/Northing coordinates
         self.xs = []
