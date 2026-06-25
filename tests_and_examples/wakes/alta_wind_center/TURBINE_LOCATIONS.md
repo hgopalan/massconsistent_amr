@@ -141,10 +141,38 @@ Based on USGS analysis, the three ridges exhibit:
 - Coordinates are optimized for demonstrating wake interaction effects in the simulation
 - All coordinates are in UTM Zone 11N for consistency with massconsistent_amr solver framework
 
+## Obtaining Real USWTB Coordinates
+
+The actual turbine coordinates from the USGS Wind Turbine Database (USWTB) can be obtained using the provided tool:
+
+```bash
+python3 tools/data_ingestion/fetch_uswtb_turbines.py \
+  --output turbines_uswtb.csv \
+  --project "Alta Wind"
+```
+
+This tool:
+1. Downloads the USWTB database from: https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
+2. Filters for Alta Wind Energy Center turbines
+3. Converts coordinates to solver-compatible format
+4. Exports to CSV for use in simulations
+
+## Current Implementation Notes
+
+The test case uses a **systematic coordinate generation approach** that:
+- Distributes 600 turbines uniformly across three ridges
+- Represents a realistic wind farm layout based on USGS topography
+- Provides a consistent, reproducible benchmark for testing
+
+When real USWTB coordinates are available, they can be:
+1. Processed with `fetch_uswtb_turbines.py`
+2. Substituted into `turbines.csv`
+3. Used without modifying the test logic (existing setup remains unchanged)
+
 ## Future Updates
 
-When actual USWTB turbine coordinates become available:
-1. Verify coordinates against real USWTB database
-2. Update `turbines.csv` with actual measured coordinates
-3. Adjust terrain model if needed to match actual topography
-4. Recalibrate wake model parameters if real-world validation data is available
+When actual USWTB turbine coordinates become available for comparison:
+1. Verify coordinate distributions match real USWTB database locations
+2. Compare simulated wake effects with real-world power output data
+3. Adjust terrain model if needed to match actual detailed topography
+4. Recalibrate wake model parameters using real-world validation data

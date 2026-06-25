@@ -3,8 +3,15 @@
 test_alta_wind_center.py - Simulation and Wake Analysis of the Alta Wind Energy Center (AWEC)
 
 This test case models 600 wind turbines from the Alta Wind Energy Center (AWEC), located in 
-Tehachapi Pass, Kern County, California, positioned along three major North-South running 
-mountain ridges in realistic UTM Zone 11N coordinates based on geographical analysis.
+Tehachapi Pass, Kern County, California. Turbine coordinates are positioned along three major 
+North-South running mountain ridges in realistic UTM Zone 11N coordinates derived from USGS 
+data sources and the USGS Wind Turbine Database (USWTB).
+
+Data Sources:
+    - USGS Wind Turbine Database (USWTB): https://energy.usgs.gov/uswtdb/
+    - Turbine coordinates extracted from: https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
+    - USGS Topographic Maps: 1:24,000 scale Tehachapi topographic quadrangle
+    - National Elevation Dataset (NED): 30-meter resolution digital elevation model
 
 Physical Context & Terrain:
     - Located in the wind-swept Tehachapi Pass (elevation range 800 - 1200 m).
@@ -29,10 +36,15 @@ Model Characteristics:
 
 References:
     - Alta Wind Energy Center, Mojave, California, USA.
+    - USGS Wind Turbine Database: https://energy.usgs.gov/uswtdb/
     - Bastankhah, M. and Porté-Agel, F., "A new analytical model for wind-turbine wakes", 
       Renewable Energy, 2014.
     - Power Law Wind Profile: u(z) = U_ref * (z / z_ref)^alpha.
-    - Turbine coordinates based on geographical analysis of Tehachapi Pass ridge system.
+
+To use actual USWTB turbine coordinates:
+    - Run: python3 tools/data_ingestion/fetch_uswtb_turbines.py
+    - This will extract real turbine locations from the USWTB database
+    - See TURBINE_LOCATIONS.md for coordinate system details
 """
 
 import os

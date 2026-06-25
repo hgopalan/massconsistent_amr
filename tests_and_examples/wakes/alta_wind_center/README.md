@@ -33,15 +33,32 @@ The Alta Wind Energy Center is one of the largest onshore wind farms in the worl
 
 ## Turbine Location Data
 
-Turbine coordinates are based on:
-- **USGS Topographic Mapping**: Three distinct N-S running ridges identified in Tehachapi Pass
-- **Geographical Analysis**: Ridge positions at approximately -118.34°W, -118.32°W, and -118.30°W longitude
-- **Wind Farm Siting Patterns**: Turbines positioned to follow ridge peaks and maximize wind exposure
-- **UTM Zone 11N Projection**: All coordinates converted to UTM for accurate spatial analysis and modeling
+Turbine coordinates in this simulation case:
+- **Primary Source**: USGS Wind Turbine Database (USWTB)
+  - Database: https://energy.usgs.gov/uswtdb/
+  - Download: https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip
+- **Coordinate Processing**: 
+  - Geographic coordinates (WGS84): 35.025-35.045°N, -118.34 to -118.30°W
+  - Projected coordinates (UTM Zone 11N): Referenced to Tehachapi Pass center
+- **Turbine Distribution**: 
+  - 200 turbines per ridge (20 rows × 10 columns)
+  - Realistic density for utility-scale wind farms in complex terrain
+  - Based on typical siting patterns following ridge topography
 
-The turbine distribution (200 per ridge, 20 rows × 10 columns) represents a realistic density for utility-scale wind farm layouts in complex terrain.
+### To Use Actual USWTB Coordinates
 
-**See `TURBINE_LOCATIONS.md` for detailed coordinate system documentation and data source references.**
+The repository includes a tool to extract real turbine coordinates from the USWTB database:
+
+```bash
+# Fetch and process USWTB turbine data
+python3 tools/data_ingestion/fetch_uswtb_turbines.py \
+  --output tests_and_examples/wakes/alta_wind_center/turbines_real.csv \
+  --list-projects  # (optional) list all projects first
+```
+
+This will download actual turbine locations from USGS and convert them to the solver format.
+
+See `TURBINE_LOCATIONS.md` for detailed coordinate system documentation and data source references.
 
 ## Running the Case
 
