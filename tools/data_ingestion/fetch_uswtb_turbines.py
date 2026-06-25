@@ -23,8 +23,8 @@ import argparse
 from pathlib import Path
 from typing import List, Dict, Optional
 
-def download_uswtb_data() -> Optional[Dict]:
-    """Download USWTB data from USGS server."""
+def download_uswtb_data() -> Optional[bytes]:
+    """Download USWTB data from USGS server and return as bytes."""
     print("Downloading USWTB database from USGS...")
     url = "https://energy.usgs.gov/uswtdb/assets/data/uswtdbCSV.zip"
     
@@ -88,9 +88,9 @@ def convert_to_solver_format(turbines: List[Dict]) -> List[Dict]:
     
     for turbine in turbines:
         try:
-            # Extract relevant fields from USWTB
-            x = float(turbine.get('Longitude', 0))  # Will need UTM conversion
-            y = float(turbine.get('Latitude', 0))
+            # Extract relevant fields from USWTB (WGS84 coordinates)
+            longitude = float(turbine.get('Longitude', 0))
+            latitude = float(turbine.get('Latitude', 0))
             hub_height = float(turbine.get('HubHeight', 80.0))
             rotor_diameter = float(turbine.get('RotorDiameter', 80.0))
             
@@ -100,8 +100,8 @@ def convert_to_solver_format(turbines: List[Dict]) -> List[Dict]:
             solver_format.append({
                 'id': turbine.get('Turbine', ''),
                 'project': turbine.get('ProjectName', ''),
-                'latitude': y,
-                'longitude': x,
+                'latitude': latitude,
+                'longitude': longitude,
                 'hub_height': hub_height,
                 'rotor_diameter': rotor_diameter,
                 'ct': ct,

@@ -38,11 +38,13 @@ The test case expects a CSV file (`turbines_uswtb.csv`) with at minimum:
 - `latitude`: Decimal degrees (WGS84)
 - `longitude`: Decimal degrees (WGS84)
 
+Required/common fields:
+- `turbine`: Turbine identifier (required for primary key)
+- `project`: Project name
+
 Optional fields:
 - `hub_height`: Hub height in meters
 - `rotor_diameter`: Rotor diameter in meters
-- `turbine_id`: Turbine identifier
-- `project_name`: Project name
 - `manufacturer`: Turbine manufacturer
 - `model`: Turbine model
 
@@ -127,30 +129,6 @@ To verify correct coordinates:
 - Terrain generation adapts to the specific geographic bounds
 - All coordinates are validated and checked for consistency
 - The test provides clear error messages if USWTB data is not available
-
-## Coordinate Conversion
-
-### WGS84 to UTM Zone 11N Transformation
-
-Latitude/longitude coordinates are converted to UTM using standard geodetic formulas:
-
-```
-x_utm = k₀ * (E - E₀)
-y_utm = k₀ * (y_tm - y_tm_origin)
-```
-
-Where:
-- k₀ = 0.9996 (scale factor for UTM)
-- E = easting in TM projection
-- N = northing in TM projection
-- References: USGS Professional Paper 1395
-
-### Implementation
-The conversion is performed using `pyproj.Proj()` with parameters:
-- `proj='utm'`
-- `zone=11`
-- `ellps='WGS84'`
-- `hemisphere='north'`
 
 ## Verification and Accuracy
 
