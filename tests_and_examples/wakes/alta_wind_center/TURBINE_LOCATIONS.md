@@ -41,10 +41,10 @@ The test case expects a CSV file (`turbines_uswtb.csv`) with at minimum:
 Optional fields:
 - `hub_height`: Hub height in meters
 - `rotor_diameter`: Rotor diameter in meters
-- `hub_height`: Hub height in meters
-- `rotor_diameter`: Rotor diameter in meters
 - `turbine_id`: Turbine identifier
 - `project_name`: Project name
+- `manufacturer`: Turbine manufacturer
+- `model`: Turbine model
 
 ## Coordinate System
 

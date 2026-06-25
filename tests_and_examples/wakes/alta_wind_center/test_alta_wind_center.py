@@ -205,7 +205,8 @@ not synthetic coordinates. See TURBINE_LOCATIONS.md for details.
             f.write("powerlaw_exponent = 0.15\n")
             
             f.write("z0 = 0.05\n")
-            # Aspect ratio of exactly 8.0 (dx = dy = 120m, dz = 15m)
+            # Grid spacing with horizontal-to-vertical aspect ratio of 8.0 (dx = dy = 120m, dz = 15m)
+            # Aspect ratio is dx/dz = 120/15 = 8.0
             f.write("dx = 120.0\n")
             f.write("dy = 120.0\n")
             f.write("dz = 15.0\n")
@@ -216,7 +217,7 @@ not synthetic coordinates. See TURBINE_LOCATIONS.md for details.
             f.write("max_grid_size = 64\n")
             f.write("plot_file = plt_alta_wind\n")
             
-            # MLMG smoothing tuning for aspect ratio of 8.0 to prevent divergence
+            # MLMG smoothing tuning for high aspect ratio (8.0) to prevent divergence
             f.write("mlmg.num_pre_smooth = 16\n")
             f.write("mlmg.num_post_smooth = 16\n")
 

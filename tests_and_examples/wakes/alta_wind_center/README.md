@@ -4,17 +4,17 @@ This directory contains a complete wind resource and analytical wake simulation 
 
 ## Case Overview
 
-The Alta Wind Energy Center is one of the largest onshore wind farms in the world. This case simulates 600 turbines arranged along three major North-South running mountain ridges of the Tehachapi Pass topography, based on realistic geographic coordinates from USGS topographic mapping.
+The Alta Wind Energy Center is one of the largest onshore wind farms in the world. This case simulates wind turbines from the Alta Wind Energy Center based on exact coordinates from the USGS Wind Turbine Database (USWTB).
 
 - **Terrain**: Realistically modeled ridges and valleys ranging from 750m to 1200m in altitude, channeling wind flow.
-- **Turbines**: 600 turbines (200 per ridge) positioned at ridge peaks to maximize inflow speeds:
-  - **West Ridge (lon = -118.34)**: 200 turbines, windward exposure, minimal wake effects
-  - **Center Ridge (lon = -118.32)**: 200 turbines, intermediate position, moderate wake deficits
-  - **East Ridge (lon = -118.30)**: 200 turbines, lee side, strongest cumulative wake deficits
-- **Hub Heights**: 80m, **Rotor Diameters**: 80m for all turbines.
+- **Turbines**: Loaded from USWTB CSV file (sample: 20 turbines, full database: 600+ turbines)
+  - Positioned at ridge peaks to maximize inflow speeds
+  - Automatic domain sizing based on actual turbine locations with 600m buffer
+  - Coordinates extracted from USGS Wind Turbine Database at exact locations
+- **Hub Heights**: 80m (default), **Rotor Diameters**: 80m (default) for all turbines.
 - **Wind Profile**: A standard power-law profile representing 8 m/s wind from the west ($U_{ref} = 8.0$ m/s, $z_{ref} = 80.0$ m, $\alpha = 0.15$) under neutral atmospheric conditions.
 - **Wake Deficits**: Solved using the Bastankhah-Gaussian analytical wake deficit model with quadratic wake superposition.
-- **Coordinates**: Turbines positioned in UTM Zone 11N (California), based on geographical analysis of Tehachapi Pass ridge system.
+- **Coordinates**: Turbines positioned in UTM Zone 11N (California), based on exact USWTB geographic coordinates converted from WGS84.
 - **Geographic Bounds**: 
   - Latitude: 35.025°N to 35.045°N
   - Longitude: -118.34°W to -118.30°W (Kern County, CA)
@@ -104,16 +104,26 @@ The test will automatically:
 
 ## Expected Results
 
-With 600 turbines distributed across three ridges:
+The simulation results depend on the turbine count and distribution from the USWTB CSV file:
 
-- **West Ridge (Upstream)**: 200 turbines face unobstructed westerly winds with minimal wake effects. Average inflow speeds near 8 m/s with maximum power output.
-- **Center Ridge (Intermediate)**: 200 turbines experience wake deficits from upwind West Ridge. Average inflow speeds reduced (~7.5 m/s) due to wake shadowing effects.
-- **East Ridge (Lee Side)**: 200 turbines experience cumulative wake deficits from both West and Center ridges. Average inflow speeds further reduced (~7.5 m/s) with the lowest power output across the array.
+### For Large Datasets (100+ turbines):
+If using the full USWTB database (~600 turbines distributed across three ridges):
+
+- **Upwind Ridge (Upstream)**: Turbines face unobstructed westerly winds with minimal wake effects. Average inflow speeds near 8 m/s with maximum power output.
+- **Intermediate Ridge**: Turbines experience wake deficits from upwind turbines. Average inflow speeds reduced (~7.5 m/s) due to wake shadowing effects.
+- **Leeward Ridge (Lee Side)**: Turbines experience cumulative wake deficits from upstream turbines. Average inflow speeds further reduced (~7.5 m/s) with the lowest power output across the array.
 
 The simulation demonstrates:
-- Clear wake deficit propagation from windward (West) to leeward (East) ridges
-- Spatial wind speed distribution showing wind speed recovery between ridges due to wake expansion
+- Clear wake deficit propagation from windward to leeward regions
+- Spatial wind speed distribution showing wind speed recovery between turbine groups due to wake expansion
 - Power output variation correlating directly with inflow speed reduction along the wind direction
+
+### For Small Datasets (< 100 turbines):
+When using the sample USWTB data (20 turbines):
+
+- Basic wind speed statistics are verified (minimum, maximum, average)
+- Wind solver convergence and functionality are confirmed
+- Turbine power results are saved to CSV with exact USWTB coordinates
 
 ## Notes on Solver Configuration
 
