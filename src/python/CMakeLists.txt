@@ -103,6 +103,7 @@ set(PYTHON_WRAPPERS
   iec61400_models.py
   infrastructure_models.py
   layout_optimizer.py
+  levelset_coupling.py
   mann_box.py
   pyoptimization_export.py
   pywake_coupling.py
