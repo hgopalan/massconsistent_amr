@@ -66,6 +66,13 @@ try:
 except ImportError:
     _phreeqc_available = False
 
+# Conditional imports for optional wildfire_levelset coupling module
+try:
+    from .levelset_coupling import CoupledWindFireSimulation
+    _levelset_available = True
+except ImportError:
+    _levelset_available = False
+
 # Build __all__ based on available modules
 __all__ = [
     "WindSolver",
@@ -85,3 +92,6 @@ if _phreeqc_available:
         "NetCDFHandler",
         "ASCIIExporter",
     ])
+
+if _levelset_available:
+    __all__.append("CoupledWindFireSimulation")

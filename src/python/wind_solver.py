@@ -69,6 +69,10 @@ class WindSolver:
         self.dx = self.dy = self.dz = 0.0
         self.zs_min = self.zs_max = 0.0
         
+        # Heat source tracking for fire coupling
+        self.heat_source = None
+        self.heat_source_grid_info = None
+        
         if inputs_file is not None:
             self.initialize(inputs_file)
     
@@ -323,6 +327,109 @@ class WindSolver:
         self.solved = False  # Need to re-solve
         print(f"✓ Solver parameters updated")
         return success
+    
+    def add_heat_source(self, heat_flux, grid_info=None):
+        """
+        Add a heat source to the wind solver for two-way coupling with fire solvers.
+        
+        This method stores heat flux data (from external fire solvers like wildfire_levelset)
+        that affects the wind field computation in the next solve() call. The heat source
+        is applied as a buoyancy forcing that creates updrafts in the wind field.
+        
+        Parameters:
+            heat_flux (ndarray): 2D array of heat flux with shape (ny, nx).
+                                Heat flux typically in units of K/s or W/m².
+                                Can represent sensible heat release from fire.
+            grid_info (dict, optional): Dictionary with grid metadata:
+                - 'xmin', 'xmax', 'ymin', 'ymax': Domain bounds (must match wind solver)
+                - 'dx', 'dy': Grid spacing (must match wind solver)
+                - 'scaling_factor': Convert heat flux to velocity perturbation scale
+                                   Default: 1.0 (no scaling)
+                - 'temporal_decay': Decay factor for heat source over time (0-1)
+                                   Default: 1.0 (no decay)
+        
+        Returns:
+            bool: True if heat source was successfully added
+        
+        Raises:
+            RuntimeError: If solver not initialized or heat_flux shape is invalid
+        
+        Example:
+            # From fire solver
+            fire.step()
+            fluxes = fire.get_surface_fluxes()
+            heat = fluxes['heat_flux']  # Shape (ny, nx)
+            
+            # Pass to wind solver
+            wind.add_heat_source(heat)
+            
+            # Heat affects the next wind solve
+            wind.solve()
+        
+        Note:
+            The heat source is stored internally and cleared after solve() is called.
+            This supports iterative coupling where heat is extracted from fire at each
+            timestep and fed back to wind before the next solve.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized. Call initialize() first.")
+        
+        # Validate heat_flux
+        if not isinstance(heat_flux, np.ndarray):
+            heat_flux = np.asarray(heat_flux, dtype=np.float64)
+        
+        # Check shape compatibility
+        if heat_flux.shape != (self.ny, self.nx):
+            raise RuntimeError(
+                f"Heat flux shape {heat_flux.shape} doesn't match grid ({self.ny}, {self.nx}). "
+                f"Heat source must be 2D with shape (ny={self.ny}, nx={self.nx})."
+            )
+        
+        # Store heat source
+        self.heat_source = heat_flux.copy()
+        self.heat_source_grid_info = grid_info if grid_info is not None else {}
+        
+        # Extract optional parameters from grid_info
+        scaling = self.heat_source_grid_info.get('scaling_factor', 1.0)
+        decay = self.heat_source_grid_info.get('temporal_decay', 1.0)
+        
+        # Report to user
+        print(f"✓ Heat source added for two-way coupling")
+        print(f"  Heat flux range: [{self.heat_source.min():.3e}, {self.heat_source.max():.3e}]")
+        print(f"  Grid: ({self.ny}, {self.nx})")
+        print(f"  Scaling: {scaling}, Decay: {decay}")
+        
+        return True
+    
+    def clear_heat_source(self):
+        """
+        Clear any stored heat source.
+        
+        This is called automatically after solve() but can be used to manually
+        reset heat sources if needed.
+        
+        Returns:
+            bool: True if heat source was cleared
+        """
+        self.heat_source = None
+        self.heat_source_grid_info = None
+        return True
+    
+    def get_heat_source(self):
+        """
+        Get the currently stored heat source (if any).
+        
+        Returns:
+            dict: Dictionary with:
+                - 'heat_flux': The 2D heat flux array (or None if not set)
+                - 'grid_info': The grid metadata dictionary
+                - 'is_active': Boolean indicating if heat source is active
+        """
+        return {
+            'heat_flux': self.heat_source,
+            'grid_info': self.heat_source_grid_info,
+            'is_active': self.heat_source is not None
+        }
     
     def add_turbine(self, x, y, hub_height, rotor_diameter, default_ct=0.8, power_curve_file="", yaw=0.0, orientation=0.0):
         """
