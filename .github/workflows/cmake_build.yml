@@ -70,7 +70,7 @@ jobs:
         run: pip3 install --break-system-packages 'numpy>=1.24,<2.0' netCDF4
 
       - name: Set up ccache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-${{ matrix.build_type }}-${{ github.sha }}
@@ -140,7 +140,7 @@ jobs:
           echo "PYTHON_EXECUTABLE=$python_exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up ccache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-${{ matrix.build_type }}-${{ github.sha }}
@@ -212,7 +212,7 @@ jobs:
         run: pip3 install 'numpy>=1.24,<2.0' netCDF4
 
       - name: Set up ccache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-cuda-Release-${{ github.sha }}
@@ -289,7 +289,7 @@ jobs:
         run: pip3 install 'numpy>=1.24,<2.0' netCDF4
 
       - name: Set up ccache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-hip-Release-${{ github.sha }}
@@ -373,7 +373,7 @@ jobs:
         run: pip3 install 'numpy>=1.24,<2.0' netCDF4
 
       - name: Set up ccache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-sycl-Release-${{ github.sha }}
@@ -473,7 +473,7 @@ jobs:
           sdk: 10.0.22621.0
 
       - name: Set up ccache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-${{ runner.os }}-windows-cuda-Release-${{ github.sha }}
