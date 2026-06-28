@@ -419,6 +419,72 @@ std::vector<double> wind_solver_get_turbine_z_terrains_py() {
 }
 
 // ============================================================================
+// Heat source wrapper functions for fire coupling
+// ============================================================================
+
+py::dict wind_solver_add_heat_source_py(
+    py::array_t<double> heat_flux,
+    double scaling_factor = 1.0)
+{
+    if (!wind_solver_is_initialized()) {
+        throw std::runtime_error("Wind solver not initialized");
+    }
+    
+    // Get numpy array data
+    auto buf = heat_flux.request();
+    if (buf.ndim != 2) {
+        throw std::runtime_error("heat_flux must be a 2D array");
+    }
+    
+    int ny = buf.shape[0];
+    int nx = buf.shape[1];
+    std::vector<double> heat_flux_vec(static_cast<double*>(buf.ptr), 
+                                       static_cast<double*>(buf.ptr) + nx * ny);
+    
+    bool success = wind_solver_add_heat_source(heat_flux_vec, nx, ny, scaling_factor);
+    
+    py::dict result;
+    result["success"] = success;
+    result["nx"] = nx;
+    result["ny"] = ny;
+    result["scaling_factor"] = scaling_factor;
+    
+    return result;
+}
+
+py::dict wind_solver_get_heat_source_py()
+{
+    auto [heat_flux_vec, is_active] = wind_solver_get_heat_source();
+    
+    // Get geometry to determine shape
+    int nx, ny, nz;
+    double xmin, xmax, ymin, ymax, zmin, zmax, dx, dy, dz;
+    wind_solver_get_geometry(nx, ny, nz, xmin, xmax, ymin, ymax, zmin, zmax, dx, dy, dz);
+    
+    // Convert vector to numpy array
+    auto heat_flux_np = py::array_t<double>({ny, nx});
+    auto buf = heat_flux_np.mutable_unchecked<2>();
+    
+    for (int j = 0; j < ny; ++j) {
+        for (int i = 0; i < nx; ++i) {
+            int idx = j * nx + i;
+            buf(j, i) = heat_flux_vec[idx];
+        }
+    }
+    
+    py::dict result;
+    result["heat_flux"] = heat_flux_np;
+    result["is_active"] = is_active;
+    
+    return result;
+}
+
+void wind_solver_clear_heat_source_py()
+{
+    wind_solver_clear_heat_source();
+}
+
+// ============================================================================
 // Module definition
 // ============================================================================
 
@@ -710,5 +776,41 @@ PYBIND11_MODULE(pyWindSolver, m) {
     m.def("get_turbine_z_terrains", &wind_solver_get_turbine_z_terrains_py,
           R"pbdoc(
         Get turbine terrain elevations.
+      )pbdoc");
+
+    // Heat source API for fire coupling
+    m.def("add_heat_source", &wind_solver_add_heat_source_py,
+          py::arg("heat_flux"), py::arg("scaling_factor") = 1.0,
+          R"pbdoc(
+        Add a 2D heat source (surface heat flux from fire solver) for two-way coupling.
+        
+        Parameters
+        ----------
+        heat_flux : np.ndarray
+            2D array of surface heat flux with shape (ny, nx) in W/m².
+        scaling_factor : float, optional
+            Multiplier for unit conversion (default: 1.0)
+        
+        Returns
+        -------
+        dict
+            Dictionary with 'success', 'nx', 'ny', 'scaling_factor'
+      )pbdoc");
+
+    m.def("get_heat_source", &wind_solver_get_heat_source_py,
+          R"pbdoc(
+        Get the currently stored heat source (if any).
+        
+        Returns
+        -------
+        dict
+            Dictionary with:
+            - 'heat_flux': 2D array of heat flux or empty array if not set
+            - 'is_active': Boolean indicating if heat source is active
+      )pbdoc");
+
+    m.def("clear_heat_source", &wind_solver_clear_heat_source_py,
+          R"pbdoc(
+        Clear any stored heat source.
       )pbdoc");
 }

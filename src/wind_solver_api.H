@@ -64,6 +64,11 @@ struct WindSolverState {
     std::unique_ptr<amrex::MultiFab> temp_3d_old;  // Temperature from previous time step [K]
     std::unique_ptr<amrex::MultiFab> moisture_3d_old; // Moisture from previous time step [kg/kg]
     
+    // Heat source for fire coupling (2D surface heat flux from external fire solver)
+    std::unique_ptr<amrex::MultiFab> heat_source;  // 2D surface heat flux [W/m²] (shape: 1 component, ny x nx x 1)
+    bool has_heat_source = false;                  // Flag indicating heat source is present
+    amrex::Real heat_source_scaling_factor = 1.0;  // Scaling factor to convert heat flux units
+    
     // Grid parameters
     int nx, ny, nz;
     double dx, dy, dz;
@@ -374,5 +379,24 @@ std::vector<double> wind_solver_get_turbine_tilts();
 std::vector<double> wind_solver_get_turbine_u_hubs();
 std::vector<double> wind_solver_get_turbine_v_hubs();
 std::vector<double> wind_solver_get_turbine_z_terrains();
+
+// Heat source API functions for fire coupling (two-way coupling)
+// Add a 2D heat source (surface heat flux from fire solver)
+// Parameters:
+//   - heat_flux_data: flattened 2D array (ny*nx elements) in row-major order
+//   - nx, ny: grid dimensions (must match solver grid)
+//   - scaling_factor: multiplier to convert heat flux units (default 1.0)
+// Returns: true on success, false on error
+bool wind_solver_add_heat_source(
+    const std::vector<double>& heat_flux_data,
+    int nx, int ny,
+    double scaling_factor = 1.0);
+
+// Clear any stored heat source
+void wind_solver_clear_heat_source();
+
+// Get current heat source status
+// Returns: pair<heat_flux_data, is_active> where heat_flux_data is flattened array
+std::pair<std::vector<double>, bool> wind_solver_get_heat_source();
 
 #endif // WIND_SOLVER_API_H
