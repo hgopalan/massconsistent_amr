@@ -1947,6 +1947,52 @@ void compute_divergence(const WindSolverState& state,
     }
 }
 
+void apply_heat_source_forcing(WindSolverState& state)
+{
+    // Apply heat source as vertical velocity perturbation (simplified buoyancy forcing)
+    // Heat source creates updrafts at surface that decay with height
+    if (!state.has_heat_source || !state.heat_source) {
+        return;
+    }
+    
+    amrex::Print() << "Applying heat source forcing to velocity field...\n";
+    
+    const Real dz = state.dz;
+    const Real decay_height = std::max(100.0, 5.0 * dz);  // Decay over ~5 grid cells
+    const Real g = 9.81;
+    const Real T_ref = 300.0;
+    const Real rho = 1.2;  // Air density [kg/m³]
+    const Real cp = 1005.0;  // Specific heat [J/(kg·K)]
+    
+    for (MFIter mfi(*state.vel); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto vel_arr = state.vel->array(mfi);
+        const auto& hs_arr = state.heat_source->const_array(mfi);
+        
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Get surface heat flux at this horizontal location [W/m²]
+            Real heat_flux = hs_arr(i, j, k);
+            
+            if (std::abs(heat_flux) > 1.0e-10) {
+                // Convert heat flux to virtual temperature perturbation [K]
+                // Q = rho * cp * dT  =>  dT = Q / (rho * cp)
+                Real dT = heat_flux / (rho * cp);
+                
+                // Vertical velocity induced by buoyancy: w ~ sqrt(2 * g * dT / T_ref * z)
+                // But apply as a perturbation that decays with height
+                Real z_above_surface = static_cast<Real>(k) * dz;
+                Real decay = std::exp(-z_above_surface / decay_height);
+                
+                // Add vertical velocity perturbation (positive updraft)
+                Real w_pert = std::sqrt(std::max(0.0, 2.0 * g * (dT / T_ref) * z_above_surface)) * decay;
+                vel_arr(i, j, k, 2) += w_pert;  // Component 2 is w
+            }
+        });
+    }
+    
+    amrex::Print() << "Heat source forcing applied.\n";
+}
+
 void correct_velocity_field(WindSolverState& state)
 {
     const IntVect lo = state.geom->Domain().smallEnd();
@@ -2644,10 +2690,19 @@ bool wind_solver_solve()
         state.mlmg_iters = mlmg.getNumIters();
         state.mlmg_res = mlmg.getFinalResidual();
 
+        // Apply heat source forcing if present (for fire coupling)
+        if (state.has_heat_source) {
+            apply_heat_source_forcing(state);
+        }
+
         amrex::Print() << "wind_solver: max |div(u0)| = " << state.div0->norm0() << "\n";
         amrex::Print() << "wind_solver: max |div(u)|  = " << div_corrected.norm0() << "\n";
         amrex::Print() << "wind_solver: MLMG iters=" << state.mlmg_iters
                        << " residual=" << state.mlmg_res << "\n";
+        
+        // Clear heat source after apply (one-time use per solve)
+        wind_solver_clear_heat_source();
+        
         return true;
     } catch (const std::exception& e) {
         amrex::Print() << "Error solving wind field: " << e.what() << "\n";
@@ -3099,4 +3154,96 @@ std::vector<double> wind_solver_get_turbine_z_terrains()
     }
     return z_terrains;
 }
+
+// ============================================================================
+// Heat Source API Functions for Fire Coupling
+// ============================================================================
+
+bool wind_solver_add_heat_source(
+    const std::vector<double>& heat_flux_data,
+    int nx, int ny,
+    double scaling_factor)
+{
+    try {
+        require_initialized();
+        WindSolverState& state = *g_wind_solver_state;
+        
+        // Validate dimensions
+        if (static_cast<int>(heat_flux_data.size()) != nx * ny) {
+            amrex::Print() << "ERROR: heat_flux_data size (" << heat_flux_data.size()
+                          << ") doesn't match grid dimensions (" << nx << " x " << ny << ")\n";
+            return false;
+        }
+        
+        if (nx != state.nx || ny != state.ny) {
+            amrex::Print() << "ERROR: heat_flux grid dimensions (" << nx << " x " << ny
+                          << ") don't match solver grid (" << state.nx << " x " << state.ny << ")\n";
+            return false;
+        }
+        
+        // Create heat source MultiFab if it doesn't exist
+        if (!state.heat_source) {
+            // Create a 2D MultiFab with 1 component (nz=1 for 2D field)
+            amrex::BoxArray ba_2d = convert(*state.ba, amrex::IntVect(0, 0, AMREX_SPACEDIM-1));
+            state.heat_source = std::make_unique<amrex::MultiFab>(ba_2d, *state.dm, 1, 0);
+        }
+        
+        // Copy heat flux data into MultiFab
+        // Data is expected in row-major order: data[j*nx + i]
+        // Make a pointer to the data for capture in device lambda
+        const double* heat_flux_ptr = heat_flux_data.data();
+        
+        for (MFIter mfi(*state.heat_source); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto hs_arr = state.heat_source->array(mfi);
+            
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                int flat_idx = j * nx + i;
+                hs_arr(i, j, k) = scaling_factor * heat_flux_ptr[flat_idx];
+            });
+        }
+        
+        state.has_heat_source = true;
+        state.heat_source_scaling_factor = scaling_factor;
+        
+        amrex::Print() << "Heat source added for fire coupling: " 
+                      << nx << " x " << ny << " grid, scaling=" << scaling_factor << "\n";
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        amrex::Print() << "ERROR in wind_solver_add_heat_source: " << e.what() << "\n";
+        return false;
+    }
+}
+
+void wind_solver_clear_heat_source()
+{
+    if (g_wind_solver_state) {
+        WindSolverState& state = *g_wind_solver_state;
+        state.heat_source.reset();
+        state.has_heat_source = false;
+        state.heat_source_scaling_factor = 1.0;
+    }
+}
+
+std::pair<std::vector<double>, bool> wind_solver_get_heat_source()
+{
+    std::vector<double> heat_flux_data;
+    bool is_active = false;
+    
+    if (g_wind_solver_state && g_wind_solver_state->heat_source) {
+        WindSolverState& state = *g_wind_solver_state;
+        is_active = state.has_heat_source;
+        
+        // Extract heat flux data
+        // Note: This returns empty array as heat sources are typically write-only for coupling
+        // If full round-trip is needed, this would require explicit GPU->CPU transfer
+        int total_size = state.nx * state.ny;
+        heat_flux_data.resize(total_size, 0.0);
+    }
+    
+    return std::make_pair(heat_flux_data, is_active);
+}
+
 
