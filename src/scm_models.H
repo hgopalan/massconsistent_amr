@@ -1373,58 +1373,15 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
         
         // Adjust geostrophic wind component with larger error (adapted from reference implementation)
         // This approach is more stable than scaling both components together
+        // Simplified logic: adjustment = -sign(error) * step_size, where step_size = max(0.5*|error|, tolerance)
         if (std::abs(error_ux) > std::abs(error_uy)) {
-            // Adjust u-component (ug)
-            if (target_ux > 0.0) {
-                if (current_ux > target_ux) {
-                    // Current is too large, decrease ug
-                    ug = ug - std::max(0.5 * std::abs(error_ux), tolerance);
-                } else {
-                    // Current is too small, increase ug
-                    ug = ug + std::max(0.5 * std::abs(error_ux), tolerance);
-                }
-            } else if (target_ux < 0.0) {
-                if (current_ux < target_ux) {
-                    // Current is too negative, increase ug (make less negative)
-                    ug = ug + std::max(0.5 * std::abs(error_ux), tolerance);
-                } else {
-                    // Current is not negative enough, decrease ug
-                    ug = ug - std::max(0.5 * std::abs(error_ux), tolerance);
-                }
-            } else {
-                // Target is zero, adjust towards zero
-                if (current_ux > 0.0) {
-                    ug = ug - std::max(0.5 * std::abs(error_ux), tolerance);
-                } else {
-                    ug = ug + std::max(0.5 * std::abs(error_ux), tolerance);
-                }
-            }
+            // Adjust u-component (ug) by moving in opposite direction of error
+            amrex::Real step_ux = std::max(0.5 * std::abs(error_ux), tolerance);
+            ug = ug - std::copysign(step_ux, error_ux);
         } else {
-            // Adjust v-component (vg)
-            if (target_uy > 0.0) {
-                if (current_uy > target_uy) {
-                    // Current is too large, decrease vg
-                    vg = vg - std::max(0.5 * std::abs(error_uy), tolerance);
-                } else {
-                    // Current is too small, increase vg
-                    vg = vg + std::max(0.5 * std::abs(error_uy), tolerance);
-                }
-            } else if (target_uy < 0.0) {
-                if (current_uy < target_uy) {
-                    // Current is too negative, increase vg (make less negative)
-                    vg = vg + std::max(0.5 * std::abs(error_uy), tolerance);
-                } else {
-                    // Current is not negative enough, decrease vg
-                    vg = vg - std::max(0.5 * std::abs(error_uy), tolerance);
-                }
-            } else {
-                // Target is zero, adjust towards zero
-                if (current_uy > 0.0) {
-                    vg = vg - std::max(0.5 * std::abs(error_uy), tolerance);
-                } else {
-                    vg = vg + std::max(0.5 * std::abs(error_uy), tolerance);
-                }
-            }
+            // Adjust v-component (vg) by moving in opposite direction of error
+            amrex::Real step_vy = std::max(0.5 * std::abs(error_uy), tolerance);
+            vg = vg - std::copysign(step_vy, error_uy);
         }
     }
     
