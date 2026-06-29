@@ -4,6 +4,10 @@
 # Domain configuration
 amr.max_level = 0
 amr.n_cell = 32 32 16
+dx = 31.25
+dy = 31.25
+dz = 30.0
+domain_height = 300.0
 
 # Physical domain bounds (meters)
 geometry.prob_lo = 0.0 0.0 0.0
