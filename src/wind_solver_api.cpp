@@ -1963,6 +1963,11 @@ void apply_heat_source_forcing(WindSolverState& state)
     const Real T_ref = 300.0;
     const Real rho = 1.2;  // Air density [kg/m³]
     const Real cp = 1005.0;  // Specific heat [J/(kg·K)]
+    const Real z_lo = state.zmin;
+    const int nx = state.nx;
+    
+    const Real* terrain_ptr = (g_wind_solver_runtime && !g_wind_solver_runtime->terrain_device.empty()) ? 
+                              g_wind_solver_runtime->terrain_device.data() : nullptr;
     
     for (MFIter mfi(*state.vel); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -1974,13 +1979,26 @@ void apply_heat_source_forcing(WindSolverState& state)
             Real heat_flux = hs_arr(i, j, k);
             
             if (std::abs(heat_flux) > 1.0e-10) {
+                // Compute height above surface (terrain-aware)
+                Real z_above_surface;
+                if (terrain_ptr) {
+                    const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                    const Real z_terrain = terrain_ptr[j * nx + i];
+                    const Real z_agl = z_phys - z_terrain;
+                    if (z_agl <= Real(0.0)) {
+                        return; // Inside or below terrain
+                    }
+                    z_above_surface = z_agl;
+                } else {
+                    z_above_surface = (k + Real(0.5)) * dz;
+                }
+                
                 // Convert heat flux to virtual temperature perturbation [K]
                 // Q = rho * cp * dT  =>  dT = Q / (rho * cp)
                 Real dT = heat_flux / (rho * cp);
                 
                 // Vertical velocity induced by buoyancy: w ~ sqrt(2 * g * dT / T_ref * z)
                 // But apply as a perturbation that decays with height
-                Real z_above_surface = static_cast<Real>(k) * dz;
                 Real decay = std::exp(-z_above_surface / decay_height);
                 
                 // Add vertical velocity perturbation (positive updraft)

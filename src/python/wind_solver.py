@@ -393,6 +393,9 @@ class WindSolver:
         scaling = self.heat_source_grid_info.get('scaling_factor', 1.0)
         decay = self.heat_source_grid_info.get('temporal_decay', 1.0)
         
+        # Pass to C++ solver
+        pyWindSolver.add_heat_source(self.heat_source, scaling)
+        
         # Report to user
         print(f"✓ Heat source added for two-way coupling")
         print(f"  Heat flux range: [{self.heat_source.min():.3e}, {self.heat_source.max():.3e}]")
@@ -413,6 +416,7 @@ class WindSolver:
         """
         self.heat_source = None
         self.heat_source_grid_info = None
+        pyWindSolver.clear_heat_source()
         return True
     
     def get_heat_source(self):
