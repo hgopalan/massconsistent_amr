@@ -12,7 +12,7 @@
  * Date: 2026-06-29
  */
 
-SCM1DSolver::SCM1DSolver(Real scm_height, Real scm_dz, const SCMSimilarityParams& params)
+SCM1DSolver::SCM1DSolver(double scm_height, double scm_dz, const SCMSimilarityParams& params)
     : scm_height_(scm_height), scm_dz_(scm_dz), params_(params),
       ug_(10.0), vg_(0.0), t_ref_(params.temperature_reference),
       tke_init_(0.4), pblh_(1000.0), ustar_(0.41), thetastar_(0.0),
@@ -40,7 +40,7 @@ SCM1DSolver::SCM1DSolver(Real scm_height, Real scm_dz, const SCMSimilarityParams
     Rt_.resize(nz_, 0.0);
 
     // Compute Coriolis parameter for given latitude
-    Real omega = 7.292115e-5; // Earth's rotation rate (rad/s)
+    double omega = 7.292115e-5; // Earth's rotation rate (rad/s)
     coriolis_f_ = 2.0 * omega * std::sin(params.latitude * M_PI / 180.0);
 }
 
@@ -70,21 +70,22 @@ void SCM1DSolver::initialize_fields() {
 
 void SCM1DSolver::compute_similarity() {
     // Wind speed at first grid level above surface
-    Real M1 = std::sqrt(ux_[1] * ux_[1] + uy_[1] * uy_[1]);
+    double M1 = std::sqrt(ux_[1] * ux_[1] + uy_[1] * uy_[1]);
 
     // Initial friction velocity estimate from log-law
     ustar_ = 0.41 * M1 / std::log(z_[1] / params_.z0);
 
     // Iteration for similarity theory
     int iter = 0;
-    Real error = 25.0;
-    Real psi_m = 0.0, psi_h = 0.0;
+    double error = 25.0;
+    double psi_m = 0.0, psi_h = 0.0;
+    double zeta = 0.0;
 
     if (params_.heat_flux_mode == 1) {
         // Heat flux specified - iterate to find MOL and surface temperature
         Qh_ = params_.heat_flux_value;
         while (iter <= 25 && error > 1e-5) {
-            Real utau_iter = ustar_;
+            double utau_iter = ustar_;
             
             // Compute surface temperature from heat flux
             temperature_[lower_] = Qh_ * (std::log(z_[1] / params_.z0) - psi_h) /
@@ -94,13 +95,13 @@ void SCM1DSolver::compute_similarity() {
             if (std::abs(Qh_) > 1e-5) {
                 mo_length_ = -ustar_ * ustar_ * ustar_ * temperature_[lower_ + 1] /
                             (0.41 * 9.81 * Qh_);
-                Real zeta = z_[1] / mo_length_;
+                zeta = z_[1] / mo_length_;
 
                 if (zeta >= 0.0) {
                     psi_m = -5.0 * zeta;
                     psi_h = -5.0 * zeta;
                 } else {
-                    Real x = std::sqrt(1.0 - 16.0 * zeta);
+                    double x = std::sqrt(1.0 - 16.0 * zeta);
                     psi_h = 2.0 * std::log(0.5 * (1.0 + x));
                     x = std::sqrt(std::sqrt(1.0 - 16.0 * zeta));
                     psi_m = std::log(0.5 * (1.0 + x * x) * 0.25 * (1.0 + x) * (1.0 + x)) -
@@ -122,7 +123,7 @@ void SCM1DSolver::compute_similarity() {
         error = 100.0;
         
         while (iter <= 25 && error > 1e-5) {
-            Real utau_iter = ustar_;
+            double utau_iter = ustar_;
             
             Qh_ = (temperature_[lower_] - temperature_[lower_ + 1]) * (ustar_ * 0.41) /
                   (std::log(z_[1] / params_.z0) - psi_h);
@@ -130,13 +131,13 @@ void SCM1DSolver::compute_similarity() {
             if (std::abs(Qh_) > 1e-5) {
                 mo_length_ = -ustar_ * ustar_ * ustar_ * temperature_[lower_ + 1] /
                             (0.41 * 9.81 * Qh_);
-                Real zeta = z_[1] / mo_length_;
+                double zeta = z_[1] / mo_length_;
 
                 if (zeta >= 0.0) {
                     psi_m = -5.0 * zeta;
                     psi_h = -5.0 * zeta;
                 } else {
-                    Real x = std::sqrt(1.0 - 16.0 * zeta);
+                    double x = std::sqrt(1.0 - 16.0 * zeta);
                     psi_h = 2.0 * std::log(0.5 * (1.0 + x));
                     x = std::sqrt(std::sqrt(1.0 - 16.0 * zeta));
                     psi_m = std::log(0.5 * (1.0 + x * x) * 0.25 * (1.0 + x) * (1.0 + x)) -
@@ -155,13 +156,13 @@ void SCM1DSolver::compute_similarity() {
     } else if (params_.heat_flux_mode == 4) {
         // MOL specified - compute surface conditions
         mo_length_ = params_.heat_flux_value;
-        Real zeta = z_[1] / mo_length_;
+        double zeta = z_[1] / mo_length_;
 
         if (zeta >= 0.0) {
             psi_m = -5.0 * zeta;
             psi_h = -5.0 * zeta;
         } else {
-            Real x = std::sqrt(1.0 - 16.0 * zeta);
+            double x = std::sqrt(1.0 - 16.0 * zeta);
             psi_h = 2.0 * std::log(0.5 * (1.0 + x));
             x = std::sqrt(std::sqrt(1.0 - 16.0 * zeta));
             psi_m = std::log(0.5 * (1.0 + x * x) * 0.25 * (1.0 + x) * (1.0 + x)) -
@@ -177,7 +178,7 @@ void SCM1DSolver::compute_similarity() {
     }
 
     // Compute phi_m for surface conditions
-    Real phi_m = 1.0;
+    double phi_m = 1.0;
     if (mo_length_ < 0.0) {
         phi_m = std::pow(1.0 - 16.0 * params_.z0 / mo_length_, -0.25);
     } else {
@@ -186,7 +187,7 @@ void SCM1DSolver::compute_similarity() {
 
     // Set surface boundary conditions
     nut_[lower_] = ustar_ * 0.41 * params_.z0 / phi_m;
-    Real M0 = M1 - ustar_ / 0.41 * phi_m;
+    double M0 = M1 - ustar_ / 0.41 * phi_m;
     if (M1 > 1e-10) {
         ux_[lower_] = M0 * ux_[lower_ + 1] / M1;
         uy_[lower_] = M0 * uy_[lower_ + 1] / M1;
@@ -194,7 +195,7 @@ void SCM1DSolver::compute_similarity() {
 
     Qb_ = 9.81 / t_ref_ * Qh_;
     tke_[lower_] = ustar_ * ustar_ / (0.556 * 0.556) +
-                  (std::max(Qb_, Real(0.0)) * 0.41 * z_[1] / (0.556 * 0.556 * 0.556));
+                  (std::max(Qb_, double(0.0)) * 0.41 * z_[1] / (0.556 * 0.556 * 0.556));
     tke_[lower_] = std::pow(tke_[lower_], 2.0 / 3.0);
     lscale_[lower_] = 0.0;
 
@@ -207,11 +208,11 @@ void SCM1DSolver::compute_similarity() {
     temperature_[nz_ - 1] = temperature_[nz_ - 2];
 }
 
-void SCM1DSolver::update_windspeed_x(int i, Real dt) {
+void SCM1DSolver::update_windspeed_x(int i, double dt) {
     // Relaxation to geostrophic wind in upper domain
-    Real dFull = 100.0;
-    Real dRD = 50.0;
-    Real coeff = 0.0;
+    double dFull = 100.0;
+    double dRD = 50.0;
+    double coeff = 0.0;
     
     if (scm_height_ - z_[i] > dRD + dFull) {
         coeff = 0.0;
@@ -222,26 +223,26 @@ void SCM1DSolver::update_windspeed_x(int i, Real dt) {
     }
 
     // Turbulent diffusion term
-    Real term1 = nut_[i] * (ux_[i + 1] - 2.0 * ux_[i] + ux_[i - 1]) / (scm_dz_ * scm_dz_);
+    double term1 = nut_[i] * (ux_[i + 1] - 2.0 * ux_[i] + ux_[i - 1]) / (scm_dz_ * scm_dz_);
 
     // Gradient of eddy viscosity term
-    Real dudz = (ux_[i + 1] - ux_[i]) / scm_dz_;
-    Real term2 = 0.5 / scm_dz_ * (nut_[i + 1] - nut_[i - 1]) * dudz;
+    double dudz = (ux_[i + 1] - ux_[i]) / scm_dz_;
+    double term2 = 0.5 / scm_dz_ * (nut_[i + 1] - nut_[i - 1]) * dudz;
 
     // Coriolis term
-    Real coriolis = coriolis_f_ * uy_[i];
+    double coriolis = coriolis_f_ * uy_[i];
 
     // Geostrophic forcing in upper domain
-    Real damping = coeff * (ug_ - ux_[i]) / 20.0;
+    double damping = coeff * (ug_ - ux_[i]) / 20.0;
 
     ux_[i] = ux_[i] + dt * (term1 + term2 + coriolis + damping);
 }
 
-void SCM1DSolver::update_windspeed_y(int i, Real dt) {
+void SCM1DSolver::update_windspeed_y(int i, double dt) {
     // Relaxation to geostrophic wind in upper domain
-    Real dFull = 100.0;
-    Real dRD = 50.0;
-    Real coeff = 0.0;
+    double dFull = 100.0;
+    double dRD = 50.0;
+    double coeff = 0.0;
     
     if (scm_height_ - z_[i] > dRD + dFull) {
         coeff = 0.0;
@@ -252,55 +253,55 @@ void SCM1DSolver::update_windspeed_y(int i, Real dt) {
     }
 
     // Turbulent diffusion term
-    Real term1 = nut_[i] * (uy_[i + 1] - 2.0 * uy_[i] + uy_[i - 1]) / (scm_dz_ * scm_dz_);
+    double term1 = nut_[i] * (uy_[i + 1] - 2.0 * uy_[i] + uy_[i - 1]) / (scm_dz_ * scm_dz_);
 
     // Gradient of eddy viscosity term
-    Real dvdz = (uy_[i + 1] - uy_[i]) / scm_dz_;
-    Real term2 = 0.5 / scm_dz_ * (nut_[i + 1] - nut_[i - 1]) * dvdz;
+    double dvdz = (uy_[i + 1] - uy_[i]) / scm_dz_;
+    double term2 = 0.5 / scm_dz_ * (nut_[i + 1] - nut_[i - 1]) * dvdz;
 
     // Coriolis term
-    Real coriolis = -coriolis_f_ * ux_[i];
+    double coriolis = -coriolis_f_ * ux_[i];
 
     // Geostrophic forcing in upper domain
-    Real damping = coeff * (vg_ - uy_[i]) / 20.0;
+    double damping = coeff * (vg_ - uy_[i]) / 20.0;
 
     uy_[i] = uy_[i] + dt * (term1 + term2 + coriolis + damping);
 }
 
-void SCM1DSolver::update_temperature(int i, Real dt) {
-    Real term1 = nut_[i] / sigmaT_[i] *
+void SCM1DSolver::update_temperature(int i, double dt) {
+    double term1 = nut_[i] / sigmaT_[i] *
                 (temperature_[i + 1] - 2.0 * temperature_[i] + temperature_[i - 1]) /
                 (scm_dz_ * scm_dz_);
     
-    Real term2 = 1.0 / scm_dz_ * (nut_[i] / sigmaT_[i] - nut_[i - 1] / sigmaT_[i - 1]) *
+    double term2 = 1.0 / scm_dz_ * (nut_[i] / sigmaT_[i] - nut_[i - 1] / sigmaT_[i - 1]) *
                 1.0 / scm_dz_ * (temperature_[i] - temperature_[i - 1]);
 
     temperature_[i] = temperature_[i] + dt * (term1 + term2);
 }
 
-void SCM1DSolver::update_turbulence(int i, Real dt) {
+void SCM1DSolver::update_turbulence(int i, double dt) {
     // TKE diffusion
-    Real term1 = nut_[i] * (tke_[i + 1] - 2.0 * tke_[i] + tke_[i - 1]) / (scm_dz_ * scm_dz_);
-    Real term2 = 1.0 / scm_dz_ * (nut_[i] - nut_[i - 1]) *
+    double term1 = nut_[i] * (tke_[i + 1] - 2.0 * tke_[i] + tke_[i - 1]) / (scm_dz_ * scm_dz_);
+    double term2 = 1.0 / scm_dz_ * (nut_[i] - nut_[i - 1]) *
                 1.0 / scm_dz_ * (tke_[i] - tke_[i - 1]);
 
     // Production
-    Real production = nut_[i] * (1.0 / (scm_dz_ * scm_dz_)) *
+    double production = nut_[i] * (1.0 / (scm_dz_ * scm_dz_)) *
                     ((ux_[i] - ux_[i - 1]) * (ux_[i] - ux_[i - 1]) +
                      (uy_[i] - uy_[i - 1]) * (uy_[i] - uy_[i - 1]));
 
     // Length scale calculation
-    Real lturb = 0.41 * (z_[i] - z_[lower_]);
-    Real lmax = 0.00027 * std::sqrt(ug_ * ug_ + vg_ * vg_) / std::max(coriolis_f_, 1e-6);
-    Real invLshear = 1.0 / (lturb * lturb) + 1.0 / (lmax * lmax);
-    Real lshear = std::sqrt(1.0 / invLshear);
+    double lturb = 0.41 * (z_[i] - z_[lower_]);
+    double lmax = 0.00027 * std::sqrt(ug_ * ug_ + vg_ * vg_) / std::max(coriolis_f_, 1e-6);
+    double invLshear = 1.0 / (lturb * lturb) + 1.0 / (lmax * lmax);
+    double lshear = std::sqrt(1.0 / invLshear);
 
     // Stratification
-    Real stratification = 9.81 * (1.0 / (scm_dz_ * t_ref_)) *
+    double stratification = 9.81 * (1.0 / (scm_dz_ * t_ref_)) *
                         (temperature_[i] - temperature_[i - 1]);
 
     // Dissipation
-    Real dissipation = 0.556 * 0.556 * 0.556 * std::pow(tke_[i], 1.5) /
+    double dissipation = 0.556 * 0.556 * 0.556 * std::pow(tke_[i], 1.5) /
                       std::max(lscale_[i], 1e-10);
 
     Rt_[i] = (tke_[i] / std::max(dissipation, 1e-15)) * (tke_[i] / std::max(dissipation, 1e-15)) *
@@ -311,13 +312,13 @@ void SCM1DSolver::update_turbulence(int i, Real dt) {
     }
 
     // Buoyancy term
-    Real buoyancy = -nutPrime_[i] * stratification;
+    double buoyancy = -nutPrime_[i] * stratification;
 
     // Length scale with buoyancy effects
-    Real lscale = lshear;
+    double lscale = lshear;
     if (Rt_[i] > 0.0) {
-        Real lbuoyancy = 0.25 * std::sqrt(tke_[i]) / std::sqrt(std::max(stratification, 1e-15));
-        Real invLscale = 1.0 / (lshear * lshear) + 1.0 / (lbuoyancy * lbuoyancy);
+        double lbuoyancy = 0.25 * std::sqrt(tke_[i]) / std::sqrt(std::max(stratification, 1e-15));
+        double invLscale = 1.0 / (lshear * lshear) + 1.0 / (lbuoyancy * lbuoyancy);
         lscale = std::sqrt(1.0 / invLscale);
     } else {
         lscale = lshear * std::sqrt(1.0 - (0.556 * 0.556 * 0.556 * 0.556 * 0.556 * 0.556) /
@@ -325,44 +326,44 @@ void SCM1DSolver::update_turbulence(int i, Real dt) {
     }
 
     // Update TKE
-    Real diffusion = term1 + term2;
+    double diffusion = term1 + term2;
     tke_[i] = tke_[i] + dt * (production + buoyancy - dissipation + diffusion);
     tke_[i] = std::max(tke_[i], 1e-15);
 
     // Update eddy viscosity and mixing length
-    Real cmu = (0.556 + 0.108 * Rt_[i]) / (1.0 + 0.308 * Rt_[i] + 0.00837 * Rt_[i] * Rt_[i]);
+    double cmu = (0.556 + 0.108 * Rt_[i]) / (1.0 + 0.308 * Rt_[i] + 0.00837 * Rt_[i] * Rt_[i]);
     nut_[i] = cmu * std::sqrt(tke_[i]) * lscale;
 
-    Real cmuprime = 0.556 / (1.0 + 0.277 * Rt_[i]);
+    double cmuprime = 0.556 / (1.0 + 0.277 * Rt_[i]);
     sigmaT_[i] = (1.0 + 0.193 * Rt_[i]) / (1.0 + 0.0302 * Rt_[i]);
     nutPrime_[i] = cmuprime * std::sqrt(tke_[i]) * lscale;
     lscale_[i] = lscale;
 }
 
-Real SCM1DSolver::interpolate_field(Real z, const std::vector<Real>& field) const {
+double SCM1DSolver::interpolate_field(double z, const std::vector<double>& field) const {
     // Linear interpolation
     if (z <= z_[0]) return field[0];
     if (z >= z_[nz_ - 1]) return field[nz_ - 1];
 
     for (int i = 0; i < nz_ - 1; ++i) {
         if (z >= z_[i] && z <= z_[i + 1]) {
-            Real frac = (z - z_[i]) / (z_[i + 1] - z_[i]);
+            double frac = (z - z_[i]) / (z_[i + 1] - z_[i]);
             return field[i] * (1.0 - frac) + field[i + 1] * frac;
         }
     }
     return field[nz_ - 1];
 }
 
-bool SCM1DSolver::check_convergence(Real u_current, Real v_current,
-                                    Real u_target, Real v_target, Real tol) const {
+bool SCM1DSolver::check_convergence(double u_current, double v_current,
+                                    double u_target, double v_target, double tol) const {
     return std::abs(u_current - u_target) < tol && std::abs(v_current - v_target) < tol;
 }
 
-void SCM1DSolver::adjust_geostrophic_wind(Real u_current, Real v_current,
-                                         Real u_target, Real v_target) {
+void SCM1DSolver::adjust_geostrophic_wind(double u_current, double v_current,
+                                         double u_target, double v_target) {
     // Simple adjustment: reduce error by half of current residual
-    Real du_error = u_current - u_target;
-    Real dv_error = v_current - v_target;
+    double du_error = u_current - u_target;
+    double dv_error = v_current - v_target;
 
     if (std::abs(du_error) > std::abs(dv_error)) {
         if (u_target > 0.0) {
@@ -379,12 +380,12 @@ void SCM1DSolver::adjust_geostrophic_wind(Real u_current, Real v_current,
     }
 }
 
-void SCM1DSolver::run_to_convergence(Real target_u_ref, Real target_v_ref, Real z_ref,
-                                     Real tolerance, int max_iterations, Real end_time) {
+void SCM1DSolver::run_to_convergence(double target_u_ref, double target_v_ref, double z_ref,
+                                     double tolerance, int max_iterations, double end_time) {
     end_time_ = end_time;
 
     int outer_iter = 0;
-    Real residual_u = 100.0, residual_v = 100.0;
+    double residual_u = 100.0, residual_v = 100.0;
 
     while ((residual_u > tolerance || residual_v > tolerance) && outer_iter < max_iterations) {
         // Initialize simulation for this geostrophic wind iteration
@@ -394,7 +395,7 @@ void SCM1DSolver::run_to_convergence(Real target_u_ref, Real target_v_ref, Real 
 
         // Run simulation until convergence
         int counter = 0;
-        Real converge_tol = 1e-3;
+        double converge_tol = 1e-3;
         bool converged = false;
 
         while (start_time_ <= end_time_ && !converged) {
@@ -410,7 +411,7 @@ void SCM1DSolver::run_to_convergence(Real target_u_ref, Real target_v_ref, Real 
             }
 
             // Adaptive time stepping
-            Real max_u = 0.0;
+            double max_u = 0.0;
             for (int i = 0; i < nz_; ++i) {
                 max_u = std::max(max_u, std::sqrt(ux_[i] * ux_[i] + uy_[i] * uy_[i]));
             }
@@ -418,7 +419,7 @@ void SCM1DSolver::run_to_convergence(Real target_u_ref, Real target_v_ref, Real 
 
             counter++;
             if (counter % 5000 == 0) {
-                Real err_u = 0.0, err_v = 0.0;
+                double err_u = 0.0, err_v = 0.0;
                 for (int i = 0; i < nz_; ++i) {
                     err_u += ux_[i];
                     err_v += uy_[i];
@@ -433,8 +434,8 @@ void SCM1DSolver::run_to_convergence(Real target_u_ref, Real target_v_ref, Real 
         }
 
         // Evaluate wind at reference height
-        Real u_at_ref = interpolate_field(z_ref, ux_);
-        Real v_at_ref = interpolate_field(z_ref, uy_);
+        double u_at_ref = interpolate_field(z_ref, ux_);
+        double v_at_ref = interpolate_field(z_ref, uy_);
 
         residual_u = std::abs(u_at_ref - target_u_ref);
         residual_v = std::abs(v_at_ref - target_v_ref);
@@ -454,22 +455,22 @@ void SCM1DSolver::run_to_convergence(Real target_u_ref, Real target_v_ref, Real 
     }
 }
 
-void SCM1DSolver::get_wind_at_height(Real z, Real& u, Real& v) const {
+void SCM1DSolver::get_wind_at_height(double z, double& u, double& v) const {
     u = interpolate_field(z, ux_);
     v = interpolate_field(z, uy_);
 }
 
-Real SCM1DSolver::get_temperature_at_height(Real z) const {
+double SCM1DSolver::get_temperature_at_height(double z) const {
     return interpolate_field(z, temperature_);
 }
 
-Real SCM1DSolver::get_eddy_viscosity_at_height(Real z) const {
+double SCM1DSolver::get_eddy_viscosity_at_height(double z) const {
     return interpolate_field(z, nut_);
 }
 
-void SCM1DSolver::get_profile(std::vector<Real>& z, std::vector<Real>& u,
-                              std::vector<Real>& v, std::vector<Real>& temp,
-                              std::vector<Real>& tke, std::vector<Real>& nut) const {
+void SCM1DSolver::get_profile(std::vector<double>& z, std::vector<double>& u,
+                              std::vector<double>& v, std::vector<double>& temp,
+                              std::vector<double>& tke, std::vector<double>& nut) const {
     z = z_;
     u = ux_;
     v = uy_;

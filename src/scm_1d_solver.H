@@ -22,7 +22,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include <AMReX_Real.H>
+#include <AMReX.H>
 
 using namespace amrex;
 
@@ -32,11 +32,11 @@ using namespace amrex;
  */
 struct SCMSimilarityParams {
     int heat_flux_mode = 1;        ///< 1: heat flux, 2: surface temp, 3: heating rate, 4: MOL
-    Real heat_flux_value = 0.0;    ///< Value for specified heat flux mode
-    Real temperature_surface = 0.0; ///< Surface temperature (K) - for mode 2
-    Real temperature_reference = 300.0; ///< Reference temperature (K)
-    Real latitude = 45.0;          ///< Latitude (degrees) for Coriolis
-    Real z0 = 0.1;                 ///< Roughness length (m)
+    double heat_flux_value = 0.0;    ///< Value for specified heat flux mode
+    double temperature_surface = 0.0; ///< Surface temperature (K) - for mode 2
+    double temperature_reference = 300.0; ///< Reference temperature (K)
+    double latitude = 45.0;          ///< Latitude (degrees) for Coriolis
+    double z0 = 0.1;                 ///< Roughness length (m)
 };
 
 /**
@@ -58,7 +58,7 @@ public:
      * @param scm_dz Grid spacing in 1D solver (m)
      * @param params Similarity theory parameters
      */
-    SCM1DSolver(Real scm_height, Real scm_dz, const SCMSimilarityParams& params);
+    SCM1DSolver(double scm_height, double scm_dz, const SCMSimilarityParams& params);
 
     /**
      * @brief Destructor
@@ -79,12 +79,12 @@ public:
      * @param end_time Simulation end time for averaging (s)
      */
     void run_to_convergence(
-        Real target_u_ref,
-        Real target_v_ref,
-        Real z_ref,
-        Real tolerance = 0.1,
+        double target_u_ref,
+        double target_v_ref,
+        double z_ref,
+        double tolerance = 0.1,
         int max_iterations = 100,
-        Real end_time = 20000.0
+        double end_time = 20000.0
     );
 
     /**
@@ -93,21 +93,21 @@ public:
      * @param u Output u-component
      * @param v Output v-component
      */
-    void get_wind_at_height(Real z, Real& u, Real& v) const;
+    void get_wind_at_height(double z, double& u, double& v) const;
 
     /**
      * @brief Get interpolated temperature at a given height
      * @param z Height above ground (m)
      * @return Temperature (K)
      */
-    Real get_temperature_at_height(Real z) const;
+    double get_temperature_at_height(double z) const;
 
     /**
      * @brief Get interpolated eddy viscosity at a given height
      * @param z Height above ground (m)
      * @return Eddy viscosity (m^2/s)
      */
-    Real get_eddy_viscosity_at_height(Real z) const;
+    double get_eddy_viscosity_at_height(double z) const;
 
     /**
      * @brief Get full 1D profile
@@ -119,77 +119,77 @@ public:
      * @param nut Output eddy viscosity (m^2/s)
      */
     void get_profile(
-        std::vector<Real>& z,
-        std::vector<Real>& u,
-        std::vector<Real>& v,
-        std::vector<Real>& temp,
-        std::vector<Real>& tke,
-        std::vector<Real>& nut
+        std::vector<double>& z,
+        std::vector<double>& u,
+        std::vector<double>& v,
+        std::vector<double>& temp,
+        std::vector<double>& tke,
+        std::vector<double>& nut
     ) const;
 
     /**
      * @brief Get Monin-Obukhov length (for diagnostics)
      * @return MOL (m)
      */
-    Real get_monin_obukhov_length() const { return mo_length_; }
+    double get_monin_obukhov_length() const { return mo_length_; }
 
     /**
      * @brief Get friction velocity (for diagnostics)
      * @return u* (m/s)
      */
-    Real get_friction_velocity() const { return ustar_; }
+    double get_friction_velocity() const { return ustar_; }
 
     /**
      * @brief Get sensible heat flux (for diagnostics)
      * @return Qh (W/m^2)
      */
-    Real get_sensible_heat_flux() const { return Qh_; }
+    double get_sensible_heat_flux() const { return Qh_; }
 
 private:
     // Grid and domain parameters
-    Real scm_height_;              ///< Max height of 1D domain (m)
-    Real scm_dz_;                  ///< Grid spacing in 1D domain (m)
+    double scm_height_;              ///< Max height of 1D domain (m)
+    double scm_dz_;                  ///< Grid spacing in 1D domain (m)
     int nz_;                        ///< Number of grid points
-    std::vector<Real> z_;          ///< Height grid points (m)
+    std::vector<double> z_;          ///< Height grid points (m)
 
     // Physical fields
-    std::vector<Real> ux_;         ///< u-velocity (m/s)
-    std::vector<Real> uy_;         ///< v-velocity (m/s)
-    std::vector<Real> temperature_; ///< Temperature (K)
-    std::vector<Real> tke_;        ///< Turbulent kinetic energy (m^2/s^2)
-    std::vector<Real> nut_;        ///< Eddy viscosity (m^2/s)
-    std::vector<Real> lscale_;     ///< Turbulent length scale (m)
-    std::vector<Real> nutPrime_;   ///< Turbulent viscosity parameter
-    std::vector<Real> sigmaT_;     ///< Prandtl number for temperature
-    std::vector<Real> Rt_;         ///< Richardson number
+    std::vector<double> ux_;         ///< u-velocity (m/s)
+    std::vector<double> uy_;         ///< v-velocity (m/s)
+    std::vector<double> temperature_; ///< Temperature (K)
+    std::vector<double> tke_;        ///< Turbulent kinetic energy (m^2/s^2)
+    std::vector<double> nut_;        ///< Eddy viscosity (m^2/s)
+    std::vector<double> lscale_;     ///< Turbulent length scale (m)
+    std::vector<double> nutPrime_;   ///< Turbulent viscosity parameter
+    std::vector<double> sigmaT_;     ///< Prandtl number for temperature
+    std::vector<double> Rt_;         ///< Richardson number
 
     // Parameters
     SCMSimilarityParams params_;
-    Real ug_;                      ///< Geostrophic u-wind (m/s)
-    Real vg_;                      ///< Geostrophic v-wind (m/s)
-    Real t_ref_;                   ///< Reference temperature (K)
-    Real tke_init_;                ///< Initial TKE (m^2/s^2)
-    Real pblh_;                    ///< PBL height (m)
+    double ug_;                      ///< Geostrophic u-wind (m/s)
+    double vg_;                      ///< Geostrophic v-wind (m/s)
+    double t_ref_;                   ///< Reference temperature (K)
+    double tke_init_;                ///< Initial TKE (m^2/s^2)
+    double pblh_;                    ///< PBL height (m)
 
     // Physical constants
-    Real coriolis_f_;              ///< Coriolis parameter (1/s)
-    Real ustar_;                   ///< Friction velocity (m/s)
-    Real thetastar_;               ///< Temperature scale (K)
-    Real mo_length_;               ///< Monin-Obukhov length (m)
-    Real Qh_;                      ///< Sensible heat flux (W/m^2)
-    Real Qb_;                      ///< Buoyancy flux (K m/s^2)
+    double coriolis_f_;              ///< Coriolis parameter (1/s)
+    double ustar_;                   ///< Friction velocity (m/s)
+    double thetastar_;               ///< Temperature scale (K)
+    double mo_length_;               ///< Monin-Obukhov length (m)
+    double Qh_;                      ///< Sensible heat flux (W/m^2)
+    double Qb_;                      ///< Buoyancy flux (K m/s^2)
 
     // Simulation control
-    Real start_time_;              ///< Current simulation time (s)
-    Real end_time_;                ///< End time for simulation (s)
-    Real dt_;                      ///< Adaptive time step (s)
+    double start_time_;              ///< Current simulation time (s)
+    double end_time_;                ///< End time for simulation (s)
+    double dt_;                      ///< Adaptive time step (s)
     int lower_;                    ///< Index of terrain surface (usually 0)
 
     // Temperature inversion parameters
-    Real inversion_height_;        ///< Height of inversion (m)
-    Real inversion_width_;         ///< Width of inversion region (m)
-    Real delta_inversion_;         ///< Inversion strength (K)
-    Real lapse_rate_;              ///< Environmental lapse rate (K/m)
+    double inversion_height_;        ///< Height of inversion (m)
+    double inversion_width_;         ///< Width of inversion region (m)
+    double delta_inversion_;         ///< Inversion strength (K)
+    double lapse_rate_;              ///< Environmental lapse rate (K/m)
 
     /**
      * @brief Initialize fields for simulation
@@ -208,28 +208,28 @@ private:
      * @param i Grid index
      * @param dt Time step (s)
      */
-    void update_windspeed_x(int i, Real dt);
+    void update_windspeed_x(int i, double dt);
 
     /**
      * @brief Update v-momentum at grid point i
      * @param i Grid index
      * @param dt Time step (s)
      */
-    void update_windspeed_y(int i, Real dt);
+    void update_windspeed_y(int i, double dt);
 
     /**
      * @brief Update temperature at grid point i
      * @param i Grid index
      * @param dt Time step (s)
      */
-    void update_temperature(int i, Real dt);
+    void update_temperature(int i, double dt);
 
     /**
      * @brief Update TKE and eddy viscosity at grid point i
      * @param i Grid index
      * @param dt Time step (s)
      */
-    void update_turbulence(int i, Real dt);
+    void update_turbulence(int i, double dt);
 
     /**
      * @brief Interpolate field at height z
@@ -237,7 +237,7 @@ private:
      * @param field The field to interpolate
      * @return Interpolated value
      */
-    Real interpolate_field(Real z, const std::vector<Real>& field) const;
+    double interpolate_field(double z, const std::vector<double>& field) const;
 
     /**
      * @brief Apply similarity boundary conditions at surface
@@ -253,7 +253,7 @@ private:
      * @param tol Tolerance
      * @return true if converged
      */
-    bool check_convergence(Real u_current, Real v_current, Real u_target, Real v_target, Real tol) const;
+    bool check_convergence(double u_current, double v_current, double u_target, double v_target, double tol) const;
 
     /**
      * @brief Update geostrophic wind using simple bisection-like adjustment
@@ -262,7 +262,7 @@ private:
      * @param u_target Target wind speed u at z_ref
      * @param v_target Target wind speed v at z_ref
      */
-    void adjust_geostrophic_wind(Real u_current, Real v_current, Real u_target, Real v_target);
+    void adjust_geostrophic_wind(double u_current, double v_current, double u_target, double v_target);
 };
 
 #endif // SCM_1D_SOLVER_H

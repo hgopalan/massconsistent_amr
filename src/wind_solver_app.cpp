@@ -7509,11 +7509,11 @@ void WindSolverApp::initialize_scm_profile(int time_step) {
 
     // Interpolate 1D SCM profile to 3D domain
     // For each 3D grid point, interpolate the 1D profile at the height above ground level (AGL)
-    const Real* d_terr_ptr = d_terrain.data();
+    const Real* d_terr_ptr = d_terrain_h.data();
     const int nx_cap = nx;
     const int ny_cap = ny;
     const int nz_cap = nz;
-    const Real z_lo_cap = z_lo;
+    const Real z_lo_cap = zs_min;
     const Real dz_cap = dz;
     const Real x_lo_cap = x_lo;
     const Real y_lo_cap = y_lo;
@@ -7528,19 +7528,19 @@ void WindSolverApp::initialize_scm_profile(int time_step) {
     std::vector<Real> scm_tke_host = scm_tke;
     std::vector<Real> scm_nut_host = scm_nut;
 
-    Gpu::HostVector<Real> d_scm_z_host(scm_z_host.begin(), scm_z_host.end());
-    Gpu::HostVector<Real> d_scm_u_host(scm_u_host.begin(), scm_u_host.end());
-    Gpu::HostVector<Real> d_scm_v_host(scm_v_host.begin(), scm_v_host.end());
-    Gpu::HostVector<Real> d_scm_temp_host(scm_temp_host.begin(), scm_temp_host.end());
-    Gpu::HostVector<Real> d_scm_tke_host(scm_tke_host.begin(), scm_tke_host.end());
-    Gpu::HostVector<Real> d_scm_nut_host(scm_nut_host.begin(), scm_nut_host.end());
+    Gpu::HostVector<Real> d_scm_z_host;
+    Gpu::HostVector<Real> d_scm_u_host;
+    Gpu::HostVector<Real> d_scm_v_host;
+    d_scm_z_host.resize(scm_z_host.size());
+    d_scm_u_host.resize(scm_u_host.size());
+    d_scm_v_host.resize(scm_v_host.size());
+    std::copy(scm_z_host.begin(), scm_z_host.end(), d_scm_z_host.begin());
+    std::copy(scm_u_host.begin(), scm_u_host.end(), d_scm_u_host.begin());
+    std::copy(scm_v_host.begin(), scm_v_host.end(), d_scm_v_host.begin());
 
     const Real* scm_z_ptr = d_scm_z_host.data();
     const Real* scm_u_ptr = d_scm_u_host.data();
     const Real* scm_v_ptr = d_scm_v_host.data();
-    const Real* scm_temp_ptr = d_scm_temp_host.data();
-    const Real* scm_tke_ptr = d_scm_tke_host.data();
-    const Real* scm_nut_ptr = d_scm_nut_host.data();
     int scm_nz = static_cast<int>(scm_z.size());
 
     // Lambda for linear interpolation of SCM profile
