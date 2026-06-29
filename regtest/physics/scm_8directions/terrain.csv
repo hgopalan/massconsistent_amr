@@ -1,0 +1,7 @@
+# Flat terrain for SCM 8-direction regression test
+# X Y Z [m]
+0.0   0.0   0.0
+1000.0 0.0   0.0
+0.0   1000.0 0.0
+1000.0 1000.0 0.0
+500.0 500.0 0.0
