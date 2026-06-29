@@ -1347,10 +1347,12 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
     amrex::Real angle_rad = wind_direction * pi_val / 180.0;
     amrex::Real target_ux = -target_wind_speed * std::sin(angle_rad);
     amrex::Real target_uy = -target_wind_speed * std::cos(angle_rad);
+    amrex::Real ug_init = target_ux;
+    amrex::Real vg_init = target_uy;
     
     // Initial guess: start with target components as geostrophic wind
-    amrex::Real ug = target_ux;
-    amrex::Real vg = target_uy;
+    amrex::Real ug = ug_init;
+    amrex::Real vg = vg_init;
     
     for (int iter = 0; iter < max_iterations; ++iter) {
         // Run 1D SCM with current geostrophic wind
