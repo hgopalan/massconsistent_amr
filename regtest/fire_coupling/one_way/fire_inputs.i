@@ -5,20 +5,19 @@ n_cell_x = 32
 n_cell_y = 32
 
 # Domain bounds (must match wind solver)
-plo_x = 0.0
-plo_y = 0.0
-phi_x = 1000.0
-phi_y = 1000.0
+prob_lo_x = 0.0
+prob_lo_y = 0.0
+prob_hi_x = 1000.0
+prob_hi_y = 1000.0
 
 # AMR configuration
 max_grid = 32
 
 # Ignition setup
-ignition.type = circle
-ignition.x0 = 250.0
-ignition.y0 = 250.0
-ignition.radius = 50.0
-ignition.time = 0.0
+source_type = sphere
+center_x = 250.0
+center_y = 250.0
+sphere_radius = 50.0
 
 # Time control
 cfl = 0.5
@@ -26,7 +25,7 @@ nsteps = 20
 max_time = 600.0
 
 # Propagation
-propagation_method = levelset
+propagation_method = farsite
 
 # Fuel model
 rothermel.model_number = 1
