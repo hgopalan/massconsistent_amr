@@ -53,16 +53,18 @@ def validate_convergence(extract_file, expected_u, expected_v, tolerance=0.3):
         print(f"Extract file columns: {list(data.columns)}")
         
         # Get wind speeds at reference height
-        # Assuming columns: height_agl, u, v, w, or similar
-        if 'height_agl' in data.columns and 'u' in data.columns and 'v' in data.columns:
+        # Expected columns: x, y, z_terrain, z_physical, z_agl, u, v, w, speed
+        if 'z_agl' in data.columns and 'u' in data.columns and 'v' in data.columns:
             # Find closest height to z_ref=150m
             z_ref = 150.0
-            closest_idx = np.abs(data['height_agl'] - z_ref).argmin()
+            closest_idx = np.abs(data['z_agl'] - z_ref).argmin()
             u_actual = data.iloc[closest_idx]['u']
             v_actual = data.iloc[closest_idx]['v']
+            z_actual = data.iloc[closest_idx]['z_agl']
             
             print(f"\nValidation Results:")
             print(f"  Reference height: {z_ref} m")
+            print(f"  Actual extraction height: {z_actual:.1f} m")
             print(f"  Expected wind: u={expected_u:.2f}, v={expected_v:.2f} m/s")
             print(f"  Actual wind: u={u_actual:.2f}, v={v_actual:.2f} m/s")
             print(f"  Error: u_error={abs(u_actual-expected_u):.3f}, v_error={abs(v_actual-expected_v):.3f} m/s")
@@ -145,9 +147,17 @@ def main():
     test_dir = Path(__file__).parent
     print(f"Test directory: {test_dir}")
     
-    # Look for plotfile and extract file
+    # Look for plotfile and extract file (with time index)
     plotfiles = list(test_dir.glob("plt_scm_test*"))
-    extract_file = test_dir / "scm_extract.csv"
+    
+    # Find the latest extract file (wind_solver appends time indices)
+    extract_files = list(test_dir.glob("scm_extract_t*.csv"))
+    if extract_files:
+        # Sort by time index and use the latest
+        extract_files.sort()
+        extract_file = extract_files[-1]
+    else:
+        extract_file = test_dir / "scm_extract.csv"
     
     print()
     if plotfiles:
