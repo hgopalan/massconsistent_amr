@@ -1990,7 +1990,7 @@ void apply_heat_source_forcing(WindSolverState& state)
                     }
                     z_above_surface = z_agl;
                 } else {
-                    z_above_surface = static_cast<Real>(k) * dz;
+                    z_above_surface = (k + Real(0.5)) * dz;
                 }
                 
                 // Convert heat flux to virtual temperature perturbation [K]
