@@ -380,7 +380,7 @@ class CoupledWindFireSimulation:
                 
                 # Calculate burned area
                 if 'phi' in fire_state:
-                    burned_cells = np.sum(fire_state['phi'] <= 0.0)
+                    burned_cells = np.sum(fire_state['phi'] < 0.0)
                     total_cells = fire_state['phi'].size
                     burned_fraction = burned_cells / total_cells * 100
                 else:
@@ -424,7 +424,7 @@ class CoupledWindFireSimulation:
         # Print final summary
         print(f"\nFinal state (t={self.fire_time:.1f}s, step {step_count}):")
         if 'phi' in fire_state:
-            burned_cells = np.sum(fire_state['phi'] <= 0.0)
+            burned_cells = np.sum(fire_state['phi'] < 0.0)
             total_cells = fire_state['phi'].size
             burned_fraction = burned_cells / total_cells * 100
             print(f"  Burned area: {burned_fraction:.1f}%")
