@@ -136,11 +136,12 @@ def main():
     print("=" * 70)
     print()
     
-    # Parameters from the test case (matching Python reference)
-    # Python: metMastWind=[10,0] at metMastHeight=150
+    # Parameters from the test case (matching Python reference exactly)
+    # Python: metMastWind=[10,0] at metMastHeight=80
+    # Expected: Geostrophic [13.9206, -10.3659], Final wind [9.83213, 0.110555]
     expected_u = 10.0
     expected_v = 0.0
-    z_ref = 150.0
+    z_ref = 80.0  # Changed from 150m to 80m
     tolerance = 0.25  # From Python: allowed_error=0.25
     
     # Determine test directory

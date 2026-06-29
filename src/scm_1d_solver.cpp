@@ -14,7 +14,7 @@
 
 SCM1DSolver::SCM1DSolver(double scm_height, double scm_dz, const SCMSimilarityParams& params)
     : scm_height_(scm_height), scm_dz_(scm_dz), params_(params),
-      ug_(15.0), vg_(-10.0), t_ref_(params.temperature_reference),
+      ug_(10.0), vg_(-12.0), t_ref_(params.temperature_reference),
       tke_init_(0.4), pblh_(1000.0), ustar_(0.41), thetastar_(0.0),
       mo_length_(-1e30), Qh_(0.0), Qb_(0.0),
       start_time_(0.0), end_time_(20000.0), lower_(0),
@@ -397,7 +397,7 @@ void SCM1DSolver::run_to_convergence(double target_u_ref, double target_v_ref, d
         double converge_tol = 1e-3;
         bool converged = false;
 
-        while (start_time_ <= end_time_ && !converged) {
+        while (start_time_ <= end_time_) {
             start_time_ += dt_;
             compute_similarity();
 
@@ -428,8 +428,6 @@ void SCM1DSolver::run_to_convergence(double target_u_ref, double target_v_ref, d
                              << " sum(v)=" << err_v << std::endl;
                 }
             }
-
-            if (counter > 100) converged = true; // Simple stopping criterion
         }
 
         // Evaluate wind at reference height
