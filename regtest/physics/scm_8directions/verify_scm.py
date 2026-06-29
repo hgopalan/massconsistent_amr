@@ -14,15 +14,15 @@ def verify_source_conversion(root_dir):
         content = handle.read()
 
     # Intentionally match the concrete ug_init/vg_init assignments to guard against
-    # accidental sin/cos swaps in the exact SCM initialization path being fixed here.
-    ug_ok = re.search(r"ug_init\s*=\s*target_wind_speed\s*\*\s*std::cos\(angle_rad\)", content) is not None
-    vg_ok = re.search(r"vg_init\s*=\s*target_wind_speed\s*\*\s*std::sin\(angle_rad\)", content) is not None
+    # accidental sign errors in the exact SCM initialization path being fixed here.
+    ug_ok = re.search(r"target_ux\s*=\s*-target_wind_speed\s*\*\s*std::sin\(angle_rad\)", content) is not None
+    vg_ok = re.search(r"target_uy\s*=\s*-target_wind_speed\s*\*\s*std::cos\(angle_rad\)", content) is not None
 
     if not ug_ok or not vg_ok:
         print(f"✗ FAIL: expected cos/sin SCM conversion not found in {source_file}")
         return False
 
-    print(f"✓ PASS: SCM conversion in source uses ug=cos(angle), vg=sin(angle)")
+    print(f"✓ PASS: SCM conversion in source uses meteorological sign convention")
     return True
 
 

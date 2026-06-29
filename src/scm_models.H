@@ -138,6 +138,35 @@ inline amrex::Real mo_phi_m(amrex::Real z_over_L) {
     }
 }
 
+inline amrex::Real interpolate_profile_value(const std::vector<amrex::Real>& z,
+                                             const std::vector<amrex::Real>& values,
+                                             amrex::Real z_query)
+{
+    if (z.empty() || values.empty() || z.size() != values.size()) {
+        return amrex::Real(0.0);
+    }
+
+    if (z_query <= z.front()) {
+        return values.front();
+    }
+    if (z_query >= z.back()) {
+        return values.back();
+    }
+
+    for (std::size_t i = 0; i + 1 < z.size(); ++i) {
+        if (z[i] <= z_query && z_query <= z[i + 1]) {
+            const amrex::Real dz_local = z[i + 1] - z[i];
+            if (dz_local <= 1.0e-12) {
+                return values[i];
+            }
+            const amrex::Real weight_upper = (z_query - z[i]) / dz_local;
+            return (1.0 - weight_upper) * values[i] + weight_upper * values[i + 1];
+        }
+    }
+
+    return values.back();
+}
+
 // Heat transfer stability function
 inline amrex::Real mo_phi_h(amrex::Real z_over_L) {
     if (z_over_L > 0.0) {
@@ -434,14 +463,8 @@ void initialize_1d_state(SCMState1D& state,
         state.qv[i] = state.initial_humidity * qvs;
     }
     
-    // Find lowest active level above z0
+    // In the SCM column, the surface is the first grid level (z = 0).
     state.lower = 0;
-    for (int i = 0; i < state.nz; ++i) {
-        if (state.z[i] >= z0) {
-            state.lower = i;
-            break;
-        }
-    }
     
     // Initialize Coriolis
     amrex::Real pi_val = amrex::Real(3.14159265358979323846);
@@ -451,7 +474,7 @@ void initialize_1d_state(SCMState1D& state,
     if (state.lower + 1 < state.nz) {
         amrex::Real M1 = std::sqrt(state.ux[state.lower + 1] * state.ux[state.lower + 1] +
                                    state.uy[state.lower + 1] * state.uy[state.lower + 1]);
-        state.ustar = (M1 > 0.0) ? VON_KARMAN * M1 / std::log((state.z[state.lower + 1] + z0) / z0)
+        state.ustar = (M1 > 0.0) ? VON_KARMAN * M1 / std::log(state.z[state.lower + 1] / z0)
                                  : 0.0;
     } else {
         state.ustar = 0.0;
@@ -522,7 +545,7 @@ void compute_similarity_surface(SCMState1D& state)
     if (state.use_charnock) {
         for (int iter = 0; iter < 5; ++iter) {
             if (M1 > 0.0) {
-                state.ustar = VON_KARMAN * M1 / std::log((state.z[state.lower + 1] + state.z0) / state.z0);
+                state.ustar = VON_KARMAN * M1 / std::log(state.z[state.lower + 1] / state.z0);
             } else {
                 state.ustar = 0.0;
             }
@@ -530,7 +553,7 @@ void compute_similarity_surface(SCMState1D& state)
         }
     } else {
         if (M1 > 0.0) {
-            state.ustar = VON_KARMAN * M1 / std::log((state.z[state.lower + 1] + state.z0) / state.z0);
+            state.ustar = VON_KARMAN * M1 / std::log(state.z[state.lower + 1] / state.z0);
         } else {
             state.ustar = 0.0;
         }
@@ -1287,17 +1310,9 @@ amrex::Real run_1d_scm(SCMState1D& state,
     }
     
     // Return wind speed at reference height
-    int ref_idx = 0;
-    amrex::Real min_dist = std::abs(state.z[0] - ref_height);
-    for (int i = 1; i < state.nz; ++i) {
-        amrex::Real dist = std::abs(state.z[i] - ref_height);
-        if (dist < min_dist) {
-            min_dist = dist;
-            ref_idx = i;
-        }
-    }
-    
-    return std::sqrt(state.ux[ref_idx] * state.ux[ref_idx] + state.uy[ref_idx] * state.uy[ref_idx]);
+    amrex::Real current_ux = interpolate_profile_value(state.z, state.ux, ref_height);
+    amrex::Real current_uy = interpolate_profile_value(state.z, state.uy, ref_height);
+    return std::sqrt(current_ux * current_ux + current_uy * current_uy);
 }
 
 // ============================================================================
@@ -1325,11 +1340,12 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
                              bool enable_mp = false,
                              amrex::Real init_rh = 0.0)
 {
-    // Convert target wind speed and direction to target components
+    // Convert meteorological wind direction (clockwise from north, direction from which
+    // the wind blows) to Cartesian components.
     amrex::Real pi_val = amrex::Math::pi<amrex::Real>();
     amrex::Real angle_rad = wind_direction * pi_val / 180.0;
-    amrex::Real target_ux = target_wind_speed * std::cos(angle_rad);
-    amrex::Real target_uy = target_wind_speed * std::sin(angle_rad);
+    amrex::Real target_ux = -target_wind_speed * std::sin(angle_rad);
+    amrex::Real target_uy = -target_wind_speed * std::cos(angle_rad);
     
     // Initial guess: start with target components as geostrophic wind
     amrex::Real ug = target_ux;
@@ -1347,20 +1363,9 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
         // Run 1D SCM to convergence and get wind components at reference height
         run_1d_scm(state, ref_height);
         
-        // Find the closest grid point to reference height
-        int ref_idx = 0;
-        amrex::Real min_dist = std::abs(state.z[0] - ref_height);
-        for (int i = 1; i < state.nz; ++i) {
-            amrex::Real dist = std::abs(state.z[i] - ref_height);
-            if (dist < min_dist) {
-                min_dist = dist;
-                ref_idx = i;
-            }
-        }
-        
-        // Get current wind components at reference height
-        amrex::Real current_ux = state.ux[ref_idx];
-        amrex::Real current_uy = state.uy[ref_idx];
+        // Interpolate the wind components to the requested reference height.
+        amrex::Real current_ux = interpolate_profile_value(state.z, state.ux, ref_height);
+        amrex::Real current_uy = interpolate_profile_value(state.z, state.uy, ref_height);
         
         // Calculate errors in each component
         amrex::Real error_ux = current_ux - target_ux;

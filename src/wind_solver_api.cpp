@@ -1123,11 +1123,12 @@ std::pair<Real, Real> find_geostrophic_wind_scm(Real target_wind_speed,
                                                  bool enable_mp = false,
                                                  Real init_rh = 0.0)
 {
-    // Convert wind direction to components for initial guess
+    // Convert meteorological wind direction (direction from which the wind blows)
+    // to Cartesian components for the initial guess.
     Real pi_val = MathConstants::pi;
     Real angle_rad = wind_direction * pi_val / 180.0;
-    Real ug_init = target_wind_speed * std::sin(angle_rad);
-    Real vg_init = target_wind_speed * std::cos(angle_rad);
+    Real ug_init = -target_wind_speed * std::sin(angle_rad);
+    Real vg_init = -target_wind_speed * std::cos(angle_rad);
     
     Real ug = ug_init;
     Real vg = vg_init;
@@ -3263,5 +3264,4 @@ std::pair<std::vector<double>, bool> wind_solver_get_heat_source()
     
     return std::make_pair(heat_flux_data, is_active);
 }
-
 

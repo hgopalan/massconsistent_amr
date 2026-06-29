@@ -12,7 +12,6 @@ import sys
 import os
 import json
 import argparse
-import numpy as np
 
 def verify_scm_initialization(input_file, work_dir):
     """
