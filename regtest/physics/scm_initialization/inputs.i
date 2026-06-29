@@ -1,17 +1,20 @@
-# Regression test for Single Column Model (SCM) wind profile initialization
-# This test validates the SCM's ability to find geostrophic wind from a specified wind speed at a reference height
+# Regression test for Single Column Model (SCM) wind profile initialization.
+# This case mirrors the reference hrrr_1dsolver_terrain.py setup:
+# - met mast height = 150 m
+# - met mast wind = [10, -4] m/s
+# - Monin-Obukhov length = 500 m
 
 # ============================================================================
 # GEOMETRY
 # ============================================================================
 geometry.prob_lo = 0.0 0.0 0.0
-geometry.prob_hi = 1000.0 1000.0 4000.0  # Domain height = 4 km for SCM
+geometry.prob_hi = 1000.0 1000.0 1000.0  # Domain height = 1 km for the reference case
 geometry.is_periodic = 1 1 0
 
 # ============================================================================
 # GRID
 # ============================================================================
-amr.n_cell = 16 16 1000
+amr.n_cell = 16 16 100
 amr.max_level = 0
 
 # ============================================================================
@@ -21,17 +24,16 @@ amr.max_level = 0
 init_mode = scm
 
 # SCM Parameters
-scm_wind_speed = 10.0           # Wind speed at reference height [m/s]
-scm_wind_direction = 270.0      # Wind direction [degrees, 0=N, 90=E, 180=S, 270=W]
-scm_ref_height = 10.0           # Height where wind speed is specified [m AGL]
-scm_ref_temperature = 288.15    # Reference temperature at surface [K] (15°C)
-scm_lapse_rate = 0.0065         # Temperature lapse rate [K/m] (standard atmosphere)
-scm_domain_height = 4000.0      # Domain height for 1D SCM [m]
-scm_dz = 4.0                    # Vertical resolution for 1D SCM [m]
+scm_wind_speed = 10.7703296143   # |[10, -4]| m/s
+scm_wind_direction = 111.8014094863  # Meteorological direction from which the wind blows [deg]
+scm_ref_height = 150.0           # Height where wind speed is specified [m AGL]
+scm_ref_temperature = 300.0      # Reference temperature at surface [K]
+scm_lapse_rate = 0.01            # Temperature lapse rate [K/m]
+scm_domain_height = 1000.0       # Domain height for 1D SCM [m]
+scm_dz = 10.0                   # Vertical resolution for 1D SCM [m]
 
-# Optional stability parameters (uncomment to use non-neutral conditions)
-# scm_heat_flux = 100.0                 # Surface sensible heat flux [W/m^2] (positive=unstable)
-# scm_monin_obukhov_length = 50.0       # Monin-Obukhov length [m] (positive=stable, negative=unstable)
+# Optional stability parameters for the reference case
+scm_monin_obukhov_length = 500.0  # Monin-Obukhov length [m]
 
 # ============================================================================
 # SURFACE PARAMETERS
@@ -57,4 +59,4 @@ mlmg.tol_abs = 1.0e-8
 # OUTPUT
 # ============================================================================
 plot_file = plt_scm
-extract_agl = 10.0              # Extract wind at 10m AGL
+extract_agl = 150.0              # Extract wind at 150m AGL
