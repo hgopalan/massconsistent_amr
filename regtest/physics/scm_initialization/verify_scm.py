@@ -12,7 +12,8 @@ import sys
 import os
 import json
 import argparse
-import numpy as np
+import math
+import re
 
 def verify_scm_initialization(input_file, work_dir):
     """
@@ -58,38 +59,41 @@ def verify_scm_initialization(input_file, work_dir):
     try:
         with open(input_file, 'r') as f:
             content = f.read()
-        
-        # Check for essential SCM parameters
-        required_params = [
-            'init_mode = scm',
-            'scm_wind_speed',
-            'scm_wind_direction',
-            'scm_ref_height',
-            'scm_ref_temperature',
-            'scm_lapse_rate',
-            'scm_domain_height',
-            'scm_dz'
-        ]
-        
-        missing_params = []
-        for param in required_params:
-            if param not in content:
-                missing_params.append(param)
-        
-        if missing_params:
-            print(f"✗ FAIL: Missing SCM parameters in inputs.i: {missing_params}")
+        expected = {
+            "scm_wind_speed": 10.7703296143,
+            "scm_wind_direction": 111.8014094863,
+            "scm_ref_height": 150.0,
+            "scm_ref_temperature": 300.0,
+            "scm_lapse_rate": 0.01,
+            "scm_domain_height": 1000.0,
+            "scm_dz": 10.0,
+            "scm_monin_obukhov_length": 500.0,
+            "extract_agl": 150.0,
+        }
+
+        def read_value(name):
+            pattern = rf"^\s*{re.escape(name)}\s*=\s*([^\s#]+)"
+            match = re.search(pattern, content, re.MULTILINE)
+            return float(match.group(1)) if match else None
+
+        if "init_mode = scm" not in content:
+            print("✗ FAIL: init_mode = scm not found in inputs.i")
             return False
-        
-        print(f"✓ PASS: All required SCM parameters found in inputs.i")
-        
-        # Extract and display key parameters
-        for line in content.split('\n'):
-            if 'scm_wind_speed' in line and '=' in line and not line.strip().startswith('#'):
-                print(f"  → {line.strip()}")
-            elif 'scm_ref_height' in line and '=' in line and not line.strip().startswith('#'):
-                print(f"  → {line.strip()}")
-            elif 'scm_wind_direction' in line and '=' in line and not line.strip().startswith('#'):
-                print(f"  → {line.strip()}")
+
+        missing = [k for k in expected if read_value(k) is None]
+        if missing:
+            print(f"✗ FAIL: Missing SCM parameters in inputs.i: {missing}")
+            return False
+
+        for key, want in expected.items():
+            got = read_value(key)
+            if got is None or not math.isclose(got, want, rel_tol=1e-6, abs_tol=1e-6):
+                print(f"✗ FAIL: {key} = {got} (expected {want})")
+                return False
+
+        print("✓ PASS: Reference SCM values found in inputs.i")
+        for key in ("scm_wind_speed", "scm_wind_direction", "scm_ref_height", "scm_monin_obukhov_length"):
+            print(f"  → {key} = {read_value(key)}")
     
     except Exception as e:
         print(f"⚠ WARNING: Could not fully parse inputs.i: {e}")
