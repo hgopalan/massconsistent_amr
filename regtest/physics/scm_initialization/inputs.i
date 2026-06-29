@@ -24,8 +24,8 @@ amr.max_level = 0
 init_mode = scm
 
 # SCM Parameters
-scm_wind_speed = 10.7703296143   # |[10, -4]| m/s
-scm_wind_direction = 111.8014094863  # Meteorological direction from which the wind blows [deg]
+scm_wind_speed = 10.7703296143   # sqrt(10^2 + (-4)^2) from the reference met mast wind [10, -4] m/s
+scm_wind_direction = 111.8014094863  # atan2(10, -4) in meteorological convention, from which the wind blows [deg]
 scm_ref_height = 150.0           # Height where wind speed is specified [m AGL]
 scm_ref_temperature = 300.0      # Reference temperature at surface [K]
 scm_lapse_rate = 0.01            # Temperature lapse rate [K/m]

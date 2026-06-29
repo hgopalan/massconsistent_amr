@@ -19,7 +19,7 @@ def verify_source_conversion(root_dir):
     vg_ok = re.search(r"target_uy\s*=\s*-target_wind_speed\s*\*\s*std::cos\(angle_rad\)", content) is not None
 
     if not ug_ok or not vg_ok:
-        print(f"✗ FAIL: expected cos/sin SCM conversion not found in {source_file}")
+        print(f"✗ FAIL: expected meteorological sign convention not found in {source_file}")
         return False
 
     print(f"✓ PASS: SCM conversion in source uses meteorological sign convention")
