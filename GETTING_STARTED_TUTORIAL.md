@@ -77,17 +77,7 @@ init_mode      = windfield
 windfield_file = external_3d_wind.csv  # Mapping CSV with X, Y, Z, U, V, W components
 ```
 
-### h. Single Column Model (`scm`)
-Initializes the 1D vertical column based on interactive boundary-layer physics (e.g., YSU, MYJ models) and microphysics, which are then extruded horizontally.
-```ini
-# inputs.i
-init_mode               = scm
-scm_forcing_type        = geostrophic  # Forcing method
-scm_geostrophic_U       = 15.0         # Geostrophic wind speed [m/s]
-scm_enable_microphysics = true         # Include moisture and phase changes
-```
-
-### i. Ekman Spiral (`ekman_spiral`)
+### h. Ekman Spiral (`ekman_spiral`)
 Initializes a profile showing wind direction veer (rotation) with altitude caused by the balance between pressure gradient, Coriolis force, and turbulent friction.
 ```ini
 # inputs.i
@@ -99,7 +89,7 @@ ekman_veer_total  = 30.0   # Total veer angle [degrees]
 ekman_veer_height = 600.0  # Height boundary [m]
 ```
 
-### j. Deaves-Harris (`deaves_harris`)
+### i. Deaves-Harris (`deaves_harris`)
 An advanced boundary-layer profile formulation valid under strong-wind, neutral conditions up to the top of the atmospheric boundary layer.
 ```ini
 # inputs.i
@@ -109,7 +99,7 @@ z_ref         = 10.0       # Reference height [m]
 z0            = 0.05       # Aerodynamic roughness [m]
 ```
 
-### k. Power-Law Above Boundary Layer (`powerlaw_above_bl`)
+### j. Power-Law Above Boundary Layer (`powerlaw_above_bl`)
 A hybrid profile that applies a power-law variation within the boundary layer and maintains a constant velocity above the boundary layer height.
 ```ini
 # inputs.i
@@ -136,24 +126,21 @@ These features enhance the solver's capability to simulate real-world physical m
    - *Applicable to*: All profile types.
 
 4. **Buoyancy & Thermal Stratification** (`enable_buoyancy_stratification`): Couples temperature gradients with the momentum equations using buoyancy forces.
-   - *Applicable to*: `loglaw`, `sounding`, `scm` (thermal files are read to define temperature fields).
+   - *Applicable to*: `loglaw`, `sounding` (thermal files are read to define temperature fields).
 
 5. **Kinematic Terrain-Following Boundary Condition** (`enable_terrain_kinematic_bc`): Enforces terrain-following boundary conditions on the resolved grid levels.
    - *Applicable to*: All profile types on non-flat terrain.
 
-6. **SCM Boundary Layer Parameterizations** (`scm_forcing_type`): Uses predictive 1D planetary boundary layer physics (e.g., YSU, MYJ closures) to build steady-state profiles.
-   - *Applicable to*: `scm`.
-
-7. **Spatial Lagrange Anisotropy Weighting** (`use_spatial_alpha_coefficients`): Adjusts the horizontal-to-vertical mass adjustment ratio ($\alpha_h/\alpha_v$) locally based on land use or complex topography.
+6. **Spatial Lagrange Anisotropy Weighting** (`use_spatial_alpha_coefficients`): Adjusts the horizontal-to-vertical mass adjustment ratio ($\alpha_h/\alpha_v$) locally based on land use or complex topography.
    - *Applicable to*: All profile types.
 
-8. **Coriolis Ekman Veer** (`enable_ekman_veer`): Introduces directional rotation with altitude into the vertical profiles.
+7. **Coriolis Ekman Veer** (`enable_ekman_veer`): Introduces directional rotation with altitude into the vertical profiles.
    - *Applicable to*: `loglaw`, `powerlaw`, `sounding`.
 
-9. **Subgrid Windbreak Obstacles** (`enable_windbreaks`): Represents subgrid thin barriers (e.g., windbreak fences) using localized drag formulations.
+8. **Subgrid Windbreak Obstacles** (`enable_windbreaks`): Represents subgrid thin barriers (e.g., windbreak fences) using localized drag formulations.
    - *Applicable to*: All profile types.
 
-10. **Building Wakes & Cavity Vortex Models** (`enable_building_wake`): Calculates wind speed deficits and turbulence enhancements in regions behind buildings (e.g., Röckle formulation).
+9. **Building Wakes & Cavity Vortex Models** (`enable_building_wake`): Calculates wind speed deficits and turbulence enhancements in regions behind buildings (e.g., Röckle formulation).
     - *Applicable to*: All profile types.
 
 ---
@@ -162,18 +149,17 @@ These features enhance the solver's capability to simulate real-world physical m
 
 The following matrix maps the compatibility of advanced options with each wind initialization mode:
 
-| Advanced Option | `loglaw` | `uniform` | `powerlaw` | `sounding` | `raws` | `surface_data` | `windfield` | `scm` | `ekman_spiral` | `deaves_harris` | `powerlaw_above_bl` |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Atmospheric Stability** | **Yes** | No | **Yes** | No | No | No | No | No | No | No | No |
-| **Forest Canopy Model** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
-| **Wall Functions** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
-| **Buoyancy / Thermal** | **Yes** | No | No | **Yes** | No | No | No | **Yes** | No | No | No |
-| **Kinematic BC** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
-| **SCM Physics** | No | No | No | No | No | No | No | **Yes** | No | No | No |
-| **Spatial Anisotropy ($\alpha$)** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
-| **Coriolis Ekman Veer** | **Yes** | No | **Yes** | **Yes** | No | No | No | **Yes** | **Yes** | No | No |
-| **Windbreaks** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
-| **Building Wakes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
+| Advanced Option | `loglaw` | `uniform` | `powerlaw` | `sounding` | `raws` | `surface_data` | `windfield` | `ekman_spiral` | `deaves_harris` | `powerlaw_above_bl` |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **Atmospheric Stability** | **Yes** | No | **Yes** | No | No | No | No | No | No | No |
+| **Forest Canopy Model** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
+| **Wall Functions** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
+| **Buoyancy / Thermal** | **Yes** | No | No | **Yes** | No | No | No | No | No | No |
+| **Kinematic BC** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
+| **Spatial Anisotropy ($\alpha$)** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
+| **Coriolis Ekman Veer** | **Yes** | No | **Yes** | **Yes** | No | No | No | **Yes** | No | No |
+| **Windbreaks** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
+| **Building Wakes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** |
 
 ---
 

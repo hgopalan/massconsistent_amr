@@ -57,7 +57,7 @@ Boundary Layer Meteorology & Stability
 
 * **Blackadar, A. K. (1962)**. The vertical distribution of wind and turbulent exchange in a neutral atmosphere. *Journal of Geophysical Research*, 67(8), 3095–3102.
 
-  Classic study introducing mixing length theory formulations for the planetary boundary layer, foundational for SCM wind profile initialization.
+  Classic study introducing mixing length theory formulations for the planetary boundary layer.
 
 Orographic Effects & Complex Terrain
 -------------------------------------
