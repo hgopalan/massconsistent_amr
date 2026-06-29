@@ -453,6 +453,36 @@ void SCM1DSolver::run_to_convergence(double target_u_ref, double target_v_ref, d
         adjust_geostrophic_wind(u_at_ref, v_at_ref, target_u_ref, target_v_ref);
         outer_iter++;
     }
+
+    // Print final convergence diagnostics (matching Python code output)
+    std::cout << "\n" << std::string(70, '=') << std::endl;
+    std::cout << "SCM 1D Solver - Final Convergence Report" << std::endl;
+    std::cout << std::string(70, '=') << std::endl;
+    
+    // Get final wind at reference height
+    double u_final = interpolate_field(z_ref, ux_);
+    double v_final = interpolate_field(z_ref, uy_);
+    double error_u_final = std::abs(u_final - target_u_ref);
+    double error_v_final = std::abs(v_final - target_v_ref);
+    double total_error = std::sqrt(error_u_final * error_u_final + error_v_final * error_v_final);
+    
+    std::cout << std::fixed << std::setprecision(6);
+    std::cout << "Specified wind (target):     u=" << target_u_ref << " m/s, v=" << target_v_ref << " m/s" << std::endl;
+    std::cout << "Final wind at z_ref=" << z_ref << "m: u=" << u_final << " m/s, v=" << v_final << " m/s" << std::endl;
+    std::cout << "Error in u-wind:             " << error_u_final << " m/s" << std::endl;
+    std::cout << "Error in v-wind:             " << error_v_final << " m/s" << std::endl;
+    std::cout << "Total wind error:            " << total_error << " m/s" << std::endl;
+    std::cout << "Final geostrophic wind:      ug=" << ug_ << " m/s, vg=" << vg_ << " m/s" << std::endl;
+    std::cout << "Convergence iterations:      " << outer_iter << std::endl;
+    std::cout << "Convergence tolerance:       " << tolerance << " m/s" << std::endl;
+    
+    if (residual_u < tolerance && residual_v < tolerance) {
+        std::cout << "Status:                      CONVERGED ✓" << std::endl;
+    } else {
+        std::cout << "Status:                      NOT CONVERGED (max_iterations reached)" << std::endl;
+    }
+    
+    std::cout << std::string(70, '=') << "\n" << std::endl;
 }
 
 void SCM1DSolver::get_wind_at_height(double z, double& u, double& v) const {
