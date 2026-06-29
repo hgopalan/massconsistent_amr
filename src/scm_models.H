@@ -1319,10 +1319,9 @@ amrex::Real run_1d_scm(SCMState1D& state,
 // find_geostrophic_wind_1d_scm
 // Iteratively find geostrophic wind (Ug, Vg) that produces desired wind speed
 // at reference height using the 1D SCM
-// Algorithm adapted from onedterrainsolver to match reference implementation:
-// - Adjusts components independently based on their individual errors
-// - Adjusts the component with the larger error first to speed convergence
-// - Uses conservative step sizes to ensure stability
+// The search preserves the initial wind direction and rescales the magnitude
+// with conservative damping so the recursion remains stable when the SCM
+// response is stiff or nearly singular.
 // ============================================================================
 std::pair<amrex::Real, amrex::Real>
 find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
@@ -1334,6 +1333,8 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
                              amrex::Real dz,
                              amrex::Real t_ref,
                              amrex::Real lapse_rate,
+                             amrex::Real heat_flux = 0.0,
+                             amrex::Real mo_length = MO_LENGTH_NEUTRAL_SENTINEL,
                              amrex::Real tolerance = 0.05,
                              int max_iterations = 20,
                              const std::string& turb_model = "one_equation",
@@ -1355,7 +1356,7 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
         // Run 1D SCM with current geostrophic wind
         SCMState1D state;
         initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude,
-                            0.0, -1.0e30, turb_model, enable_mp, init_rh);
+                            heat_flux, mo_length, turb_model, enable_mp, init_rh);
         
         // Use safe lower bound for wind speed (June 2026: prevent division-by-zero)
         state.dt = 0.8 * dz / std::sqrt(std::max(ug * ug + vg * vg, amrex::Real(0.01)));
@@ -1366,30 +1367,48 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
         // Interpolate the wind components to the requested reference height.
         amrex::Real current_ux = interpolate_profile_value(state.z, state.ux, ref_height);
         amrex::Real current_uy = interpolate_profile_value(state.z, state.uy, ref_height);
-        
-        // Calculate errors in each component
-        amrex::Real error_ux = current_ux - target_ux;
-        amrex::Real error_uy = current_uy - target_uy;
-        
+
+        if (!std::isfinite(current_ux) || !std::isfinite(current_uy)) {
+            amrex::Print() << "SCM: Warning - non-finite wind components encountered during iteration "
+                           << iter << "; reducing geostrophic wind magnitude and retrying.\n";
+            ug *= 0.5;
+            vg *= 0.5;
+            continue;
+        }
+
+        amrex::Real current_speed = std::sqrt(current_ux * current_ux + current_uy * current_uy);
+        amrex::Real error = std::abs(current_speed - target_wind_speed);
+
         // Check convergence
-        if (std::abs(error_ux) < tolerance && std::abs(error_uy) < tolerance) {
+        if (error < tolerance) {
             return std::make_pair(ug, vg);
         }
-        
-        // Adjust geostrophic wind component with larger error (adapted from reference implementation)
-        // This approach is more stable than scaling both components together
-        // Simplified logic: adjustment = -sign(error) * step_size, where step_size = max(0.5*|error|, tolerance)
-        if (std::abs(error_ux) > std::abs(error_uy)) {
-            // Adjust u-component (ug) by moving in opposite direction of error
-            amrex::Real step_ux = std::max(0.5 * std::abs(error_ux), tolerance);
-            ug = ug - std::copysign(step_ux, error_ux);
+
+        // Scale both components together to preserve wind direction and avoid
+        // component-wise oscillation when the 1D SCM response is nearly singular.
+        if (current_speed > 1.0e-10) {
+            amrex::Real scale = target_wind_speed / current_speed;
+            amrex::Real scale_increment = 0.5 * (scale - 1.0);
+            if (!std::isfinite(scale_increment)) {
+                scale_increment = 0.0;
+            }
+            scale_increment = std::max(amrex::Real(-0.5), std::min(scale_increment, amrex::Real(1.5)));
+            amrex::Real scale_factor = 1.0 + scale_increment;
+            ug *= scale_factor;
+            vg *= scale_factor;
         } else {
-            // Adjust v-component (vg) by moving in opposite direction of error
-            amrex::Real step_uy = std::max(0.5 * std::abs(error_uy), tolerance);
-            vg = vg - std::copysign(step_uy, error_uy);
+            // Recover from a nearly stagnant profile by growing the initial guess.
+            amrex::Real recovery_scale = 1.0 + 0.5 * static_cast<amrex::Real>(iter + 1);
+            ug = ug_init * recovery_scale;
+            vg = vg_init * recovery_scale;
         }
     }
     
+    if (!std::isfinite(ug) || !std::isfinite(vg)) {
+        ug = ug_init;
+        vg = vg_init;
+    }
+
     return std::make_pair(ug, vg);
 }
 

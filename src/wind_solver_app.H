@@ -111,6 +111,8 @@ private:
     amrex::Real scm_lapse_rate = 0.0065;         // Temperature lapse rate [K/m]
     amrex::Real scm_domain_height = 4000.0;      // Domain height for 1D SCM [m]
     amrex::Real scm_dz = 4.0;                    // Vertical resolution for 1D SCM [m]
+    amrex::Real scm_heat_flux = 0.0;             // Optional surface sensible heat flux [W/m^2]
+    amrex::Real scm_monin_obukhov_length = -1.0e30; // Optional Monin-Obukhov length [m]
     amrex::Real scm_ug = 0.0;                    // Geostrophic u-wind (computed)
     amrex::Real scm_vg = 0.0;                    // Geostrophic v-wind (computed)
     std::string scm_turbulence_model = "one_equation"; // SCM turbulence model: "one_equation", "ysu", "myj"
