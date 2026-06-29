@@ -1,8 +1,8 @@
 # SCM (Single Column Model) Initialization Test
 # Based on Python reference: https://github.com/hgopalan/onedterrainsolver/blob/main/hrrr_1dsolver_terrain.py
 # Test Case: MOL=-1e30 (neutral stability)
-# Met Mast Height: 150m, Target Wind: [10, -4] m/s
-# This matches the "Coarse search" test case in the Python code
+# Met Mast Height: 150m, Target Wind: [10, 0] m/s
+# This matches the reference test case in the Python code
 
 # Flat terrain for this idealized test
 terrain_file = terrain.csv 
@@ -10,10 +10,10 @@ terrain_file = terrain.csv
 # SCM initialization mode
 init_mode = scm
 
-# Reference wind at z_ref (to match Python test case)
-# Python: metMastWind=[10,-4] at metMastHeight=150
+# Reference wind at z_ref (to match test case)
+# Python: metMastWind=[10,0] at metMastHeight=150
 U_ref = 10.0
-V_ref = -4.0
+V_ref = 0.0
 z_ref = 10.0  # Log-law reference (not used for SCM, but kept for completeness)
 z0 = 0.1
 

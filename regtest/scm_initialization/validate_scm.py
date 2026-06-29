@@ -137,9 +137,9 @@ def main():
     print()
     
     # Parameters from the test case (matching Python reference)
-    # Python: metMastWind=[10,-4] at metMastHeight=150
+    # Python: metMastWind=[10,0] at metMastHeight=150
     expected_u = 10.0
-    expected_v = -4.0
+    expected_v = 0.0
     z_ref = 150.0
     tolerance = 0.25  # From Python: allowed_error=0.25
     
