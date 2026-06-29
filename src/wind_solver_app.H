@@ -15,6 +15,7 @@
 #include "structure_models.H"
 #include "thermodynamic_lid_models.H"
 #include "datacenter_heat_source.H"
+#include "scm_1d_solver.H"
 
 namespace amrex {
     class EBFArrayBoxFactory;
@@ -49,6 +50,7 @@ public:
     void setup_geometry_and_mesh();
     void allocate_data_fields();
     void initialize_wind_fields(int time_step);
+    void initialize_scm_profile(int time_step);
     void execute_poisson_solve(int time_step);
     void apply_divergence_corrections(int time_step);
     void compute_diagnostics_and_output(int time_step);
@@ -221,7 +223,7 @@ private:
 
     // Windfield data
     std::string windfield_file = "windfield.csv";
-     
+      
     // Cached windfield data for memory-based wind-scalar coupling
     // When init_mode == "windfield" and scalar transport is enabled,
     // we cache the windfield data on first read to avoid re-reading from disk
@@ -229,6 +231,19 @@ private:
     std::vector<amrex::Real> cached_x_wf, cached_y_wf, cached_z_wf;
     std::vector<amrex::Real> cached_ux_wf, cached_uy_wf, cached_uz_wf;
     bool windfield_data_cached = false;
+ 
+    // SCM (Single Column Model) initialization parameters
+    amrex::Real scm_height = 4000.0;           ///< Max height for 1D SCM solver (m)
+    amrex::Real scm_dz = 4.0;                  ///< Grid spacing for 1D SCM solver (m)
+    amrex::Real scm_z_ref = 150.0;             ///< Reference height for convergence (m)
+    amrex::Real scm_latitude = 45.0;           ///< Latitude for Coriolis (degrees)
+    int scm_heat_flux_mode = 1;                ///< Heat flux mode: 1=heat_flux, 2=surface_temp, 3=heating_rate, 4=MOL
+    amrex::Real scm_heat_flux_value = 0.0;    ///< Value for specified heat flux mode
+    amrex::Real scm_temperature_surface = 300.0; ///< Surface temperature (K) if mode=2
+    amrex::Real scm_temperature_reference = 300.0; ///< Reference temperature (K)
+    amrex::Real scm_convergence_tolerance = 0.1; ///< Convergence tolerance for geostrophic wind (m/s)
+    amrex::Real scm_simulation_time = 20000.0;   ///< Simulation time for single SCM run (s)
+    int scm_max_iterations = 100;              ///< Max geostrophic wind iterations
  
     // Roughness file
     std::string z0_file = "";
