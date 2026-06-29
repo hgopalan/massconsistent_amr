@@ -555,80 +555,6 @@ obrien_adjustment
 
     enable_obrien_adjustment   = true
 
-scm_initialization
-~~~~~~~~~~~~~~~~~~
-
-**Location:** ``regtest/physics/scm_initialization/``
-
-**Purpose:** Validates the Single Column Model (SCM) wind profile initialization, verifying that the solver correctly executes a 1D column model run to find the required geostrophic wind components to match a target wind speed at a reference height.
-
-**Physics:** Solves 1D momentum equations with Coriolis, geostrophic pressure forcing, relaxation damping, and Monin-Obukhov surface layer.
-
-**Key input parameters:**
-
-.. code-block:: text
-
-    init_mode          = scm
-    scm_wind_speed     = 10.0
-    scm_wind_direction = 270.0
-    scm_ref_height     = 10.0
-    scm_dz             = 4.0
-
-scm_ysu
-~~~~~~~
-
-**Location:** ``regtest/physics/scm_ysu/``
-
-**Purpose:** Validates the SCM with the Yonsei University (YSU) boundary layer turbulence model. Verifies that bulk Richardson number-based planetary boundary layer height is computed and the YSU eddy viscosity profile is correctly applied.
-
-**Physics:** Employs the YSU non-local boundary layer scheme with a bulk Richardson number threshold of 0.0 under unstable conditions and 0.25 under stable conditions (fully consistent with the WRF formulation) to compute PBL height.
-
-**Key input parameters:**
-
-.. code-block:: text
-
-    init_mode            = scm
-    scm_turbulence_model = ysu
-    scm_wind_speed       = 10.0
-    scm_ref_height       = 10.0
-
-scm_myj
-~~~~~~~
-
-**Location:** ``regtest/physics/scm_myj/``
-
-**Purpose:** Validates the SCM with the Mellor-Yamada-Janjić (MYJ) boundary layer turbulence model. Verifies local closure with TKE and mixing length under stable/unstable conditions.
-
-**Physics:** Solves local closure Mellor-Yamada Level 2.5 equations for shear and buoyancy parameters and turbulent kinetic energy.
-
-**Key input parameters:**
-
-.. code-block:: text
-
-    init_mode            = scm
-    scm_turbulence_model = myj
-    scm_wind_speed       = 10.0
-    scm_ref_height       = 10.0
-
-scm_microphysics
-~~~~~~~~~~~~~~~~
-
-**Location:** ``regtest/physics/scm_microphysics/``
-
-**Purpose:** Validates the SCM with simple microphysics (saturation adjustment) and Kessler microphysics enabled, verifying proper moisture transport and thermodynamic consistency.
-
-**Physics:** Simulates advection-diffusion of moisture variables (water vapor, cloud water, rain water) with saturation adjustment and autoconversion/accretion of cloud water.
-
-**Key input parameters:**
-
-.. code-block:: text
-
-    init_mode               = scm
-    scm_enable_microphysics = true
-    scm_initial_humidity    = 0.8
-    scm_wind_speed          = 10.0
-    scm_ref_height          = 10.0
-
 Surface Flux Diagnostics and Refinement Features
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1024,4 +950,3 @@ regression suite automatically after each successful build::
 
 This ensures that every push and pull request verifies both compilation and
 solver correctness on multiple operating systems.
-

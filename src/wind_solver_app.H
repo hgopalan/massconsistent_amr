@@ -103,22 +103,6 @@ private:
     amrex::Real z_ref = 10.0;
     amrex::Real z0    =  0.1;
 
-    // Single Column Model (SCM) parameters
-    amrex::Real scm_wind_speed = 10.0;           // Wind speed at reference height [m/s]
-    amrex::Real scm_wind_direction = 270.0;      // Wind direction [degrees, 0=N, 90=E, etc.]
-    amrex::Real scm_ref_height = 10.0;           // Height where wind speed is specified [m AGL]
-    amrex::Real scm_ref_temperature = 288.15;    // Reference temperature at surface [K]
-    amrex::Real scm_lapse_rate = 0.0065;         // Temperature lapse rate [K/m]
-    amrex::Real scm_domain_height = 4000.0;      // Domain height for 1D SCM [m]
-    amrex::Real scm_dz = 4.0;                    // Vertical resolution for 1D SCM [m]
-    amrex::Real scm_heat_flux = 0.0;             // Optional surface sensible heat flux [W/m^2]
-    amrex::Real scm_monin_obukhov_length = -1.0e30; // Optional Monin-Obukhov length [m]
-    amrex::Real scm_ug = 0.0;                    // Geostrophic u-wind (computed)
-    amrex::Real scm_vg = 0.0;                    // Geostrophic v-wind (computed)
-    std::string scm_turbulence_model = "one_equation"; // SCM turbulence model: "one_equation", "ysu", "myj"
-    bool scm_enable_microphysics = false;         // Enable SCM simple microphysics (saturation adjustment)
-    amrex::Real scm_initial_humidity = 0.0;       // SCM initial relative humidity [0.0 - 1.0]
-
     // Canopy
     bool enable_canopy = false;
     std::string canopy_file = "";
