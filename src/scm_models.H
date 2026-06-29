@@ -1304,6 +1304,10 @@ amrex::Real run_1d_scm(SCMState1D& state,
 // find_geostrophic_wind_1d_scm
 // Iteratively find geostrophic wind (Ug, Vg) that produces desired wind speed
 // at reference height using the 1D SCM
+// Algorithm adapted from onedterrainsolver to match reference implementation:
+// - Adjusts components independently based on their individual errors
+// - Adjusts the component with the larger error first to speed convergence
+// - Uses conservative step sizes to ensure stability
 // ============================================================================
 std::pair<amrex::Real, amrex::Real>
 find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
@@ -1321,42 +1325,106 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
                              bool enable_mp = false,
                              amrex::Real init_rh = 0.0)
 {
-    // Convert direction to components for initial guess
+    // Convert target wind speed and direction to target components
     amrex::Real pi_val = amrex::Real(3.14159265358979323846);
     amrex::Real angle_rad = wind_direction * pi_val / 180.0;
-    amrex::Real ug_init = target_wind_speed * std::cos(angle_rad);
-    amrex::Real vg_init = target_wind_speed * std::sin(angle_rad);
+    amrex::Real target_ux = target_wind_speed * std::cos(angle_rad);
+    amrex::Real target_uy = target_wind_speed * std::sin(angle_rad);
     
-    amrex::Real ug = ug_init;
-    amrex::Real vg = vg_init;
+    // Initial guess: start with target components as geostrophic wind
+    amrex::Real ug = target_ux;
+    amrex::Real vg = target_uy;
     
     for (int iter = 0; iter < max_iterations; ++iter) {
         // Run 1D SCM with current geostrophic wind
         SCMState1D state;
         initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude,
                             0.0, -1.0e30, turb_model, enable_mp, init_rh);
-        // Update dt with a safe lower bound for wind speed (added June 2026 to prevent division-by-zero)
+        
+        // Use safe lower bound for wind speed (June 2026: prevent division-by-zero)
         state.dt = 0.8 * dz / std::sqrt(std::max(ug * ug + vg * vg, amrex::Real(0.01)));
         
-        amrex::Real current_speed = run_1d_scm(state, ref_height);
-        amrex::Real error = std::abs(current_speed - target_wind_speed);
+        // Run 1D SCM to convergence and get wind components at reference height
+        run_1d_scm(state, ref_height);
         
-        if (error < tolerance) {
+        // Find the closest grid point to reference height
+        int ref_idx = 0;
+        amrex::Real min_dist = std::abs(state.z[0] - ref_height);
+        for (int i = 1; i < state.nz; ++i) {
+            amrex::Real dist = std::abs(state.z[i] - ref_height);
+            if (dist < min_dist) {
+                min_dist = dist;
+                ref_idx = i;
+            }
+        }
+        
+        // Get current wind components at reference height
+        amrex::Real current_ux = state.ux[ref_idx];
+        amrex::Real current_uy = state.uy[ref_idx];
+        
+        // Calculate errors in each component
+        amrex::Real error_ux = current_ux - target_ux;
+        amrex::Real error_uy = current_uy - target_uy;
+        
+        // Check convergence
+        if (std::abs(error_ux) < tolerance && std::abs(error_uy) < tolerance) {
             return std::make_pair(ug, vg);
         }
         
-        // Adjust geostrophic wind iteratively (updated June 2026 for robust damping & bounds to prevent instability)
-        if (current_speed > 1.0e-10) {
-            amrex::Real scale = target_wind_speed / current_speed;
-            amrex::Real scale_increment = 0.5 * (scale - 1.0);  // Damped update
-            // Clamp scale_increment to [ -0.5, 1.5 ] to prevent extreme steps and instability (added June 2026)
-            scale_increment = std::max(amrex::Real(-0.5), std::min(scale_increment, amrex::Real(1.5)));
-            ug = ug * (1.0 + scale_increment);
-            vg = vg * (1.0 + scale_increment);
+        // Adjust geostrophic wind component with larger error (adapted from reference implementation)
+        // This approach is more stable than scaling both components together
+        if (std::abs(error_ux) > std::abs(error_uy)) {
+            // Adjust u-component (ug)
+            if (target_ux > 0.0) {
+                if (current_ux > target_ux) {
+                    // Current is too large, decrease ug
+                    ug = ug - std::max(0.5 * std::abs(error_ux), tolerance);
+                } else {
+                    // Current is too small, increase ug
+                    ug = ug + std::max(0.5 * std::abs(error_ux), tolerance);
+                }
+            } else if (target_ux < 0.0) {
+                if (current_ux < target_ux) {
+                    // Current is too negative, increase ug (make less negative)
+                    ug = ug + std::max(0.5 * std::abs(error_ux), tolerance);
+                } else {
+                    // Current is not negative enough, decrease ug
+                    ug = ug - std::max(0.5 * std::abs(error_ux), tolerance);
+                }
+            } else {
+                // Target is zero, adjust towards zero
+                if (current_ux > 0.0) {
+                    ug = ug - std::max(0.5 * std::abs(error_ux), tolerance);
+                } else {
+                    ug = ug + std::max(0.5 * std::abs(error_ux), tolerance);
+                }
+            }
         } else {
-            // If current speed is zero, scale up the initial guess (added June 2026 for recovery)
-            ug = ug_init * (1.0 + iter);
-            vg = vg_init * (1.0 + iter);
+            // Adjust v-component (vg)
+            if (target_uy > 0.0) {
+                if (current_uy > target_uy) {
+                    // Current is too large, decrease vg
+                    vg = vg - std::max(0.5 * std::abs(error_uy), tolerance);
+                } else {
+                    // Current is too small, increase vg
+                    vg = vg + std::max(0.5 * std::abs(error_uy), tolerance);
+                }
+            } else if (target_uy < 0.0) {
+                if (current_uy < target_uy) {
+                    // Current is too negative, increase vg (make less negative)
+                    vg = vg + std::max(0.5 * std::abs(error_uy), tolerance);
+                } else {
+                    // Current is not negative enough, decrease vg
+                    vg = vg - std::max(0.5 * std::abs(error_uy), tolerance);
+                }
+            } else {
+                // Target is zero, adjust towards zero
+                if (current_uy > 0.0) {
+                    vg = vg - std::max(0.5 * std::abs(error_uy), tolerance);
+                } else {
+                    vg = vg + std::max(0.5 * std::abs(error_uy), tolerance);
+                }
+            }
         }
     }
     
