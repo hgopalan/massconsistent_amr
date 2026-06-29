@@ -1326,7 +1326,7 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
                              amrex::Real init_rh = 0.0)
 {
     // Convert target wind speed and direction to target components
-    amrex::Real pi_val = amrex::Real(3.14159265358979323846);
+    amrex::Real pi_val = amrex::Math::pi<amrex::Real>();
     amrex::Real angle_rad = wind_direction * pi_val / 180.0;
     amrex::Real target_ux = target_wind_speed * std::cos(angle_rad);
     amrex::Real target_uy = target_wind_speed * std::sin(angle_rad);
@@ -1380,8 +1380,8 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
             ug = ug - std::copysign(step_ux, error_ux);
         } else {
             // Adjust v-component (vg) by moving in opposite direction of error
-            amrex::Real step_vy = std::max(0.5 * std::abs(error_uy), tolerance);
-            vg = vg - std::copysign(step_vy, error_uy);
+            amrex::Real step_uy = std::max(0.5 * std::abs(error_uy), tolerance);
+            vg = vg - std::copysign(step_uy, error_uy);
         }
     }
     
