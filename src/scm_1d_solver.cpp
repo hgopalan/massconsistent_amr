@@ -14,7 +14,7 @@
 
 SCM1DSolver::SCM1DSolver(double scm_height, double scm_dz, const SCMSimilarityParams& params)
     : scm_height_(scm_height), scm_dz_(scm_dz), params_(params),
-      ug_(10.0), vg_(0.0), t_ref_(params.temperature_reference),
+      ug_(15.0), vg_(-10.0), t_ref_(params.temperature_reference),
       tke_init_(0.4), pblh_(1000.0), ustar_(0.41), thetastar_(0.0),
       mo_length_(-1e30), Qh_(0.0), Qb_(0.0),
       start_time_(0.0), end_time_(20000.0), lower_(0),
@@ -361,23 +361,22 @@ bool SCM1DSolver::check_convergence(double u_current, double v_current,
 
 void SCM1DSolver::adjust_geostrophic_wind(double u_current, double v_current,
                                          double u_target, double v_target) {
-    // Simple adjustment: reduce error by half of current residual
+    // Adjust both geostrophic wind components to reduce error at reference height
+    // Strategy: use proportional-integral feedback to converge to target wind
+    //
+    // The geostrophic wind (ug, vg) is the free-atmosphere wind that drives the boundary layer.
+    // We adjust it iteratively to match the target wind at reference height.
+    // This is analogous to the Python code's generate_profile() function.
+    
     double du_error = u_current - u_target;
     double dv_error = v_current - v_target;
-
-    if (std::abs(du_error) > std::abs(dv_error)) {
-        if (u_target > 0.0) {
-            ug_ = (u_current > u_target) ? ug_ - 0.5 * std::abs(du_error) : ug_ + 0.5 * std::abs(du_error);
-        } else {
-            ug_ = (u_current < u_target) ? ug_ + 0.5 * std::abs(du_error) : ug_ - 0.5 * std::abs(du_error);
-        }
-    } else {
-        if (v_target > 0.0) {
-            vg_ = (v_current > v_target) ? vg_ - 0.5 * std::abs(dv_error) : vg_ + 0.5 * std::abs(dv_error);
-        } else {
-            vg_ = (v_current < v_target) ? vg_ + 0.5 * std::abs(dv_error) : vg_ - 0.5 * std::abs(dv_error);
-        }
-    }
+    
+    // Update both components proportionally to the error
+    // Factor of 0.5-0.8 provides stable convergence
+    double factor = 0.6;
+    
+    ug_ = ug_ - factor * du_error;
+    vg_ = vg_ - factor * dv_error;
 }
 
 void SCM1DSolver::run_to_convergence(double target_u_ref, double target_v_ref, double z_ref,
