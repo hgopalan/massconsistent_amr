@@ -153,6 +153,13 @@ void WindSolverApp::parse_inputs() {
     pp.query("scm_turbulence_model", scm_turbulence_model);
     pp.query("scm_enable_microphysics", scm_enable_microphysics);
     pp.query("scm_initial_humidity", scm_initial_humidity);
+    // Optional initial geostrophic wind guess for the outer SCM iteration.
+    // Values > 1e29 (sentinel) fall back to the target wind components.
+    // Setting scm_initial_vg ≈ -12 for NH lat~45° cases significantly speeds
+    // convergence because Coriolis balance rotates the surface wind clockwise
+    // relative to the geostrophic wind.
+    pp.query("scm_initial_ug", scm_initial_ug);
+    pp.query("scm_initial_vg", scm_initial_vg);
 
     // Canopy model parameters
     pp.query("enable_canopy", enable_canopy);
@@ -4013,7 +4020,8 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         auto [ug, vg] = SCMModels::find_geostrophic_wind_1d_scm(
             scm_wind_speed, scm_wind_direction, scm_ref_height, domain_latitude, z0,
             scm_domain_height, scm_dz, scm_ref_temperature, scm_lapse_rate,
-            0.05, 20, scm_turbulence_model, scm_enable_microphysics, scm_initial_humidity);
+            0.05, 50, scm_turbulence_model, scm_enable_microphysics, scm_initial_humidity,
+            scm_initial_ug, scm_initial_vg);
         
         scm_ug = ug;
         scm_vg = vg;

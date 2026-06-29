@@ -116,6 +116,11 @@ private:
     std::string scm_turbulence_model = "one_equation"; // SCM turbulence model: "one_equation", "ysu", "myj"
     bool scm_enable_microphysics = false;         // Enable SCM simple microphysics (saturation adjustment)
     amrex::Real scm_initial_humidity = 0.0;       // SCM initial relative humidity [0.0 - 1.0]
+    // Optional initial geostrophic wind guess (sentinel 1e30 → use target components as fallback).
+    // Providing a good initial_vg estimate (e.g. -12 for NH lat≈45°) speeds convergence
+    // because Coriolis balance rotates the surface wind clockwise relative to geostrophic.
+    amrex::Real scm_initial_ug = 1.0e30;          // Initial Ug guess [m/s] (1e30 = auto)
+    amrex::Real scm_initial_vg = 1.0e30;          // Initial Vg guess [m/s] (1e30 = auto)
 
     // Canopy
     bool enable_canopy = false;

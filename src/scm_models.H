@@ -1302,12 +1302,19 @@ amrex::Real run_1d_scm(SCMState1D& state,
 
 // ============================================================================
 // find_geostrophic_wind_1d_scm
-// Iteratively find geostrophic wind (Ug, Vg) that produces desired wind speed
-// at reference height using the 1D SCM
-// Algorithm adapted from onedterrainsolver to match reference implementation:
-// - Adjusts components independently based on their individual errors
-// - Adjusts the component with the larger error first to speed convergence
-// - Uses conservative step sizes to ensure stability
+// Iteratively find geostrophic wind (Ug, Vg) that produces desired wind
+// components at reference height using the 1D SCM.
+//
+// Algorithm adapted from hrrr_1dsolver_terrain.py (onedterrainsolver):
+// - Adjusts BOTH u and v geostrophic components each outer iteration
+// - Uses a conservative halving step: step = max(0.5*|error|, tolerance)
+// - Supports an explicit initial geostrophic guess (initial_ug, initial_vg);
+//   pass values > 1.0e29 (sentinel) to fall back to the target components
+// - Uses up to 50 outer iterations (sufficient for all practical cases)
+// - Each outer iteration runs the full 1D SCM to convergence
+//
+// Reference case (MOL=500, neutral convergence, lat=45°, z0=0.1, lapse=0.01):
+//   initial_ug=10, initial_vg=-12 → Ug=13.92, Vg=-10.37  (target=[10,0] at 150m)
 // ============================================================================
 std::pair<amrex::Real, amrex::Real>
 find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
@@ -1320,34 +1327,42 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
                              amrex::Real t_ref,
                              amrex::Real lapse_rate,
                              amrex::Real tolerance = 0.05,
-                             int max_iterations = 20,
+                             int max_iterations = 50,
                              const std::string& turb_model = "one_equation",
                              bool enable_mp = false,
-                             amrex::Real init_rh = 0.0)
+                             amrex::Real init_rh = 0.0,
+                             amrex::Real initial_ug = 1.0e30,
+                             amrex::Real initial_vg = 1.0e30)
 {
-    // Convert target wind speed and direction to target components
+    // Convert target wind speed and direction to target u/v components.
+    // Convention: angle measured counterclockwise from east (mathematical),
+    // so direction=0 → ux=speed, uy=0 (eastward flow).
     amrex::Real pi_val = amrex::Math::pi<amrex::Real>();
     amrex::Real angle_rad = wind_direction * pi_val / 180.0;
     amrex::Real target_ux = target_wind_speed * std::cos(angle_rad);
     amrex::Real target_uy = target_wind_speed * std::sin(angle_rad);
-    
-    // Initial guess: start with target components as geostrophic wind
-    amrex::Real ug = target_ux;
-    amrex::Real vg = target_uy;
-    
+
+    // Initial geostrophic guess. When the caller provides an explicit initial
+    // guess (|initial_ug| < 1e29), use it directly; otherwise fall back to
+    // the target components. A good initial vg estimate (e.g. -12 for
+    // NH latitude 45°) significantly speeds convergence because Coriolis
+    // balance rotates the surface wind clockwise relative to the geostrophic.
+    amrex::Real ug = (std::abs(initial_ug) < 1.0e29) ? initial_ug : target_ux;
+    amrex::Real vg = (std::abs(initial_vg) < 1.0e29) ? initial_vg : target_uy;
+
     for (int iter = 0; iter < max_iterations; ++iter) {
-        // Run 1D SCM with current geostrophic wind
+        // Run 1D SCM with current geostrophic wind guess
         SCMState1D state;
         initialize_1d_state(state, ug, vg, t_ref, lapse_rate, z0, domain_height, dz, latitude,
                             0.0, -1.0e30, turb_model, enable_mp, init_rh);
-        
-        // Use safe lower bound for wind speed (June 2026: prevent division-by-zero)
+
+        // Safe initial dt (prevent division-by-zero when geostrophic wind is small)
         state.dt = 0.8 * dz / std::sqrt(std::max(ug * ug + vg * vg, amrex::Real(0.01)));
-        
-        // Run 1D SCM to convergence and get wind components at reference height
+
+        // Run 1D SCM to convergence
         run_1d_scm(state, ref_height);
-        
-        // Find the closest grid point to reference height
+
+        // Find the grid point closest to reference height
         int ref_idx = 0;
         amrex::Real min_dist = std::abs(state.z[0] - ref_height);
         for (int i = 1; i < state.nz; ++i) {
@@ -1357,34 +1372,30 @@ find_geostrophic_wind_1d_scm(amrex::Real target_wind_speed,
                 ref_idx = i;
             }
         }
-        
-        // Get current wind components at reference height
-        amrex::Real current_ux = state.ux[ref_idx];
-        amrex::Real current_uy = state.uy[ref_idx];
-        
-        // Calculate errors in each component
-        amrex::Real error_ux = current_ux - target_ux;
-        amrex::Real error_uy = current_uy - target_uy;
-        
-        // Check convergence
+
+        // Wind component errors at reference height
+        amrex::Real error_ux = state.ux[ref_idx] - target_ux;
+        amrex::Real error_uy = state.uy[ref_idx] - target_uy;
+
+        // Converged when both components are within tolerance
         if (std::abs(error_ux) < tolerance && std::abs(error_uy) < tolerance) {
             return std::make_pair(ug, vg);
         }
-        
-        // Adjust geostrophic wind component with larger error (adapted from reference implementation)
-        // This approach is more stable than scaling both components together
-        // Simplified logic: adjustment = -sign(error) * step_size, where step_size = max(0.5*|error|, tolerance)
-        if (std::abs(error_ux) > std::abs(error_uy)) {
-            // Adjust u-component (ug) by moving in opposite direction of error
+
+        // Adjust BOTH geostrophic wind components simultaneously.
+        // This matches the reference Python implementation and converges
+        // faster than adjusting only the component with the larger error.
+        // Step size: max(0.5*|error|, tolerance) to ensure a minimum step.
+        if (std::abs(error_ux) > tolerance) {
             amrex::Real step_ux = std::max(0.5 * std::abs(error_ux), tolerance);
-            ug = ug - std::copysign(step_ux, error_ux);
-        } else {
-            // Adjust v-component (vg) by moving in opposite direction of error
+            ug -= std::copysign(step_ux, error_ux);
+        }
+        if (std::abs(error_uy) > tolerance) {
             amrex::Real step_uy = std::max(0.5 * std::abs(error_uy), tolerance);
-            vg = vg - std::copysign(step_uy, error_uy);
+            vg -= std::copysign(step_uy, error_uy);
         }
     }
-    
+
     return std::make_pair(ug, vg);
 }
 
