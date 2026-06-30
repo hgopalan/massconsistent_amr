@@ -35,8 +35,8 @@ alpha_v = 1.0
 mlmg_verbose = 0
 mlmg_max_iter = 200
 mlmg_max_fmg_iter = 0
-mlmg_pre_smooth = 8
-mlmg_post_smooth = 8
+mlmg.num_pre_smooth = 8
+mlmg.num_post_smooth = 8
 mlmg_bottom_solver = bicgstab
 
 # Solver convergence

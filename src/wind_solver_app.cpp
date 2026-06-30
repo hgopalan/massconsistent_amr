@@ -690,8 +690,8 @@ void WindSolverApp::parse_inputs() {
     pp.query("tol_rel",       tol_rel);
     pp.query("mlmg_max_iter", mlmg_max_iter);
     pp.query("mlmg_max_fmg_iter", mlmg_max_fmg_iter);
-    pp.query("mlmg_pre_smooth", mlmg_pre_smooth);
-    pp.query("mlmg_post_smooth", mlmg_post_smooth);
+    pp.query("mlmg.num_pre_smooth", mlmg_pre_smooth);
+    pp.query("mlmg.num_post_smooth", mlmg_post_smooth);
     pp.query("mlmg_bottom_solver", mlmg_bottom_solver);
     pp.query("max_grid_size", max_grid_size);
     pp.query("plot_file",     plot_file);
