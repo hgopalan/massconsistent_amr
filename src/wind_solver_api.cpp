@@ -22,6 +22,8 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <map>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -29,6 +31,11 @@
 using namespace amrex;
 
 std::unique_ptr<WindSolverState> g_wind_solver_state = nullptr;
+
+// Default plot_fields value: all available fields in order
+constexpr const char* DEFAULT_PLOT_FIELDS = "u,v,w,vel_magnitude,u0,v0,w0,lambda,div0,div,terrain_z";
+// Number of available plot fields
+constexpr int NUM_PLOT_FIELDS = 11;
 
 namespace {
 
@@ -591,10 +598,12 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.extract_file = "wind_extract.csv";
     state.extract_agl = -1.0;
     state.extract_k = -1;
+    state.plot_fields = DEFAULT_PLOT_FIELDS;
     pp.query("plot_file", state.plot_file);
     pp.query("extract_file", state.extract_file);
     pp.query("extract_agl", state.extract_agl);
     pp.query("extract_k", state.extract_k);
+    pp.query("plot_fields", state.plot_fields);
 
     state.enable_topographic_shielding = false;
     pp.query("enable_topographic_shielding", state.enable_topographic_shielding);
@@ -2743,6 +2752,90 @@ void wind_solver_get_velocity_at_k(int k,
     }
 }
 
+namespace {
+    // Parse comma-separated plot_fields string and return selected field indices
+    std::pair<std::vector<int>, std::vector<std::string>> parse_plot_fields(const std::string& plot_fields_str)
+    {
+        // Map of field names to their components (0-10 = u, v, w, vel_magnitude, u0, v0, w0, lambda, div0, div, terrain_z)
+        static const std::map<std::string, std::vector<int>> field_map = {
+            {"u", {0}},
+            {"v", {1}},
+            {"w", {2}},
+            {"vel_magnitude", {3}},
+            {"vel_mag", {3}},
+            {"u0", {4}},
+            {"v0", {5}},
+            {"w0", {6}},
+            {"lambda", {7}},
+            {"div0", {8}},
+            {"div", {9}},
+            {"terrain_z", {10}},
+            {"terrain", {10}},
+            // Composite fields
+            {"velocity", {0, 1, 2, 3}},
+            {"pressure", {7}},
+            {"initial_velocity", {4, 5, 6}},
+            {"divergence", {8, 9}}
+        };
+        
+        std::vector<int> selected_indices;
+        std::vector<std::string> selected_names;
+        std::set<int> unique_indices;
+        
+        // Parse comma-separated string
+        std::istringstream iss(plot_fields_str);
+        std::string field;
+        while (std::getline(iss, field, ',')) {
+            // Trim whitespace
+            size_t start = field.find_first_not_of(" \t\r\n");
+            if (start == std::string::npos) {
+                // Skip empty or whitespace-only fields
+                continue;
+            }
+            size_t end = field.find_last_not_of(" \t\r\n");
+            field = field.substr(start, end - start + 1);
+            
+            auto it = field_map.find(field);
+            if (it != field_map.end()) {
+                for (int idx : it->second) {
+                    unique_indices.insert(idx);
+                }
+            } else if (!field.empty()) {
+                // Log warning for unrecognized field name
+                amrex::Print() << "Warning: unrecognized plot_fields name '" << field << "'\n";
+            }
+        }
+        
+        // Convert set to sorted vector
+        for (int idx : unique_indices) {
+            selected_indices.push_back(idx);
+        }
+        
+        // Create names for selected indices
+        const std::vector<std::string> idx_names = {
+            "u", "v", "w", "vel_magnitude",
+            "u0", "v0", "w0",
+            "lambda", "div0", "div", "terrain_z"
+        };
+        
+        for (int idx : selected_indices) {
+            if (idx < static_cast<int>(idx_names.size())) {
+                selected_names.push_back(idx_names[idx]);
+            }
+        }
+        
+        // If no fields were selected, return all
+        if (selected_indices.empty()) {
+            for (int i = 0; i < NUM_PLOT_FIELDS; ++i) {
+                selected_indices.push_back(i);
+                selected_names.push_back(idx_names[i]);
+            }
+        }
+        
+        return std::make_pair(selected_indices, selected_names);
+    }
+} // anonymous namespace
+
 bool wind_solver_write_plotfile(const std::string& plotfile_name)
 {
     try {
@@ -2753,17 +2846,33 @@ bool wind_solver_write_plotfile(const std::string& plotfile_name)
         state.vel->FillBoundary(state.geom->periodicity());
         compute_divergence(state, *state.vel, div_current);
 
-        MultiFab output(*state.ba, *state.dm, 11, 0);
-        build_plotfile_output(output, div_current);
-
-        Vector<std::string> names = {
-            "u", "v", "w", "vel_magnitude",
-            "u0", "v0", "w0",
-            "lambda", "div0", "div", "terrain_z"
-        };
+        // Parse plot_fields to determine which fields to include
+        // Returns pair of (selected_indices, selected_names)
+        auto [selected_indices, selected_names_vec] = parse_plot_fields(state.plot_fields);
+        
+        // Create full output with all fields
+        MultiFab output_full(*state.ba, *state.dm, NUM_PLOT_FIELDS, 0);
+        build_plotfile_output(output_full, div_current);
+        
+        // Create filtered output with only selected fields
+        int num_selected = static_cast<int>(selected_indices.size());
+        MultiFab output_filtered(*state.ba, *state.dm, num_selected, 0);
+        
+        // Copy selected fields from full output to filtered output
+        for (int i = 0; i < num_selected; ++i) {
+            int src_comp = selected_indices[i];
+            amrex::MultiFab::Copy(output_filtered, output_full, src_comp, i, 1, 0);
+        }
+        
+        // Convert std::vector to amrex::Vector
+        Vector<std::string> selected_names;
+        for (const auto& name : selected_names_vec) {
+            selected_names.push_back(name);
+        }
+        
         // Use indexed plot file name: plotfile_name_00000, plotfile_name_00001, etc.
         std::string indexed_plotfile = amrex::Concatenate(plotfile_name, 0);
-        WriteSingleLevelPlotfile(indexed_plotfile, output, names, *state.geom, 0.0, 0);
+        WriteSingleLevelPlotfile(indexed_plotfile, output_filtered, selected_names, *state.geom, 0.0, 0);
         return true;
     } catch (const std::exception& e) {
         amrex::Print() << "Error writing plotfile: " << e.what() << "\n";
