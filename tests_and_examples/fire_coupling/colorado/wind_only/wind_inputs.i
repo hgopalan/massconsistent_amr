@@ -39,20 +39,15 @@ alpha_h = 1.0    # Horizontal anisotropy
 alpha_v = 1.0    # Vertical anisotropy
 
 # MLMG solver settings (to avoid divergence)
-mlmg.agglomeration = 1
-mlmg.consolidation = 1
-mlmg.nu0 = 2
-mlmg.nu1 = 2
-mlmg.nu2 = 2
-mlmg.verbose = 0
-mlmg.num_pre_smooth = 8
-mlmg.num_post_smooth = 8
-mlmg.bot_smoother = "visc_abs_sing"
+mlmg_verbose = 0
+mlmg_max_iter = 200
+mlmg_max_fmg_iter = 0
+mlmg_pre_smooth = 8
+mlmg_post_smooth = 8
+mlmg_bottom_solver = bicgstab
 
 # Solver convergence
 tol_rel = 1.0e-8
-tol_abs = 1.0e-10
-max_iter = 200
 
 # Boundary conditions
 bc_type = dirichlet
@@ -67,4 +62,4 @@ max_time = 600.0
 nsteps = 1
 
 # Terrain specification
-terrain_file = terrain.csv
+terrain_file = ../terrain.csv
