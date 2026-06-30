@@ -583,13 +583,13 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
         state.enable_3d_scalars = true;
     }
 
-    state.mlmg_verbose = 1;
-    state.mlmg_pre_smooth = 2; 
-    state.mlmg_post_smooth = 2; 
-    state.mlmg_max_fmg_iter = 4;
-    state.tol_rel = 0.0;
-    state.tol_abs = 1e-4;
-    state.max_iter = 200;
+    //state.mlmg_verbose = 1;
+    //state.mlmg_pre_smooth = 2; 
+    //state.mlmg_post_smooth = 2; 
+    //state.mlmg_max_fmg_iter = 4;
+    //state.tol_rel = 0.0;
+    //state.tol_abs = 1e-4;
+    //state.max_iter = 200;
     int max_grid_size = 32;
     pp.query("mlmg_verbose", state.mlmg_verbose);
     pp.query("tol_rel", state.tol_rel);
