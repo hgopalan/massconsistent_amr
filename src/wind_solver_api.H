@@ -184,6 +184,8 @@ struct WindSolverState {
     amrex::Real extract_agl;
     int extract_k;
     std::string plot_fields;  // Comma-separated list of fields to include in plotfile (e.g. "velocity,pressure,terrain")
+    int write_plotfile;       // Write plotfile to disk (1=yes, 0=no)
+    int plot_interval;        // Interval for writing plotfiles (every N steps)
     
     // Initialization mode
     bool enable_topographic_shielding;
