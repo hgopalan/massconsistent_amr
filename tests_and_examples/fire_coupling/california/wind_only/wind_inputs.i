@@ -4,10 +4,10 @@
 # Grid resolution: 64m horizontal, 8m vertical
 # Terrain: SRTM-based California coastal terrain (400-700m elevation)
 
-# Grid spacing and domain height
-dx = 64.0
-dy = 64.0
-dz = 8.0
+# Grid spacing and domain height (coarsened 2x in x,y and 2x in z for faster computation)
+dx = 128.0
+dy = 128.0
+dz = 16.0
 domain_height = 300.0
 
 # Reference wind conditions (10m height)

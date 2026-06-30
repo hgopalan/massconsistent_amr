@@ -696,6 +696,12 @@ void WindSolverApp::parse_inputs() {
     pp.query("max_grid_size", max_grid_size);
     pp.query("plot_file",     plot_file);
     pp.queryarr("plot_vars",  plot_vars);
+    std::string plot_fields_str;  // For compatibility with input files
+    pp.query("plot_fields", plot_fields_str);
+    int write_plotfile_dummy = 1;  // For compatibility with input files
+    pp.query("write_plotfile", write_plotfile_dummy);
+    int plot_interval_dummy = 1;  // For compatibility with input files
+    pp.query("plot_interval", plot_interval_dummy);
     
     // Flux Diagnostics
     pp.query("enable_flux_diagnostics", enable_flux_diagnostics);
