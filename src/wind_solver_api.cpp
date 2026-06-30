@@ -32,6 +32,9 @@ using namespace amrex;
 
 std::unique_ptr<WindSolverState> g_wind_solver_state = nullptr;
 
+// Default plot_fields value: all available fields in order
+constexpr const char* DEFAULT_PLOT_FIELDS = "u,v,w,vel_magnitude,u0,v0,w0,lambda,div0,div,terrain_z";
+
 namespace {
 
 constexpr Real DISTANCE_EPSILON = Real(1.0e-12);
@@ -593,7 +596,7 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.extract_file = "wind_extract.csv";
     state.extract_agl = -1.0;
     state.extract_k = -1;
-    state.plot_fields = "u,v,w,vel_magnitude,u0,v0,w0,lambda,div0,div,terrain_z";  // Default: all fields
+    state.plot_fields = DEFAULT_PLOT_FIELDS;
     pp.query("plot_file", state.plot_file);
     pp.query("extract_file", state.extract_file);
     pp.query("extract_agl", state.extract_agl);
@@ -2752,25 +2755,26 @@ namespace {
     std::pair<std::vector<int>, std::vector<std::string>> parse_plot_fields(const std::string& plot_fields_str)
     {
         // Map of field names to their components (0-10 = u,v,w,vel_mag,u0,v0,w0,lambda,div0,div,terrain)
-        std::map<std::string, std::vector<int>> field_map;
-        field_map["u"] = {0};
-        field_map["v"] = {1};
-        field_map["w"] = {2};
-        field_map["vel_magnitude"] = {3};
-        field_map["vel_mag"] = {3};
-        field_map["u0"] = {4};
-        field_map["v0"] = {5};
-        field_map["w0"] = {6};
-        field_map["lambda"] = {7};
-        field_map["div0"] = {8};
-        field_map["div"] = {9};
-        field_map["terrain_z"] = {10};
-        field_map["terrain"] = {10};
-        // Composite fields
-        field_map["velocity"] = {0, 1, 2, 3};
-        field_map["pressure"] = {7};
-        field_map["initial_velocity"] = {4, 5, 6};
-        field_map["divergence"] = {8, 9};
+        static const std::map<std::string, std::vector<int>> field_map = {
+            {"u", {0}},
+            {"v", {1}},
+            {"w", {2}},
+            {"vel_magnitude", {3}},
+            {"vel_mag", {3}},
+            {"u0", {4}},
+            {"v0", {5}},
+            {"w0", {6}},
+            {"lambda", {7}},
+            {"div0", {8}},
+            {"div", {9}},
+            {"terrain_z", {10}},
+            {"terrain", {10}},
+            // Composite fields
+            {"velocity", {0, 1, 2, 3}},
+            {"pressure", {7}},
+            {"initial_velocity", {4, 5, 6}},
+            {"divergence", {8, 9}}
+        };
         
         std::vector<int> selected_indices;
         std::vector<std::string> selected_names;
@@ -2781,13 +2785,22 @@ namespace {
         std::string field;
         while (std::getline(iss, field, ',')) {
             // Trim whitespace
-            field.erase(0, field.find_first_not_of(" \t\r\n"));
-            field.erase(field.find_last_not_of(" \t\r\n") + 1);
+            size_t start = field.find_first_not_of(" \t\r\n");
+            if (start == std::string::npos) {
+                // Skip empty or whitespace-only fields
+                continue;
+            }
+            size_t end = field.find_last_not_of(" \t\r\n");
+            field = field.substr(start, end - start + 1);
             
-            if (field_map.find(field) != field_map.end()) {
-                for (int idx : field_map[field]) {
+            auto it = field_map.find(field);
+            if (it != field_map.end()) {
+                for (int idx : it->second) {
                     unique_indices.insert(idx);
                 }
+            } else if (!field.empty()) {
+                // Log warning for unrecognized field name
+                amrex::Print() << "Warning: unrecognized plot_fields name '" << field << "'\n";
             }
         }
         
