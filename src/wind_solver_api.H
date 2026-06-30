@@ -183,6 +183,7 @@ struct WindSolverState {
     std::string extract_file;
     amrex::Real extract_agl;
     int extract_k;
+    std::string plot_fields;  // Comma-separated list of fields to include in plotfile (e.g. "velocity,pressure,terrain")
     
     // Initialization mode
     bool enable_topographic_shielding;

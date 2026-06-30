@@ -22,6 +22,8 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <map>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -591,10 +593,12 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.extract_file = "wind_extract.csv";
     state.extract_agl = -1.0;
     state.extract_k = -1;
+    state.plot_fields = "u,v,w,vel_magnitude,u0,v0,w0,lambda,div0,div,terrain_z";  // Default: all fields
     pp.query("plot_file", state.plot_file);
     pp.query("extract_file", state.extract_file);
     pp.query("extract_agl", state.extract_agl);
     pp.query("extract_k", state.extract_k);
+    pp.query("plot_fields", state.plot_fields);
 
     state.enable_topographic_shielding = false;
     pp.query("enable_topographic_shielding", state.enable_topographic_shielding);
@@ -2743,6 +2747,88 @@ void wind_solver_get_velocity_at_k(int k,
     }
 }
 
+namespace {
+    // Parse comma-separated plot_fields string and return selected field indices
+    std::pair<std::vector<int>, std::vector<std::string>> parse_plot_fields(const std::string& plot_fields_str)
+    {
+        // All available fields
+        const std::vector<std::string> all_field_names = {
+            "u", "v", "w", "vel_magnitude",
+            "u0", "v0", "w0",
+            "lambda", "div0", "div", "terrain_z",
+            "velocity", "pressure", "terrain"
+        };
+        
+        // Map of field names to their components (0-10 = u,v,w,vel_mag,u0,v0,w0,lambda,div0,div,terrain)
+        std::map<std::string, std::vector<int>> field_map;
+        field_map["u"] = {0};
+        field_map["v"] = {1};
+        field_map["w"] = {2};
+        field_map["vel_magnitude"] = {3};
+        field_map["vel_mag"] = {3};
+        field_map["u0"] = {4};
+        field_map["v0"] = {5};
+        field_map["w0"] = {6};
+        field_map["lambda"] = {7};
+        field_map["div0"] = {8};
+        field_map["div"] = {9};
+        field_map["terrain_z"] = {10};
+        field_map["terrain"] = {10};
+        // Composite fields
+        field_map["velocity"] = {0, 1, 2, 3};
+        field_map["pressure"] = {7};
+        field_map["initial_velocity"] = {4, 5, 6};
+        field_map["divergence"] = {8, 9};
+        
+        std::vector<int> selected_indices;
+        std::vector<std::string> selected_names;
+        std::set<int> unique_indices;
+        
+        // Parse comma-separated string
+        std::istringstream iss(plot_fields_str);
+        std::string field;
+        while (std::getline(iss, field, ',')) {
+            // Trim whitespace
+            field.erase(0, field.find_first_not_of(" \t\r\n"));
+            field.erase(field.find_last_not_of(" \t\r\n") + 1);
+            
+            if (field_map.find(field) != field_map.end()) {
+                for (int idx : field_map[field]) {
+                    unique_indices.insert(idx);
+                }
+            }
+        }
+        
+        // Convert set to sorted vector
+        for (int idx : unique_indices) {
+            selected_indices.push_back(idx);
+        }
+        
+        // Create names for selected indices
+        const std::vector<std::string> idx_names = {
+            "u", "v", "w", "vel_magnitude",
+            "u0", "v0", "w0",
+            "lambda", "div0", "div", "terrain_z"
+        };
+        
+        for (int idx : selected_indices) {
+            if (idx < static_cast<int>(idx_names.size())) {
+                selected_names.push_back(idx_names[idx]);
+            }
+        }
+        
+        // If no fields were selected, return all
+        if (selected_indices.empty()) {
+            for (int i = 0; i < 11; ++i) {
+                selected_indices.push_back(i);
+                selected_names.push_back(idx_names[i]);
+            }
+        }
+        
+        return std::make_pair(selected_indices, selected_names);
+    }
+} // anonymous namespace
+
 bool wind_solver_write_plotfile(const std::string& plotfile_name)
 {
     try {
@@ -2753,25 +2839,32 @@ bool wind_solver_write_plotfile(const std::string& plotfile_name)
         state.vel->FillBoundary(state.geom->periodicity());
         compute_divergence(state, *state.vel, div_current);
 
-        MultiFab output(*state.ba, *state.dm, 11, 0);
-        build_plotfile_output(output, div_current);
-
-        Vector<std::string> names = {
-            "u", "v", "w", "vel_magnitude",
-            "u0", "v0", "w0",
-            "lambda", "div0", "div", "terrain_z"
-        };
+        // Parse plot_fields to determine which fields to include
+        auto [selected_indices, selected_names] = parse_plot_fields(state.plot_fields);
+        
+        // Create full output with all fields
+        MultiFab output_full(*state.ba, *state.dm, 11, 0);
+        build_plotfile_output(output_full, div_current);
+        
+        // Create filtered output with only selected fields
+        int num_selected = static_cast<int>(selected_indices.size());
+        MultiFab output_filtered(*state.ba, *state.dm, num_selected, 0);
+        
+        // Copy selected fields from full output to filtered output
+        for (int i = 0; i < num_selected; ++i) {
+            int src_comp = selected_indices[i];
+            amrex::MultiFab::Copy(output_filtered, output_full, src_comp, i, 1, 0);
+        }
+        
         // Use indexed plot file name: plotfile_name_00000, plotfile_name_00001, etc.
         std::string indexed_plotfile = amrex::Concatenate(plotfile_name, 0);
-        WriteSingleLevelPlotfile(indexed_plotfile, output, names, *state.geom, 0.0, 0);
+        WriteSingleLevelPlotfile(indexed_plotfile, output_filtered, selected_names, *state.geom, 0.0, 0);
         return true;
     } catch (const std::exception& e) {
         amrex::Print() << "Error writing plotfile: " << e.what() << "\n";
         return false;
     }
 }
-
-bool wind_solver_write_extract(const std::string& extract_filename, double agl_height)
 {
     try {
         require_initialized();
