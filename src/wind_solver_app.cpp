@@ -48,6 +48,8 @@
 #include <AMReX_EBFabFactory.H>
 #include <fstream>
 #include <sstream>
+#include <set>
+#include <map>
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -702,6 +704,63 @@ void WindSolverApp::parse_inputs() {
     pp.query("write_plotfile", write_plotfile_dummy);
     int plot_interval_dummy = 1;  // For compatibility with input files
     pp.query("plot_interval", plot_interval_dummy);
+     
+    // Parse plot_fields if specified and plot_vars is empty
+    // plot_fields is a comma-separated list of field names or aliases
+    if (!plot_fields_str.empty() && plot_vars.empty()) {
+        // Map field names/aliases to actual variable names
+        static const std::map<std::string, std::vector<std::string>> field_map = {
+            {"u", {"u"}},
+            {"v", {"v"}},
+            {"w", {"w"}},
+            {"vel_magnitude", {"vel_magnitude"}},
+            {"vel_mag", {"vel_magnitude"}},
+            {"u0", {"u0"}},
+            {"v0", {"v0"}},
+            {"w0", {"w0"}},
+            {"lambda", {"lambda"}},
+            {"div0", {"div0"}},
+            {"div", {"div"}},
+            {"terrain_z", {"terrain_z"}},
+            {"terrain", {"terrain_z"}},
+            // Composite fields
+            {"velocity", {"u", "v", "w", "vel_magnitude"}},
+            {"pressure", {"lambda"}},
+            {"initial_velocity", {"u0", "v0", "w0"}},
+            {"divergence", {"div0", "div"}}
+        };
+         
+        std::set<std::string> selected_fields;
+         
+        // Parse comma-separated string
+        std::istringstream iss(plot_fields_str);
+        std::string field;
+        while (std::getline(iss, field, ',')) {
+            // Trim whitespace
+            size_t start = field.find_first_not_of(" \t\r\n");
+            if (start == std::string::npos) {
+                // Skip empty or whitespace-only fields
+                continue;
+            }
+            size_t end = field.find_last_not_of(" \t\r\n");
+            field = field.substr(start, end - start + 1);
+             
+            auto it = field_map.find(field);
+            if (it != field_map.end()) {
+                for (const auto& var : it->second) {
+                    selected_fields.insert(var);
+                }
+            } else if (!field.empty()) {
+                // Log warning for unrecognized field name
+                amrex::Print() << "wind_solver: warning, unrecognized plot_fields name '" << field << "'\n";
+            }
+        }
+         
+        // Convert set to vector in lexicographic order
+        for (const auto& field : selected_fields) {
+            plot_vars.push_back(field);
+        }
+    }
     
     // Flux Diagnostics
     pp.query("enable_flux_diagnostics", enable_flux_diagnostics);
