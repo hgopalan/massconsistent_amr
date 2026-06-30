@@ -3,8 +3,9 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# Use Development.Module for pybind11 extension builds; Development also requires
-# Development.Embed, which is unavailable in common Python distributions (Homebrew/conda/pyenv).
+# Use Development.Module for pybind11 extension builds. It provides module build support
+# without requiring Development.Embed (libpython), which is unavailable in common Python
+# distributions (Homebrew/conda/pyenv).
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 
 message(STATUS "Python bindings enabled")
