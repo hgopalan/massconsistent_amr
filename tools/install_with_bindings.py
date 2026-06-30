@@ -285,8 +285,7 @@ def setup_python_environment(python_path, venv_path=None):
             [python_path, '-c',
              'import sys, sysconfig; '
              'print(sys.executable); '
-             'print(sysconfig.get_path("include")); '
-             'print(sysconfig.get_path("purelib"))'],
+             'print(sysconfig.get_path("include"))'],
             capture_output=True,
             text=True,
             timeout=5,
@@ -296,7 +295,6 @@ def setup_python_environment(python_path, venv_path=None):
         lines = result.stdout.strip().split('\n')
         python_exec = lines[0]
         python_include = lines[1] if len(lines) > 1 else None
-        python_lib = lines[2] if len(lines) > 2 else None
 
         env_vars['PYTHON_EXECUTABLE'] = python_exec
         print_info(f"Python executable: {python_exec}")
@@ -304,10 +302,6 @@ def setup_python_environment(python_path, venv_path=None):
         if python_include:
             env_vars['PYTHON_INCLUDE'] = python_include
             print_info(f"Python include path: {python_include}")
-
-        if python_lib:
-            env_vars['PYTHON_LIB'] = python_lib
-            print_info(f"Python lib path: {python_lib}")
 
     except subprocess.CalledProcessError as e:
         print_warning(f"Could not determine Python paths: {e}")
@@ -342,7 +336,7 @@ def create_build_directory(build_dir='build'):
     return build_path
 
 
-def configure_with_cmake(cmake_path, python_path, python_include, python_lib,
+def configure_with_cmake(cmake_path, python_path, python_include,
                          build_dir='build', gpu_backend='NONE', enable_mpi=False):
     """
     Configure the project with CMake.
@@ -351,7 +345,6 @@ def configure_with_cmake(cmake_path, python_path, python_include, python_lib,
         cmake_path: Path to cmake executable
         python_path: Path to Python executable
         python_include: Python include directory
-        python_lib: Python library directory
         build_dir: Build directory path
         gpu_backend: GPU backend (NONE, CUDA, HIP, SYCL)
         enable_mpi: Whether to enable MPI support
@@ -378,9 +371,6 @@ def configure_with_cmake(cmake_path, python_path, python_include, python_lib,
 
     if python_include:
         cmake_cmd.append(f'-DPython3_INCLUDE_DIR={python_include}')
-
-    if python_lib:
-        cmake_cmd.append(f'-DPython3_LIBRARY={python_lib}')
 
     # Add MPI if requested
     if enable_mpi:
@@ -664,7 +654,6 @@ Examples:
         cmake_path,
         python_path,
         env_vars.get('PYTHON_INCLUDE'),
-        env_vars.get('PYTHON_LIB'),
         build_dir=args.build_dir,
         gpu_backend=args.gpu_backend,
         enable_mpi=args.enable_mpi
