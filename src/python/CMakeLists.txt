@@ -3,8 +3,10 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# Find Python3 and required components
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
+# Use Development.Module for pybind11 extension builds. It provides module build support
+# without requiring Development.Embed (libpython), which is unavailable in common Python
+# distributions (Homebrew/conda/pyenv).
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 
 message(STATUS "Python bindings enabled")
 message(STATUS "  Python executable: ${Python3_EXECUTABLE}")

@@ -204,11 +204,9 @@ fi
 print_header "Setting Up Python Environment"
 
 PYTHON_INCLUDE=$("$PYTHON_EXECUTABLE" -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null || echo "")
-PYTHON_LIB=$("$PYTHON_EXECUTABLE" -c "import sysconfig; print(sysconfig.get_path('purelib'))" 2>/dev/null || echo "")
 
 print_info "Python executable: $PYTHON_EXECUTABLE"
 [ -n "$PYTHON_INCLUDE" ] && print_info "Python include path: $PYTHON_INCLUDE"
-[ -n "$PYTHON_LIB" ] && print_info "Python lib path: $PYTHON_LIB"
 
 # Step 7: Create build directory
 print_header "Preparing Build Directory"
@@ -231,10 +229,6 @@ CMAKE_ARGS=(
 
 if [ -n "$PYTHON_INCLUDE" ]; then
     CMAKE_ARGS+=("-DPython3_INCLUDE_DIR=$PYTHON_INCLUDE")
-fi
-
-if [ -n "$PYTHON_LIB" ]; then
-    CMAKE_ARGS+=("-DPython3_LIBRARY=$PYTHON_LIB")
 fi
 
 if [ "$ENABLE_MPI" = true ]; then
