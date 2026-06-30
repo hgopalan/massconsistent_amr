@@ -2751,14 +2751,6 @@ namespace {
     // Parse comma-separated plot_fields string and return selected field indices
     std::pair<std::vector<int>, std::vector<std::string>> parse_plot_fields(const std::string& plot_fields_str)
     {
-        // All available fields
-        const std::vector<std::string> all_field_names = {
-            "u", "v", "w", "vel_magnitude",
-            "u0", "v0", "w0",
-            "lambda", "div0", "div", "terrain_z",
-            "velocity", "pressure", "terrain"
-        };
-        
         // Map of field names to their components (0-10 = u,v,w,vel_mag,u0,v0,w0,lambda,div0,div,terrain)
         std::map<std::string, std::vector<int>> field_map;
         field_map["u"] = {0};
@@ -2840,6 +2832,7 @@ bool wind_solver_write_plotfile(const std::string& plotfile_name)
         compute_divergence(state, *state.vel, div_current);
 
         // Parse plot_fields to determine which fields to include
+        // Returns pair of (selected_indices, selected_names)
         auto [selected_indices, selected_names_vec] = parse_plot_fields(state.plot_fields);
         
         // Create full output with all fields
