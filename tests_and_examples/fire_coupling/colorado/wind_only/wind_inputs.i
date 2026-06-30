@@ -1,13 +1,13 @@
 # Wind solver configuration - Colorado wind_only scenario
 # Mass-consistent wind diagnostic with powerlaw profile
 # Domain: 10 km x 10 km x 0.3 km
-# Grid resolution: 64m horizontal, 8m vertical
+# Grid resolution: 256m horizontal, 30m vertical (coarse for fast single-processor testing)
 # Terrain: SRTM-based Colorado mountains (2100-2400m elevation)
 
 # Grid spacing and domain height
-dx = 64.0
-dy = 64.0
-dz = 8.0
+dx = 256.0
+dy = 256.0
+dz = 30.0
 domain_height = 300.0
 
 # Reference wind conditions (10m height)

@@ -623,6 +623,7 @@ add_python_regression_test(iec61400_categories_regtest turbulence/iec61400_categ
 # ===========================================================================
 add_regression_test(field_output_test diagnostics/field_output_test)
 add_python_regression_test(field_selection_test diagnostics/field_selection_test verify_field_selection.py)
+add_python_regression_test(plot_fields_test diagnostics/plot_fields_test verify_plot_fields.py)
 
 # ===========================================================================
 # New easy-to-implement features tests
