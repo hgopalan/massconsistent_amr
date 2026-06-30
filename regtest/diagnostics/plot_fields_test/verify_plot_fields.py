@@ -108,7 +108,7 @@ def validate_plot_fields(plotfile_dir):
     print(f"Actual fields: {actual_fields}")
     print(f"Expected fields: {EXPECTED_FIELDS}")
 
-    # Check that all expected fields are present (order may differ due to set sorting)
+    # Validate field presence regardless of order (due to std::set lexicographic sorting in C++ code)
     actual_set = set(actual_fields)
     expected_set = set(EXPECTED_FIELDS)
     

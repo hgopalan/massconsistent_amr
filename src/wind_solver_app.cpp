@@ -756,7 +756,7 @@ void WindSolverApp::parse_inputs() {
             }
         }
          
-        // Convert set to vector, preserving order
+        // Convert set to vector in lexicographic order
         for (const auto& field : selected_fields) {
             plot_vars.push_back(field);
         }
