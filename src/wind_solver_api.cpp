@@ -584,8 +584,11 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     }
 
     state.mlmg_verbose = 1;
-    state.tol_rel = 1.e-8;
-    state.tol_abs = 0.0;
+    state.mlmg_pre_smooth = 2; 
+    state.mlmg_post_smooth = 2; 
+    state.mlmg_max_fmg_iter = 4;
+    state.tol_rel = 0.0;
+    state.tol_abs = 1e-4;
     state.max_iter = 200;
     int max_grid_size = 32;
     pp.query("mlmg_verbose", state.mlmg_verbose);
@@ -593,6 +596,9 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     pp.query("tol_abs", state.tol_abs);
     pp.query("max_iter", state.max_iter);
     pp.query("max_grid_size", max_grid_size);
+    pp.query("mlmg_pre_smooth", state.mlmg_pre_smooth);
+    pp.query("mlmg_post_smooth", state.mlmg_post_smooth);
+    pp.query("mlmg_max_fmg_iter", state.mlmg_max_fmg_iter);
 
     state.plot_file = "plt_wind";
     state.extract_file = "wind_extract.csv";
