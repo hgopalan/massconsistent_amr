@@ -2840,7 +2840,7 @@ bool wind_solver_write_plotfile(const std::string& plotfile_name)
         compute_divergence(state, *state.vel, div_current);
 
         // Parse plot_fields to determine which fields to include
-        auto [selected_indices, selected_names] = parse_plot_fields(state.plot_fields);
+        auto [selected_indices, selected_names_vec] = parse_plot_fields(state.plot_fields);
         
         // Create full output with all fields
         MultiFab output_full(*state.ba, *state.dm, 11, 0);
@@ -2856,6 +2856,12 @@ bool wind_solver_write_plotfile(const std::string& plotfile_name)
             amrex::MultiFab::Copy(output_filtered, output_full, src_comp, i, 1, 0);
         }
         
+        // Convert std::vector to amrex::Vector
+        Vector<std::string> selected_names;
+        for (const auto& name : selected_names_vec) {
+            selected_names.push_back(name);
+        }
+        
         // Use indexed plot file name: plotfile_name_00000, plotfile_name_00001, etc.
         std::string indexed_plotfile = amrex::Concatenate(plotfile_name, 0);
         WriteSingleLevelPlotfile(indexed_plotfile, output_filtered, selected_names, *state.geom, 0.0, 0);
@@ -2865,6 +2871,8 @@ bool wind_solver_write_plotfile(const std::string& plotfile_name)
         return false;
     }
 }
+
+bool wind_solver_write_extract(const std::string& extract_filename, double agl_height)
 {
     try {
         require_initialized();
