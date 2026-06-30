@@ -41,7 +41,7 @@ use_heat_source = 1
 # Output settings
 write_plotfile = 1
 plot_interval = 1
-plot_fields = velocity,pressure,terrain
+plot_fields = velocity,pressure,terrain,heat_source
 
 # Terrain specification
 terrain_file = ../terrain.csv
