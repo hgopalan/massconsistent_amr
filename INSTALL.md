@@ -5,6 +5,7 @@ This guide provides detailed instructions for installing **massconsistent_amr** 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Automated Installation with Python Bindings](#automated-installation-with-python-bindings)
 - [Environment Options](#environment-options)
 - [Installation Methods](#installation-methods)
 - [Python-Only Installation](#python-only-installation)
@@ -57,7 +58,167 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMASSCONSISTENT_BUILD_PYTHON_BIN
 cmake --build build --parallel
 ```
 
+## Automated Installation with Python Bindings
+
+We provide cross-platform installation scripts that automatically detect and configure Python for building with Python bindings. These scripts handle Python environment setup, CMake configuration, and building on Windows, Linux, and macOS.
+
+### Quick Installation (Recommended)
+
+**On Linux/macOS:**
+
+```bash
+# Clone the repository
+git clone --recurse-submodules https://github.com/hgopalan/massconsistent_amr.git
+cd massconsistent_amr
+
+# Run the automated installation script
+./tools/install_with_bindings.sh
+
+# Or with specific Python
+./tools/install_with_bindings.sh --python /usr/bin/python3.10
+
+# With GPU support
+./tools/install_with_bindings.sh --gpu-backend CUDA
+```
+
+**On Windows (CMD):**
+
+```cmd
+# Clone the repository
+git clone --recurse-submodules https://github.com/hgopalan/massconsistent_amr.git
+cd massconsistent_amr
+
+# Run the automated installation script
+tools\install_with_bindings.bat
+```
+
+**On Windows (PowerShell):**
+
+```powershell
+# Clone the repository
+git clone --recurse-submodules https://github.com/hgopalan/massconsistent_amr.git
+cd massconsistent_amr
+
+# Run the automated installation script
+& .\tools\install_with_bindings.bat
+```
+
+### Using Python Installation Script (Universal)
+
+The installation scripts automatically handle Python detection, but you can also use the Python-based installation for more control:
+
+```bash
+# Clone the repository
+git clone --recurse-submodules https://github.com/hgopalan/massconsistent_amr.git
+cd massconsistent_amr
+
+# Run with default settings
+python tools/install_with_bindings.py
+
+# Or with specific options
+python tools/install_with_bindings.py --python /usr/bin/python3.10 --gpu-backend CUDA --enable-mpi
+```
+
+### Installation Script Options
+
+All three installation scripts support the following options:
+
+```bash
+# Show help
+./tools/install_with_bindings.sh --help                    # Linux/macOS
+python tools/install_with_bindings.py --help               # Python (all platforms)
+tools\install_with_bindings.bat --help                     # Windows
+```
+
+**Common Options:**
+
+- `--python PATH` - Specify Python executable path (auto-detected if not specified)
+- `--build-dir DIR` - Build directory path (default: `build`)
+- `--gpu-backend {NONE|CUDA|HIP|SYCL}` - GPU acceleration backend (default: `NONE`)
+- `--enable-mpi` - Enable MPI support for distributed computing
+- `--skip-tests` - Skip regression tests after building
+- `--jobs N` - Number of parallel build jobs (default: auto-detect CPU cores)
+
+**Examples:**
+
+```bash
+# CPU-only build
+./tools/install_with_bindings.sh
+
+# With CUDA acceleration
+./tools/install_with_bindings.sh --gpu-backend CUDA
+
+# With MPI and CUDA
+./tools/install_with_bindings.sh --gpu-backend CUDA --enable-mpi
+
+# Specify Python and skip tests for faster builds
+./tools/install_with_bindings.sh --python /usr/bin/python3.10 --skip-tests
+
+# Build with 8 parallel jobs
+./tools/install_with_bindings.sh --jobs 8
+```
+
+### Post-Installation Setup
+
+After the installation scripts complete, you need to set up your Python environment to use the bindings.
+
+**On Linux/macOS (bash/zsh):**
+
+```bash
+# Add to your shell configuration (~/.bashrc, ~/.zshrc, etc.)
+export PYTHONPATH=/path/to/massconsistent_amr/build/python:$PYTHONPATH
+
+# Or source the auto-generated setup script
+source build/setup_pythonpath.sh
+```
+
+**On Windows (CMD):**
+
+```cmd
+# Set PYTHONPATH
+set PYTHONPATH=C:\path\to\massconsistent_amr\build\python;%PYTHONPATH%
+
+# Or run the auto-generated setup script
+call build\setup_pythonpath.bat
+```
+
+**On Windows (PowerShell):**
+
+```powershell
+# Set PYTHONPATH
+$env:PYTHONPATH = 'C:\path\to\massconsistent_amr\build\python;' + $env:PYTHONPATH
+
+# Or dot-source the auto-generated setup script
+. .\build\setup_pythonpath.ps1
+```
+
+### Verifying Python Bindings
+
+After installation and PYTHONPATH setup, verify that the Python bindings are working:
+
+```bash
+# Test Python bindings
+python -c "import sys; sys.path.insert(0, 'build/python'); import pyWindSolver; print('pyWindSolver module loaded successfully')"
+```
+
+### Installation Configuration
+
+The installation scripts save their configuration to `install_config.json` in the repository root for future reference:
+
+```bash
+cat install_config.json
+```
+
+This file contains:
+- Python executable path
+- CMake executable path
+- Build directory location
+- GPU backend and MPI settings
+- Python PYTHONPATH setup information
+
 ## Environment Options
+
+
 
 The repository includes three pre-configured conda environment files to suit different needs:
 
