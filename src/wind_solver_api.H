@@ -174,6 +174,9 @@ struct WindSolverState {
     
     // MLMG solver parameters
     int mlmg_verbose;
+    int mlmg_pre_smooth; 
+    int mlmg_post_smooth; 
+    int mlmg_max_fmg_iter;
     amrex::Real tol_rel;
     amrex::Real tol_abs;
     int max_iter;
