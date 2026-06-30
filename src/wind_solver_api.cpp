@@ -599,11 +599,15 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
     state.extract_agl = -1.0;
     state.extract_k = -1;
     state.plot_fields = DEFAULT_PLOT_FIELDS;
+    state.write_plotfile = 1;
+    state.plot_interval = 1;
     pp.query("plot_file", state.plot_file);
     pp.query("extract_file", state.extract_file);
     pp.query("extract_agl", state.extract_agl);
     pp.query("extract_k", state.extract_k);
     pp.query("plot_fields", state.plot_fields);
+    pp.query("write_plotfile", state.write_plotfile);
+    pp.query("plot_interval", state.plot_interval);
 
     state.enable_topographic_shielding = false;
     pp.query("enable_topographic_shielding", state.enable_topographic_shielding);
