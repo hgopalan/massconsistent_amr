@@ -2238,7 +2238,7 @@ void apply_turbulent_stress_api(WindSolverState& state)
     state.lambda->setVal(Real(0.0));
     MLMG mlmg2(mlabec2);
     mlmg2.setMaxIter(state.max_iter);
-    mlmg2.setMaxFmgIter(20);
+    mlmg2.setMaxFmgIter(state.mlmg_max_fmg_iter);
     mlmg2.setVerbose(state.mlmg_verbose);
     mlmg2.setBottomVerbose(0);
     mlmg2.setPreSmooth(state.mlmg_pre_smooth);
@@ -2475,7 +2475,7 @@ bool wind_solver_solve()
 
         MLMG mlmg(mlabec);
         mlmg.setMaxIter(state.max_iter);
-        mlmg.setMaxFmgIter(20);
+        mlmg.setMaxFmgIter(state.mlmg_max_fmg_iter);
         mlmg.setVerbose(state.mlmg_verbose);
         mlmg.setBottomVerbose(0);
         mlmg.setPreSmooth(state.mlmg_pre_smooth);
