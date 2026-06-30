@@ -2235,8 +2235,8 @@ void apply_turbulent_stress_api(WindSolverState& state)
     mlmg2.setMaxFmgIter(20);
     mlmg2.setVerbose(state.mlmg_verbose);
     mlmg2.setBottomVerbose(0);
-    mlmg2.setPreSmooth(16);
-    mlmg2.setPostSmooth(16);
+    mlmg2.setPreSmooth(state.mlmg_pre_smooth);
+    mlmg2.setPostSmooth(state.mlmg_post_smooth);
 
     amrex::Print() << "wind_solver: starting second MLMG solve (turbulent stress, API)...\n";
     mlmg2.solve({state.lambda.get()}, {&rhs2}, state.tol_rel, state.tol_abs);
@@ -2472,8 +2472,8 @@ bool wind_solver_solve()
         mlmg.setMaxFmgIter(20);
         mlmg.setVerbose(state.mlmg_verbose);
         mlmg.setBottomVerbose(0);
-        mlmg.setPreSmooth(16);
-        mlmg.setPostSmooth(16);
+        mlmg.setPreSmooth(state.mlmg_pre_smooth);
+        mlmg.setPostSmooth(state.mlmg_post_smooth);
 
         state.lambda->setVal(0.0);
         mlmg.solve({state.lambda.get()}, {&rhs}, state.tol_rel, state.tol_abs);
