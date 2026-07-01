@@ -2166,7 +2166,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         const bool use_terrain_aware_temp = enable_terrain_aware_temperature;
         const Real z_lo_cap_val = zs_min;
         const Real dz_cap_val = dz;
-        const Real* d_terr_ptr_temp = d_terrain.data();
+        const Real* d_terr_ptr_temp = d_terrain_h.data();
         const int nx_cap_val = nx;
 
         for (MFIter mfi(*temp_ptr); mfi.isValid(); ++mfi) {

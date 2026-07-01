@@ -50,6 +50,18 @@ class WindSolver:
         xmin, xmax, ymin, ymax, zmin, zmax (float): Domain bounds (meters)
         dx, dy, dz (float): Cell sizes (meters)
         zs_min, zs_max (float): Terrain elevation bounds (meters)
+    
+    Configuration via inputs file:
+        Terrain-aware temperature profile (added 2026-07-01):
+        - enable_terrain_aware_temperature (bool): Enable terrain-aware temperature initialization
+                                                  Default: false
+        - temperature_interior (float): Internal (subsurface) temperature [K]
+                                       Default: 283.0 (10°C)
+                                       
+        When enabled, cells below ground level (z_agl <= 0) are set to temperature_interior,
+        while cells above ground use the temperature profile from temperature_file or 
+        temperature_reference. This enables proper thermal modeling of subsurface conditions
+        in complex terrain scenarios.
     """
     
     def __init__(self, inputs_file=None):
