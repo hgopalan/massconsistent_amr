@@ -1,0 +1,38 @@
+# MOST Surface Layer Boundary Conditions Test Case
+# Tests Monin-Obukhov Similarity Theory terrain-aware surface BC
+# Applied at first cell above terrain with spatial variability support
+
+# Domain
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 500.0 500.0 300.0
+
+# Grid
+amr.n_cell = 50 50 30
+
+# Wind Solver
+wind_solver.init_mode = "loglaw"
+wind_solver.U_ref = 10.0
+wind_solver.V_ref = 0.0
+wind_solver.z_ref = 10.0
+wind_solver.z0 = 0.1
+
+# MOST Surface Layer Boundary Conditions
+wind_solver.enable_most_surface_bc = true
+wind_solver.enable_most_temp_correction = false
+
+# Monin-Obukhov Length (neutral atmosphere by default)
+wind_solver.stability_length = 1000.0
+
+# Terrain (flat for simplicity)
+wind_solver.terrain_file = ""
+
+# Temperature
+wind_solver.enable_3d_scalars = false
+
+# Run control
+wind_solver.num_time_steps = 1
+wind_solver.enable_time_varying = false
+
+# Output
+wind_solver.write_plotfile = true
+wind_solver.plot_file_prefix = "plt_most_surface_layer"
