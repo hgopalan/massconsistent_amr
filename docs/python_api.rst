@@ -43,13 +43,61 @@ WindSolver Class Reference
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Constructor**:
+
 * ``__init__(inputs_file)``: Initializes the C++ solver state and parses the ParmParse input deck.
 
+**Factory classmethods**:
+
+* ``from_scm(terrain_file, U_ref, dir_ref, z_ref, L_obukhov, latitude, z0, T_ref, z_T_ref, lapse_rate, dt, max_time, conv_tol, nx, ny, nz, dx, dy, dz, extra_params)``:
+  Creates and initialises a ``WindSolver`` instance using the Single Column Model
+  (``init_mode = scm``).  Writes a temporary inputs file, calls ``initialize()``,
+  and returns the ready-to-solve instance.  All keyword arguments correspond to
+  the ``scm.*`` ParmParse parameters; see :ref:`scm_parameters` in the main usage
+  documentation.
+
+  .. code-block:: python
+
+      from wind_solver import WindSolver
+
+      # Neutral SCM on flat terrain at 45° N
+      wind = WindSolver.from_scm(
+          terrain_file = "terrain.csv",
+          U_ref        = 10.0,     # reference wind speed [m/s]
+          dir_ref      = 270.0,    # westerly
+          z_ref        = 10.0,
+          z0           = 0.1,
+          L_obukhov    = 1.0e6,    # near-neutral
+          latitude     = 45.0,
+          T_ref        = 300.0,
+          nx=20, ny=20, nz=40,
+          dx=50.0, dy=50.0, dz=50.0,
+      )
+      wind.solve()
+
 **Methods**:
+
 * ``solve()``: Triggers the mass-consistent Poisson adjustment.
 * ``get_velocity()``: Returns a dictionary with keys ``'u', 'v', 'w'`` containing 3D velocity components.
 * ``get_velocity_at_agl(height)``: Extracts the 2D horizontal plane of velocity at a given height above ground level (AGL). Returns a dictionary of 2D NumPy arrays.
 * ``get_terrain()``: Returns a 2D NumPy array representing the interpolated terrain elevation.
+* ``get_scm_profiles()``: Returns the 1D SCM column profiles produced during ``init_mode = scm`` initialization as a dict of NumPy arrays:
+
+  .. code-block:: python
+
+      profiles = wind.get_scm_profiles()
+      # profiles keys: 'z', 'u', 'v', 'theta', 'tke', 'Km', 'Kh'
+      # Each array has shape (1000,) corresponding to the 4000 m / 4 m column.
+
+      import matplotlib.pyplot as plt
+      plt.plot(profiles['u'], profiles['z'], label='u [m/s]')
+      plt.plot(profiles['v'], profiles['z'], label='v [m/s]')
+      plt.xlabel('Wind component [m/s]')
+      plt.ylabel('Height AGL [m]')
+      plt.legend()
+      plt.show()
+
+  Raises ``RuntimeError`` if the solver was not initialized with ``init_mode = scm``.
+
 * ``update_reference_wind(U_ref, V_ref)``: Re-evaluates friction velocities and updates reference flow parameters.
 * ``write_plotfile(name)``: Writes the standard MultiFab cell-centered outputs in VisIt/ParaView compatible AMReX plotfile format.
 * ``finalize()``: Destroys the C++ state singleton and cleans up AMReX runtime resources.

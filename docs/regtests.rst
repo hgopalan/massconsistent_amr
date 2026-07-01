@@ -919,6 +919,94 @@ asymmetry due to terrain-flow coupling.
     source_z = 25.0
     U_wind = 10.0
 
+Single Column Model Tests
+--------------------------
+
+These three tests exercise the PALM-style 1D SCM wind initialization path
+(``init_mode = scm``).  All use a 3 × 3 flat terrain grid (100 × 100 m, z = 0)
+and a compact 3D domain (dx = dy = dz = 50 m) for fast CI execution.  The SCM
+column is 4000 m tall with dz = 4 m (N = 1000 levels) regardless of the 3D
+domain size; the two grids are connected by linear interpolation.
+
+scm_neutral
+^^^^^^^^^^^
+
+**Location:** ``regtest/terrain/scm_neutral/``
+
+**Purpose:** Validates SCM initialization under near-neutral stratification.
+Covers the full PALM 1D model code path: MOST lower BC, geostrophic resistance
+law, Blackadar mixing length, Deardorff E-l closure, and terrain-aware
+assignment to the 3D MultiFab.
+
+**Stability:** L\ :sub:`obukhov` = 1 × 10\ :sup:`6` m (essentially neutral).
+
+**Expected behaviour:** Near-surface wind follows log-law; geostrophic balance
+recovered at the column top; Ekman spiral veers the wind direction with height;
+TKE peaks within the surface layer and decays aloft.
+
+**Key parameters:**
+
+.. code-block:: text
+
+    init_mode       = scm
+    scm.U_ref       = 10.0
+    scm.z0          = 0.1
+    scm.L_obukhov   = 1.0e6
+    scm.latitude    = 45.0
+    scm.max_time    = 86400.0
+
+scm_stable
+^^^^^^^^^^
+
+**Location:** ``regtest/terrain/scm_stable/``
+
+**Purpose:** Validates SCM behaviour under stable stratification where buoyancy
+suppresses turbulent mixing, producing a shallower ABL and a low-level jet.
+
+**Stability:** L\ :sub:`obukhov` = +50 m (strongly stable).
+
+**Expected behaviour:** Boundary layer depth significantly reduced compared to
+neutral case; TKE suppressed; positive temperature gradient (θ increasing with
+z) throughout; wind speed maximum (low-level jet) near the stable layer top.
+
+**Key parameters:**
+
+.. code-block:: text
+
+    init_mode       = scm
+    scm.U_ref       = 8.0
+    scm.z0          = 0.1
+    scm.L_obukhov   = 50.0        # +ve = stable
+    scm.latitude    = 45.0
+    scm.lapse_rate  = 0.005       # stronger free-troposphere lapse rate
+    scm.max_time    = 86400.0
+
+scm_unstable
+^^^^^^^^^^^^
+
+**Location:** ``regtest/terrain/scm_unstable/``
+
+**Purpose:** Validates SCM behaviour under convective (unstable) conditions where
+buoyancy enhances turbulent mixing, producing a deep well-mixed boundary layer.
+
+**Stability:** L\ :sub:`obukhov` = −100 m (moderately unstable / convective).
+
+**Expected behaviour:** Deep well-mixed layer with near-uniform wind speed;
+enhanced TKE relative to neutral case; thermal diffusivity K\ :sub:`h` exceeds
+K\ :sub:`m` via the unstable correction K\ :sub:`h` = (1 + 2l/Δz)K\ :sub:`m`;
+Paulson (1970) stability functions applied in MOST lower BC.
+
+**Key parameters:**
+
+.. code-block:: text
+
+    init_mode       = scm
+    scm.U_ref       = 5.0
+    scm.z0          = 0.1
+    scm.L_obukhov   = -100.0      # -ve = unstable
+    scm.latitude    = 45.0
+    scm.max_time    = 86400.0
+
 Adding New Tests
 
 ----------------

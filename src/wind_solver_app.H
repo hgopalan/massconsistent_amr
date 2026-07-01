@@ -15,6 +15,7 @@
 #include "structure_models.H"
 #include "thermodynamic_lid_models.H"
 #include "datacenter_heat_source.H"
+#include "scm_solver.H"
 
 namespace amrex {
     class EBFArrayBoxFactory;
@@ -102,6 +103,12 @@ private:
     amrex::Real V_ref =  0.0;
     amrex::Real z_ref = 10.0;
     amrex::Real z0    =  0.1;
+
+    // Single Column Model (SCM) parameters — used when init_mode = "scm"
+    // Follows PALM 1D model approach (Maronga et al. 2015)
+    SCMSolver::SCMParams scm_params;
+    SCMSolver::SCMProfiles scm_profiles;  ///< Cached SCM column profiles after spin-up
+    bool scm_profiles_valid = false;      ///< True after a successful SCM run
 
     // Canopy
     bool enable_canopy = false;

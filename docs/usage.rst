@@ -101,7 +101,7 @@ Parameter Reference
      -
    * - ``init_mode``
      - ``loglaw``
-     - Wind field initialization method: ``loglaw`` (log-law profile), ``uniform`` (constant wind), ``raws`` (interpolate from RAWS file), ``surface_data`` (HRRR surface parameters), ``powerlaw`` (power-law profile), ``windfield`` (reads pre-mapped CSV data), ``ekman_spiral`` (analytical classical Ekman spiral profile).
+     - Wind field initialization method: ``loglaw`` (log-law profile), ``uniform`` (constant wind), ``raws`` (interpolate from RAWS file), ``surface_data`` (HRRR surface parameters), ``powerlaw`` (power-law profile), ``windfield`` (reads pre-mapped CSV data), ``ekman_spiral`` (analytical classical Ekman spiral profile), ``scm`` (PALM-style Single Column Model — integrates prognostic 1D E-l equations to steady state, see :ref:`scm_parameters` below).
    * - ``U_ref``
      - ``10.0``
      - Reference wind x-component [m/s] at height ``z_ref``.
@@ -117,6 +117,48 @@ Parameter Reference
    * - ``powerlaw_exponent``
      - ``0.143``
      - Power-law exponent for ``powerlaw`` mode.
+   * - **SCM Parameters** (``scm.*`` namespace — used when ``init_mode = scm``)
+     -
+     -
+   * - ``scm.U_ref``
+     - ``10.0``
+     - Reference wind speed magnitude [m/s].
+   * - ``scm.dir_ref``
+     - ``270.0``
+     - Meteorological wind direction measured clockwise from North [deg]. 270 = westerly.
+   * - ``scm.z_ref``
+     - ``10.0``
+     - Height at which ``scm.U_ref`` is measured [m].
+   * - ``scm.z0``
+     - ``0.1``
+     - Aerodynamic roughness length for MOST lower boundary condition [m].
+   * - ``scm.L_obukhov``
+     - ``1.0e6``
+     - Monin–Obukhov length [m]. Positive = stable, negative = unstable, large magnitude = near-neutral.
+   * - ``scm.latitude``
+     - ``45.0``
+     - Geographic latitude [deg]. Used to compute the Coriolis parameter f = 2Ω sin(φ).
+   * - ``scm.T_ref``
+     - ``300.0``
+     - Reference potential temperature [K] at height ``scm.z_T_ref``.
+   * - ``scm.z_T_ref``
+     - ``2.0``
+     - Height at which ``scm.T_ref`` is measured [m].
+   * - ``scm.lapse_rate``
+     - ``0.003``
+     - Free-troposphere potential temperature lapse rate [K/m] applied above the SCM column.
+   * - ``scm.dt``
+     - ``60.0``
+     - Time step for SCM pseudo-time integration [s].
+   * - ``scm.max_time``
+     - ``172800.0``
+     - Maximum SCM spin-up duration [s] (default 48 h).
+   * - ``scm.min_time``
+     - ``86400.0``
+     - Minimum simulated time before convergence is checked [s] (default 24 h).
+   * - ``scm.conv_tol``
+     - ``1.0e-5``
+     - Relative L2-norm convergence tolerance for u, v, θ between successive check intervals.
    * - ``enable_topographic_shielding``
      - ``false``
      - Enable topographic barrier shielding for meteorological station interpolations (e.g. in ``raws`` or ``windfield`` modes).
@@ -408,7 +450,7 @@ Terrain & Initialization
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 * **terrain_file** (String, Default: ``terrain.csv``): Path to CSV containing terrain X Y Z points, or ``synthetic``.
-* **init_mode** (String, Default: ``loglaw``): Wind initialization mode (``loglaw``, ``uniform``, ``raws``, ``surface_data``, ``powerlaw``, ``windfield``, ``sounding``).
+* **init_mode** (String, Default: ``loglaw``): Wind initialization mode (``loglaw``, ``uniform``, ``raws``, ``surface_data``, ``powerlaw``, ``windfield``, ``sounding``, ``scm``).
 * **sounding_files** (Array of Strings, Default: none): Paths to sounding data files (FSL or UP.DAT/custom formats).
 * **sounding_file** (String, Default: none): Path to single sounding data file.
 * **sounding_x**, **sounding_y** (Array of Reals, Default: none): Projected X and Y coordinates [m] of the sounding stations.
@@ -419,6 +461,63 @@ Terrain & Initialization
 * **z0** (Real, Default: ``0.1``): Default aerodynamic roughness length [m].
 * **uniform_U**, **uniform_V** (Real, Default: none): Uniform wind components [m/s] used in ``uniform`` mode.
 * **powerlaw_exponent** (Real, Default: ``0.143``): Exponent coefficient for power-law profiles.
+
+.. _scm_parameters:
+
+Single Column Model Parameters (``scm.*``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``init_mode = scm`` the solver runs a PALM-style 1D atmospheric boundary
+layer model (Maronga et al. 2015) before the 3D solve.  The SCM integrates
+prognostic equations for horizontal wind (u, v), potential temperature (θ), and
+turbulence kinetic energy (e) on a uniform 1000-level column (dz = 4 m,
+height = 4000 m) using:
+
+* **MOST lower boundary** — friction velocity u\* from reference wind and
+  Monin–Obukhov length L; surface heat flux from θ\*;
+* **Geostrophic resistance law** (Clarke & Hess 1974) — geostrophic speed G and
+  cross-isobar angle α estimated from u\*, z₀, f, L; no separate u\ :sub:`g`,
+  v\ :sub:`g` input required;
+* **Coriolis forcing** — f = 2Ω sin(φ);
+* **Deardorff E-l closure** (1980) — Blackadar mixing length, K\ :sub:`m` =
+  c\ :sub:`m` l √e, Deardorff dissipation C\ :sub:`ε` = 0.19 + 0.74 l/Δz;
+* **Semi-implicit time integration** — tridiagonal (Thomas algorithm) solves for
+  u, v, θ, e per step; integrated to convergence (default 48 h simulated).
+
+After convergence the 1D profiles are interpolated onto the 3D MultiFab with
+full terrain awareness: cells below the local terrain surface receive zero
+velocity; cells above are assigned via linear interpolation of the 1D column.
+
+All SCM parameters use the ``scm.`` ParmParse prefix:
+
+* **scm.U_ref** (Real, Default: magnitude of U_ref/V_ref): Reference wind speed [m/s].
+* **scm.dir_ref** (Real, Default: ``270.0``): Meteorological wind direction clockwise from North [deg]; 270 = westerly.
+* **scm.z_ref** (Real, Default: ``z_ref``): Height of reference wind speed [m].
+* **scm.z0** (Real, Default: ``z0``): Roughness length for MOST BC [m].
+* **scm.L_obukhov** (Real, Default: ``1.0e6``): Monin–Obukhov length [m]; +stable, −unstable, large = near-neutral.
+* **scm.latitude** (Real, Default: ``45.0``): Geographic latitude [deg].
+* **scm.T_ref** (Real, Default: ``300.0``): Reference potential temperature [K].
+* **scm.z_T_ref** (Real, Default: ``2.0``): Height of T_ref [m].
+* **scm.lapse_rate** (Real, Default: ``0.003``): Free-troposphere lapse rate [K/m].
+* **scm.dt** (Real, Default: ``60.0``): SCM integration time step [s].
+* **scm.max_time** (Real, Default: ``172800.0``): Maximum spin-up duration [s].
+* **scm.min_time** (Real, Default: ``86400.0``): Minimum simulated time before convergence check [s].
+* **scm.conv_tol** (Real, Default: ``1.0e-5``): Relative L2-norm convergence tolerance.
+
+**Example**::
+
+    init_mode         = scm
+
+    scm.U_ref         = 10.0      # 10 m/s reference wind
+    scm.dir_ref       = 270.0     # westerly
+    scm.z_ref         = 10.0      # measurement height
+    scm.z0            = 0.1       # roughness length
+    scm.L_obukhov     = -100.0    # moderately unstable
+    scm.latitude      = 45.0
+    scm.T_ref         = 300.0
+    scm.z_T_ref       = 2.0
+    scm.lapse_rate    = 0.003
+    scm.max_time      = 172800.0  # 48 h spin-up
 * **landuse_file** (String, Default: none): Path to land-use classification CSV file.
 * **velocity_file** (String, Default: none): Path to sparse station wind observations CSV file.
 * **surface_data_file** (String, Default: none): Path to HRRR-style surface observations CSV file.

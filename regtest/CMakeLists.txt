@@ -129,6 +129,27 @@ add_regression_test(powerlaw_building_flat terrain/powerlaw_building_flat)
 add_regression_test(powerlaw_building_terrain terrain/powerlaw_building_terrain)
 
 # ===========================================================================
+# scm_neutral/ – Single Column Model, near-neutral stratification
+#   Verifies: SCM init_mode, log-law near surface, Ekman spiral aloft
+#   Reference: Maronga et al. (2015), Deardorff (1980), Blackadar (1962)
+# ===========================================================================
+add_regression_test(scm_neutral terrain/scm_neutral)
+
+# ===========================================================================
+# scm_stable/ – Single Column Model, stably stratified (L_obukhov = +50 m)
+#   Verifies: shallow ABL, suppressed TKE, low-level jet structure
+#   Reference: Zilitinkevich (1972), Clarke & Hess (1974)
+# ===========================================================================
+add_regression_test(scm_stable terrain/scm_stable)
+
+# ===========================================================================
+# scm_unstable/ – Single Column Model, convectively unstable (L_obukhov = -100 m)
+#   Verifies: deep well-mixed layer, enhanced TKE, Kh > Km (unstable correction)
+#   Reference: Paulson (1970), Businger et al. (1971)
+# ===========================================================================
+add_regression_test(scm_unstable terrain/scm_unstable)
+
+# ===========================================================================
 # buildings_flat/ – Buildings (union of boxes) on flat terrain
 # ===========================================================================
 add_regression_test(buildings_flat buildings/buildings_flat)

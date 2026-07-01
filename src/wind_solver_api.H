@@ -26,6 +26,7 @@
 #include <vector>
 #include "turbine_wake_models.H"
 #include "wire_models.H"
+#include "scm_solver.H"
 
 // ============================================================================
 // WindSolverState
@@ -192,11 +193,17 @@ struct WindSolverState {
     
     // Initialization mode
     bool enable_topographic_shielding;
-    std::string init_mode;  // "loglaw", "uniform", "raws"
+    std::string init_mode;  // "loglaw", "uniform", "raws", "scm", ...
     amrex::Real uniform_U;
     amrex::Real uniform_V;
     std::string velocity_file;
     amrex::Real powerlaw_exponent;
+
+    // Single Column Model (SCM) parameters — used when init_mode = "scm"
+    // Follows the PALM 1D model formulation (Maronga et al. 2015, Geosci. Model Dev.)
+    SCMSolver::SCMParams  scm_params;
+    SCMSolver::SCMProfiles scm_profiles;  ///< Cached 1D profiles after spin-up
+    bool scm_profiles_valid = false;      ///< True after a successful SCM run
     
     // Sounding profiles
     std::vector<std::string> sounding_files;
@@ -357,6 +364,10 @@ void wind_solver_finalize();
 
 // Check if solver is initialized
 bool wind_solver_is_initialized();
+
+// Retrieve the 1D SCM column profiles (only valid when init_mode = "scm")
+// Returns a copy of the SCMProfiles struct; throws if profiles are not available.
+SCMSolver::SCMProfiles wind_solver_get_scm_profiles();
 
 // Turbine API functions
 bool wind_solver_add_turbine(double x, double y, double hub_height, double rotor_diameter, double default_ct, const std::string& power_curve_file, double yaw = 0.0, double orientation = 0.0, double tilt = 0.0);

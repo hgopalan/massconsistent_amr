@@ -59,6 +59,25 @@ Boundary Layer Meteorology & Stability
 
   Classic study introducing mixing length theory formulations for the planetary boundary layer.
 
+Single Column Model (SCM)
+--------------------------
+
+* **Maronga, B., Gryschka, M., Heinze, R., Hoffmann, F., Kanani-Sühring, F., Keck, M., Ketelsen, K., Letzel, M. O., Sühring, M., & Raasch, S. (2015)**. The Parallelized Large-Eddy Simulation Model (PALM) version 4.0 for atmospheric and oceanic flows: Model formulation, recent developments, and future perspectives. *Geoscientific Model Development*, 8(8), 2515–2551.
+
+  Primary reference for the PALM model system including the 1D precursor model used as the basis for the SCM initialization scheme implemented here.  The 1D model integrates prognostic equations for u, v, θ, and e using a Deardorff E-l turbulence closure and MOST lower boundary conditions.
+
+* **Deardorff, J. W. (1980)**. Stratocumulus-capped mixed layers derived from a three-dimensional model. *Boundary-Layer Meteorology*, 18(4), 495–527.
+
+  Foundational paper for the 1.5-order turbulence closure (E-l scheme) used in the SCM: eddy viscosity K\ :sub:`m` = c\ :sub:`m` l √e, Deardorff dissipation coefficient C\ :sub:`ε` = 0.19 + 0.74 l/Δz, and TKE lower boundary condition e = u\ :sub:`*`\ ² / √c\ :sub:`m`.
+
+* **Clarke, R. H., & Hess, G. D. (1974)**. Geostrophic departure and the functions A and B of Rossby-number similarity theory. *Boundary-Layer Meteorology*, 7(3), 267–287.
+
+  Provides the resistance-law constants (A, B) used in the SCM geostrophic wind estimation from u\*, z₀, and f without requiring an externally specified pressure gradient.
+
+* **Zilitinkevich, S. S. (1972)**. On the determination of the height of the Ekman boundary layer. *Boundary-Layer Meteorology*, 3(2), 141–145.
+
+  Early derivation of the ABL resistance law linking surface friction to geostrophic wind speed; informs the Clarke-Hess formulation used here.
+
 Orographic Effects & Complex Terrain
 -------------------------------------
 

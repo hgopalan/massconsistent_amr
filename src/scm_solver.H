@@ -155,9 +155,14 @@ inline amrex::Real compute_ustar(amrex::Real U_ref,
 // ============================================================================
 // Compute temperature scaling theta* from L, u*, and T_ref
 //
-//   theta* = -u*^2 * T_ref / ( kappa * g * L )
+// PALM / standard MOST convention (Maronga et al. 2015, Stull 1988):
 //
-// For neutral (|L| very large), theta* -> 0.
+//   theta* = +u*^2 * T_ref / ( kappa * g * L )
+//
+// Sign behaviour:
+//   L > 0 (stable)  : theta* > 0  →  wt_s = -u* theta* < 0  (downward, cooling)
+//   L < 0 (unstable): theta* < 0  →  wt_s = -u* theta* > 0  (upward, heating)
+//   |L| large (neutral): theta* → 0
 // ============================================================================
 inline amrex::Real compute_theta_star(amrex::Real ustar,
                                        amrex::Real T_ref,
@@ -166,7 +171,7 @@ inline amrex::Real compute_theta_star(amrex::Real ustar,
     if (std::abs(L_obukhov) < amrex::Real(1.0e-3)) {
         return amrex::Real(0.0);
     }
-    return -(ustar * ustar * T_ref) / (kappa * g_accel * L_obukhov);
+    return (ustar * ustar * T_ref) / (kappa * g_accel * L_obukhov);
 }
 
 // ============================================================================
