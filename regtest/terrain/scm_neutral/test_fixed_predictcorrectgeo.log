@@ -1,0 +1,534 @@
+Initializing AMReX (26.06-30-g5fbc49bce6cc)...
+AMReX (26.06-30-g5fbc49bce6cc) initialized
+wind_solver: input parsing time = 5.7036e-05 s
+wind_solver: ========================================
+wind_solver: Solver Configuration
+wind_solver: ========================================
+wind_solver: Parallelization: Serial (MPI disabled)
+wind_solver: GPU Backend: None (CPU-only)
+wind_solver: FFT Backend: Not available (AMREX_USE_FFT disabled)
+wind_solver: AMReX version: 26.06-30-g5fbc49bce6cc
+wind_solver: Derivative method: central
+wind_solver: Synthetic turbulence: disabled
+wind_solver: ========================================
+
+wind_solver: read 9 terrain points from terrain.csv
+wind_solver: terrain x [0, 100] m
+wind_solver: terrain y [0, 100] m
+wind_solver: terrain reading time = 3.9861e-05 s
+wind_solver: wall functions DISABLED (using no-slip boundary conditions)
+wind_solver: terrain elevation [0, 0] m
+wind_solver: terrain interpolation time = 8.633e-06 s
+wind_solver: grid 2 x 2 x 10  (dx=50 m, dy=50 m, dz=50 m)
+wind_solver: vertical domain [0, 500] m
+wind_solver: grid setup time = 2.7632e-05 s
+wind_solver: Running coupled/unsteady simulation over 2 steps
+
+wind_solver: TIME STEP 1 / 2
+wind_solver: initializing wind field with mode: scm
+wind_solver: running Single Column Model (PALM 1D approach)
+wind_solver: SCM parameters:
+  U_ref = 10 m/s, dir_ref = 270 deg
+  z_ref = 80 m, z0 = 0.1 m
+  L_obukhov = 1000000 m, latitude = 45 deg
+  T_ref = 300 K at z_T_ref = 2 m
+  dt = 60 s, max_time = 86400 s
+========== WARNING: SCM PRE-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed pre-correction factor alpha_pred = 2.231504287
+  This indicates the MOST resistance law is inaccurate for the
+  specified atmospheric stability.
+  Suggested actions:
+    - Review scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - Review scm.U_ref (reference wind speed): 10 m/s
+    - Review scm.z_ref (reference height): 80 m
+    - Review scm.z0 (roughness length): 0.1 m
+=====================================================================
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 34.1760309 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - pre-correction factor alpha_pred = 2.231504287
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 15.02131889 m/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 15.02131889 m/s
+wind_solver: SCM - predictcorrectgeo mode enabled
+  Target hub height: 100 m
+  Target u at hub: 10 m/s
+  Target v at hub: 0 m/s
+  Allowed error: 0.1 m/s
+  Max iterations: 50
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 34.1760309 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 15.02131889 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.868843244 m/s  u* = 0.3924932443 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.3093332744 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 32.32759236 m/s, U_after = 16.16379618 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 0: u_hub = 11.51733183 m/s (target 10), v_hub = 13.03761686 m/s (target 0), total_error = 13.12561425 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 31.8536301 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 8.502510458 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.770191846 m/s  u* = 0.3789824658 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.3302220144 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 30.28265701 m/s, U_after = 15.14132851 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 1: u_hub = 13.0496692 m/s (target 10), v_hub = 9.747127013 m/s (target 0), total_error = 10.21307825 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 30.91165351 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 3.628946951 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.742336432 m/s  u* = 0.3751478198 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.339432538 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 29.46093518 m/s, U_after = 14.73046759 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 2: u_hub = 14.11346475 m/s (target 10), v_hub = 7.202958927 m/s (target 0), total_error = 8.294770012 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 30.69791233 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 0.02746748797 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.748483898 m/s  u* = 0.3759644761 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.3413126596 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 29.29864955 m/s, U_after = 14.64932477 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 3: u_hub = 14.84183591 m/s (target 10), v_hub = 5.303362089 m/s (target 0), total_error = 7.181157593 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 30.80986146 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = -2.624213556 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.767649029 m/s  u* = 0.378565285 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.3398006601 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 29.42901876 m/s, U_after = 14.71450938 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 4: u_hub = 15.34567233 m/s (target 10), v_hub = 3.906160736 m/s (target 0), total_error = 6.620748021 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 28.1476589 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 28.02506387 m/s, vg = -2.624213556 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.600837892 m/s  u* = 0.3557623046 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.3679228505 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 27.17961112 m/s, U_after = 13.58980556 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 5: u_hub = 14.22684339 m/s (target 10), v_hub = 3.33876126 m/s (target 0), total_error = 5.386421057 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 26.0441874 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 25.91164218 m/s, vg = -2.624213556 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.466355151 m/s  u* = 0.337377911 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.3940890339 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 25.37497656 m/s, U_after = 12.68748828 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 6: u_hub = 13.32476061 m/s (target 10), v_hub = 2.879273468 m/s (target 0), total_error = 4.398209728 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 24.39084251 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 24.24926187 m/s, vg = -2.624213556 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.358809194 m/s  u* = 0.3226753903 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.4177537127 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 23.93754908 m/s, U_after = 11.96877454 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 7: u_hub = 12.60249976 m/s (target 10), v_hub = 2.510309099 m/s (target 0), total_error = 3.615889483 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 23.09757025 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 22.94801199 m/s, vg = -2.624213556 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.273457578 m/s  u* = 0.3110066836 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.4385890746 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 22.80038555 m/s, U_after = 11.40019278 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 8: u_hub = 12.02818072 m/s (target 10), v_hub = 2.216428759 m/s (target 0), total_error = 3.004342435 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 23.249565 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 22.94801199 m/s, vg = -3.732427936 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.288950089 m/s  u* = 0.3131138847 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.4353503486 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 22.97000573 m/s, U_after = 11.48500286 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 9: u_hub = 12.22149709 m/s (target 10), v_hub = 1.600657382 m/s (target 0), total_error = 2.73809302 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 22.1539408 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 21.83726345 m/s, vg = -3.732427936 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.21600746 m/s  u* = 0.3031409264 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.4545060478 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 22.00190745 m/s, U_after = 11.00095373 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 10: u_hub = 11.7221335 m/s (target 10), v_hub = 1.34020474 m/s (target 0), total_error = 2.182176103 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 21.30567638 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 20.9761967 m/s, vg = -3.732427936 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.158943639 m/s  u* = 0.2953387591 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.470666482 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 21.24646726 m/s, U_after = 10.62323363 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 11: u_hub = 11.32992636 m/s (target 10), v_hub = 1.135531284 m/s (target 0), total_error = 1.748752536 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 20.65132502 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 20.31123351 m/s, vg = -3.732427936 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.114557237 m/s  u* = 0.2892698011 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.4840265003 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 20.66002583 m/s, U_after = 10.33001292 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 12: u_hub = 11.02372334 m/s (target 10), v_hub = 0.9757124822 m/s (target 0), total_error = 1.414222161 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 20.14810522 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 19.79937185 m/s, vg = -3.732427936 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.08019708 m/s  u* = 0.2845716467 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.4948840528 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 20.20675337 m/s, U_after = 10.10337668 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 13: u_hub = 10.78590403 m/s (target 10), v_hub = 0.8515954181 m/s (target 0), total_error = 1.158818319 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 20.23131152 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 19.79937185 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.087947745 m/s  u* = 0.2856265367 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.4925611726 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 20.30204684 m/s, U_after = 10.15102342 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM bisection iter 14: u_hub = 10.85588872 m/s (target 10), v_hub = 0.6102618341 m/s (target 0), total_error = 1.051173157 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 19.81269904 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 19.37142749 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.05925517 m/s  u* = 0.2817031811 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 19.92458678 m/s, U_after = 10 m/s, alpha = 0.5018924664
+wind_solver: SCM bisection iter 15: u_hub = 10.69544463 m/s (target 10), v_hub = 0.5067954602 m/s (target 0), total_error = 0.8605143036 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 19.47285801 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 19.02370517 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.035856827 m/s  u* = 0.2785037026 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 19.61713383 m/s, U_after = 10 m/s, alpha = 0.5097584637
+wind_solver: SCM bisection iter 16: u_hub = 10.69565934 m/s (target 10), v_hub = 0.4269013734 m/s (target 0), total_error = 0.8162026102 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 19.1331954 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 18.6758755 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.012374716 m/s  u* = 0.2752927285 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 19.30890836 m/s, U_after = 10 m/s, alpha = 0.5178956683
+wind_solver: SCM bisection iter 17: u_hub = 10.69521723 m/s (target 10), v_hub = 0.3439383453 m/s (target 0), total_error = 0.7756420461 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 18.79404713 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 18.32826689 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.988830255 m/s  u* = 0.272073186 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 19.00019749 m/s, U_after = 10 m/s, alpha = 0.526310319
+wind_solver: SCM bisection iter 18: u_hub = 10.69404348 m/s (target 10), v_hub = 0.257815361 m/s (target 0), total_error = 0.7403817385 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 18.45578547 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 17.98124514 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.965247701 m/s  u* = 0.2688483909 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 18.69132295 m/s, U_after = 10 m/s, alpha = 0.535007609
+wind_solver: SCM bisection iter 19: u_hub = 10.69205732 m/s (target 10), v_hub = 0.1684559139 m/s (target 0), total_error = 0.7122645094 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 18.11882173 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 17.63521648 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.941654363 m/s  u* = 0.2656220754 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 18.38264776 m/s, U_after = 10 m/s, alpha = 0.5439912755
+wind_solver: SCM bisection iter 20: u_hub = 10.68917339 m/s (target 10), v_hub = 0.07579127623 m/s (target 0), total_error = 0.6933284108 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 17.78360815 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 17.29062979 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.918080818 m/s  u* = 0.2623984197 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 18.07457652 m/s, U_after = 10 m/s, alpha = 0.5532633082
+wind_solver: SCM bisection iter 21: u_hub = 10.68530178 m/s (target 10), v_hub = -0.02022872869 m/s (target 0), total_error = 0.6856002727 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 17.45063979 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 16.9479789 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.894561121 m/s  u* = 0.2591820793 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 17.76755737 m/s, U_after = 10 m/s, alpha = 0.5628235661
+wind_solver: SCM bisection iter 22: u_hub = 10.6803484 m/s (target 10), v_hub = -0.1196232128 m/s (target 0), total_error = 0.6907848152 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 17.12045611 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 16.60780469 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.871132984 m/s  u* = 0.2559782102 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 17.46208779 m/s, U_after = 10 m/s, alpha = 0.5726692087
+wind_solver: SCM bisection iter 23: u_hub = 10.67421728 m/s (target 10), v_hub = -0.2223881233 m/s (target 0), total_error = 0.7099474774 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 16.79364137 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 16.27069605 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.847837943 m/s  u* = 0.2527924912 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 17.15871425 m/s, U_after = 10 m/s, alpha = 0.5827942499
+wind_solver: SCM bisection iter 24: u_hub = 10.66681195 m/s (target 10), v_hub = -0.3284873415 m/s (target 0), total_error = 0.743331764 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 16.47082437 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 15.93729008 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.824721463 m/s  u* = 0.2496311394 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 16.85803316 m/s, U_after = 10 m/s, alpha = 0.5931890099
+wind_solver: SCM bisection iter 25: u_hub = 10.65803785 m/s (target 10), v_hub = -0.4378294439 m/s (target 0), total_error = 0.7903849902 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 16.15267683 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 15.60827115 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.80183286 m/s  u* = 0.2465008985 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 16.56069148 m/s, U_after = 10 m/s, alpha = 0.6038395204
+wind_solver: SCM bisection iter 26: u_hub = 10.64780538 m/s (target 10), v_hub = -0.5502888931 m/s (target 0), total_error = 0.8499821589 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 15.83991035 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 15.28436847 m/s, vg = -4.158225645 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.779225263 m/s  u* = 0.2434090341 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 16.26738547 m/s, U_after = 10 m/s, alpha = 0.6147269342
+wind_solver: SCM bisection iter 27: u_hub = 10.63603394 m/s (target 10), v_hub = -0.665674762 m/s (target 0), total_error = 0.9206856473 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 15.75580892 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 15.28436847 m/s, vg = -3.825388264 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.771437582 m/s  u* = 0.24234884 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 16.16146407 m/s, U_after = 10 m/s, alpha = 0.6187558229
+wind_solver: SCM bisection iter 28: u_hub = 10.64341695 m/s (target 10), v_hub = -0.4284786322 m/s (target 0), total_error = 0.7730325433 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 15.44392403 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 14.96265999 m/s, vg = -3.825388264 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.748755436 m/s  u* = 0.2392468001 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 15.86649617 m/s, U_after = 10 m/s, alpha = 0.6302588734
+wind_solver: SCM bisection iter 29: u_hub = 10.63238608 m/s (target 10), v_hub = -0.5439784937 m/s (target 0), total_error = 0.834161108 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 15.13778681 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 14.64646695 m/s, vg = -3.825388264 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.726383425 m/s  u* = 0.2361871203 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 15.57589098 m/s, U_after = 10 m/s, alpha = 0.6420178475
+wind_solver: SCM bisection iter 30: u_hub = 10.61972366 m/s (target 10), v_hub = -0.6624353992 m/s (target 0), total_error = 0.9071262736 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 15.0574972 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 14.64646695 m/s, vg = -3.494170564 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.718707134 m/s  u* = 0.2351422766 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 15.47152319 m/s, U_after = 10 m/s, alpha = 0.6463487709
+wind_solver: SCM bisection iter 31: u_hub = 10.62682678 m/s (target 10), v_hub = -0.4132052443 m/s (target 0), total_error = 0.7507665324 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 14.75281845 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 14.33305356 m/s, vg = -3.494170564 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.696300919 m/s  u* = 0.2320779421 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 15.17962244 m/s, U_after = 10 m/s, alpha = 0.6587779136
+wind_solver: SCM bisection iter 32: u_hub = 10.61496282 m/s (target 10), v_hub = -0.5314389027 m/s (target 0), total_error = 0.8127770758 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 14.45426934 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 14.02557215 m/s, vg = -3.494170564 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.674236384 m/s  u* = 0.229060282 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 14.89243758 m/s, U_after = 10 m/s, alpha = 0.6714817468
+wind_solver: SCM bisection iter 33: u_hub = 10.60138172 m/s (target 10), v_hub = -0.6526277094 m/s (target 0), total_error = 0.8874586767 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 14.37887305 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 14.02557215 m/s, vg = -3.167856709 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.666764976 m/s  u* = 0.2280435297 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 14.79088767 m/s, U_after = 10 m/s, alpha = 0.6760919439
+wind_solver: SCM bisection iter 34: u_hub = 10.60790663 m/s (target 10), v_hub = -0.3929082192 m/s (target 0), total_error = 0.7238282503 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 14.08254734 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 13.72161884 m/s, vg = -3.167856709 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.644722451 m/s  u* = 0.2250289056 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 14.50298107 m/s, U_after = 10 m/s, alpha = 0.6895134145
+wind_solver: SCM bisection iter 35: u_hub = 10.59516728 m/s (target 10), v_hub = -0.5134270695 m/s (target 0), total_error = 0.7860225505 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 13.79275306 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 13.4240352 m/s, vg = -3.167856709 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.623056276 m/s  u* = 0.2220656981 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 14.22017746 m/s, U_after = 10 m/s, alpha = 0.7032261044
+wind_solver: SCM bisection iter 36: u_hub = 10.58063742 m/s (target 10), v_hub = -0.6368398192 m/s (target 0), total_error = 0.8618032075 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 13.72311958 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 13.4240352 m/s, vg = -2.8494368 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.615872688 m/s  u* = 0.2210883348 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 14.12255994 m/s, U_after = 10 m/s, alpha = 0.7080869221
+wind_solver: SCM bisection iter 37: u_hub = 10.58628324 m/s (target 10), v_hub = -0.3683601093 m/s (target 0), total_error = 0.6923996051 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 13.43650461 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 13.13089357 m/s, vg = -2.8494368 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.594301711 m/s  u* = 0.2181381751 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 13.83983411 m/s, U_after = 10 m/s, alpha = 0.7225520133
+wind_solver: SCM bisection iter 38: u_hub = 10.57262401 m/s (target 10), v_hub = -0.4905338702 m/s (target 0), total_error = 0.7540038014 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 13.15684483 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 12.84458157 m/s, vg = -2.8494368 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.573145466 m/s  u* = 0.2152446826 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 13.56265774 m/s, U_after = 10 m/s, alpha = 0.7373186136
+wind_solver: SCM bisection iter 39: u_hub = 10.55712941 m/s (target 10), v_hub = -0.6154407806 m/s (target 0), total_error = 0.8301569308 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 13.09364724 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 12.84458157 m/s, vg = -2.54171641 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.566323799 m/s  u* = 0.2143167948 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 13.46995113 m/s, U_after = 10 m/s, alpha = 0.7423931908
+wind_solver: SCM bisection iter 40: u_hub = 10.56159259 m/s (target 10), v_hub = -0.3402567209 m/s (target 0), total_error = 0.6566284146 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 12.81830811 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 12.56378527 m/s, vg = -2.54171641 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.545353504 m/s  u* = 0.2114487636 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 13.19389927 m/s, U_after = 10 m/s, alpha = 0.757926053
+wind_solver: SCM bisection iter 41: u_hub = 10.54698478 m/s (target 10), v_hub = -0.4632320786 m/s (target 0), total_error = 0.7167819084 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 12.5503634 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 12.29029289 m/s, vg = -2.54171641 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.524839955 m/s  u* = 0.2086431477 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 12.92389645 m/s, U_after = 10 m/s, alpha = 0.7737604553
+wind_solver: SCM bisection iter 42: u_hub = 10.53053922 m/s (target 10), v_hub = -0.5886563697 m/s (target 0), total_error = 0.7924570527 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 12.49408072 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 12.29029289 m/s, vg = -2.247388225 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.518446121 m/s  u* = 0.207773699 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 12.83696955 m/s, U_after = 10 m/s, alpha = 0.7790000559
+wind_solver: SCM bisection iter 43: u_hub = 10.53353161 m/s (target 10), v_hub = -0.3092537573 m/s (target 0), total_error = 0.6166797079 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 12.23176019 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 12.02352708 m/s, vg = -2.247388225 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.498226067 m/s  u* = 0.205008254 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 12.56940193 m/s, U_after = 10 m/s, alpha = 0.7955828017
+wind_solver: SCM bisection iter 44: u_hub = 10.5179901 m/s (target 10), v_hub = -0.4319054449 m/s (target 0), total_error = 0.6744301701 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 11.9772688 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 11.76453203 m/s, vg = -2.247388225 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.478507204 m/s  u* = 0.2023113059 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 12.30844459 m/s, U_after = 10 m/s, alpha = 0.8124503409
+wind_solver: SCM bisection iter 45: u_hub = 10.50066635 m/s (target 10), v_hub = -0.5566183416 m/s (target 0), total_error = 0.748659317 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 11.92818034 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 11.76453203 m/s, vg = -1.969079054 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.47259888 m/s  u* = 0.2015081289 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 12.2280414 m/s, U_after = 10 m/s, alpha = 0.8177924555
+wind_solver: SCM bisection iter 46: u_hub = 10.50192994 m/s (target 10), v_hub = -0.2760798171 m/s (target 0), total_error = 0.5728470373 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 11.68073195 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 11.51356706 m/s, vg = -1.969079054 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.453295056 m/s  u* = 0.1988679754 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 11.97107793 m/s, U_after = 10 m/s, alpha = 0.8353466629
+wind_solver: SCM bisection iter 47: u_hub = 10.48553881 m/s (target 10), v_hub = -0.3970741417 m/s (target 0), total_error = 0.6272286732 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 11.44151005 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 11.27079766 m/s, vg = -1.969079054 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.434536853 m/s  u* = 0.1963023993 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 11.72133617 m/s, U_after = 10 m/s, alpha = 0.8531450556
+wind_solver: SCM bisection iter 48: u_hub = 10.46749171 m/s (target 10), v_hub = -0.519598689 m/s (target 0), total_error = 0.698950136 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 11.39967179 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 11.27079766 m/s, vg = -1.709279709 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 1.42916095 m/s  u* = 0.1955718504 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+wind_solver: SCM post-spin-up rescaling: U_before = 11.64806818 m/s, U_after = 10 m/s, alpha = 0.8585114586
+wind_solver: SCM bisection iter 49: u_hub = 10.46685179 m/s (target 10), v_hub = -0.2416092314 m/s (target 0), total_error = 0.5256668272 m/s
+wind_solver: SCM bisection did not converge within 50 iterations. Returning best profile with error 0.5256668272 m/s
+wind_solver: SCM profiles assigned to 3D MultiFab (terrain-aware)
+wind_solver: wind initialization time = 3.621170863 s
+wind_solver: RHS computation time = 2.844e-06 s
+wind_solver: Poisson operator setup time = 0.000136666 s
+wind_solver: starting MLMG Poisson solve...
+wind_solver: MLMG solve complete.
+wind_solver: Poisson solve time = 6.5149e-05 s
+wind_solver: velocity correction time = 4.166e-06 s
+wind_solver: max |div(u)| before correction = 0 s⁻¹
+wind_solver: max |div(u)| after  correction = 0 s⁻¹
+wind_solver: divergence computation time = 2.1393e-05 s
+wind_solver: plotfile written to plt_scm_neutral_80m_predictcorrectgeo00000
+wind_solver: output writing time = 0.002085102 s
+wind_solver: terrain-aligned extraction 1/1 at AGL = 15 m  →  k = 0  (physical z = 25 m)
+wind_solver: terrain-aligned extraction written to wind_extract_80m_t0.csv  (4 points)
+wind_solver: step 1 - running dummy time step (using frozen wind field)
+wind_solver: max |div(u)| before correction = 0 s⁻¹
+wind_solver: max |div(u)| after  correction = 0 s⁻¹
+wind_solver: divergence computation time = 3.4433e-05 s
+wind_solver: plotfile written to plt_scm_neutral_80m_predictcorrectgeo00001
+wind_solver: output writing time = 0.001643524 s
+wind_solver: terrain-aligned extraction 1/1 at AGL = 15 m  →  k = 0  (physical z = 25 m)
+wind_solver: terrain-aligned extraction written to wind_extract_80m_t1.csv  (4 points)
+wind_solver: ========================================
+wind_solver: total execution time = 3.625411212 s
+wind_solver: ========================================
+wind_solver: done.
+AMReX (26.06-30-g5fbc49bce6cc) finalized

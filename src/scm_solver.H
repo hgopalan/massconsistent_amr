@@ -82,8 +82,7 @@ struct SCMParams {
     amrex::Real conv_tol   = amrex::Real(1.0e-5); ///< Convergence tolerance (relative change in u, v, theta)
     amrex::Real min_time   = amrex::Real(86400.0); ///< Minimum spin-up time before checking convergence [s] (24 h)
     std::string geo_mode   = "resistancelaw";     ///< Geostrophic wind mode: "resistancelaw" or "predictcorrectgeo"
-    amrex::Real z_hub      = amrex::Real(100.0);  ///< Hub height for predictcorrectgeo mode [m]
-    amrex::Real allowed_error_hub = amrex::Real(0.1); ///< Convergence tolerance at hub height [m/s]
+    amrex::Real allowed_error_ref = amrex::Real(0.1); ///< Convergence tolerance at reference height [m/s] (predictcorrectgeo mode)
     int max_geo_iter       = 50;                   ///< Maximum iterations for bisection loop
 };
 
@@ -957,20 +956,20 @@ inline SCMProfiles run_scm(const SCMParams& p)
        return run_scm_inner(p, ug_resist, vg_resist);
     } 
     else if (p.geo_mode == "predictcorrectgeo") {
-       // Bisection loop to match hub-height wind
+       // Bisection loop to match reference-height wind
         
-       // Target hub-height wind speed components from U_ref and dir_ref
-       amrex::Real U_hub_target = p.U_ref;  // Magnitude at hub height
+       // Target reference-height wind speed components from U_ref and dir_ref
+       amrex::Real U_ref_target = p.U_ref;  // Magnitude at reference height
        // Direction is dir_ref (same as U_ref direction)
-       amrex::Real theta_hub = theta_math;
-       amrex::Real u_hub_target = U_hub_target * std::cos(theta_hub);
-       amrex::Real v_hub_target = U_hub_target * std::sin(theta_hub);
+       amrex::Real theta_ref = theta_math;
+       amrex::Real u_ref_target = U_ref_target * std::cos(theta_ref);
+       amrex::Real v_ref_target = U_ref_target * std::sin(theta_ref);
 
        amrex::Print() << "wind_solver: SCM - predictcorrectgeo mode enabled\n"
-                      << "  Target hub height: " << p.z_hub << " m\n"
-                      << "  Target u at hub: " << u_hub_target << " m/s\n"
-                      << "  Target v at hub: " << v_hub_target << " m/s\n"
-                      << "  Allowed error: " << p.allowed_error_hub << " m/s\n"
+                      << "  Target reference height: " << p.z_ref << " m\n"
+                      << "  Target u at z_ref: " << u_ref_target << " m/s\n"
+                      << "  Target v at z_ref: " << v_ref_target << " m/s\n"
+                      << "  Allowed error: " << p.allowed_error_ref << " m/s\n"
                       << "  Max iterations: " << p.max_geo_iter << "\n";
 
        amrex::Real ug_current = ug_resist;
@@ -981,22 +980,23 @@ inline SCMProfiles run_scm(const SCMParams& p)
        for (int iter = 0; iter < p.max_geo_iter; ++iter) {
            // Run the SCM with current geostrophic wind
            SCMProfiles profiles = run_scm_inner(p, ug_current, vg_current);
-            
-           // Interpolate at hub height
-           amrex::Real u_at_hub = interp_scm(profiles.z, profiles.u, p.z_hub);
-           amrex::Real v_at_hub = interp_scm(profiles.z, profiles.v, p.z_hub);
+             
+           // Interpolate at reference height
+           amrex::Real u_at_ref = interp_scm(profiles.z, profiles.u, p.z_ref);
+           amrex::Real v_at_ref = interp_scm(profiles.z, profiles.v, p.z_ref);
 
            // Compute residuals
-           amrex::Real res_u = u_at_hub - u_hub_target;
-           amrex::Real res_v = v_at_hub - v_hub_target;
+           amrex::Real res_u = u_at_ref - u_ref_target;
+           amrex::Real res_v = v_at_ref - v_ref_target;
            amrex::Real err_u = std::abs(res_u);
            amrex::Real err_v = std::abs(res_v);
            amrex::Real total_error = std::sqrt(err_u*err_u + err_v*err_v);
 
            amrex::Print() << "wind_solver: SCM bisection iter " << iter 
-                          << ": u_hub = " << u_at_hub << " m/s (target " << u_hub_target << ")"
-                          << ", v_hub = " << v_at_hub << " m/s (target " << v_hub_target << ")"
-                          << ", total_error = " << total_error << " m/s\n";
+                          << ": u_ref = " << u_at_ref << " m/s (target " << u_ref_target << ")"
+                          << ", v_ref = " << v_at_ref << " m/s (target " << v_ref_target << ")"
+                          << " | ug = " << ug_current << " m/s, vg = " << vg_current << " m/s"
+                          << " | error = " << total_error << " m/s\n";
 
            // Store if this is the best so far
            if (total_error < best_error) {
@@ -1005,7 +1005,7 @@ inline SCMProfiles run_scm(const SCMParams& p)
            }
 
            // Check convergence
-           if (err_u < p.allowed_error_hub && err_v < p.allowed_error_hub) {
+           if (err_u < p.allowed_error_ref && err_v < p.allowed_error_ref) {
                amrex::Print() << "wind_solver: SCM bisection converged at iter " << iter << "\n";
                return profiles;
            }
@@ -1014,15 +1014,15 @@ inline SCMProfiles run_scm(const SCMParams& p)
            if (err_u > err_v) {
                // Adjust u component
                amrex::Real step_u = -res_u / amrex::Real(2.0);
-               if (std::abs(step_u) < p.allowed_error_hub) {
-                   step_u = (res_u > 0) ? -p.allowed_error_hub : p.allowed_error_hub;
+               if (std::abs(step_u) < p.allowed_error_ref) {
+                   step_u = (res_u > 0) ? -p.allowed_error_ref : p.allowed_error_ref;
                }
                ug_current += step_u;
            } else {
                // Adjust v component
                amrex::Real step_v = -res_v / amrex::Real(2.0);
-               if (std::abs(step_v) < p.allowed_error_hub) {
-                   step_v = (res_v > 0) ? -p.allowed_error_hub : p.allowed_error_hub;
+               if (std::abs(step_v) < p.allowed_error_ref) {
+                   step_v = (res_v > 0) ? -p.allowed_error_ref : p.allowed_error_ref;
                }
                vg_current += step_v;
            }
