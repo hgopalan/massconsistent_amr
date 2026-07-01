@@ -233,6 +233,11 @@ add_regression_test(buoyancy_default_profile physics/buoyancy_default_profile)
 add_regression_test(buoyancy_rhs physics/buoyancy_rhs)
 
 # ---------------------------------------------------------------------------
+# terrain_aware_temperature/ – Terrain-aware temperature profile initialization
+# ---------------------------------------------------------------------------
+add_regression_test(terrain_aware_temperature physics/terrain_aware_temperature)
+
+# ---------------------------------------------------------------------------
 # terrain_kinematic_bc/ – Kinematic terrain-following boundary condition
 # ---------------------------------------------------------------------------
 add_regression_test(terrain_kinematic_bc physics/terrain_kinematic_bc)
@@ -772,6 +777,7 @@ message(STATUS "  physics/wall_function_unstable/: Wall function with unstable a
 message(STATUS "  physics/wall_function_adaptive/: Wall function with adaptive grid resolution activation")
 message(STATUS "  physics/buoyancy_stratification/: Thermal stratification with buoyancy effects")
 message(STATUS "  physics/buoyancy_rhs/          : Buoyancy RHS method (source term in lambda equation)")
+message(STATUS "  physics/terrain_aware_temperature/: Terrain-aware temperature profile with internal T")
 message(STATUS "  physics/terrain_kinematic_bc/  : Kinematic terrain-following boundary condition")
 message(STATUS "  physics/scalar_transport/      : 3D scalar transport with mixing length turbulence model")
 message(STATUS "  physics/combined_thermal_terrain/: Combined buoyancy and kinematic BC features")

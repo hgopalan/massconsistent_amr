@@ -556,6 +556,10 @@ void WindSolverApp::parse_inputs() {
     pp.query("buoyancy_coefficient", buoyancy_coefficient);
     pp.query("buoyancy_timescale", buoyancy_timescale);
     pp.query("buoyancy_method", buoyancy_method);
+
+    // Terrain-aware temperature profile
+    pp.query("enable_terrain_aware_temperature", enable_terrain_aware_temperature);
+    pp.query("temperature_interior", temperature_interior);
     
     // Simple Diurnal Temperature Profile
     pp.query("enable_diurnal_temperature", enable_diurnal_temperature);
@@ -2158,8 +2162,12 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         Real const* d_temp_z_ptr = d_temp_z_init.data();
         Real const* d_temp_T_ptr = d_temp_T_init.data();
         const Real T_ref_val = temperature_reference;
+        const Real T_interior_val = temperature_interior;
+        const bool use_terrain_aware_temp = enable_terrain_aware_temperature;
         const Real z_lo_cap_val = zs_min;
         const Real dz_cap_val = dz;
+        const Real* d_terrain_ptr = d_terrain_h.data();
+        const int nx_cap_val = nx;
 
         for (MFIter mfi(*temp_ptr); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
@@ -2169,9 +2177,14 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real z_physical = z_lo_cap_val + (k + Real(0.5)) * dz_cap_val;
+                Real terrain_elev = use_terrain_aware_temp ? d_terrain_ptr[j * nx_cap_val + i] : Real(0.0);
+                Real z_agl = z_physical - terrain_elev;
                 Real T_local = T_ref_val;
                 
-                if (n_temp_pts == 1) {
+                // If terrain-aware temperature is enabled and cell is below ground level, use interior temperature
+                if (use_terrain_aware_temp && z_agl <= Real(0.0)) {
+                    T_local = T_interior_val;
+                } else if (n_temp_pts == 1) {
                     T_local = d_temp_T_ptr[0];
                 } else if (z_physical <= d_temp_z_ptr[0]) {
                     T_local = d_temp_T_ptr[0];
@@ -5879,7 +5892,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
         }
     }
 
-    int nout_val = 21;
+    int nout_val = 22;  // Added temperature field
     if (has_synthetic_turbulence) nout_val += 3;
     if (enable_coriolis_latitude) nout_val += 3;
     if (enable_wire_loading) nout_val += 2;
@@ -5900,7 +5913,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
     const bool enable_morph_val = enable_morphometric_models;
     const Real* d_morph_z0_ptr = d_morphometric_z0.data();
 
-    int wire_idx_start = 21;
+    int wire_idx_start = 22;  // Updated due to temperature field addition
     if (has_synthetic_turbulence) wire_idx_start += 3;
     if (enable_coriolis_latitude) wire_idx_start += 3;
     const int cap_wire_idx_start = wire_idx_start;
@@ -6148,14 +6161,15 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
             out(i,j,k,18) = cap_enable_terrain_analysis ? Real(ttype_arr(i,j,k)) : Real(0.0);
             out(i,j,k,19) = cap_enable_terrain_analysis ? tslope_arr(i,j,k) : Real(0.0);
             out(i,j,k,20) = cap_enable_terrain_analysis ? adap_rough_arr(i,j,k) : z0_local;
+            out(i,j,k,21) = temp_arr(i, j, k);  // Temperature field
             
             if (cap_has_turb) {
                 Real u_openfast = u + turb_fluc(i,j,k,0);
                 Real v_openfast = v + turb_fluc(i,j,k,1);
                 Real w_openfast = w + turb_fluc(i,j,k,2);
-                out(i,j,k,21) = u_openfast;
-                out(i,j,k,22) = v_openfast;
-                out(i,j,k,23) = w_openfast;
+                out(i,j,k,22) = u_openfast;
+                out(i,j,k,23) = v_openfast;
+                out(i,j,k,24) = w_openfast;
             }
 
             if (cap_enable_coriolis_latitude) {
@@ -6165,7 +6179,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
                 Real Ro = compute_rossby_number(U_mag, f, Real(1000.0));
                 Real T_i = compute_inertial_period(f);
                 
-                int idx_offset = cap_has_turb ? 24 : 21;
+                int idx_offset = cap_has_turb ? 25 : 22;  // Updated due to temperature field addition
                 out(i,j,k, idx_offset) = f;
                 out(i,j,k, idx_offset + 1) = Ro;
                 out(i,j,k, idx_offset + 2) = T_i;
@@ -6253,7 +6267,7 @@ void WindSolverApp::compute_diagnostics_and_output(int time_step) {
         "heat_flux", "drag_coeff",
         "tau_x", "tau_y", "u_star",
         "richardson_no", "bl_depth",
-        "terrain_type", "terrain_slope", "adaptive_z0"
+        "terrain_type", "terrain_slope", "adaptive_z0", "temperature"
     };
     
     if (has_synthetic_turbulence) {

@@ -382,6 +382,10 @@ private:
     amrex::Real buoyancy_timescale = 10.0;
     std::string buoyancy_method = "velocity";
 
+    // Terrain-aware temperature profile
+    bool enable_terrain_aware_temperature = false;    // Enable terrain-aware temperature initialization
+    amrex::Real temperature_interior = 283.15;        // Internal (subsurface) temperature [K] (10°C, below ground level)
+
     // Simple Diurnal Temperature
     bool enable_diurnal_temperature = false;
     amrex::Real diurnal_temperature_amplitude = 5.0;

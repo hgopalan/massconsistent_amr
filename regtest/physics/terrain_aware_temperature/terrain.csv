@@ -1,0 +1,12 @@
+# Terrain elevation file for terrain-aware temperature test
+# Format: x [m], y [m], elevation [m]
+# 3x3 grid with central peak to test terrain-awareness
+0.0,0.0,100.0
+50.0,0.0,100.0
+100.0,0.0,100.0
+0.0,50.0,100.0
+50.0,50.0,150.0
+100.0,50.0,100.0
+0.0,100.0,100.0
+50.0,100.0,100.0
+100.0,100.0,100.0

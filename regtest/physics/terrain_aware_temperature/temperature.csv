@@ -1,0 +1,9 @@
+# Temperature profile file for terrain-aware temperature test
+# Format: height_above_sea_level [m], temperature [K]
+0.0,283.15
+100.0,283.0
+200.0,282.0
+300.0,281.0
+400.0,280.0
+500.0,279.0
+1000.0,275.0
