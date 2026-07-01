@@ -371,6 +371,10 @@ void WindSolverApp::parse_inputs() {
         scm_params.max_time   = amrex::Real(172800.0);
         scm_params.conv_tol   = amrex::Real(1.0e-5);
         scm_params.min_time   = amrex::Real(86400.0);
+        scm_params.geo_mode   = "resistancelaw";
+        scm_params.z_hub      = amrex::Real(100.0);
+        scm_params.allowed_error_hub = amrex::Real(0.1);
+        scm_params.max_geo_iter = 50;
         pp_scm.query("U_ref",      scm_params.U_ref);
         pp_scm.query("dir_ref",    scm_params.dir_ref);
         pp_scm.query("z_ref",      scm_params.z_ref);
@@ -384,6 +388,17 @@ void WindSolverApp::parse_inputs() {
         pp_scm.query("max_time",   scm_params.max_time);
         pp_scm.query("conv_tol",   scm_params.conv_tol);
         pp_scm.query("min_time",   scm_params.min_time);
+        pp_scm.query("mode",       scm_params.geo_mode);
+        pp_scm.query("z_hub",      scm_params.z_hub);
+        pp_scm.query("allowed_error_hub", scm_params.allowed_error_hub);
+        pp_scm.query("max_geo_iter", scm_params.max_geo_iter);
+        
+        // Validation: check that geo_mode is recognized
+        if (scm_params.geo_mode != "resistancelaw" && 
+            scm_params.geo_mode != "predictcorrectgeo") {
+            throw std::runtime_error("scm.mode must be either 'resistancelaw' or 'predictcorrectgeo', "
+                                   "got: " + scm_params.geo_mode);
+        }
     }
 
     // Surface data mode parameters (for HRRR-style initialization)
