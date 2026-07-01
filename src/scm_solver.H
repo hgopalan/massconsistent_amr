@@ -383,6 +383,30 @@ inline void solve_diffusion(std::vector<amrex::Real>& phi,
 }
 
 // ============================================================================
+// Interpolate a 1D SCM profile to a target height z_agl
+// using linear interpolation.  Clamps to boundary values outside the range.
+// ============================================================================
+inline amrex::Real interp_scm(const std::vector<amrex::Real>& z_scm,
+                                const std::vector<amrex::Real>& f_scm,
+                                amrex::Real z_target) noexcept
+{
+    const int N = static_cast<int>(z_scm.size());
+    if (N == 0) return amrex::Real(0.0);
+    if (z_target <= z_scm[0])     return f_scm[0];
+    if (z_target >= z_scm[N-1])   return f_scm[N-1];
+
+    // Binary search for bracket
+    int lo = 0, hi = N - 1;
+    while (hi - lo > 1) {
+        int mid = (lo + hi) / 2;
+        if (z_scm[mid] <= z_target) lo = mid;
+        else                         hi = mid;
+    }
+    amrex::Real w = (z_target - z_scm[lo]) / (z_scm[hi] - z_scm[lo]);
+    return (amrex::Real(1.0) - w) * f_scm[lo] + w * f_scm[hi];
+}
+
+// ============================================================================
 // Main SCM run function
 //
 // Integrates the PALM-style 1D equations in pseudo-time until the profiles
@@ -424,6 +448,65 @@ inline SCMProfiles run_scm(const SCMParams& p)
     amrex::Real G_geo, alpha_geo;
     compute_geostrophic(ustar, p.z0, f_cor, G_geo, alpha_geo);
 
+    // ------------------------------------------------------------------
+    // STEP 1 & 2: Pre-correction of geostrophic wind
+    // --
+    // Compute predicted wind speed at z = dz/2 (first cell centre at z = 2 m)
+    // using the MOST log-law. Compare against U_ref to compute alpha_pred.
+    // If alpha_pred deviates by >30% from 1.0, warn the user before spin-up.
+    // ------------------------------------------------------------------
+    const amrex::Real z_first_cell = amrex::Real(2.0);  // dz/2 where dz=4 m
+    
+    // Warn if z0 is too large for the grid resolution
+    if (p.z0 >= z_first_cell) {
+        amrex::Print() << "========== WARNING: SCM ROUGHNESS LENGTH TOO LARGE ==========\n"
+                       << "  Aerodynamic roughness z0 = " << p.z0 << " m\n"
+                       << "  is >= first SCM cell height = " << z_first_cell << " m\n"
+                       << "  This may violate MOST assumptions and give inaccurate results.\n"
+                       << "  Consider reducing scm.z0 or using a coarser velocity grid.\n"
+                       << "========================================================\n";
+    }
+    
+    amrex::Real psi_m_first = amrex::Real(0.0);
+    if (std::abs(p.L_obukhov) > amrex::Real(1.0e-3)) {
+        psi_m_first = psi_m(z_first_cell / p.L_obukhov, false);
+    }
+    amrex::Real log_arg_first = std::log(z_first_cell / p.z0);
+    if (log_arg_first < amrex::Real(0.0)) {
+        log_arg_first = amrex::Real(0.0);
+        amrex::Print() << "========== WARNING: SCM LOG-LAW ARGUMENT CLAMPED ==========\n"
+                       << "  log(z_first_cell / z0) = log(" << z_first_cell << " / " << p.z0 << ") < 0\n"
+                       << "  Clamping to 0. This indicates z0 is too large relative to grid height.\n"
+                       << "  Consider reviewing scm.z0 and grid resolution.\n"
+                       << "========================================================\n";
+    }
+    amrex::Real U_sfc_pred = (ustar / kappa) * std::max(amrex::Real(0.0), log_arg_first - psi_m_first);
+    
+    // Avoid division by zero
+    if (U_sfc_pred < amrex::Real(1.0e-6)) U_sfc_pred = amrex::Real(1.0e-6);
+    
+    // Pre-correction factor: scale G_geo so converged profile matches U_ref at z_ref
+    amrex::Real alpha_pred = p.U_ref / U_sfc_pred;
+    
+    // Step 2: Warning if pre-correction factor is too far from 1.0 (±30%)
+    const amrex::Real alpha_warning_min = amrex::Real(0.77);   // 1.0 - 0.30
+    const amrex::Real alpha_warning_max = amrex::Real(1.3);    // 1.0 + 0.30
+    if (alpha_pred < alpha_warning_min || alpha_pred > alpha_warning_max) {
+        amrex::Print() << "========== WARNING: SCM PRE-CORRECTION FACTOR OUT OF BOUNDS ==========\n"
+                       << "  Computed pre-correction factor alpha_pred = " << alpha_pred << "\n"
+                       << "  This indicates the MOST resistance law is inaccurate for the\n"
+                       << "  specified atmospheric stability.\n"
+                       << "  Suggested actions:\n"
+                       << "    - Review scm.L_obukhov (Monin-Obukhov length): " << p.L_obukhov << " m\n"
+                       << "    - Review scm.U_ref (reference wind speed): " << p.U_ref << " m/s\n"
+                       << "    - Review scm.z_ref (reference height): " << p.z_ref << " m\n"
+                       << "    - Review scm.z0 (roughness length): " << p.z0 << " m\n"
+                       << "=====================================================================\n";
+    }
+    
+    // Scale geostrophic wind by pre-correction factor
+    G_geo = G_geo * alpha_pred;
+
     // Wind direction: meteorological convention (from North, clockwise)
     // dir_ref = 270 deg means wind blows from west (positive u, zero v in standard coords)
     // Standard math angle from East CCW: math_angle = 270 - dir_ref
@@ -445,6 +528,7 @@ inline SCMProfiles run_scm(const SCMParams& p)
                    << " K, G = " << G_geo
                    << " m/s, f = " << f_cor << " rad/s\n";
     amrex::Print() << "wind_solver: SCM - ug = " << ug << " m/s, vg = " << vg << " m/s\n";
+    amrex::Print() << "wind_solver: SCM - pre-correction factor alpha_pred = " << alpha_pred << "\n";
 
     // ------------------------------------------------------------------
     // 5. Initial profiles
@@ -740,6 +824,83 @@ inline SCMProfiles run_scm(const SCMParams& p)
     out.Km     = Km;
     out.Kh     = Kh;
 
+    // ------------------------------------------------------------------
+    // STEPS 3 & 4: Post-spin-up rescaling of converged profiles
+    // --
+    // Interpolate u and v to z_ref, compute actual speed, and compute residual
+    // correction factor alpha. Clamp alpha to [0.5, 2.0] and print diagnostics.
+    // Apply alpha uniformly to u,v; scale tke by alpha^2; scale Km,Kh by alpha.
+    // Leave theta untouched.
+    // ------------------------------------------------------------------
+    {
+        // Interpolate u and v to z_ref
+        amrex::Real u_at_zref = interp_scm(z, u, p.z_ref);
+        amrex::Real v_at_zref = interp_scm(z, v, p.z_ref);
+        
+        // Compute actual speed at z_ref
+        amrex::Real speed_at_zref = std::sqrt(u_at_zref * u_at_zref + v_at_zref * v_at_zref);
+        
+        // Avoid division by zero
+        if (speed_at_zref < amrex::Real(1.0e-6)) speed_at_zref = amrex::Real(1.0e-6);
+        
+        // Residual correction factor
+        amrex::Real alpha = p.U_ref / speed_at_zref;
+        
+        // Step 4: Hard clamp alpha to [0.5, 2.0]
+        const amrex::Real alpha_min = amrex::Real(0.5);
+        const amrex::Real alpha_max = amrex::Real(2.0);
+        bool alpha_clamped = false;
+        
+        if (alpha < alpha_min) {
+            amrex::Print() << "========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========\n"
+                           << "  Computed post-correction factor alpha = " << alpha << " (clamping to " << alpha_min << ")\n"
+                           << "  This may indicate severe incompatibility between the input parameters.\n"
+                           << "  Results may NOT satisfy U_ref at z_ref.\n"
+                           << "  Parameters to review:\n"
+                           << "    - scm.L_obukhov (Monin-Obukhov length): " << p.L_obukhov << " m\n"
+                           << "    - scm.U_ref (reference wind speed): " << p.U_ref << " m/s\n"
+                           << "    - scm.z_ref (reference height): " << p.z_ref << " m\n"
+                           << "    - scm.z0 (roughness length): " << p.z0 << " m\n"
+                           << "====================================================================\n";
+            alpha = alpha_min;
+            alpha_clamped = true;
+        } else if (alpha > alpha_max) {
+            amrex::Print() << "========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========\n"
+                           << "  Computed post-correction factor alpha = " << alpha << " (clamping to " << alpha_max << ")\n"
+                           << "  This may indicate severe incompatibility between the input parameters.\n"
+                           << "  Results may NOT satisfy U_ref at z_ref.\n"
+                           << "  Parameters to review:\n"
+                           << "    - scm.L_obukhov (Monin-Obukhov length): " << p.L_obukhov << " m\n"
+                           << "    - scm.U_ref (reference wind speed): " << p.U_ref << " m/s\n"
+                           << "    - scm.z_ref (reference height): " << p.z_ref << " m\n"
+                           << "    - scm.z0 (roughness length): " << p.z0 << " m\n"
+                           << "====================================================================\n";
+            alpha = alpha_max;
+            alpha_clamped = true;
+        }
+        
+        // Step 3: Apply rescaling to profiles
+        for (int k = 0; k < N; ++k) {
+            out.u[k]  = out.u[k] * alpha;
+            out.v[k]  = out.v[k] * alpha;
+            out.tke[k] = out.tke[k] * alpha * alpha;  // TKE scales with alpha^2
+            out.Km[k] = out.Km[k] * alpha;            // Km scales with alpha
+            out.Kh[k] = out.Kh[k] * alpha;            // Kh scales with alpha
+            // out.theta[k] left untouched
+        }
+        
+        // Print diagnostic line (compute actual speed after rescaling)
+        amrex::Real u_after = u_at_zref * alpha;
+        amrex::Real v_after = v_at_zref * alpha;
+        amrex::Real speed_after = std::sqrt(u_after * u_after + v_after * v_after);
+        amrex::Print() << "wind_solver: SCM post-spin-up rescaling: U_before = " << speed_at_zref
+                       << " m/s, U_after = " << speed_after << " m/s, alpha = " << alpha;
+        if (alpha_clamped) {
+            amrex::Print() << " (CLAMPED)";
+        }
+        amrex::Print() << "\n";
+    }
+
     return out;
 }
 
@@ -747,25 +908,6 @@ inline SCMProfiles run_scm(const SCMParams& p)
 // Interpolate a 1D SCM profile to a target height z_agl
 // using linear interpolation.  Clamps to boundary values outside the range.
 // ============================================================================
-inline amrex::Real interp_scm(const std::vector<amrex::Real>& z_scm,
-                                const std::vector<amrex::Real>& f_scm,
-                                amrex::Real z_target) noexcept
-{
-    const int N = static_cast<int>(z_scm.size());
-    if (N == 0) return amrex::Real(0.0);
-    if (z_target <= z_scm[0])     return f_scm[0];
-    if (z_target >= z_scm[N-1])   return f_scm[N-1];
-
-    // Binary search for bracket
-    int lo = 0, hi = N - 1;
-    while (hi - lo > 1) {
-        int mid = (lo + hi) / 2;
-        if (z_scm[mid] <= z_target) lo = mid;
-        else                         hi = mid;
-    }
-    amrex::Real w = (z_target - z_scm[lo]) / (z_scm[hi] - z_scm[lo]);
-    return (amrex::Real(1.0) - w) * f_scm[lo] + w * f_scm[hi];
-}
 
 } // namespace SCMSolver
 
