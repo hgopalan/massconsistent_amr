@@ -407,11 +407,6 @@ inline amrex::Real interp_scm(const std::vector<amrex::Real>& z_scm,
 }
 
 // ============================================================================
-// Forward declaration: linear interpolation helper
-// ============================================================================
-// (Already defined above as interp_scm)
-
-// ============================================================================
 // Main SCM run function
 //
 // Integrates the PALM-style 1D equations in pseudo-time until the profiles
@@ -461,12 +456,30 @@ inline SCMProfiles run_scm(const SCMParams& p)
     // If alpha_pred deviates by >30% from 1.0, warn the user before spin-up.
     // ------------------------------------------------------------------
     const amrex::Real z_first_cell = amrex::Real(2.0);  // dz/2 where dz=4 m
+    
+    // Warn if z0 is too large for the grid resolution
+    if (p.z0 >= z_first_cell) {
+        amrex::Print() << "========== WARNING: SCM ROUGHNESS LENGTH TOO LARGE ==========\n"
+                       << "  Aerodynamic roughness z0 = " << p.z0 << " m\n"
+                       << "  is >= first SCM cell height = " << z_first_cell << " m\n"
+                       << "  This may violate MOST assumptions and give inaccurate results.\n"
+                       << "  Consider reducing scm.z0 or using a coarser velocity grid.\n"
+                       << "========================================================\n";
+    }
+    
     amrex::Real psi_m_first = amrex::Real(0.0);
     if (std::abs(p.L_obukhov) > amrex::Real(1.0e-3)) {
         psi_m_first = psi_m(z_first_cell / p.L_obukhov, false);
     }
     amrex::Real log_arg_first = std::log(z_first_cell / p.z0);
-    if (log_arg_first < amrex::Real(0.0)) log_arg_first = amrex::Real(0.0);
+    if (log_arg_first < amrex::Real(0.0)) {
+        log_arg_first = amrex::Real(0.0);
+        amrex::Print() << "========== WARNING: SCM LOG-LAW ARGUMENT CLAMPED ==========\n"
+                       << "  log(z_first_cell / z0) = log(" << z_first_cell << " / " << p.z0 << ") < 0\n"
+                       << "  Clamping to 0. This indicates z0 is too large relative to grid height.\n"
+                       << "  Consider reviewing scm.z0 and grid resolution.\n"
+                       << "========================================================\n";
+    }
     amrex::Real U_sfc_pred = (ustar / kappa) * std::max(amrex::Real(0.0), log_arg_first - psi_m_first);
     
     // Avoid division by zero
@@ -876,8 +889,10 @@ inline SCMProfiles run_scm(const SCMParams& p)
             // out.theta[k] left untouched
         }
         
-        // Print diagnostic line
-        amrex::Real speed_after = p.U_ref;  // By definition, after rescaling at z_ref
+        // Print diagnostic line (compute actual speed after rescaling)
+        amrex::Real u_after = u_at_zref * alpha;
+        amrex::Real v_after = v_at_zref * alpha;
+        amrex::Real speed_after = std::sqrt(u_after * u_after + v_after * v_after);
         amrex::Print() << "wind_solver: SCM post-spin-up rescaling: U_before = " << speed_at_zref
                        << " m/s, U_after = " << speed_after << " m/s, alpha = " << alpha;
         if (alpha_clamped) {
