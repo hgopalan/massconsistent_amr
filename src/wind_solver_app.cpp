@@ -36,6 +36,7 @@
 #include "wind_interpolation.H"
 #include "numerical_derivatives.H"
 #include "roughness_transitions.H"
+#include "scm_solver.H"
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -133,9 +134,10 @@ void WindSolverApp::parse_inputs() {
 
     if (init_mode != "loglaw" && init_mode != "uniform" && init_mode != "raws" &&
         init_mode != "surface_data" && init_mode != "powerlaw" && init_mode != "windfield" &&
-        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral" && init_mode != "sounding") {
+        init_mode != "deaves_harris" && init_mode != "powerlaw_above_bl" && init_mode != "ekman_spiral" && init_mode != "sounding" &&
+        init_mode != "scm") {
         amrex::Abort("wind_solver: invalid init_mode: " + init_mode + 
-                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', 'ekman_spiral', or 'sounding')");
+                     " (must be 'loglaw', 'uniform', 'raws', 'surface_data', 'powerlaw', 'windfield', 'deaves_harris', 'powerlaw_above_bl', 'ekman_spiral', 'sounding', or 'scm')");
     }
 
     pp.query("U_ref", U_ref);
@@ -349,6 +351,40 @@ void WindSolverApp::parse_inputs() {
     }
     pp.query("sounding_vertical_interp", sounding_vertical_interp);
     pp.query("sounding_wind_in_knots", sounding_wind_in_knots);
+
+    // Single Column Model (SCM) parameters — used when init_mode = "scm"
+    // Follows the PALM 1D model formulation (Maronga et al. 2015, Geosci. Model Dev.)
+    // All parameters are read from the "scm." prefix namespace.
+    {
+        ParmParse pp_scm("scm");
+        // Use global U_ref/z_ref/z0 as defaults so they do not need to be duplicated
+        scm_params.U_ref      = std::sqrt(U_ref * U_ref + V_ref * V_ref);
+        scm_params.dir_ref    = amrex::Real(270.0);
+        scm_params.z_ref      = z_ref;
+        scm_params.z0         = z0;
+        scm_params.L_obukhov  = amrex::Real(1.0e6);
+        scm_params.latitude   = amrex::Real(45.0);
+        scm_params.T_ref      = amrex::Real(300.0);
+        scm_params.z_T_ref    = amrex::Real(2.0);
+        scm_params.lapse_rate = amrex::Real(0.003);
+        scm_params.dt         = amrex::Real(60.0);
+        scm_params.max_time   = amrex::Real(172800.0);
+        scm_params.conv_tol   = amrex::Real(1.0e-5);
+        scm_params.min_time   = amrex::Real(86400.0);
+        pp_scm.query("U_ref",      scm_params.U_ref);
+        pp_scm.query("dir_ref",    scm_params.dir_ref);
+        pp_scm.query("z_ref",      scm_params.z_ref);
+        pp_scm.query("z0",         scm_params.z0);
+        pp_scm.query("L_obukhov",  scm_params.L_obukhov);
+        pp_scm.query("latitude",   scm_params.latitude);
+        pp_scm.query("T_ref",      scm_params.T_ref);
+        pp_scm.query("z_T_ref",    scm_params.z_T_ref);
+        pp_scm.query("lapse_rate", scm_params.lapse_rate);
+        pp_scm.query("dt",         scm_params.dt);
+        pp_scm.query("max_time",   scm_params.max_time);
+        pp_scm.query("conv_tol",   scm_params.conv_tol);
+        pp_scm.query("min_time",   scm_params.min_time);
+    }
 
     // Surface data mode parameters (for HRRR-style initialization)
     pp.query("surface_data_file", surface_data_file);
@@ -4066,6 +4102,82 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 }
             });
         }
+
+    } else if (init_mode == "scm") {
+        // -----------------------------------------------------------------------
+        // Single Column Model (SCM) initialization
+        // Integrates PALM-style 1D E-l equations to steady state, then
+        // interpolates the resulting profiles onto the 3D MultiFab terrain-aware.
+        //
+        // References:
+        //   Deardorff (1980), Maronga et al. (2015), Blackadar (1962),
+        //   Businger et al. (1971), Zilitinkevich (1972), Clarke & Hess (1974)
+        // Date: 2026-07-01
+        // -----------------------------------------------------------------------
+        amrex::Print() << "wind_solver: running Single Column Model (PALM 1D approach)\n";
+        amrex::Print() << "wind_solver: SCM parameters:\n"
+                       << "  U_ref = " << scm_params.U_ref << " m/s, dir_ref = " << scm_params.dir_ref << " deg\n"
+                       << "  z_ref = " << scm_params.z_ref << " m, z0 = " << scm_params.z0 << " m\n"
+                       << "  L_obukhov = " << scm_params.L_obukhov << " m, latitude = " << scm_params.latitude << " deg\n"
+                       << "  T_ref = " << scm_params.T_ref << " K at z_T_ref = " << scm_params.z_T_ref << " m\n"
+                       << "  dt = " << scm_params.dt << " s, max_time = " << scm_params.max_time << " s\n";
+
+        // Run the SCM and cache the resulting 1D profiles
+        scm_profiles = SCMSolver::run_scm(scm_params);
+        scm_profiles_valid = true;
+
+        // Copy the 1D profiles to GPU device vectors for the terrain-aware assignment kernel.
+        // The SCM column has uniform spacing: z[k] = (k + 0.5) * scm_dz.
+        const int   scm_N   = scm_profiles.N;
+        const Real  scm_dz  = scm_profiles.dz;
+
+        Gpu::DeviceVector<Real> d_scm_u  (scm_N);
+        Gpu::DeviceVector<Real> d_scm_v  (scm_N);
+        Gpu::DeviceVector<Real> d_scm_tke(scm_N);
+
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, scm_profiles.u.begin(),   scm_profiles.u.end(),   d_scm_u.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, scm_profiles.v.begin(),   scm_profiles.v.end(),   d_scm_v.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, scm_profiles.tke.begin(), scm_profiles.tke.end(), d_scm_tke.begin());
+
+        const Real* scm_u_ptr   = d_scm_u.data();
+        const Real* scm_v_ptr   = d_scm_v.data();
+        const int   scm_N_cap   = scm_N;
+        const Real  scm_dz_cap  = scm_dz;
+
+        // Terrain-aware assignment: for each (i,j,k) cell, compute height above
+        // local terrain and linearly interpolate the SCM 1D profile.
+        for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = vel0_ptr->array(mfi);
+
+            amrex::ParallelFor(bx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real z_physical = z_lo_cap + (k + Real(0.5)) * dz_cap;
+                Real z_agl      = z_physical - d_terr_ptr[j * nx_cap + i];
+
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    // Uniform-grid linear interpolation on the SCM column.
+                    // SCM cell centres: z[m] = (m + 0.5) * scm_dz
+                    // Invert: fractional index k_f = z_agl / scm_dz - 0.5
+                    Real k_f = z_agl / scm_dz_cap - Real(0.5);
+                    int  k_lo = static_cast<int>(k_f);
+                    k_lo = (k_lo < 0) ? 0 : ((k_lo > scm_N_cap - 2) ? scm_N_cap - 2 : k_lo);
+                    Real w   = k_f - static_cast<Real>(k_lo);
+                    w = (w < Real(0.0)) ? Real(0.0) : ((w > Real(1.0)) ? Real(1.0) : w);
+
+                    vel(i, j, k, 0) = (Real(1.0) - w) * scm_u_ptr[k_lo] + w * scm_u_ptr[k_lo + 1];
+                    vel(i, j, k, 1) = (Real(1.0) - w) * scm_v_ptr[k_lo] + w * scm_v_ptr[k_lo + 1];
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+
+        amrex::Print() << "wind_solver: SCM profiles assigned to 3D MultiFab (terrain-aware)\n";
 
     }
 

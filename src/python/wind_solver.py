@@ -135,6 +135,139 @@ class WindSolver:
         
         return True
     
+    @classmethod
+    def from_scm(cls, terrain_file, U_ref=10.0, dir_ref=270.0, z_ref=10.0,
+                 L_obukhov=1.0e6, latitude=45.0, z0=0.1,
+                 T_ref=300.0, z_T_ref=2.0, lapse_rate=0.003,
+                 dt=60.0, max_time=172800.0, conv_tol=1.0e-5,
+                 nx=10, ny=10, nz=80, dx=50.0, dy=50.0, dz=50.0,
+                 extra_params=None):
+        """
+        Factory classmethod: initialise the solver using the Single Column Model (SCM).
+
+        The SCM integrates PALM-style 1D E-l closure equations to pseudo-steady state
+        (Maronga et al. 2015, *Geosci. Model Dev.*) and then interpolates the resulting
+        profiles onto the 3D MultiFab in a terrain-aware manner.
+
+        Parameters
+        ----------
+        terrain_file : str
+            Path to the terrain CSV file (required by the solver).
+        U_ref : float
+            Reference wind speed [m/s].  Default 10.0.
+        dir_ref : float
+            Meteorological wind direction from North [deg]; 270 = westerly.
+            Default 270.0.
+        z_ref : float
+            Reference height for U_ref [m].  Default 10.0.
+        L_obukhov : float
+            Monin–Obukhov length [m]; positive = stable, negative = unstable,
+            large positive = near-neutral.  Default 1e6 (neutral).
+        latitude : float
+            Latitude [degrees].  Used to compute the Coriolis parameter.
+            Default 45.0.
+        z0 : float
+            Aerodynamic roughness length [m].  Default 0.1.
+        T_ref : float
+            Reference potential temperature [K].  Default 300.0.
+        z_T_ref : float
+            Height at which T_ref is measured [m].  Default 2.0.
+        lapse_rate : float
+            Free-troposphere lapse rate [K/m] applied above the SCM column.
+            Default 0.003.
+        dt : float
+            SCM time step [s].  Default 60.
+        max_time : float
+            Maximum SCM spin-up time [s].  Default 172800 (48 h).
+        conv_tol : float
+            Convergence tolerance (relative L2 norm change).  Default 1e-5.
+        nx, ny, nz : int
+            3D grid dimensions.  Defaults 10 × 10 × 80.
+        dx, dy, dz : float
+            3D grid spacings [m].  Defaults 50 × 50 × 50 m.
+        extra_params : dict, optional
+            Additional key-value pairs to write to the temporary inputs file
+            (e.g., ``{'mlmg_verbose': 0}``).
+
+        Returns
+        -------
+        WindSolver
+            Initialised (but not yet solved) WindSolver instance.
+        """
+        import tempfile
+
+        lines = [
+            "# Auto-generated inputs file for SCM initialization",
+            f"terrain_file       = {terrain_file}",
+            f"init_mode          = scm",
+            f"nx                 = {nx}",
+            f"ny                 = {ny}",
+            f"nz                 = {nz}",
+            f"dx                 = {dx}",
+            f"dy                 = {dy}",
+            f"dz                 = {dz}",
+            f"scm.U_ref          = {U_ref}",
+            f"scm.dir_ref        = {dir_ref}",
+            f"scm.z_ref          = {z_ref}",
+            f"scm.z0             = {z0}",
+            f"scm.L_obukhov      = {L_obukhov}",
+            f"scm.latitude       = {latitude}",
+            f"scm.T_ref          = {T_ref}",
+            f"scm.z_T_ref        = {z_T_ref}",
+            f"scm.lapse_rate     = {lapse_rate}",
+            f"scm.dt             = {dt}",
+            f"scm.max_time       = {max_time}",
+            f"scm.conv_tol       = {conv_tol}",
+        ]
+        if extra_params:
+            for k, v in extra_params.items():
+                lines.append(f"{k} = {v}")
+
+        # Write to a named temporary file so AMReX ParmParse can read it
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.i',
+                                         delete=False, prefix='scm_') as fh:
+            fh.write('\n'.join(lines) + '\n')
+            tmp_path = fh.name
+
+        obj = cls()
+        try:
+            obj.initialize(tmp_path)
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        return obj
+
+    def get_scm_profiles(self):
+        """
+        Retrieve the 1D SCM column profiles produced during initialization.
+
+        Only available when the solver was initialized with ``init_mode = "scm"``
+        (or via :meth:`from_scm`).
+
+        Returns
+        -------
+        dict
+            Dictionary with numpy arrays of shape ``(N,)`` where N = 1000:
+
+            - ``z``     : cell-centre heights above ground [m]
+            - ``u``     : eastward wind component [m/s]
+            - ``v``     : northward wind component [m/s]
+            - ``theta`` : potential temperature [K]
+            - ``tke``   : turbulence kinetic energy [m²/s²]
+            - ``Km``    : eddy viscosity [m²/s]
+            - ``Kh``    : thermal diffusivity [m²/s]
+
+        Raises
+        ------
+        RuntimeError
+            If solver not initialized or SCM profiles are not available.
+        """
+        if not self.initialized:
+            raise RuntimeError("Solver not initialized. Call initialize() first.")
+        return pyWindSolver.get_scm_profiles()
+
     def solve(self):
         """
         Solve for the mass-consistent wind field.

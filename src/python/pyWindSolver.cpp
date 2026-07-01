@@ -485,6 +485,45 @@ void wind_solver_clear_heat_source_py()
 }
 
 // ============================================================================
+// SCM profile retrieval Python wrapper
+//
+// Returns a dict with numpy arrays for z, u, v, theta, tke, Km, Kh.
+// Raises RuntimeError if SCM profiles are not available (init_mode != "scm"
+// or solver not initialized).
+//
+// Date: 2026-07-01
+// ============================================================================
+py::dict wind_solver_get_scm_profiles_py()
+{
+    SCMSolver::SCMProfiles prof = wind_solver_get_scm_profiles();
+    const int N = prof.N;
+
+    auto make_array = [&](const std::vector<amrex::Real>& src) {
+        py::array_t<double> arr(N);
+        double* ptr = arr.mutable_data();
+        for (int k = 0; k < N; ++k) ptr[k] = static_cast<double>(src[k]);
+        return arr;
+    };
+
+    // Build height array: z[k] = (k + 0.5) * dz
+    py::array_t<double> z_arr(N);
+    {
+        double* zp = z_arr.mutable_data();
+        for (int k = 0; k < N; ++k) zp[k] = (k + 0.5) * static_cast<double>(prof.dz);
+    }
+
+    py::dict d;
+    d["z"]     = z_arr;
+    d["u"]     = make_array(prof.u);
+    d["v"]     = make_array(prof.v);
+    d["theta"] = make_array(prof.theta);
+    d["tke"]   = make_array(prof.tke);
+    d["Km"]    = make_array(prof.Km);
+    d["Kh"]    = make_array(prof.Kh);
+    return d;
+}
+
+// ============================================================================
 // Module definition
 // ============================================================================
 
@@ -812,5 +851,29 @@ PYBIND11_MODULE(pyWindSolver, m) {
     m.def("clear_heat_source", &wind_solver_clear_heat_source_py,
           R"pbdoc(
         Clear any stored heat source.
+      )pbdoc");
+
+    m.def("get_scm_profiles", &wind_solver_get_scm_profiles_py,
+          R"pbdoc(
+        Retrieve the 1D Single Column Model (SCM) profiles after initialization
+        with ``init_mode = "scm"``.
+
+        Returns
+        -------
+        dict
+            Dictionary with numpy arrays (all of shape ``(N,)`` where N = 1000):
+
+            - ``z``     : cell-centre heights above ground [m]
+            - ``u``     : eastward wind component [m/s]
+            - ``v``     : northward wind component [m/s]
+            - ``theta`` : potential temperature [K]
+            - ``tke``   : turbulence kinetic energy [m²/s²]
+            - ``Km``    : eddy viscosity [m²/s]
+            - ``Kh``    : thermal diffusivity [m²/s]
+
+        Raises
+        ------
+        RuntimeError
+            If the solver has not been initialized with ``init_mode = "scm"``.
       )pbdoc");
 }

@@ -7,6 +7,7 @@
 #include "cell_local_anisotropy.H"
 #include "solver_math_constants.H"
 #include "turbulent_stress.H"
+#include "scm_solver.H"
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
@@ -620,8 +621,42 @@ void parse_inputs(WindSolverState& state, const std::string& inputs_file)
 
     state.init_mode = "loglaw";
     pp.query("init_mode", state.init_mode);
-    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral" && state.init_mode != "sounding" && state.init_mode != "powerlaw") {
+    if (state.init_mode != "loglaw" && state.init_mode != "uniform" && state.init_mode != "raws" && state.init_mode != "surface_data" && state.init_mode != "ekman_spiral" && state.init_mode != "sounding" && state.init_mode != "powerlaw" && state.init_mode != "scm") {
         throw std::runtime_error("invalid init_mode: " + state.init_mode);
+    }
+
+    // Single Column Model (SCM) parameters — read from "scm." prefix namespace.
+    // Only used when init_mode = "scm".  Defaults match SCMParams defaults.
+    {
+        ParmParse pp_scm("scm");
+        amrex::Real spd = std::sqrt(state.U_ref * state.U_ref + state.V_ref * state.V_ref);
+        state.scm_params.U_ref      = (spd > Real(1.0e-10)) ? spd : Real(10.0);
+        state.scm_params.dir_ref    = Real(270.0);
+        state.scm_params.z_ref      = state.z_ref;
+        state.scm_params.z0         = state.z0;
+        state.scm_params.L_obukhov  = Real(1.0e6);
+        state.scm_params.latitude   = Real(45.0);
+        state.scm_params.T_ref      = Real(300.0);
+        state.scm_params.z_T_ref    = Real(2.0);
+        state.scm_params.lapse_rate = Real(0.003);
+        state.scm_params.dt         = Real(60.0);
+        state.scm_params.max_time   = Real(172800.0);
+        state.scm_params.conv_tol   = Real(1.0e-5);
+        state.scm_params.min_time   = Real(86400.0);
+        pp_scm.query("U_ref",      state.scm_params.U_ref);
+        pp_scm.query("dir_ref",    state.scm_params.dir_ref);
+        pp_scm.query("z_ref",      state.scm_params.z_ref);
+        pp_scm.query("z0",         state.scm_params.z0);
+        pp_scm.query("L_obukhov",  state.scm_params.L_obukhov);
+        pp_scm.query("latitude",   state.scm_params.latitude);
+        pp_scm.query("T_ref",      state.scm_params.T_ref);
+        pp_scm.query("z_T_ref",    state.scm_params.z_T_ref);
+        pp_scm.query("lapse_rate", state.scm_params.lapse_rate);
+        pp_scm.query("dt",         state.scm_params.dt);
+        pp_scm.query("max_time",   state.scm_params.max_time);
+        pp_scm.query("conv_tol",   state.scm_params.conv_tol);
+        pp_scm.query("min_time",   state.scm_params.min_time);
+        state.scm_profiles_valid = false;
     }
 
     state.powerlaw_exponent = 0.15;
@@ -1476,6 +1511,65 @@ void initialize_wind_field(WindSolverState& state)
                 }
             });
         }
+    } else if (state.init_mode == "scm") {
+        // -----------------------------------------------------------------------
+        // Single Column Model (SCM) initialization via Python/C API path.
+        // Integrates PALM-style 1D E-l equations to steady state, then
+        // interpolates the resulting profiles onto the 3D MultiFab terrain-aware.
+        //
+        // References:
+        //   Deardorff (1980), Maronga et al. (2015), Blackadar (1962),
+        //   Businger et al. (1971), Zilitinkevich (1972), Clarke & Hess (1974)
+        // Date: 2026-07-01
+        // -----------------------------------------------------------------------
+        amrex::Print() << "wind_solver (API): running Single Column Model (PALM 1D approach)\n";
+
+        // Run the SCM and cache the resulting profiles
+        state.scm_profiles       = SCMSolver::run_scm(state.scm_params);
+        state.scm_profiles_valid = true;
+
+        const int   scm_N  = state.scm_profiles.N;
+        const Real  scm_dz = state.scm_profiles.dz;
+
+        Gpu::DeviceVector<Real> d_scm_u  (scm_N);
+        Gpu::DeviceVector<Real> d_scm_v  (scm_N);
+
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                         state.scm_profiles.u.begin(), state.scm_profiles.u.end(), d_scm_u.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                         state.scm_profiles.v.begin(), state.scm_profiles.v.end(), d_scm_v.begin());
+
+        const Real* scm_u_ptr  = d_scm_u.data();
+        const Real* scm_v_ptr  = d_scm_v.data();
+        const int   scm_N_cap  = scm_N;
+        const Real  scm_dz_cap = scm_dz;
+
+        for (MFIter mfi(*state.vel0); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto vel = state.vel0->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real z_phys = z_lo + (k + Real(0.5)) * dz;
+                const Real z_agl  = z_phys - terrain_ptr[j * nx + i];
+                if (z_agl <= Real(0.0)) {
+                    vel(i, j, k, 0) = Real(0.0);
+                    vel(i, j, k, 1) = Real(0.0);
+                    vel(i, j, k, 2) = Real(0.0);
+                } else {
+                    // Uniform-grid linear interpolation on SCM column
+                    // SCM cell centres: z[m] = (m + 0.5) * scm_dz
+                    Real k_f = z_agl / scm_dz_cap - Real(0.5);
+                    int  k_lo = static_cast<int>(k_f);
+                    k_lo = (k_lo < 0) ? 0 : ((k_lo > scm_N_cap - 2) ? scm_N_cap - 2 : k_lo);
+                    Real w = k_f - static_cast<Real>(k_lo);
+                    w = (w < Real(0.0)) ? Real(0.0) : ((w > Real(1.0)) ? Real(1.0) : w);
+
+                    vel(i, j, k, 0) = (Real(1.0) - w) * scm_u_ptr[k_lo] + w * scm_u_ptr[k_lo + 1];
+                    vel(i, j, k, 1) = (Real(1.0) - w) * scm_v_ptr[k_lo] + w * scm_v_ptr[k_lo + 1];
+                    vel(i, j, k, 2) = Real(0.0);
+                }
+            });
+        }
+        amrex::Print() << "wind_solver (API): SCM profiles assigned to 3D MultiFab\n";
     } else {
         std::vector<Real> x_vel, y_vel, z_vel, ux_vel, uy_vel;
         if (state.velocity_file.size() > 4 && state.velocity_file.substr(state.velocity_file.find_last_of(".") + 1) == "csv") {
@@ -3167,4 +3261,25 @@ std::pair<std::vector<double>, bool> wind_solver_get_heat_source()
     }
     
     return std::make_pair(heat_flux_data, is_active);
+}
+
+
+// Retrieve the cached SCM 1D column profiles.
+// Returns an SCMProfiles struct with the wind, temperature, and turbulence profiles
+// produced by the last run_scm() call.  Throws std::runtime_error if the SCM has not
+// been run (i.e., init_mode != "scm" or solver not yet initialized).
+//
+// Date: 2026-07-01
+SCMSolver::SCMProfiles wind_solver_get_scm_profiles()
+{
+    if (!g_wind_solver_state) {
+        throw std::runtime_error("wind_solver_get_scm_profiles: solver not initialized");
+    }
+    WindSolverState& state = *g_wind_solver_state;
+    if (!state.scm_profiles_valid) {
+        throw std::runtime_error(
+            "wind_solver_get_scm_profiles: SCM profiles not available "
+            "(init_mode must be 'scm' and wind_solver_initialize must have been called)");
+    }
+    return state.scm_profiles;
 }
