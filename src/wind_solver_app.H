@@ -273,6 +273,14 @@ private:
     amrex::Real solar_radiation = 400.0;
     bool is_nighttime = false;
     amrex::Real cloud_cover = 0.5;
+    
+    // MOST surface layer boundary conditions
+    bool enable_most_surface_bc = false;
+    std::string L_obukhov_file = "";
+    std::string sensible_heat_flux_file = "";
+    bool use_L_obukhov_file = false;
+    bool use_sensible_heat_flux_file = false;
+    bool enable_most_temp_correction = false;
 
     // Atmospheric Inversion Capping Lid
     bool enable_capping_lid = false;
@@ -750,6 +758,11 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_landuse_pos;
     amrex::Gpu::DeviceVector<amrex::Real> d_canopy_height;
     amrex::Gpu::DeviceVector<amrex::Real> d_frontal_area_index;
+    
+    // 2D MOST surface layer parameters
+    amrex::Gpu::DeviceVector<amrex::Real> d_L_obukhov;           // Obukhov length [m]
+    amrex::Gpu::DeviceVector<amrex::Real> d_sensible_heat_flux;  // Sensible heat flux [W/m^2]
+    amrex::Gpu::DeviceVector<amrex::Real> d_ustar_field;         // Friction velocity [m/s]
     
     // Morphometric models
     std::vector<amrex::Real> morphometric_d;

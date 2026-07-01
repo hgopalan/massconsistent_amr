@@ -31,6 +31,7 @@
 #include "temporal_synthesis.H"
 #include "turbsim_bts_export.H"
 #include "turbulence_validation.H"
+#include "surface_boundary_conditions.H"
 
 #include "wind_io_helpers.H"
 #include "wind_interpolation.H"
@@ -423,6 +424,30 @@ void WindSolverApp::parse_inputs() {
         PGStabilityClass pg_class = pasquill_gifford_class(speed_ref, solar_radiation, is_nighttime, cloud_cover);
         stability_length = pg_class_to_obukhov_length(pg_class);
         enable_stability_correction = true;
+    }
+
+    // MOST Surface Layer Boundary Conditions
+    pp.query("enable_most_surface_bc", enable_most_surface_bc);
+    pp.query("L_obukhov_file", L_obukhov_file);
+    pp.query("sensible_heat_flux_file", sensible_heat_flux_file);
+    pp.query("enable_most_temp_correction", enable_most_temp_correction);
+    
+    if (!L_obukhov_file.empty()) {
+        use_L_obukhov_file = true;
+        enable_most_surface_bc = true;
+        amrex::Print() << "wind_solver: Will read 2D Obukhov length from file: " << L_obukhov_file << "\n";
+    }
+    if (!sensible_heat_flux_file.empty()) {
+        use_sensible_heat_flux_file = true;
+        enable_most_surface_bc = true;
+        amrex::Print() << "wind_solver: Will read 2D sensible heat flux from file: " << sensible_heat_flux_file << "\n";
+    }
+    
+    if (enable_most_surface_bc) {
+        amrex::Print() << "wind_solver: Enabled MOST surface layer boundary conditions\n";
+        if (enable_most_temp_correction) {
+            amrex::Print() << "wind_solver: Will apply MOST temperature correction at first cell above terrain\n";
+        }
     }
 
     // Atmospheric Inversion Capping Lid
@@ -1992,6 +2017,38 @@ void WindSolverApp::allocate_data_fields() {
     d_morphometric_z0.resize(morphometric_z0.size());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, morphometric_z0.begin(), morphometric_z0.end(), d_morphometric_z0.begin());
 
+    // Initialize 2D MOST surface layer parameters
+    const std::size_t grid_size_most = static_cast<std::size_t>(nx) * ny;
+    if (enable_most_surface_bc) {
+        amrex::Print() << "wind_solver: initializing 2D MOST surface layer parameters...\n";
+        
+        // Initialize Obukhov length array
+        std::vector<Real> L_obukhov_h(grid_size_most, stability_length);
+        if (use_L_obukhov_file) {
+            // TODO: implement file reading for L_obukhov
+            // For now, use uniform value from stability_length
+            amrex::Print() << "wind_solver: L_obukhov_file reading not yet implemented, using stability_length: " 
+                          << stability_length << " m\n";
+        }
+        d_L_obukhov.resize(L_obukhov_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, L_obukhov_h.begin(), L_obukhov_h.end(), d_L_obukhov.begin());
+        
+        // Initialize sensible heat flux array
+        std::vector<Real> shf_h(grid_size_most, surface_sensible_heat_flux);
+        if (use_sensible_heat_flux_file) {
+            // TODO: implement file reading for sensible heat flux
+            amrex::Print() << "wind_solver: sensible_heat_flux_file reading not yet implemented, using surface_sensible_heat_flux: " 
+                          << surface_sensible_heat_flux << " W/m^2\n";
+        }
+        d_sensible_heat_flux.resize(shf_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, shf_h.begin(), shf_h.end(), d_sensible_heat_flux.begin());
+        
+        // Initialize friction velocity array (will be computed during wind field initialization)
+        std::vector<Real> ustar_h(grid_size_most, 0.1);  // Default value
+        d_ustar_field.resize(ustar_h.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, ustar_h.begin(), ustar_h.end(), d_ustar_field.begin());
+    }
+
     vel0_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 3, 1);
     vel_c_ptr = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 3, 0);
     lam_ptr  = std::make_unique<MultiFab>(*ba_ptr, *dm_ptr, 1, 1);
@@ -3266,6 +3323,87 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                     vel(i, j, k, 2) = w_vel;
                 }
             });
+        }
+        
+        // Apply MOST surface layer boundary conditions (must be after wind profile initialization)
+        if (enable_most_surface_bc) {
+            amrex::Print() << "wind_solver: applying MOST surface layer boundary conditions at first cell above terrain\n";
+            
+            const Real z_lo_cap = zs_min;
+            const Real dz_cap = dz;
+            const int nx_cap = nx;
+            const Box domain = geom_ptr->Domain();
+            const IntVect glo = domain.smallEnd();
+            const IntVect ghi = domain.bigEnd();
+            const int ilo = glo[0], ihi = ghi[0];
+            const int jlo = glo[1], jhi = ghi[1];
+            const int klo = glo[2], khi = ghi[2];
+            
+            const Real* d_terr_ptr = d_terrain_h.data();
+            const Real* d_z0_ptr = d_z0_pos.data();
+            const Real* d_L_ob_ptr = d_L_obukhov.data();
+            const Real* d_ustar_ptr = d_ustar_field.data();
+            const Real U_ref_cap = U_ref;
+            const Real V_ref_cap = V_ref;
+            const Real z_ref_cap = z_ref;
+            const Real ustar_cap = ustar;
+            const Real kappa_cap = kappa;
+            
+            for (MFIter mfi(*vel0_ptr); mfi.isValid(); ++mfi) {
+                auto vel = vel0_ptr->array(mfi);
+                
+                apply_most_wind_correction_at_first_cell(
+                    vel,
+                    d_terr_ptr,
+                    d_z0_ptr,
+                    d_L_ob_ptr,
+                    U_ref_cap,
+                    V_ref_cap,
+                    z_ref_cap,
+                    ustar_cap,
+                    kappa_cap,
+                    z_lo_cap,
+                    dz_cap,
+                    nx_cap,
+                    ilo, ihi,
+                    jlo, jhi,
+                    klo, khi
+                );
+            }
+            
+            // Apply temperature correction if enabled
+            if (enable_most_temp_correction && temp_ptr) {
+                amrex::Print() << "wind_solver: applying MOST temperature correction at first cell above terrain\n";
+                
+                const Real* d_shf_ptr = d_sensible_heat_flux.data();
+                const Real T_ref_cap = temperature_reference;
+                const Real rho_air_cap = FluxConstants::rho_air;
+                const Real cp_air_cap = FluxConstants::cp_air;
+                
+                for (MFIter mfi(*temp_ptr); mfi.isValid(); ++mfi) {
+                    auto temp = temp_ptr->array(mfi);
+                    
+                    apply_most_temperature_correction_at_first_cell(
+                        temp,
+                        d_terr_ptr,
+                        d_z0_ptr,
+                        d_L_ob_ptr,
+                        d_shf_ptr,
+                        d_ustar_ptr,
+                        T_ref_cap,
+                        z_ref_cap,
+                        kappa_cap,
+                        z_lo_cap,
+                        dz_cap,
+                        rho_air_cap,
+                        cp_air_cap,
+                        nx_cap,
+                        ilo, ihi,
+                        jlo, jhi,
+                        klo, khi
+                    );
+                }
+            }
         }
     } else if (init_mode == "ekman_spiral") {
         const Real lat = ekman_latitude;
