@@ -81,6 +81,10 @@ struct SCMParams {
     amrex::Real max_time   = amrex::Real(172800.0); ///< Maximum spin-up time [s] (default 48 h)
     amrex::Real conv_tol   = amrex::Real(1.0e-5); ///< Convergence tolerance (relative change in u, v, theta)
     amrex::Real min_time   = amrex::Real(86400.0); ///< Minimum spin-up time before checking convergence [s] (24 h)
+    std::string geo_mode   = "resistancelaw";     ///< Geostrophic wind mode: "resistancelaw" or "predictcorrectgeo"
+    amrex::Real z_hub      = amrex::Real(100.0);  ///< Hub height for predictcorrectgeo mode [m]
+    amrex::Real allowed_error_hub = amrex::Real(0.1); ///< Convergence tolerance at hub height [m/s]
+    int max_geo_iter       = 50;                   ///< Maximum iterations for bisection loop
 };
 
 // ============================================================================
@@ -407,14 +411,23 @@ inline amrex::Real interp_scm(const std::vector<amrex::Real>& z_scm,
 }
 
 // ============================================================================
-// Main SCM run function
+// Internal SCM solver with explicit geostrophic wind (ug, vg)
 //
-// Integrates the PALM-style 1D equations in pseudo-time until the profiles
-// reach quasi-steady state or max_time is reached.
+// This function takes the geostrophic wind components as explicit arguments
+// and executes the 1D time-integration loop to convergence.
+// It performs steps 5-9 of the SCM initialization:
+//   5. Initial profiles
+//   6. Initial mixing length and diffusivities
+//   7. Upper boundary conditions
+//   8. Time integration loop
+//   9. Package output
 //
-// Returns SCMProfiles containing z, u, v, theta, tke, Km, Kh.
+// Used internally by run_scm() for the resistancelaw path and by the
+// bisection loop in predictcorrectgeo mode.
 // ============================================================================
-inline SCMProfiles run_scm(const SCMParams& p)
+inline SCMProfiles run_scm_inner(const SCMParams& p,
+                                  amrex::Real ug,
+                                  amrex::Real vg)
 {
     // ------------------------------------------------------------------
     // 1. Grid setup: N = 1000 levels, dz = 4 m, cell centres at z = 2, 6, ..., 3998 m
@@ -443,92 +456,15 @@ inline SCMProfiles run_scm(const SCMParams& p)
     const amrex::Real wt_s = -ustar * theta_star;
 
     // ------------------------------------------------------------------
-    // 4. Geostrophic wind estimation (resistance law)
+    // 4. Geostrophic wind magnitude (for mixing length; using the passed-in components)
     // ------------------------------------------------------------------
-    amrex::Real G_geo, alpha_geo;
-    compute_geostrophic(ustar, p.z0, f_cor, G_geo, alpha_geo);
-
-    // ------------------------------------------------------------------
-    // STEP 1 & 2: Pre-correction of geostrophic wind
-    // --
-    // Compute predicted wind speed at z = dz/2 (first cell centre at z = 2 m)
-    // using the MOST log-law. Compare against U_ref to compute alpha_pred.
-    // If alpha_pred deviates by >30% from 1.0, warn the user before spin-up.
-    // ------------------------------------------------------------------
-    const amrex::Real z_first_cell = amrex::Real(2.0);  // dz/2 where dz=4 m
-    
-    // Warn if z0 is too large for the grid resolution
-    if (p.z0 >= z_first_cell) {
-        amrex::Print() << "========== WARNING: SCM ROUGHNESS LENGTH TOO LARGE ==========\n"
-                       << "  Aerodynamic roughness z0 = " << p.z0 << " m\n"
-                       << "  is >= first SCM cell height = " << z_first_cell << " m\n"
-                       << "  This may violate MOST assumptions and give inaccurate results.\n"
-                       << "  Consider reducing scm.z0 or using a coarser velocity grid.\n"
-                       << "========================================================\n";
-    }
-    
-    amrex::Real psi_m_first = amrex::Real(0.0);
-    if (std::abs(p.L_obukhov) > amrex::Real(1.0e-3)) {
-        psi_m_first = psi_m(z_first_cell / p.L_obukhov, false);
-    }
-    amrex::Real log_arg_first = std::log(z_first_cell / p.z0);
-    if (log_arg_first < amrex::Real(0.0)) {
-        log_arg_first = amrex::Real(0.0);
-        amrex::Print() << "========== WARNING: SCM LOG-LAW ARGUMENT CLAMPED ==========\n"
-                       << "  log(z_first_cell / z0) = log(" << z_first_cell << " / " << p.z0 << ") < 0\n"
-                       << "  Clamping to 0. This indicates z0 is too large relative to grid height.\n"
-                       << "  Consider reviewing scm.z0 and grid resolution.\n"
-                       << "========================================================\n";
-    }
-    amrex::Real U_sfc_pred = (ustar / kappa) * std::max(amrex::Real(0.0), log_arg_first - psi_m_first);
-    
-    // Avoid division by zero
-    if (U_sfc_pred < amrex::Real(1.0e-6)) U_sfc_pred = amrex::Real(1.0e-6);
-    
-    // Pre-correction factor: scale G_geo so converged profile matches U_ref at z_ref
-    amrex::Real alpha_pred = p.U_ref / U_sfc_pred;
-    
-    // Step 2: Warning if pre-correction factor is too far from 1.0 (±30%)
-    const amrex::Real alpha_warning_min = amrex::Real(0.77);   // 1.0 - 0.30
-    const amrex::Real alpha_warning_max = amrex::Real(1.3);    // 1.0 + 0.30
-    if (alpha_pred < alpha_warning_min || alpha_pred > alpha_warning_max) {
-        amrex::Print() << "========== WARNING: SCM PRE-CORRECTION FACTOR OUT OF BOUNDS ==========\n"
-                       << "  Computed pre-correction factor alpha_pred = " << alpha_pred << "\n"
-                       << "  This indicates the MOST resistance law is inaccurate for the\n"
-                       << "  specified atmospheric stability.\n"
-                       << "  Suggested actions:\n"
-                       << "    - Review scm.L_obukhov (Monin-Obukhov length): " << p.L_obukhov << " m\n"
-                       << "    - Review scm.U_ref (reference wind speed): " << p.U_ref << " m/s\n"
-                       << "    - Review scm.z_ref (reference height): " << p.z_ref << " m\n"
-                       << "    - Review scm.z0 (roughness length): " << p.z0 << " m\n"
-                       << "=====================================================================\n";
-    }
-    
-    // Scale geostrophic wind by pre-correction factor
-    G_geo = G_geo * alpha_pred;
-
-    // Wind direction: meteorological convention (from North, clockwise)
-    // dir_ref = 270 deg means wind blows from west (positive u, zero v in standard coords)
-    // Standard math angle from East CCW: math_angle = 270 - dir_ref
-    // u_ref_dir = cos(270-dir_ref)*U_ref, v_ref_dir = sin(270-dir_ref)*U_ref
-    const amrex::Real deg2rad = MathConstants::pi / amrex::Real(180.0);
-    // Convert met direction to math angle: theta_math = (270 - dir_ref) in deg
-    amrex::Real theta_math = (amrex::Real(270.0) - p.dir_ref) * deg2rad;
-    amrex::Real ref_dir_x  = std::cos(theta_math);  // unit vector, East component
-    amrex::Real ref_dir_y  = std::sin(theta_math);  // unit vector, North component
-
-    // Geostrophic components: G at angle (dir_ref + alpha_geo) from reference direction
-    // alpha_geo rotates geostrophic wind relative to surface wind (veers to the right in NH)
-    amrex::Real geo_angle = theta_math + alpha_geo;
-    amrex::Real ug = G_geo * std::cos(geo_angle);
-    amrex::Real vg = G_geo * std::sin(geo_angle);
+    amrex::Real G_geo = std::sqrt(ug * ug + vg * vg);
 
     amrex::Print() << "wind_solver: SCM - u* = " << ustar
                    << " m/s, theta* = " << theta_star
                    << " K, G = " << G_geo
                    << " m/s, f = " << f_cor << " rad/s\n";
     amrex::Print() << "wind_solver: SCM - ug = " << ug << " m/s, vg = " << vg << " m/s\n";
-    amrex::Print() << "wind_solver: SCM - pre-correction factor alpha_pred = " << alpha_pred << "\n";
 
     // ------------------------------------------------------------------
     // 5. Initial profiles
@@ -540,6 +476,12 @@ inline SCMProfiles run_scm(const SCMParams& p)
 
     // Scalar roughness length
     const amrex::Real z0h = p.z0 * z0h_ratio;
+
+    // Wind direction for initial profile
+    const amrex::Real deg2rad = MathConstants::pi / amrex::Real(180.0);
+    amrex::Real theta_math = (amrex::Real(270.0) - p.dir_ref) * deg2rad;
+    amrex::Real ref_dir_x  = std::cos(theta_math);  // unit vector, East component
+    amrex::Real ref_dir_y  = std::sin(theta_math);  // unit vector, North component
 
     for (int k = 0; k < N; ++k) {
         amrex::Real zk = z[k];
@@ -902,6 +844,201 @@ inline SCMProfiles run_scm(const SCMParams& p)
     }
 
     return out;
+}
+
+// ============================================================================
+// Main SCM run function
+//
+// Dispatches to either the resistancelaw path (single pass through run_scm_inner)
+// or the predictcorrectgeo path (bisection loop to match hub-height wind).
+//
+// Returns SCMProfiles containing z, u, v, theta, tke, Km, Kh.
+// ============================================================================
+inline SCMProfiles run_scm(const SCMParams& p)
+{
+    // ------------------------------------------------------------------
+    // 1. Coriolis parameter (needed for resistance law)
+    // ------------------------------------------------------------------
+    const amrex::Real f_cor = compute_latitude_coriolis_parameter(p.latitude);
+
+    // ------------------------------------------------------------------
+    // 2. Friction velocity from MOST
+    // ------------------------------------------------------------------
+    amrex::Real ustar = compute_ustar(p.U_ref, p.z_ref, p.z0, p.L_obukhov);
+
+    // ------------------------------------------------------------------
+    // 3. Geostrophic wind estimation (resistance law) — initial estimate
+    // ------------------------------------------------------------------
+    amrex::Real G_geo, alpha_geo;
+    compute_geostrophic(ustar, p.z0, f_cor, G_geo, alpha_geo);
+
+    // ------------------------------------------------------------------
+    // 4. Pre-correction of geostrophic wind
+    // Compute predicted wind speed at z = dz/2 using MOST log-law
+    // ------------------------------------------------------------------
+    const amrex::Real z_first_cell = amrex::Real(2.0);  // dz/2 where dz=4 m
+    
+    // Warn if z0 is too large for the grid resolution
+    if (p.z0 >= z_first_cell) {
+        amrex::Print() << "========== WARNING: SCM ROUGHNESS LENGTH TOO LARGE ==========\n"
+                       << "  Aerodynamic roughness z0 = " << p.z0 << " m\n"
+                       << "  is >= first SCM cell height = " << z_first_cell << " m\n"
+                       << "  This may violate MOST assumptions and give inaccurate results.\n"
+                       << "  Consider reducing scm.z0 or using a coarser velocity grid.\n"
+                       << "========================================================\n";
+    }
+    
+    amrex::Real psi_m_first = amrex::Real(0.0);
+    if (std::abs(p.L_obukhov) > amrex::Real(1.0e-3)) {
+        psi_m_first = psi_m(z_first_cell / p.L_obukhov, false);
+    }
+    amrex::Real log_arg_first = std::log(z_first_cell / p.z0);
+    if (log_arg_first < amrex::Real(0.0)) {
+        log_arg_first = amrex::Real(0.0);
+        amrex::Print() << "========== WARNING: SCM LOG-LAW ARGUMENT CLAMPED ==========\n"
+                       << "  log(z_first_cell / z0) = log(" << z_first_cell << " / " << p.z0 << ") < 0\n"
+                       << "  Clamping to 0. This indicates z0 is too large relative to grid height.\n"
+                       << "  Consider reviewing scm.z0 and grid resolution.\n"
+                       << "========================================================\n";
+    }
+    amrex::Real U_sfc_pred = (ustar / kappa) * std::max(amrex::Real(0.0), log_arg_first - psi_m_first);
+    
+    // Avoid division by zero
+    if (U_sfc_pred < amrex::Real(1.0e-6)) U_sfc_pred = amrex::Real(1.0e-6);
+    
+    // Pre-correction factor: scale G_geo so converged profile matches U_ref at z_ref
+    amrex::Real alpha_pred = p.U_ref / U_sfc_pred;
+    
+    // Warning if pre-correction factor is too far from 1.0 (±30%)
+    const amrex::Real alpha_warning_min = amrex::Real(0.77);   // 1.0 - 0.30
+    const amrex::Real alpha_warning_max = amrex::Real(1.3);    // 1.0 + 0.30
+    if (alpha_pred < alpha_warning_min || alpha_pred > alpha_warning_max) {
+        amrex::Print() << "========== WARNING: SCM PRE-CORRECTION FACTOR OUT OF BOUNDS ==========\n"
+                       << "  Computed pre-correction factor alpha_pred = " << alpha_pred << "\n"
+                       << "  This indicates the MOST resistance law is inaccurate for the\n"
+                       << "  specified atmospheric stability.\n"
+                       << "  Suggested actions:\n"
+                       << "    - Review scm.L_obukhov (Monin-Obukhov length): " << p.L_obukhov << " m\n"
+                       << "    - Review scm.U_ref (reference wind speed): " << p.U_ref << " m/s\n"
+                       << "    - Review scm.z_ref (reference height): " << p.z_ref << " m\n"
+                       << "    - Review scm.z0 (roughness length): " << p.z0 << " m\n"
+                       << "=====================================================================\n";
+    }
+    
+    // Scale geostrophic wind by pre-correction factor
+    G_geo = G_geo * alpha_pred;
+
+    // Wind direction: meteorological convention (from North, clockwise)
+    // dir_ref = 270 deg means wind blows from west (positive u, zero v in standard coords)
+    const amrex::Real deg2rad = MathConstants::pi / amrex::Real(180.0);
+    amrex::Real theta_math = (amrex::Real(270.0) - p.dir_ref) * deg2rad;
+    amrex::Real ref_dir_x  = std::cos(theta_math);  // unit vector, East component
+    amrex::Real ref_dir_y  = std::sin(theta_math);  // unit vector, North component
+
+    // Geostrophic components: G at angle (dir_ref + alpha_geo) from reference direction
+    amrex::Real geo_angle = theta_math + alpha_geo;
+    amrex::Real ug_resist = G_geo * std::cos(geo_angle);
+    amrex::Real vg_resist = G_geo * std::sin(geo_angle);
+
+    amrex::Print() << "wind_solver: SCM - u* = " << ustar
+                   << " m/s, theta* = " << compute_theta_star(ustar, p.T_ref, p.L_obukhov)
+                   << " K, G = " << G_geo
+                   << " m/s, f = " << f_cor << " rad/s\n";
+    amrex::Print() << "wind_solver: SCM - pre-correction factor alpha_pred = " << alpha_pred << "\n";
+    amrex::Print() << "wind_solver: SCM - ug = " << ug_resist << " m/s, vg = " << vg_resist << " m/s\n";
+
+    amrex::Print() << "wind_solver: SCM - ug = " << ug_resist << " m/s, vg = " << vg_resist << " m/s\n";
+
+    // ------------------------------------------------------------------
+    // Dispatch based on geo_mode
+    // ------------------------------------------------------------------
+    if (p.geo_mode == "resistancelaw") {
+       // Simple path: run once with resistance-law estimate
+       return run_scm_inner(p, ug_resist, vg_resist);
+    } 
+    else if (p.geo_mode == "predictcorrectgeo") {
+       // Bisection loop to match hub-height wind
+        
+       // Target hub-height wind speed components from U_ref and dir_ref
+       amrex::Real U_hub_target = p.U_ref;  // Magnitude at hub height
+       // Direction is dir_ref (same as U_ref direction)
+       amrex::Real theta_hub = theta_math;
+       amrex::Real u_hub_target = U_hub_target * std::cos(theta_hub);
+       amrex::Real v_hub_target = U_hub_target * std::sin(theta_hub);
+
+       amrex::Print() << "wind_solver: SCM - predictcorrectgeo mode enabled\n"
+                      << "  Target hub height: " << p.z_hub << " m\n"
+                      << "  Target u at hub: " << u_hub_target << " m/s\n"
+                      << "  Target v at hub: " << v_hub_target << " m/s\n"
+                      << "  Allowed error: " << p.allowed_error_hub << " m/s\n"
+                      << "  Max iterations: " << p.max_geo_iter << "\n";
+
+       amrex::Real ug_current = ug_resist;
+       amrex::Real vg_current = vg_resist;
+       SCMProfiles best_profiles;
+       amrex::Real best_error = amrex::Real(1.0e10);
+
+       for (int iter = 0; iter < p.max_geo_iter; ++iter) {
+           // Run the SCM with current geostrophic wind
+           SCMProfiles profiles = run_scm_inner(p, ug_current, vg_current);
+            
+           // Interpolate at hub height
+           amrex::Real u_at_hub = interp_scm(profiles.z, profiles.u, p.z_hub);
+           amrex::Real v_at_hub = interp_scm(profiles.z, profiles.v, p.z_hub);
+
+           // Compute residuals
+           amrex::Real res_u = u_at_hub - u_hub_target;
+           amrex::Real res_v = v_at_hub - v_hub_target;
+           amrex::Real err_u = std::abs(res_u);
+           amrex::Real err_v = std::abs(res_v);
+           amrex::Real total_error = std::sqrt(err_u*err_u + err_v*err_v);
+
+           amrex::Print() << "wind_solver: SCM bisection iter " << iter 
+                          << ": u_hub = " << u_at_hub << " m/s (target " << u_hub_target << ")"
+                          << ", v_hub = " << v_at_hub << " m/s (target " << v_hub_target << ")"
+                          << ", total_error = " << total_error << " m/s\n";
+
+           // Store if this is the best so far
+           if (total_error < best_error) {
+               best_error = total_error;
+               best_profiles = profiles;
+           }
+
+           // Check convergence
+           if (err_u < p.allowed_error_hub && err_v < p.allowed_error_hub) {
+               amrex::Print() << "wind_solver: SCM bisection converged at iter " << iter << "\n";
+               return profiles;
+           }
+
+           // Bisection step: adjust the component with larger residual
+           if (err_u > err_v) {
+               // Adjust u component
+               amrex::Real step_u = -res_u / amrex::Real(2.0);
+               if (std::abs(step_u) < p.allowed_error_hub) {
+                   step_u = (res_u > 0) ? -p.allowed_error_hub : p.allowed_error_hub;
+               }
+               ug_current += step_u;
+           } else {
+               // Adjust v component
+               amrex::Real step_v = -res_v / amrex::Real(2.0);
+               if (std::abs(step_v) < p.allowed_error_hub) {
+                   step_v = (res_v > 0) ? -p.allowed_error_hub : p.allowed_error_hub;
+               }
+               vg_current += step_v;
+           }
+       }
+
+       // Did not converge; return best available profile
+       amrex::Print() << "wind_solver: SCM bisection did not converge within " << p.max_geo_iter 
+                      << " iterations. Returning best profile with error " << best_error << " m/s\n";
+       return best_profiles;
+    }
+    else {
+       // Unrecognized mode (should have been caught in wind_solver_api.cpp)
+       amrex::Print() << "wind_solver: WARNING - unrecognized scm.mode = " << p.geo_mode 
+                      << "; defaulting to resistancelaw\n";
+       return run_scm_inner(p, ug_resist, vg_resist);
+    }
 }
 
 // ============================================================================

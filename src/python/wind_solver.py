@@ -140,6 +140,7 @@ class WindSolver:
                  L_obukhov=1.0e6, latitude=45.0, z0=0.1,
                  T_ref=300.0, z_T_ref=2.0, lapse_rate=0.003,
                  dt=60.0, max_time=172800.0, conv_tol=1.0e-5,
+                 scm_mode="resistancelaw", z_hub=100.0, allowed_error_hub=0.1, max_geo_iter=50,
                  nx=10, ny=10, nz=80, dx=50.0, dy=50.0, dz=50.0,
                  extra_params=None):
         """
@@ -181,13 +182,29 @@ class WindSolver:
             Maximum SCM spin-up time [s].  Default 172800 (48 h).
         conv_tol : float
             Convergence tolerance (relative L2 norm change).  Default 1e-5.
+        scm_mode : str
+           Geostrophic wind mode for SCM initialization.
+           - "resistancelaw" (default): Use Clarke & Hess (1974) ABL resistance law.
+           - "predictcorrectgeo": Use an outer bisection loop to match wind speed at hub height.
+           When "predictcorrectgeo", U_ref and dir_ref serve double duty: the magnitude U_ref
+           is still used for the initial MOST-based friction velocity estimate via z_ref, and
+           it also defines the target hub-height wind that the bisection loop converges toward.
+        z_hub : float
+           Hub height (reference height for predictcorrectgeo mode) [m].  Default 100.0.
+           Only used when scm_mode = "predictcorrectgeo".
+        allowed_error_hub : float
+           Per-component convergence tolerance at hub height [m/s].  Default 0.1.
+           Only used when scm_mode = "predictcorrectgeo".
+        max_geo_iter : int
+           Maximum number of bisection iterations for geostrophic wind optimization.
+           Default 50.  Only used when scm_mode = "predictcorrectgeo".
         nx, ny, nz : int
-            3D grid dimensions.  Defaults 10 × 10 × 80.
+           3D grid dimensions.  Defaults 10 × 10 × 80.
         dx, dy, dz : float
-            3D grid spacings [m].  Defaults 50 × 50 × 50 m.
+           3D grid spacings [m].  Defaults 50 × 50 × 50 m.
         extra_params : dict, optional
-            Additional key-value pairs to write to the temporary inputs file
-            (e.g., ``{'mlmg_verbose': 0}``).
+           Additional key-value pairs to write to the temporary inputs file
+           (e.g., ``{'mlmg_verbose': 0}``).
 
         Returns
         -------
@@ -218,6 +235,10 @@ class WindSolver:
             f"scm.dt             = {dt}",
             f"scm.max_time       = {max_time}",
             f"scm.conv_tol       = {conv_tol}",
+            f"scm.mode           = {scm_mode}",
+            f"scm.z_hub          = {z_hub}",
+            f"scm.allowed_error_hub = {allowed_error_hub}",
+            f"scm.max_geo_iter   = {max_geo_iter}",
         ]
         if extra_params:
             for k, v in extra_params.items():
