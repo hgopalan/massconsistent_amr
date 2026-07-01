@@ -1,0 +1,95 @@
+Initializing AMReX (26.06-30-g5fbc49bce6cc)...
+AMReX (26.06-30-g5fbc49bce6cc) initialized
+wind_solver: input parsing time = 7.3929e-05 s
+wind_solver: ========================================
+wind_solver: Solver Configuration
+wind_solver: ========================================
+wind_solver: Parallelization: Serial (MPI disabled)
+wind_solver: GPU Backend: None (CPU-only)
+wind_solver: FFT Backend: Not available (AMREX_USE_FFT disabled)
+wind_solver: AMReX version: 26.06-30-g5fbc49bce6cc
+wind_solver: Derivative method: central
+wind_solver: Synthetic turbulence: disabled
+wind_solver: ========================================
+
+wind_solver: read 9 terrain points from terrain.csv
+wind_solver: terrain x [0, 100] m
+wind_solver: terrain y [0, 100] m
+wind_solver: terrain reading time = 7.477e-05 s
+wind_solver: wall functions DISABLED (using no-slip boundary conditions)
+wind_solver: terrain elevation [0, 0] m
+wind_solver: terrain interpolation time = 8.246e-06 s
+wind_solver: grid 2 x 2 x 10  (dx=50 m, dy=50 m, dz=50 m)
+wind_solver: vertical domain [0, 500] m
+wind_solver: grid setup time = 3.5176e-05 s
+wind_solver: Running coupled/unsteady simulation over 2 steps
+
+wind_solver: TIME STEP 1 / 2
+wind_solver: initializing wind field with mode: scm
+wind_solver: running Single Column Model (PALM 1D approach)
+wind_solver: SCM parameters:
+  U_ref = 10 m/s, dir_ref = 270 deg
+  z_ref = 80 m, z0 = 0.1 m
+  L_obukhov = 1000000 m, latitude = 45 deg
+  T_ref = 300 K at z_T_ref = 2 m
+  dt = 60 s, max_time = 86400 s
+========== WARNING: SCM PRE-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed pre-correction factor alpha_pred = 2.231504287
+  This indicates the MOST resistance law is inaccurate for the
+  specified atmospheric stability.
+  Suggested actions:
+    - Review scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - Review scm.U_ref (reference wind speed): 10 m/s
+    - Review scm.z_ref (reference height): 80 m
+    - Review scm.z0 (roughness length): 0.1 m
+=====================================================================
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 34.1760309 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - pre-correction factor alpha_pred = 2.231504287
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 15.02131889 m/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 15.02131889 m/s
+wind_solver: SCM - u* = 0.6133123122 m/s, theta* = 2.805638788e-05 K, G = 34.1760309 m/s, f = 0.000102813326 rad/s
+wind_solver: SCM - ug = 30.69790004 m/s, vg = 15.02131889 m/s
+wind_solver: SCM step 1000 / 1440  t = 60000 s  U_sfc = 2.868843244 m/s  u* = 0.3924932443 m/s
+wind_solver: SCM did not converge within 86400 s; using final state.
+========== ERROR: SCM POST-CORRECTION FACTOR OUT OF BOUNDS ==========
+  Computed post-correction factor alpha = 0.3093332744 (clamping to 0.5)
+  This may indicate severe incompatibility between the input parameters.
+  Results may NOT satisfy U_ref at z_ref.
+  Parameters to review:
+    - scm.L_obukhov (Monin-Obukhov length): 1000000 m
+    - scm.U_ref (reference wind speed): 10 m/s
+    - scm.z_ref (reference height): 80 m
+    - scm.z0 (roughness length): 0.1 m
+====================================================================
+wind_solver: SCM post-spin-up rescaling: U_before = 32.32759236 m/s, U_after = 16.16379618 m/s, alpha = 0.5 (CLAMPED)
+wind_solver: SCM profiles assigned to 3D MultiFab (terrain-aware)
+wind_solver: wind initialization time = 0.115664196 s
+wind_solver: RHS computation time = 2.185e-06 s
+wind_solver: Poisson operator setup time = 0.000182933 s
+wind_solver: starting MLMG Poisson solve...
+wind_solver: MLMG solve complete.
+wind_solver: Poisson solve time = 4.0486e-05 s
+wind_solver: velocity correction time = 2.505e-06 s
+wind_solver: max |div(u)| before correction = 0 s⁻¹
+wind_solver: max |div(u)| after  correction = 0 s⁻¹
+wind_solver: divergence computation time = 3.4144e-05 s
+wind_solver: plotfile written to plt_scm_neutral_80m_resistancelaw00000
+wind_solver: output writing time = 0.003457367 s
+wind_solver: terrain-aligned extraction 1/1 at AGL = 15 m  →  k = 0  (physical z = 25 m)
+wind_solver: terrain-aligned extraction written to wind_extract_80m_t0.csv  (4 points)
+wind_solver: step 1 - running dummy time step (using frozen wind field)
+wind_solver: max |div(u)| before correction = 0 s⁻¹
+wind_solver: max |div(u)| after  correction = 0 s⁻¹
+wind_solver: divergence computation time = 2.4946e-05 s
+wind_solver: plotfile written to plt_scm_neutral_80m_resistancelaw00001
+wind_solver: output writing time = 0.002172661 s
+wind_solver: terrain-aligned extraction 1/1 at AGL = 15 m  →  k = 0  (physical z = 25 m)
+wind_solver: terrain-aligned extraction written to wind_extract_80m_t1.csv  (4 points)
+wind_solver: ========================================
+wind_solver: total execution time = 0.121806333 s
+wind_solver: ========================================
+wind_solver: done.
+Unused ParmParse Variables:
+  [TOP]::scm.mode(nvals = 1)  :: [resistancelaw]
+
+AMReX (26.06-30-g5fbc49bce6cc) finalized
