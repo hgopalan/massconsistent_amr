@@ -2166,7 +2166,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
         const bool use_terrain_aware_temp = enable_terrain_aware_temperature;
         const Real z_lo_cap_val = zs_min;
         const Real dz_cap_val = dz;
-        const Real* d_terr_ptr_temp = d_terrain_h.data();
+        const Real* d_terrain_ptr = d_terrain_h.data();
         const int nx_cap_val = nx;
 
         for (MFIter mfi(*temp_ptr); mfi.isValid(); ++mfi) {
@@ -2177,7 +2177,7 @@ void WindSolverApp::initialize_wind_fields(int time_step) {
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real z_physical = z_lo_cap_val + (k + Real(0.5)) * dz_cap_val;
-                Real terrain_elev = use_terrain_aware_temp ? d_terr_ptr_temp[j * nx_cap_val + i] : Real(0.0);
+                Real terrain_elev = use_terrain_aware_temp ? d_terrain_ptr[j * nx_cap_val + i] : Real(0.0);
                 Real z_agl = z_physical - terrain_elev;
                 Real T_local = T_ref_val;
                 

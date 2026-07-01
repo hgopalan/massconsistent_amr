@@ -384,7 +384,7 @@ private:
 
     // Terrain-aware temperature profile
     bool enable_terrain_aware_temperature = false;    // Enable terrain-aware temperature initialization
-    amrex::Real temperature_interior = 283.0;         // Internal (subsurface) temperature [K] (below ground level)
+    amrex::Real temperature_interior = 283.15;        // Internal (subsurface) temperature [K] (10°C, below ground level)
 
     // Simple Diurnal Temperature
     bool enable_diurnal_temperature = false;

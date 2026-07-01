@@ -28,7 +28,7 @@ alpha_v = 1.0
 # When enabled: cells below ground level (z_agl <= 0) use temperature_interior
 # Cells above ground use the temperature profile from temperature_file
 enable_terrain_aware_temperature = true
-temperature_interior = 283.0           # Internal/subsurface temperature [K] (10°C)
+temperature_interior = 283.15           # Internal/subsurface temperature [K] (10°C)
 enable_buoyancy_stratification = true
 temperature_file = temperature.csv
 temperature_reference = 300.0
