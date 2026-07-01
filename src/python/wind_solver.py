@@ -183,21 +183,21 @@ class WindSolver:
         conv_tol : float
             Convergence tolerance (relative L2 norm change).  Default 1e-5.
         scm_mode : str
-           Geostrophic wind mode for SCM initialization.
-           - "resistancelaw" (default): Use Clarke & Hess (1974) ABL resistance law.
-           - "predictcorrectgeo": Use an outer bisection loop to match wind speed at hub height.
-           When "predictcorrectgeo", U_ref and dir_ref serve double duty: the magnitude U_ref
-           is still used for the initial MOST-based friction velocity estimate via z_ref, and
-           it also defines the target hub-height wind that the bisection loop converges toward.
+            Geostrophic wind mode for SCM initialization.
+            - "resistancelaw" (default): Use Clarke & Hess (1974) ABL resistance law.
+            - "predictcorrectgeo": Use an outer bisection loop to match wind speed at hub height.
+            When "predictcorrectgeo", U_ref and dir_ref serve double duty: the magnitude U_ref
+            is still used for the initial MOST-based friction velocity estimate via z_ref, and
+            it also defines the target hub-height wind that the bisection loop converges toward.
         z_hub : float
-           Hub height (reference height for predictcorrectgeo mode) [m].  Default 100.0.
-           Only used when scm_mode = "predictcorrectgeo".
+            Hub height (reference height for predictcorrectgeo mode) [m].  Default 100.0.
+            Only used when scm_mode = "predictcorrectgeo".
         allowed_error_hub : float
-           Per-component convergence tolerance at hub height [m/s].  Default 0.1.
-           Only used when scm_mode = "predictcorrectgeo".
+            Per-component convergence tolerance at hub height [m/s].  Default 0.1.
+            Only used when scm_mode = "predictcorrectgeo".
         max_geo_iter : int
-           Maximum number of bisection iterations for geostrophic wind optimization.
-           Default 50.  Only used when scm_mode = "predictcorrectgeo".
+            Maximum number of bisection iterations for geostrophic wind optimization.
+            Default 50.  Only used when scm_mode = "predictcorrectgeo".
         nx, ny, nz : int
            3D grid dimensions.  Defaults 10 × 10 × 80.
         dx, dy, dz : float
