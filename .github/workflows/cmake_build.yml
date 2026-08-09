@@ -192,7 +192,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install CUDA toolkit
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
           cuda: '12.6.1'
           method: 'network'
@@ -451,7 +451,7 @@ jobs:
           pip install 'numpy>=1.24,<2.0' netCDF4
 
       - name: Install CUDA toolkit
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: Jimver/cuda-toolkit@v0.2.36
         id: cuda-toolkit
         with:
           cuda: '12.6.1'
